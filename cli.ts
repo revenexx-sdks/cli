@@ -32,8 +32,10 @@ import { greetings } from './lib/commands/services/greetings.js';
 import { locale } from './lib/commands/services/locale.js';
 import { markets } from './lib/commands/services/markets.js';
 import { messaging } from './lib/commands/services/messaging.js';
+import { payments } from './lib/commands/services/payments.js';
 import { products } from './lib/commands/services/products.js';
 import { search } from './lib/commands/services/search.js';
+import { shipping } from './lib/commands/services/shipping.js';
 import { sites } from './lib/commands/services/sites.js';
 import { storage } from './lib/commands/services/storage.js';
 import { tokens } from './lib/commands/services/tokens.js';
@@ -146,8 +148,10 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(locale)
         .addCommand(markets)
         .addCommand(messaging)
+        .addCommand(payments)
         .addCommand(products)
         .addCommand(search)
+        .addCommand(shipping)
         .addCommand(sites)
         .addCommand(storage)
         .addCommand(tokens)

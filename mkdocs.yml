@@ -1,0 +1,6 @@
+site_name: Revenexx CLI
+site_description: "Revenexx CLI."
+docs_dir: docs
+
+theme:
+  name: material

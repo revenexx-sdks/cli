@@ -1,0 +1,18 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: revenexx-cli
+  title: Revenexx CLI
+  description: "Revenexx command-line interface for managing your platform."
+  annotations:
+    github.com/project-slug: revenexx-sdks/cli
+    backstage.io/techdocs-ref: url:https://github.com/revenexx-sdks/cli/tree/main/
+  links:
+    - url: https://github.com/revenexx-sdks/cli
+      title: GitHub Repository
+      icon: github
+spec:
+  type: library
+  lifecycle: production
+  owner: group:default/developer-experience
+  system: revenue-cloud
