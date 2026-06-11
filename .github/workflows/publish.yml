@@ -1,0 +1,94 @@
+name: Publish Package to npm
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup binfmt with QEMU
+        run: | 
+          sudo apt update
+          sudo apt install qemu-system binfmt-support qemu-user-static
+          update-binfmts --display
+
+      - name: Setup ldid
+        run: |
+          git clone https://github.com/tpoechtrager/ldid
+          cd ./ldid
+          sudo make
+          sudo make install
+
+      - name: Setup Node.js for tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install npm dependencies
+        run: npm ci || npm install
+
+      # Consume any pending `.changeset/*.md` files, bump package.json and
+      # append the entries to CHANGELOG.md. If no changesets are present
+      # this is a no-op and we fall back to stamping the tag's version.
+      - name: Consume changesets
+        run: |
+          if [ -n "$(ls .changeset/*.md 2>/dev/null | grep -v -i 'readme.md' || true)" ]; then
+            npx changeset version
+          else
+            echo "No pending changesets — stamping version from git tag."
+          fi
+
+      - name: Set version from tag (after changeset version)
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Run tests
+        run: npm test
+
+      - name: Install dependencies and build for Linux and Windows
+        run: |
+          bun install
+          bun run linux-x64
+          bun run linux-arm64
+          bun run mac-x64
+          bun run mac-arm64
+          bun run windows-x64
+          bun run windows-arm64
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Determine release tag
+        id: release_tag
+        run: |
+          if [[ "${{ github.ref }}" == *"-rc"* ]] || [[ "${{ github.ref }}" == *"-RC"* ]]; then
+            echo "tag=next" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish
+        run: npm publish --access public --tag ${{ steps.release_tag.outputs.tag }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - uses: fnkr/github-action-ghr@v1
+        env:
+          GHR_PATH: build/
+          GHR_REPLACE: false
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
