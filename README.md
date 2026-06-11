@@ -2,9 +2,9 @@
 
 # Revenexx API — revenexx Revenexx CLI SDK
 
-![License](https://img.shields.io/github/license/revenexx/cli.svg?style=flat-square)
+![License](https://img.shields.io/github/license/revenexx-sdks/cli.svg?style=flat-square)
 ![Version](https://img.shields.io/badge/api%20version-1.0.0-blue.svg?style=flat-square)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/revenexx/cli/ci.yml?style=flat-square)](https://github.com/revenexx/cli/actions)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/revenexx-sdks/cli/ci.yml?style=flat-square)](https://github.com/revenexx-sdks/cli/actions)
 [![Twitter Account](https://img.shields.io/twitter/follow/revenexx?color=00acee&label=twitter&style=flat-square)](https://twitter.com/revenexx)
 
 Revenexx command-line interface for managing your platform.
@@ -13,7 +13,7 @@ Revenexx command-line interface for managing your platform.
 
 ## Installation
 
-The Revenexx API — revenexx CLI is a Node based command line tool to help you interact with the Revenexx API — revenexx API. The CLI is distributed both as an [`npm package`](https://www.npmjs.com/package/@revenexx/cli) as well as [pre built binaries](https://github.com/revenexx/cli/releases/latest) for specific operating systems and architectures.
+The Revenexx API — revenexx CLI is a Node based command line tool to help you interact with the Revenexx API — revenexx API. The CLI is distributed both as an [`npm package`](https://www.npmjs.com/package/@revenexx/cli) as well as [pre built binaries](https://github.com/revenexx-sdks/cli/releases/latest) for specific operating systems and architectures.
 
 ### Install using NPM
 ---
@@ -28,7 +28,7 @@ Once the installation is complete, you can verify the install using
 
 ```sh
 $ revenexx -v
-1.0.0
+0.0.1
 ```
 
 ### Install using prebuilt binaries
@@ -56,13 +56,13 @@ $ iwr -useb https://revenexx.com/cli/install.ps1 | iex
 ```
 Via [Scoop](https://scoop.sh)
 ```powershell
-$ scoop install https://raw.githubusercontent.com/revenexx/cli/master/scoop/revenexx.config.json
+$ scoop install https://raw.githubusercontent.com/revenexx-sdks/cli/master/scoop/revenexx.config.json
 ```
 
 Once the installation completes, you can verify your install using
 ```
 $ revenexx -v
-1.0.0
+0.0.1
 ```
 
 ## Getting Started
@@ -269,7 +269,7 @@ To build and test the CLI for development, follow these steps
 
 1. Clone the CLI repository and install dependencies
 ```sh
-$ git clone https://github.com/revenexx/cli
+$ git clone https://github.com/revenexx-sdks/cli
 $ cd cli
 $ bun install
 ```

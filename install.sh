@@ -27,7 +27,7 @@ REVENEXX API — REVENEXX_EXECUTABLE_FILEPATH="$REVENEXX API — REVENEXX_INSTAL
 REVENEXX API — REVENEXX_TEMP_NAME=temp-$(date +%s)
 
 # RevenexxAPIRevenexx CLI image name
-GITHUB_REPOSITORY_NAME=revenexx/cli
+GITHUB_REPOSITORY_NAME=revenexx-sdks/cli
 
 # sudo is required to copy executable to REVENEXX API — REVENEXX_INSTALL_DIR for linux
 USE_SUDO="false"
@@ -99,7 +99,7 @@ printSuccess() {
 downloadBinary() {
     echo "[2/4] Downloading executable for $OS ($ARCH) ..."
 
-    GITHUB_LATEST_VERSION="1.0.0"
+    GITHUB_LATEST_VERSION="0.0.1"
     GITHUB_FILE="@revenexx/cli-${OS}-${ARCH}"
     GITHUB_URL="https://github.com/$GITHUB_REPOSITORY_NAME/releases/download/$GITHUB_LATEST_VERSION/$GITHUB_FILE"
 

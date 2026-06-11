@@ -1,7 +1,7 @@
 // SDK
 export const SDK_TITLE = 'RevenexxAPIRevenexx';
 export const SDK_TITLE_LOWER = 'revenexx api — revenexx';
-export const SDK_VERSION = '1.0.0';
+export const SDK_VERSION = '0.0.1';
 export const SDK_NAME = 'Revenexx CLI';
 export const SDK_PLATFORM = '';
 export const SDK_LANGUAGE = 'cli';
@@ -15,7 +15,7 @@ export const NPM_PACKAGE_NAME = '@revenexx/cli';
 export const NPM_REGISTRY_URL = `https://registry.npmjs.org/${NPM_PACKAGE_NAME}/latest`;
 
 // GitHub
-export const GITHUB_REPO = 'revenexx/cli';
+export const GITHUB_REPO = 'revenexx-sdks/cli';
 export const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
 // API
