@@ -350,6 +350,29 @@ payments
     ),
   );
 payments
+  .command(`payments-webhooks-ingest`)
+  .description(`Consumes the dispatch envelope from webhooks.revenexx.com: normalizes the provider callback (stripe payment intents + a generic shape), resolves the payment by psp_payment_id or order_ref and moves the ledger. Facts only move forward — provider retries and redeliveries are idempotent no-ops; unverified envelopes are refused.`)
+  .requiredOption(`--provider <provider>`, ``)
+  .action(
+    actionRunner(
+      async ({ provider }) => {
+        const _client = await sdkForProject();
+        const _apiPath = `/payments/webhooks/{provider}`.replace(`{provider}`, provider);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+payments
   .command(`payments-get`)
   .description(``)
   .requiredOption(`--id <id>`, ``)

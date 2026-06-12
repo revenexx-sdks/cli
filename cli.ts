@@ -29,10 +29,14 @@ import { carts } from './lib/commands/services/carts.js';
 import { channels } from './lib/commands/services/channels.js';
 import { customers } from './lib/commands/services/customers.js';
 import { greetings } from './lib/commands/services/greetings.js';
+import { inventories } from './lib/commands/services/inventories.js';
 import { locale } from './lib/commands/services/locale.js';
 import { markets } from './lib/commands/services/markets.js';
 import { messaging } from './lib/commands/services/messaging.js';
+import { orders } from './lib/commands/services/orders.js';
+import { pages } from './lib/commands/services/pages.js';
 import { payments } from './lib/commands/services/payments.js';
+import { prices } from './lib/commands/services/prices.js';
 import { products } from './lib/commands/services/products.js';
 import { search } from './lib/commands/services/search.js';
 import { shipping } from './lib/commands/services/shipping.js';
@@ -145,10 +149,14 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(channels)
         .addCommand(customers)
         .addCommand(greetings)
+        .addCommand(inventories)
         .addCommand(locale)
         .addCommand(markets)
         .addCommand(messaging)
+        .addCommand(orders)
+        .addCommand(pages)
         .addCommand(payments)
+        .addCommand(prices)
         .addCommand(products)
         .addCommand(search)
         .addCommand(shipping)

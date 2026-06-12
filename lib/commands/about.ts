@@ -10,7 +10,7 @@ export const about = new Command("about")
   .description("Show information about this CLI and how it was generated")
   .action(() => {
     log("name:         Revenexx CLI");
-    log("version:      0.0.2");
+    log("version:      0.0.3");
     log("language:     cli");
     log("generator:    revenexx/sdk-generator");
     log("generatorUrl: https://github.com/revenexx/sdk-generator");
