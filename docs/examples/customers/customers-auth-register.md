@@ -1,3 +1,5 @@
 ```bash
-revenexx customers customers-auth-register
+revenexx customers customers-auth-register \
+    --email '' \
+    --password ''
 ```

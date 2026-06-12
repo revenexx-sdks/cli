@@ -545,12 +545,24 @@ pages
   .command(`pages-editor-mutate`)
   .description(``)
   .requiredOption(`--page-_id <page-_id>`, ``)
+  .requiredOption(`--plugin <plugin>`, `Mutation plugin id (add, move, delete, duplicate, update_field_value, ...).`)
+  .option(`--langcode <langcode>`, ``)
+  .option(`--payload <payload>`, ``)
   .action(
     actionRunner(
-      async ({ page_id }) => {
+      async ({ page_id, plugin, langcode, payload }) => {
         const _client = await sdkForProject();
         const _apiPath = `/pages/editor/{page_id}/mutations`.replace(`{page_id}`, page_id);
         const _payload: RequestParams = {};
+        if (langcode !== undefined) {
+          _payload[`langcode`] = langcode;
+        }
+        if (payload !== undefined) {
+          _payload[`payload`] = JSON.parse(payload);
+        }
+        if (plugin !== undefined) {
+          _payload[`plugin`] = plugin;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -870,12 +882,24 @@ pages
   .command(`pages-library-update`)
   .description(``)
   .requiredOption(`--id <id>`, ``)
+  .option(`--bundle <bundle>`, ``)
+  .option(`--label <label>`, ``)
+  .option(`--tree <tree>`, `Serialized block tree ({ bundle, props, props_i18n, options, children }).`)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async ({ id, bundle, label, tree }) => {
         const _client = await sdkForProject();
         const _apiPath = `/pages/library/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (bundle !== undefined) {
+          _payload[`bundle`] = bundle;
+        }
+        if (label !== undefined) {
+          _payload[`label`] = label;
+        }
+        if (tree !== undefined) {
+          _payload[`tree`] = JSON.parse(tree);
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -914,12 +938,36 @@ pages
 pages
   .command(`pages-pages-create`)
   .description(``)
+  .requiredOption(`--title <title>`, ``)
+  .option(`--bundle <bundle>`, ``)
+  .option(`--host-options <host-options>`, ``)
+  .option(`--meta <meta>`, ``)
+  .option(`--slug <slug>`, ``)
+  .option(`--source-language <source-language>`, ``)
   .action(
     actionRunner(
-      async () => {
+      async ({ title, bundle, hostOptions, meta, slug, sourceLanguage }) => {
         const _client = await sdkForProject();
         const _apiPath = `/pages/pages`;
         const _payload: RequestParams = {};
+        if (bundle !== undefined) {
+          _payload[`bundle`] = bundle;
+        }
+        if (hostOptions !== undefined) {
+          _payload[`hostOptions`] = JSON.parse(hostOptions);
+        }
+        if (meta !== undefined) {
+          _payload[`meta`] = JSON.parse(meta);
+        }
+        if (slug !== undefined) {
+          _payload[`slug`] = slug;
+        }
+        if (sourceLanguage !== undefined) {
+          _payload[`sourceLanguage`] = sourceLanguage;
+        }
+        if (title !== undefined) {
+          _payload[`title`] = title;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -983,12 +1031,32 @@ pages
   .command(`pages-pages-update`)
   .description(``)
   .requiredOption(`--id <id>`, ``)
+  .option(`--bundle <bundle>`, ``)
+  .option(`--meta <meta>`, ``)
+  .option(`--slug <slug>`, ``)
+  .option(`--status <status>`, ``)
+  .option(`--title <title>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async ({ id, bundle, meta, slug, status, title }) => {
         const _client = await sdkForProject();
         const _apiPath = `/pages/pages/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (bundle !== undefined) {
+          _payload[`bundle`] = bundle;
+        }
+        if (meta !== undefined) {
+          _payload[`meta`] = JSON.parse(meta);
+        }
+        if (slug !== undefined) {
+          _payload[`slug`] = slug;
+        }
+        if (status !== undefined) {
+          _payload[`status`] = status;
+        }
+        if (title !== undefined) {
+          _payload[`title`] = title;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -1028,12 +1096,16 @@ pages
 pages
   .command(`pages-seed`)
   .description(``)
+  .option(`--pages [pages...]`, ``)
   .action(
     actionRunner(
-      async () => {
+      async ({ pages }) => {
         const _client = await sdkForProject();
         const _apiPath = `/pages/seed`;
         const _payload: RequestParams = {};
+        if (pages !== undefined) {
+          _payload[`pages`] = pages;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -1119,12 +1191,41 @@ pages
   .command(`pages-templates-update`)
   .description(``)
   .requiredOption(`--id <id>`, ``)
+  .option(`--description <description>`, ``)
+  .option(`--field-_name <field-_name>`, ``)
+  .option(
+    `--is-_default [value]`,
+    ``,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--label <label>`, ``)
+  .option(`--page-_bundle <page-_bundle>`, ``)
+  .option(`--tree [tree...]`, `Serialized block trees ({ bundle, props, props_i18n, options, children }).`)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async ({ id, description, field_name, is_default, label, page_bundle, tree }) => {
         const _client = await sdkForProject();
         const _apiPath = `/pages/templates/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (description !== undefined) {
+          _payload[`description`] = description;
+        }
+        if (field_name !== undefined) {
+          _payload[`field_name`] = field_name;
+        }
+        if (is_default !== undefined) {
+          _payload[`is_default`] = is_default;
+        }
+        if (label !== undefined) {
+          _payload[`label`] = label;
+        }
+        if (page_bundle !== undefined) {
+          _payload[`page_bundle`] = page_bundle;
+        }
+        if (tree !== undefined) {
+          _payload[`tree`] = tree;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };

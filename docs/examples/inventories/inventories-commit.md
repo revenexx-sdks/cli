@@ -1,3 +1,4 @@
 ```bash
-revenexx inventories inventories-commit
+revenexx inventories inventories-commit \
+    --order-ref ''
 ```

@@ -1,3 +1,4 @@
 ```bash
-revenexx products products-reference-entities-create
+revenexx products products-reference-entities-create \
+    --code ''
 ```

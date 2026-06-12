@@ -1,4 +1,5 @@
 ```bash
 revenexx orders orders-return \
-    --id ''
+    --id '' \
+    --positions one two three
 ```

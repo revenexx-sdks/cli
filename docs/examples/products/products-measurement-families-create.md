@@ -1,3 +1,5 @@
 ```bash
-revenexx products products-measurement-families-create
+revenexx products products-measurement-families-create \
+    --code '' \
+    --standard-unit ''
 ```

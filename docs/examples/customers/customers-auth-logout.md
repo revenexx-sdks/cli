@@ -1,3 +1,5 @@
 ```bash
-revenexx customers customers-auth-logout
+revenexx customers customers-auth-logout \
+    --session-id '' \
+    --user-id ''
 ```

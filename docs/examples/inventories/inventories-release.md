@@ -1,3 +1,4 @@
 ```bash
-revenexx inventories inventories-release
+revenexx inventories inventories-release \
+    --order-ref ''
 ```

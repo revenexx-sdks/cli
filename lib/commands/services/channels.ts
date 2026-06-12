@@ -5,6 +5,8 @@ import {
   actionRunner,
   commandDescriptions,
   parse,
+  parseBool,
+  parseInteger,
 } from "../../parser.js";
 
 export const channels = new Command("channels")
@@ -38,12 +40,45 @@ channels
 channels
   .command(`channels-create`)
   .description(``)
+  .requiredOption(`--code <code>`, `Stable channel code, unique per tenant (e.g. shop, punchout-acme).`)
+  .requiredOption(`--name <name>`, `Display name.`)
+  .option(
+    `--is-_default [value]`,
+    `Mark as the default channel (default false).`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--labels <labels>`, `Localized display names keyed by locale.`)
+  .option(`--position <position>`, `Sort position (default 0).`, parseInteger)
+  .option(`--status <status>`, `Lifecycle status (default 'active').`)
+  .option(`--type <type>`, `Where business happens (default 'storefront').`)
   .action(
     actionRunner(
-      async () => {
+      async ({ code, name, is_default, labels, position, status, type }) => {
         const _client = await sdkForProject();
         const _apiPath = `/channels`;
         const _payload: RequestParams = {};
+        if (code !== undefined) {
+          _payload[`code`] = code;
+        }
+        if (is_default !== undefined) {
+          _payload[`is_default`] = is_default;
+        }
+        if (labels !== undefined) {
+          _payload[`labels`] = JSON.parse(labels);
+        }
+        if (name !== undefined) {
+          _payload[`name`] = name;
+        }
+        if (position !== undefined) {
+          _payload[`position`] = position;
+        }
+        if (status !== undefined) {
+          _payload[`status`] = status;
+        }
+        if (type !== undefined) {
+          _payload[`type`] = type;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -129,12 +164,45 @@ channels
   .command(`channels-update`)
   .description(``)
   .requiredOption(`--id <id>`, ``)
+  .option(`--code <code>`, `Stable channel code, unique per tenant (e.g. shop, punchout-acme).`)
+  .option(
+    `--is-_default [value]`,
+    `Mark as the default channel (default false).`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--labels <labels>`, `Localized display names keyed by locale.`)
+  .option(`--name <name>`, `Display name.`)
+  .option(`--position <position>`, `Sort position (default 0).`, parseInteger)
+  .option(`--status <status>`, `Lifecycle status (default 'active').`)
+  .option(`--type <type>`, `Where business happens (default 'storefront').`)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async ({ id, code, is_default, labels, name, position, status, type }) => {
         const _client = await sdkForProject();
         const _apiPath = `/channels/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (code !== undefined) {
+          _payload[`code`] = code;
+        }
+        if (is_default !== undefined) {
+          _payload[`is_default`] = is_default;
+        }
+        if (labels !== undefined) {
+          _payload[`labels`] = JSON.parse(labels);
+        }
+        if (name !== undefined) {
+          _payload[`name`] = name;
+        }
+        if (position !== undefined) {
+          _payload[`position`] = position;
+        }
+        if (status !== undefined) {
+          _payload[`status`] = status;
+        }
+        if (type !== undefined) {
+          _payload[`type`] = type;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };

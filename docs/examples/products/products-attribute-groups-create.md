@@ -1,3 +1,4 @@
 ```bash
-revenexx products products-attribute-groups-create
+revenexx products products-attribute-groups-create \
+    --code ''
 ```

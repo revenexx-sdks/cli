@@ -1,3 +1,4 @@
 ```bash
-revenexx prices prices-resolve
+revenexx prices prices-resolve \
+    --items one two three
 ```

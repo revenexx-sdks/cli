@@ -1,3 +1,5 @@
 ```bash
-revenexx markets markets-create
+revenexx markets markets-create \
+    --code '' \
+    --name ''
 ```

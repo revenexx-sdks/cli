@@ -1,3 +1,4 @@
 ```bash
-revenexx customers customers-organizations-create
+revenexx customers customers-organizations-create \
+    --name ''
 ```

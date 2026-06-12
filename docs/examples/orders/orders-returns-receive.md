@@ -1,5 +1,6 @@
 ```bash
 revenexx orders orders-returns-receive \
     --id '' \
-    --rid ''
+    --rid '' \
+    --data '{ "key": "value" }'
 ```

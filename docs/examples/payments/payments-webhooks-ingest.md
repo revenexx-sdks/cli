@@ -1,4 +1,5 @@
 ```bash
 revenexx payments payments-webhooks-ingest \
-    --provider ''
+    --provider '' \
+    --data '{ "key": "value" }'
 ```

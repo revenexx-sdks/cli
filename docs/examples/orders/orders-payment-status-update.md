@@ -1,4 +1,5 @@
 ```bash
 revenexx orders orders-payment-status-update \
-    --id ''
+    --id '' \
+    --status ''
 ```

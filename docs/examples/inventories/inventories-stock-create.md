@@ -1,3 +1,4 @@
 ```bash
-revenexx inventories inventories-stock-create
+revenexx inventories inventories-stock-create \
+    --location-id ''
 ```

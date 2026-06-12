@@ -1,3 +1,4 @@
 ```bash
-revenexx inventories inventories-availability
+revenexx inventories inventories-availability \
+    --items one two three
 ```

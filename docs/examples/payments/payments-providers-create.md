@@ -1,3 +1,4 @@
 ```bash
-revenexx payments payments-providers-create
+revenexx payments payments-providers-create \
+    --provider ''
 ```

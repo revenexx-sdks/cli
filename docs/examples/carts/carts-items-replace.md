@@ -1,4 +1,5 @@
 ```bash
 revenexx carts carts-items-replace \
-    --cart-id ''
+    --cart-id '' \
+    --items one two three
 ```

@@ -1,3 +1,4 @@
 ```bash
-revenexx pages pages-pages-create
+revenexx pages pages-pages-create \
+    --title ''
 ```

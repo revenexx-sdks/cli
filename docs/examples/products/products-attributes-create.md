@@ -1,3 +1,5 @@
 ```bash
-revenexx products products-attributes-create
+revenexx products products-attributes-create \
+    --code '' \
+    --type ''
 ```

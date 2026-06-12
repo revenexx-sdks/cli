@@ -1,3 +1,4 @@
 ```bash
-revenexx products products-categories-create
+revenexx products products-categories-create \
+    --code ''
 ```

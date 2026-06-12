@@ -1,3 +1,7 @@
 ```bash
-revenexx customers customers-addresses-create
+revenexx customers customers-addresses-create \
+    --city '' \
+    --country '' \
+    --street '' \
+    --zip ''
 ```

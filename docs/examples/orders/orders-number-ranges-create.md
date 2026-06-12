@@ -1,3 +1,4 @@
 ```bash
-revenexx orders orders-number-ranges-create
+revenexx orders orders-number-ranges-create \
+    --code ''
 ```

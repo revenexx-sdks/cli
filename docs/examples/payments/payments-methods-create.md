@@ -1,3 +1,5 @@
 ```bash
-revenexx payments payments-methods-create
+revenexx payments payments-methods-create \
+    --code '' \
+    --name ''
 ```

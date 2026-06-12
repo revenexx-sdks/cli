@@ -1,3 +1,4 @@
 ```bash
-revenexx products products-association-types-create
+revenexx products products-association-types-create \
+    --code ''
 ```

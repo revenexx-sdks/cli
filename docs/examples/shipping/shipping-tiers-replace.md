@@ -1,4 +1,5 @@
 ```bash
 revenexx shipping shipping-tiers-replace \
-    --method-id ''
+    --method-id '' \
+    --tiers one two three
 ```

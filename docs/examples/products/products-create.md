@@ -1,3 +1,4 @@
 ```bash
-revenexx products products-create
+revenexx products products-create \
+    --sku ''
 ```

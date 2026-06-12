@@ -1,3 +1,5 @@
 ```bash
-revenexx channels channels-create
+revenexx channels channels-create \
+    --code '' \
+    --name ''
 ```

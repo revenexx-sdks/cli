@@ -1,3 +1,5 @@
 ```bash
-revenexx payments payments-create
+revenexx payments payments-create \
+    --amount null \
+    --method-code ''
 ```

@@ -1,3 +1,5 @@
 ```bash
-revenexx inventories inventories-adjust
+revenexx inventories inventories-adjust \
+    --items one two three \
+    --reason ''
 ```
