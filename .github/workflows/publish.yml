@@ -6,7 +6,7 @@ on:
 
 permissions:
   contents: write
-  packages: write
+  id-token: write
 
 jobs:
   build-and-publish:
@@ -73,6 +73,9 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Update npm to latest version for OIDC support
+        run: npm install -g npm@latest
+
       - name: Determine release tag
         id: release_tag
         run: |
@@ -83,9 +86,7 @@ jobs:
           fi
 
       - name: Publish
-        run: npm publish --access public --tag ${{ steps.release_tag.outputs.tag }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public --tag ${{ steps.release_tag.outputs.tag }}
 
       - uses: fnkr/github-action-ghr@v1
         env:
