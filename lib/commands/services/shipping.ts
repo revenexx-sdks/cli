@@ -471,12 +471,13 @@ shipping
   .option(`--attributes <attributes>`, `Measure values for attribute matrices, keyed by attribute name.`)
   .option(`--country <country>`, `Destination ISO 3166-1 alpha-2 code — checked against method country restrictions.`)
   .option(`--currency <currency>`, `Echoed into the rates (default 'EUR').`)
+  .option(`--market-_id <market-_id>`, `Buyer market for tax resolution (else inferred from country, else first market).`)
   .option(`--order-_value <order-_value>`, `Order value (default 0) — drives free-above thresholds and order_value matrices.`, parseInteger)
   .option(`--quantity <quantity>`, `Total quantity — measure for quantity matrices.`, parseInteger)
   .option(`--weight <weight>`, `Total weight — measure for weight matrices.`, parseInteger)
   .action(
     actionRunner(
-      async ({ attributes, country, currency, order_value, quantity, weight }) => {
+      async ({ attributes, country, currency, market_id, order_value, quantity, weight }) => {
         const _client = await sdkForProject();
         const _apiPath = `/shipping/rates`;
         const _payload: RequestParams = {};
@@ -488,6 +489,9 @@ shipping
         }
         if (currency !== undefined) {
           _payload[`currency`] = currency;
+        }
+        if (market_id !== undefined) {
+          _payload[`market_id`] = market_id;
         }
         if (order_value !== undefined) {
           _payload[`order_value`] = order_value;

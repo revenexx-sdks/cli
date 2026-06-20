@@ -33,6 +33,7 @@ import { inventories } from './lib/commands/services/inventories.js';
 import { locale } from './lib/commands/services/locale.js';
 import { markets } from './lib/commands/services/markets.js';
 import { messaging } from './lib/commands/services/messaging.js';
+import { orderlists } from './lib/commands/services/orderlists.js';
 import { orders } from './lib/commands/services/orders.js';
 import { pages } from './lib/commands/services/pages.js';
 import { payments } from './lib/commands/services/payments.js';
@@ -153,6 +154,7 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(locale)
         .addCommand(markets)
         .addCommand(messaging)
+        .addCommand(orderlists)
         .addCommand(orders)
         .addCommand(pages)
         .addCommand(payments)

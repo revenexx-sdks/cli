@@ -408,6 +408,33 @@ prices
     ),
   );
 prices
+  .command(`prices-entries-bulk`)
+  .description(``)
+  .requiredOption(`--list-_id <list-_id>`, ``)
+  .requiredOption(`--entries [entries...]`, `The complete new entry set (set semantics).`)
+  .action(
+    actionRunner(
+      async ({ list_id, entries }) => {
+        const _client = await sdkForProject();
+        const _apiPath = `/prices/lists/{list_id}/entries/bulk`.replace(`{list_id}`, list_id);
+        const _payload: RequestParams = {};
+        if (entries !== undefined) {
+          _payload[`entries`] = entries;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+prices
   .command(`prices-entries-delete`)
   .description(``)
   .requiredOption(`--list-_id <list-_id>`, ``)

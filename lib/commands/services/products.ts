@@ -55,9 +55,10 @@ products
   .option(`--kind <kind>`, ``)
   .option(`--parent-_id <parent-_id>`, ``)
   .option(`--quantified-_associations <quantified-_associations>`, ``)
+  .option(`--tax-_class <tax-_class>`, ``)
   .action(
     actionRunner(
-      async ({ sku, attribute_values, completeness, deleted_at, enabled, family_id, family_variant_id, kind, parent_id, quantified_associations }) => {
+      async ({ sku, attribute_values, completeness, deleted_at, enabled, family_id, family_variant_id, kind, parent_id, quantified_associations, tax_class }) => {
         const _client = await sdkForProject();
         const _apiPath = `/products`;
         const _payload: RequestParams = {};
@@ -90,6 +91,9 @@ products
         }
         if (sku !== undefined) {
           _payload[`sku`] = sku;
+        }
+        if (tax_class !== undefined) {
+          _payload[`tax_class`] = tax_class;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1108,6 +1112,36 @@ products
         };
         const _response = await _client.call(
           `put`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+products
+  .command(`products-batch`)
+  .description(``)
+  .option(`--ids [ids...]`, ``)
+  .option(`--skus [skus...]`, ``)
+  .action(
+    actionRunner(
+      async ({ ids, skus }) => {
+        const _client = await sdkForProject();
+        const _apiPath = `/products/batch`;
+        const _payload: RequestParams = {};
+        if (ids !== undefined) {
+          _payload[`ids`] = ids;
+        }
+        if (skus !== undefined) {
+          _payload[`skus`] = skus;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
           _apiPath,
           _headers,
           _payload,
@@ -2512,9 +2546,10 @@ products
   .option(`--parent-_id <parent-_id>`, ``)
   .option(`--quantified-_associations <quantified-_associations>`, ``)
   .option(`--sku <sku>`, ``)
+  .option(`--tax-_class <tax-_class>`, ``)
   .action(
     actionRunner(
-      async ({ id, attribute_values, completeness, deleted_at, enabled, family_id, family_variant_id, kind, parent_id, quantified_associations, sku }) => {
+      async ({ id, attribute_values, completeness, deleted_at, enabled, family_id, family_variant_id, kind, parent_id, quantified_associations, sku, tax_class }) => {
         const _client = await sdkForProject();
         const _apiPath = `/products/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2547,6 +2582,9 @@ products
         }
         if (sku !== undefined) {
           _payload[`sku`] = sku;
+        }
+        if (tax_class !== undefined) {
+          _payload[`tax_class`] = tax_class;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

@@ -305,12 +305,16 @@ customers
   .command(`customers-auth-me`)
   .description(``)
   .requiredOption(`--user-_id <user-_id>`, ``)
+  .option(`--session-_id <session-_id>`, `Optional session to verify — answers 401 when the session is expired or revoked.`)
   .action(
     actionRunner(
-      async ({ user_id }) => {
+      async ({ user_id, session_id }) => {
         const _client = await sdkForProject();
         const _apiPath = `/customers/auth/me`;
         const _payload: RequestParams = {};
+        if (session_id !== undefined) {
+          _payload[`session_id`] = session_id;
+        }
         if (user_id !== undefined) {
           _payload[`user_id`] = user_id;
         }

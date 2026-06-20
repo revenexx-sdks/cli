@@ -16,6 +16,28 @@ export const pages = new Command("pages")
   });
 
 pages
+  .command(`pages-delivery-menus`)
+  .description(``)
+  .action(
+    actionRunner(
+      async () => {
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/delivery/menus`;
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+pages
   .command(`pages-delivery-page`)
   .description(``)
   .action(
@@ -914,6 +936,139 @@ pages
     ),
   );
 pages
+  .command(`pages-menus-list`)
+  .description(``)
+  .action(
+    actionRunner(
+      async () => {
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/menus`;
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+pages
+  .command(`pages-menus-upsert`)
+  .description(``)
+  .requiredOption(`--label <label>`, ``)
+  .requiredOption(`--menu-key <menu-key>`, `Stable menu identifier, e.g. "main", "footer", "account".`)
+  .option(`--items [items...]`, `Ordered menu entries ({ label, to?, items? }).`)
+  .action(
+    actionRunner(
+      async ({ label, menuKey, items }) => {
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/menus`;
+        const _payload: RequestParams = {};
+        if (items !== undefined) {
+          _payload[`items`] = items;
+        }
+        if (label !== undefined) {
+          _payload[`label`] = label;
+        }
+        if (menuKey !== undefined) {
+          _payload[`menuKey`] = menuKey;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+pages
+  .command(`pages-menus-delete`)
+  .description(``)
+  .requiredOption(`--id <id>`, ``)
+  .action(
+    actionRunner(
+      async ({ id }) => {
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/menus/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `delete`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+pages
+  .command(`pages-menus-get`)
+  .description(``)
+  .requiredOption(`--id <id>`, ``)
+  .action(
+    actionRunner(
+      async ({ id }) => {
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/menus/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+pages
+  .command(`pages-menus-update`)
+  .description(``)
+  .requiredOption(`--id <id>`, ``)
+  .option(`--items [items...]`, ``)
+  .option(`--label <label>`, ``)
+  .action(
+    actionRunner(
+      async ({ id, items, label }) => {
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/menus/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (items !== undefined) {
+          _payload[`items`] = items;
+        }
+        if (label !== undefined) {
+          _payload[`label`] = label;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `put`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+pages
   .command(`pages-pages-list`)
   .description(``)
   .action(
@@ -1096,13 +1251,17 @@ pages
 pages
   .command(`pages-seed`)
   .description(``)
+  .option(`--menus [menus...]`, ``)
   .option(`--pages [pages...]`, ``)
   .action(
     actionRunner(
-      async ({ pages }) => {
+      async ({ menus, pages }) => {
         const _client = await sdkForProject();
         const _apiPath = `/pages/seed`;
         const _payload: RequestParams = {};
+        if (menus !== undefined) {
+          _payload[`menus`] = menus;
+        }
         if (pages !== undefined) {
           _payload[`pages`] = pages;
         }

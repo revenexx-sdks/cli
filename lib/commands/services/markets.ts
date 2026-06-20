@@ -218,6 +218,158 @@ markets
     ),
   );
 markets
+  .command(`markets-currencies-list`)
+  .description(``)
+  .requiredOption(`--market-_id <market-_id>`, ``)
+  .action(
+    actionRunner(
+      async ({ market_id }) => {
+        const _client = await sdkForProject();
+        const _apiPath = `/markets/{market_id}/currencies`.replace(`{market_id}`, market_id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+markets
+  .command(`markets-currencies-create`)
+  .description(``)
+  .requiredOption(`--market-_id <market-_id>`, ``)
+  .requiredOption(`--code <code>`, `ISO 4217 code, e.g. EUR (unique per market).`)
+  .option(
+    `--is-_default [value]`,
+    ``,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--position <position>`, `Sort position (default 0).`, parseInteger)
+  .action(
+    actionRunner(
+      async ({ market_id, code, is_default, position }) => {
+        const _client = await sdkForProject();
+        const _apiPath = `/markets/{market_id}/currencies`.replace(`{market_id}`, market_id);
+        const _payload: RequestParams = {};
+        if (code !== undefined) {
+          _payload[`code`] = code;
+        }
+        if (is_default !== undefined) {
+          _payload[`is_default`] = is_default;
+        }
+        if (position !== undefined) {
+          _payload[`position`] = position;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+markets
+  .command(`markets-currencies-delete`)
+  .description(``)
+  .requiredOption(`--market-_id <market-_id>`, ``)
+  .requiredOption(`--id <id>`, ``)
+  .action(
+    actionRunner(
+      async ({ market_id, id }) => {
+        const _client = await sdkForProject();
+        const _apiPath = `/markets/{market_id}/currencies/{id}`.replace(`{market_id}`, market_id).replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `delete`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+markets
+  .command(`markets-currencies-get`)
+  .description(``)
+  .requiredOption(`--market-_id <market-_id>`, ``)
+  .requiredOption(`--id <id>`, ``)
+  .action(
+    actionRunner(
+      async ({ market_id, id }) => {
+        const _client = await sdkForProject();
+        const _apiPath = `/markets/{market_id}/currencies/{id}`.replace(`{market_id}`, market_id).replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+markets
+  .command(`markets-currencies-update`)
+  .description(``)
+  .requiredOption(`--market-_id <market-_id>`, ``)
+  .requiredOption(`--id <id>`, ``)
+  .option(`--code <code>`, `ISO 4217 code, e.g. EUR (unique per market).`)
+  .option(
+    `--is-_default [value]`,
+    ``,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--position <position>`, `Sort position (default 0).`, parseInteger)
+  .action(
+    actionRunner(
+      async ({ market_id, id, code, is_default, position }) => {
+        const _client = await sdkForProject();
+        const _apiPath = `/markets/{market_id}/currencies/{id}`.replace(`{market_id}`, market_id).replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (code !== undefined) {
+          _payload[`code`] = code;
+        }
+        if (is_default !== undefined) {
+          _payload[`is_default`] = is_default;
+        }
+        if (position !== undefined) {
+          _payload[`position`] = position;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `put`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+markets
   .command(`markets-locales-list`)
   .description(``)
   .requiredOption(`--market-_id <market-_id>`, ``)
