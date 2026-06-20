@@ -13,8 +13,8 @@
 # You can use "View source" of this page to see the full script.
 
 # REPO
-$GITHUB_x64_URL = "https://github.com/revenexx-sdks/cli/releases/download/0.0.5/revenexx-cli-win-x64.exe"
-$GITHUB_arm64_URL = "https://github.com/revenexx-sdks/cli/releases/download/0.0.5/revenexx-cli-win-arm64.exe"
+$GITHUB_x64_URL = "https://github.com/revenexx-sdks/cli/releases/download/0.0.6/revenexx-cli-win-x64.exe"
+$GITHUB_arm64_URL = "https://github.com/revenexx-sdks/cli/releases/download/0.0.6/revenexx-cli-win-arm64.exe"
 
 $REVENEXX API — REVENEXX_BINARY_NAME = "revenexx.exe"
 

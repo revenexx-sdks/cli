@@ -48,14 +48,14 @@ orderlists
   .option(`--metadata <metadata>`, ``)
   .option(`--organization-_id <organization-_id>`, `Owning organization (scopes public sharing).`)
   .option(
-    `--public [value]`,
+    `--shared [value]`,
     `Shared read-only across the organization (default false).`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .action(
     actionRunner(
-      async ({ name, owner_id, owner_name, items, kind, metadata, organization_id, public }) => {
+      async ({ name, owner_id, owner_name, items, kind, metadata, organization_id, shared }) => {
         const _client = await sdkForProject();
         const _apiPath = `/orderlists`;
         const _payload: RequestParams = {};
@@ -80,8 +80,8 @@ orderlists
         if (owner_name !== undefined) {
           _payload[`owner_name`] = owner_name;
         }
-        if (public !== undefined) {
-          _payload[`public`] = public;
+        if (shared !== undefined) {
+          _payload[`shared`] = shared;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -172,14 +172,14 @@ orderlists
   .option(`--metadata <metadata>`, ``)
   .option(`--name <name>`, ``)
   .option(
-    `--public [value]`,
+    `--shared [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .action(
     actionRunner(
-      async ({ id, kind, metadata, name, public }) => {
+      async ({ id, kind, metadata, name, shared }) => {
         const _client = await sdkForProject();
         const _apiPath = `/orderlists/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -192,8 +192,8 @@ orderlists
         if (name !== undefined) {
           _payload[`name`] = name;
         }
-        if (public !== undefined) {
-          _payload[`public`] = public;
+        if (shared !== undefined) {
+          _payload[`shared`] = shared;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
