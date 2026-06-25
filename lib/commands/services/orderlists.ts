@@ -18,12 +18,36 @@ export const orderlists = new Command("orderlists")
 orderlists
   .command(`orderlists-list`)
   .description(``)
+  .option(`--owner-_id <owner-_id>`, `Filter to one owning contact.`)
+  .option(`--organization-_id <organization-_id>`, `Filter to one organization.`)
+  .option(`--kind <kind>`, `Filter by list kind (shopping | label).`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async () => {
+      async ({ owner_id, organization_id, kind, limit, offset, order }) => {
         const _client = await sdkForProject();
         const _apiPath = `/orderlists`;
         const _payload: RequestParams = {};
+        if (owner_id !== undefined) {
+          _payload[`owner_id`] = owner_id;
+        }
+        if (organization_id !== undefined) {
+          _payload[`organization_id`] = organization_id;
+        }
+        if (kind !== undefined) {
+          _payload[`kind`] = kind;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };

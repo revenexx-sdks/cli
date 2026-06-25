@@ -6,6 +6,7 @@ import {
   commandDescriptions,
   parse,
   parseBool,
+  parseInteger,
 } from "../../parser.js";
 
 export const customers = new Command("customers")
@@ -17,12 +18,32 @@ export const customers = new Command("customers")
 customers
   .command(`customers-addresses-list`)
   .description(``)
+  .option(`--contact-_id <contact-_id>`, `Filter to one owning contact.`)
+  .option(`--organization-_id <organization-_id>`, `Filter to one organization.`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async () => {
+      async ({ contact_id, organization_id, limit, offset, order }) => {
         const _client = await sdkForProject();
         const _apiPath = `/customers/addresses`;
         const _payload: RequestParams = {};
+        if (contact_id !== undefined) {
+          _payload[`contact_id`] = contact_id;
+        }
+        if (organization_id !== undefined) {
+          _payload[`organization_id`] = organization_id;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -405,9 +426,10 @@ customers
   .option(`--locale <locale>`, `BCP 47, e.g. de-DE`)
   .option(`--organization-_id <organization-_id>`, `Join an existing organization.`)
   .option(`--organization-_name <organization-_name>`, `Found a new organization; the contact becomes its admin.`)
+  .option(`--vat-_id <vat-_id>`, `The new organization's VAT id; required when the tenant's organization_vat_id_required setting is on.`)
   .action(
     actionRunner(
-      async ({ email, password, first_name, last_name, locale, organization_id, organization_name }) => {
+      async ({ email, password, first_name, last_name, locale, organization_id, organization_name, vat_id }) => {
         const _client = await sdkForProject();
         const _apiPath = `/customers/auth/register`;
         const _payload: RequestParams = {};
@@ -432,6 +454,9 @@ customers
         if (password !== undefined) {
           _payload[`password`] = password;
         }
+        if (vat_id !== undefined) {
+          _payload[`vat_id`] = vat_id;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -448,12 +473,40 @@ customers
 customers
   .command(`customers-contacts-list`)
   .description(``)
+  .option(`--organization-_id <organization-_id>`, `Filter to one organization.`)
+  .option(`--role <role>`, `Filter by role (buyer | approver | admin | requester).`)
+  .option(`--status <status>`, `Filter by status (invited | active | blocked).`)
+  .option(`--email <email>`, `Filter by exact email.`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async () => {
+      async ({ organization_id, role, status, email, limit, offset, order }) => {
         const _client = await sdkForProject();
         const _apiPath = `/customers/contacts`;
         const _payload: RequestParams = {};
+        if (organization_id !== undefined) {
+          _payload[`organization_id`] = organization_id;
+        }
+        if (role !== undefined) {
+          _payload[`role`] = role;
+        }
+        if (status !== undefined) {
+          _payload[`status`] = status;
+        }
+        if (email !== undefined) {
+          _payload[`email`] = email;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -643,12 +696,24 @@ customers
 customers
   .command(`customers-organizations-list`)
   .description(``)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async () => {
+      async ({ limit, offset, order }) => {
         const _client = await sdkForProject();
         const _apiPath = `/customers/organizations`;
         const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };

@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { resolveFileParam } from "../utils/deployment.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -609,7 +610,7 @@ Registry before kicking off the build.`)
           _payload[`activate`] = activate;
         }
         if (code !== undefined) {
-          _payload[`code`] = code;
+          _payload[`code`] = code !== undefined ? await resolveFileParam(code) : undefined;
         }
         if (commands !== undefined) {
           _payload[`commands`] = commands;

@@ -108,12 +108,24 @@ inventories
 inventories
   .command(`inventories-locations-list`)
   .description(``)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async () => {
+      async ({ limit, offset, order }) => {
         const _client = await sdkForProject();
         const _apiPath = `/inventories/locations`;
         const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -317,12 +329,24 @@ inventories
 inventories
   .command(`inventories-movements-list`)
   .description(``)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async () => {
+      async ({ limit, offset, order }) => {
         const _client = await sdkForProject();
         const _apiPath = `/inventories/movements`;
         const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -422,12 +446,24 @@ inventories
 inventories
   .command(`inventories-reservations-list`)
   .description(``)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async () => {
+      async ({ limit, offset, order }) => {
         const _client = await sdkForProject();
         const _apiPath = `/inventories/reservations`;
         const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -539,12 +575,24 @@ inventories
 inventories
   .command(`inventories-stock-list`)
   .description(``)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async () => {
+      async ({ limit, offset, order }) => {
         const _client = await sdkForProject();
         const _apiPath = `/inventories/stock`;
         const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };

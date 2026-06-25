@@ -18,12 +18,36 @@ export const carts = new Command("carts")
 carts
   .command(`carts-list`)
   .description(``)
+  .option(`--contact-_id <contact-_id>`, `Filter to one owning contact.`)
+  .option(`--session-_key <session-_key>`, `Filter to one guest session.`)
+  .option(`--status <status>`, `Filter by cart status (e.g. active).`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async () => {
+      async ({ contact_id, session_key, status, limit, offset, order }) => {
         const _client = await sdkForProject();
         const _apiPath = `/carts`;
         const _payload: RequestParams = {};
+        if (contact_id !== undefined) {
+          _payload[`contact_id`] = contact_id;
+        }
+        if (session_key !== undefined) {
+          _payload[`session_key`] = session_key;
+        }
+        if (status !== undefined) {
+          _payload[`status`] = status;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -49,13 +73,12 @@ carts
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
-  .option(`--market-_id <market-_id>`, ``)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
   .option(`--name <name>`, `Display name (default 'Cart').`)
   .option(`--session-_key <session-_key>`, `Owning guest session.`)
   .action(
     actionRunner(
-      async ({ channel_id, contact_id, currency, is_current, market_id, metadata, name, session_key }) => {
+      async ({ channel_id, contact_id, currency, is_current, metadata, name, session_key }) => {
         const _client = await sdkForProject();
         const _apiPath = `/carts`;
         const _payload: RequestParams = {};
@@ -70,9 +93,6 @@ carts
         }
         if (is_current !== undefined) {
           _payload[`is_current`] = is_current;
-        }
-        if (market_id !== undefined) {
-          _payload[`market_id`] = market_id;
         }
         if (metadata !== undefined) {
           _payload[`metadata`] = JSON.parse(metadata);
@@ -183,12 +203,24 @@ carts
 carts
   .command(`carts-io-profiles-list`)
   .description(``)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async () => {
+      async ({ limit, offset, order }) => {
         const _client = await sdkForProject();
         const _apiPath = `/carts/io/profiles`;
         const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -720,12 +752,11 @@ carts
   .requiredOption(`--id <id>`, ``)
   .option(`--channel-_id <channel-_id>`, ``)
   .option(`--currency <currency>`, `ISO 4217 code.`)
-  .option(`--market-_id <market-_id>`, ``)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
   .option(`--name <name>`, ``)
   .action(
     actionRunner(
-      async ({ id, channel_id, currency, market_id, metadata, name }) => {
+      async ({ id, channel_id, currency, metadata, name }) => {
         const _client = await sdkForProject();
         const _apiPath = `/carts/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -734,9 +765,6 @@ carts
         }
         if (currency !== undefined) {
           _payload[`currency`] = currency;
-        }
-        if (market_id !== undefined) {
-          _payload[`market_id`] = market_id;
         }
         if (metadata !== undefined) {
           _payload[`metadata`] = JSON.parse(metadata);

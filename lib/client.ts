@@ -111,6 +111,21 @@ class Client {
   }
 
   /**
+   * Set Market
+   *
+   * The active market slug to scope requests to, sent as the X-Revenexx-Market
+   * header. Optional — omit it to see only global rows.
+   *
+   * @param {string} market
+   *
+   * @return self
+   */
+  setMarket(market: string): this {
+    this.addHeader("X-Revenexx-Market", market);
+    return this;
+  }
+
+  /**
    * Set Key
    *
    * Your secret API key

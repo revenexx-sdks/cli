@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { resolveFileParam } from "../utils/deployment.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -79,7 +80,7 @@ storage
           _payload[`display_name`] = display_name;
         }
         if (file !== undefined) {
-          _payload[`file`] = file;
+          _payload[`file`] = file !== undefined ? await resolveFileParam(file) : undefined;
         }
         if (folder_id !== undefined) {
           _payload[`folder_id`] = folder_id;

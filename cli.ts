@@ -29,6 +29,7 @@ import { carts } from './lib/commands/services/carts.js';
 import { channels } from './lib/commands/services/channels.js';
 import { customers } from './lib/commands/services/customers.js';
 import { greetings } from './lib/commands/services/greetings.js';
+import { forms } from './lib/commands/services/forms.js';
 import { inventories } from './lib/commands/services/inventories.js';
 import { locale } from './lib/commands/services/locale.js';
 import { markets } from './lib/commands/services/markets.js';
@@ -40,6 +41,7 @@ import { payments } from './lib/commands/services/payments.js';
 import { prices } from './lib/commands/services/prices.js';
 import { products } from './lib/commands/services/products.js';
 import { search } from './lib/commands/services/search.js';
+import { settings } from './lib/commands/services/settings.js';
 import { shipping } from './lib/commands/services/shipping.js';
 import { sites } from './lib/commands/services/sites.js';
 import { storage } from './lib/commands/services/storage.js';
@@ -150,6 +152,7 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(channels)
         .addCommand(customers)
         .addCommand(greetings)
+        .addCommand(forms)
         .addCommand(inventories)
         .addCommand(locale)
         .addCommand(markets)
@@ -161,6 +164,7 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(prices)
         .addCommand(products)
         .addCommand(search)
+        .addCommand(settings)
         .addCommand(shipping)
         .addCommand(sites)
         .addCommand(storage)

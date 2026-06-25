@@ -2,5 +2,5 @@
 revenexx apps apps-create-deployment \
     --function-id '' \
     --activate null \
-    --code ''
+    --code 'path/to/file.png'
 ```

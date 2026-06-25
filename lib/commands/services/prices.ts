@@ -18,12 +18,24 @@ export const prices = new Command("prices")
 prices
   .command(`prices-lists-list`)
   .description(``)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async () => {
+      async ({ limit, offset, order }) => {
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists`;
         const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -53,10 +65,15 @@ prices
       value === undefined ? true : parseBool(value),
   )
   .option(`--labels <labels>`, `Localised names ({de, en, …}).`)
-  .option(`--market-_id <market-_id>`, `Scope: only this market.`)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
   .option(`--organization-_id <organization-_id>`, `Scope: only this organization.`)
   .option(`--priority <priority>`, `Tie-breaker within a specificity group (higher wins, default 0).`, parseInteger)
+  .option(
+    `--requires-_auth [value]`,
+    `Gate: when true the list resolves only for an authenticated buyer (contact or organization context); anonymous resolve calls get on_request. Default false (open to everyone).`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--status <status>`, `Default 'active' — only active lists resolve.`)
   .option(
     `--tax-_included [value]`,
@@ -68,7 +85,7 @@ prices
   .option(`--valid-_until <valid-_until>`, `Validity window end.`)
   .action(
     actionRunner(
-      async ({ code, name, channel_id, contact_id, currency, description, is_default, labels, market_id, metadata, organization_id, priority, status, tax_included, valid_from, valid_until }) => {
+      async ({ code, name, channel_id, contact_id, currency, description, is_default, labels, metadata, organization_id, priority, requires_auth, status, tax_included, valid_from, valid_until }) => {
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists`;
         const _payload: RequestParams = {};
@@ -93,9 +110,6 @@ prices
         if (labels !== undefined) {
           _payload[`labels`] = JSON.parse(labels);
         }
-        if (market_id !== undefined) {
-          _payload[`market_id`] = market_id;
-        }
         if (metadata !== undefined) {
           _payload[`metadata`] = JSON.parse(metadata);
         }
@@ -107,6 +121,9 @@ prices
         }
         if (priority !== undefined) {
           _payload[`priority`] = priority;
+        }
+        if (requires_auth !== undefined) {
+          _payload[`requires_auth`] = requires_auth;
         }
         if (status !== undefined) {
           _payload[`status`] = status;
@@ -217,11 +234,16 @@ prices
       value === undefined ? true : parseBool(value),
   )
   .option(`--labels <labels>`, `Localised names ({de, en, …}).`)
-  .option(`--market-_id <market-_id>`, `Scope: only this market.`)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
   .option(`--name <name>`, ``)
   .option(`--organization-_id <organization-_id>`, `Scope: only this organization.`)
   .option(`--priority <priority>`, `Tie-breaker within a specificity group (higher wins, default 0).`, parseInteger)
+  .option(
+    `--requires-_auth [value]`,
+    `Gate: when true the list resolves only for an authenticated buyer (contact or organization context); anonymous resolve calls get on_request. Default false (open to everyone).`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--status <status>`, `Default 'active' — only active lists resolve.`)
   .option(
     `--tax-_included [value]`,
@@ -233,7 +255,7 @@ prices
   .option(`--valid-_until <valid-_until>`, `Validity window end.`)
   .action(
     actionRunner(
-      async ({ id, channel_id, code, contact_id, currency, description, is_default, labels, market_id, metadata, name, organization_id, priority, status, tax_included, valid_from, valid_until }) => {
+      async ({ id, channel_id, code, contact_id, currency, description, is_default, labels, metadata, name, organization_id, priority, requires_auth, status, tax_included, valid_from, valid_until }) => {
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -258,9 +280,6 @@ prices
         if (labels !== undefined) {
           _payload[`labels`] = JSON.parse(labels);
         }
-        if (market_id !== undefined) {
-          _payload[`market_id`] = market_id;
-        }
         if (metadata !== undefined) {
           _payload[`metadata`] = JSON.parse(metadata);
         }
@@ -272,6 +291,9 @@ prices
         }
         if (priority !== undefined) {
           _payload[`priority`] = priority;
+        }
+        if (requires_auth !== undefined) {
+          _payload[`requires_auth`] = requires_auth;
         }
         if (status !== undefined) {
           _payload[`status`] = status;
@@ -302,12 +324,24 @@ prices
   .command(`prices-entries-list`)
   .description(``)
   .requiredOption(`--list-_id <list-_id>`, ``)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async ({ list_id }) => {
+      async ({ list_id, limit, offset, order }) => {
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{list_id}/entries`.replace(`{list_id}`, list_id);
         const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };

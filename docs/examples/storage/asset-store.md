@@ -1,4 +1,4 @@
 ```bash
 revenexx storage asset-store \
-    --file ''
+    --file 'path/to/file.png'
 ```

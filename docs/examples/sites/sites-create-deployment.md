@@ -2,5 +2,5 @@
 revenexx sites sites-create-deployment \
     --site-id '' \
     --activate null \
-    --code ''
+    --code 'path/to/file.png'
 ```

@@ -17,12 +17,52 @@ export const orders = new Command("orders")
 orders
   .command(`orders-list`)
   .description(``)
+  .option(`--status <status>`, `Filter by order status (exact match).`)
+  .option(`--payment-_status <payment-_status>`, `Filter by payment status (exact match).`)
+  .option(`--fulfillment-_status <fulfillment-_status>`, `Filter by fulfillment status (exact match).`)
+  .option(`--contact-_id <contact-_id>`, `Filter to one ordering contact.`)
+  .option(`--organization-_id <organization-_id>`, `Filter to one B2B organization.`)
+  .option(`--channel-_id <channel-_id>`, `Filter to one sales channel.`)
+  .option(`--number <number>`, `Filter by exact order number.`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async () => {
+      async ({ status, payment_status, fulfillment_status, contact_id, organization_id, channel_id, number, limit, offset, order }) => {
         const _client = await sdkForProject();
         const _apiPath = `/orders`;
         const _payload: RequestParams = {};
+        if (status !== undefined) {
+          _payload[`status`] = status;
+        }
+        if (payment_status !== undefined) {
+          _payload[`payment_status`] = payment_status;
+        }
+        if (fulfillment_status !== undefined) {
+          _payload[`fulfillment_status`] = fulfillment_status;
+        }
+        if (contact_id !== undefined) {
+          _payload[`contact_id`] = contact_id;
+        }
+        if (organization_id !== undefined) {
+          _payload[`organization_id`] = organization_id;
+        }
+        if (channel_id !== undefined) {
+          _payload[`channel_id`] = channel_id;
+        }
+        if (number !== undefined) {
+          _payload[`number`] = number;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -39,12 +79,24 @@ orders
 orders
   .command(`orders-number-ranges-list`)
   .description(``)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async () => {
+      async ({ limit, offset, order }) => {
         const _client = await sdkForProject();
         const _apiPath = `/orders/number-ranges`;
         const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -255,7 +307,6 @@ orders
   .option(`--currency <currency>`, `ISO 4217 code (default EUR).`)
   .option(`--customer-_order-_number <customer-_order-_number>`, `The buyer's own order/PO number.`)
   .option(`--grand-_total <grand-_total>`, `Override — computed as subtotal + shipping + tax when omitted.`, parseInteger)
-  .option(`--market-_id <market-_id>`, ``)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
   .option(`--organization-_id <organization-_id>`, `B2B organization.`)
   .option(`--payment <payment>`, `Frozen payment snapshot — a known 'payment.status' seeds payment_status (otherwise 'open').`)
@@ -265,7 +316,7 @@ orders
   .option(`--user-_data <user-_data>`, `Free-form user data.`)
   .action(
     actionRunner(
-      async ({ items, billing_address, buyer, cart_id, channel_id, contact_id, currency, customer_order_number, grand_total, market_id, metadata, organization_id, payment, shipping, shipping_address, shipping_total, user_data }) => {
+      async ({ items, billing_address, buyer, cart_id, channel_id, contact_id, currency, customer_order_number, grand_total, metadata, organization_id, payment, shipping, shipping_address, shipping_total, user_data }) => {
         const _client = await sdkForProject();
         const _apiPath = `/orders/place`;
         const _payload: RequestParams = {};
@@ -295,9 +346,6 @@ orders
         }
         if (items !== undefined) {
           _payload[`items`] = items;
-        }
-        if (market_id !== undefined) {
-          _payload[`market_id`] = market_id;
         }
         if (metadata !== undefined) {
           _payload[`metadata`] = JSON.parse(metadata);
