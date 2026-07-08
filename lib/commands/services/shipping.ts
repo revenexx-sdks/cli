@@ -8,16 +8,23 @@ import {
   parseBool,
   parseInteger,
 } from "../../parser.js";
+import {
+  confirmDestructive,
+  promptForMissing,
+} from "../../interactive.js";
 
 export const shipping = new Command("shipping")
-  .description(commandDescriptions["shipping"] ?? "")
+  .description(
+    commandDescriptions["shipping"] ??
+      `Manage shipping resources.`,
+  )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });
 
 shipping
-  .command(`shipping-methods-list`)
-  .description(``)
+  .command(`methods-list`)
+  .description(`List shipping method configurations`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -50,10 +57,10 @@ shipping
     ),
   );
 shipping
-  .command(`shipping-methods-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, `Stable method code, unique per tenant (e.g. standard, express).`)
-  .requiredOption(`--name <name>`, `Display name.`)
+  .command(`methods-create`)
+  .description(`Create a shipping method (fixed, free or matrix pricing)`)
+  .option(`--code <code>`, `Stable method code, unique per tenant (e.g. standard, express).`)
+  .option(`--name <name>`, `Display name.`)
   .option(`--carrier <carrier>`, `Carrier anchor for the upcoming carrier connect (dynamic rates, tracking links).`)
   .option(`--countries [countries...]`, `Allowed ISO 3166-1 alpha-2 codes; null or empty = worldwide.`)
   .option(`--currency <currency>`, `ISO 4217 code (default EUR).`)
@@ -76,7 +83,15 @@ shipping
   .option(`--pricing-_type <pricing-_type>`, `Pricing model (default 'fixed'): one price, no price, or tiered over a measure.`)
   .action(
     actionRunner(
-      async ({ code, name, carrier, countries, currency, description, enabled, eta_days_max, eta_days_min, free_above, labels, matrix_attribute, matrix_basis, metadata, position, price, pricing_type }) => {
+      async (_options, _command) => {
+        const { code, name, carrier, countries, currency, description, enabled, eta_days_max, eta_days_min, free_above, labels, matrix_attribute, matrix_basis, metadata, position, price, pricing_type } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", description: "Stable method code, unique per tenant (e.g. standard, express).", type: "string", required: true },
+            { key: "name", option: "--name <name>", name: "name", description: "Display name.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods`;
         const _payload: RequestParams = {};
@@ -145,8 +160,8 @@ shipping
     ),
   );
 shipping
-  .command(`shipping-methods-defaults`)
-  .description(``)
+  .command(`methods-defaults`)
+  .description(`Seed the standard methods (standard, express, pickup) — idempotent, also runs on app.installed`)
   .action(
     actionRunner(
       async () => {
@@ -167,12 +182,20 @@ shipping
     ),
   );
 shipping
-  .command(`shipping-methods-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`methods-delete`)
+  .description(`Delete a shipping method including its matrix tiers`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`shipping methods-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -190,12 +213,19 @@ shipping
     ),
   );
 shipping
-  .command(`shipping-methods-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`methods-get`)
+  .description(`Read one shipping method`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -213,9 +243,9 @@ shipping
     ),
   );
 shipping
-  .command(`shipping-methods-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`methods-update`)
+  .description(`Update a shipping method (enable/disable, pricing, restrictions, ETA)`)
+  .option(`--id <id>`, ``)
   .option(`--carrier <carrier>`, `Carrier anchor for the upcoming carrier connect (dynamic rates, tracking links).`)
   .option(`--code <code>`, `Stable method code, unique per tenant (e.g. standard, express).`)
   .option(`--countries [countries...]`, `Allowed ISO 3166-1 alpha-2 codes; null or empty = worldwide.`)
@@ -240,7 +270,14 @@ shipping
   .option(`--pricing-_type <pricing-_type>`, `Pricing model (default 'fixed'): one price, no price, or tiered over a measure.`)
   .action(
     actionRunner(
-      async ({ id, carrier, code, countries, currency, description, enabled, eta_days_max, eta_days_min, free_above, labels, matrix_attribute, matrix_basis, metadata, name, position, price, pricing_type }) => {
+      async (_options, _command) => {
+        const { id, carrier, code, countries, currency, description, enabled, eta_days_max, eta_days_min, free_above, labels, matrix_attribute, matrix_basis, metadata, name, position, price, pricing_type } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -309,15 +346,22 @@ shipping
     ),
   );
 shipping
-  .command(`shipping-tiers-list`)
-  .description(``)
-  .requiredOption(`--method-_id <method-_id>`, ``)
+  .command(`tiers-list`)
+  .description(`List the matrix tiers of a method (from_value → price)`)
+  .option(`--method-_id <method-_id>`, ``)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async ({ method_id, limit, offset, order }) => {
+      async (_options, _command) => {
+        const { method_id, limit, offset, order } = await promptForMissing(
+          _options,
+          [
+            { key: "method_id", option: "--method-_id <method-_id>", name: "method_id", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods/{method_id}/tiers`.replace(`{method_id}`, method_id);
         const _payload: RequestParams = {};
@@ -344,15 +388,22 @@ shipping
     ),
   );
 shipping
-  .command(`shipping-tiers-create`)
-  .description(``)
-  .requiredOption(`--method-_id <method-_id>`, ``)
+  .command(`tiers-create`)
+  .description(`Add a matrix tier`)
+  .option(`--method-_id <method-_id>`, ``)
   .option(`--from-_value <from-_value>`, `Tier threshold (default 0) — the tier with the highest from_value at or below the measured value wins.`, parseInteger)
   .option(`--position <position>`, `Sort order (default 0; bulk replace derives it from the array index).`, parseInteger)
   .option(`--price <price>`, `Price of this tier (default 0).`, parseInteger)
   .action(
     actionRunner(
-      async ({ method_id, from_value, position, price }) => {
+      async (_options, _command) => {
+        const { method_id, from_value, position, price } = await promptForMissing(
+          _options,
+          [
+            { key: "method_id", option: "--method-_id <method-_id>", name: "method_id", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods/{method_id}/tiers`.replace(`{method_id}`, method_id);
         const _payload: RequestParams = {};
@@ -379,13 +430,21 @@ shipping
     ),
   );
 shipping
-  .command(`shipping-tiers-replace`)
-  .description(``)
-  .requiredOption(`--method-_id <method-_id>`, ``)
-  .requiredOption(`--tiers [tiers...]`, `The complete new tier set (set semantics) — positions are derived from the array order.`)
+  .command(`tiers-replace`)
+  .description(`Replace ALL matrix tiers of a method (table editing)`)
+  .option(`--method-_id <method-_id>`, ``)
+  .option(`--tiers [tiers...]`, `The complete new tier set (set semantics) — positions are derived from the array order.`)
   .action(
     actionRunner(
-      async ({ method_id, tiers }) => {
+      async (_options, _command) => {
+        const { method_id, tiers } = await promptForMissing(
+          _options,
+          [
+            { key: "method_id", option: "--method-_id <method-_id>", name: "method_id", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
+            { key: "tiers", option: "--tiers [tiers...]", name: "tiers", description: "The complete new tier set (set semantics) — positions are derived from the array order.", type: "array", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods/{method_id}/tiers`.replace(`{method_id}`, method_id);
         const _payload: RequestParams = {};
@@ -406,13 +465,22 @@ shipping
     ),
   );
 shipping
-  .command(`shipping-tiers-delete`)
-  .description(``)
-  .requiredOption(`--method-_id <method-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`tiers-delete`)
+  .description(`Delete a matrix tier`)
+  .option(`--method-_id <method-_id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ method_id, id }) => {
+      async (_options, _command) => {
+        const { method_id, id } = await promptForMissing(
+          _options,
+          [
+            { key: "method_id", option: "--method-_id <method-_id>", name: "method_id", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/shipping/methods/{method_id}/tiers", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`shipping tiers-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods/{method_id}/tiers/{id}`.replace(`{method_id}`, method_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -430,13 +498,21 @@ shipping
     ),
   );
 shipping
-  .command(`shipping-tiers-get`)
-  .description(``)
-  .requiredOption(`--method-_id <method-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`tiers-get`)
+  .description(`Read one matrix tier`)
+  .option(`--method-_id <method-_id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ method_id, id }) => {
+      async (_options, _command) => {
+        const { method_id, id } = await promptForMissing(
+          _options,
+          [
+            { key: "method_id", option: "--method-_id <method-_id>", name: "method_id", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/shipping/methods/{method_id}/tiers", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods/{method_id}/tiers/{id}`.replace(`{method_id}`, method_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -454,16 +530,24 @@ shipping
     ),
   );
 shipping
-  .command(`shipping-tiers-update`)
-  .description(``)
-  .requiredOption(`--method-_id <method-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`tiers-update`)
+  .description(`Update a matrix tier`)
+  .option(`--method-_id <method-_id>`, ``)
+  .option(`--id <id>`, ``)
   .option(`--from-_value <from-_value>`, `Tier threshold (default 0) — the tier with the highest from_value at or below the measured value wins.`, parseInteger)
   .option(`--position <position>`, `Sort order (default 0; bulk replace derives it from the array index).`, parseInteger)
   .option(`--price <price>`, `Price of this tier (default 0).`, parseInteger)
   .action(
     actionRunner(
-      async ({ method_id, id, from_value, position, price }) => {
+      async (_options, _command) => {
+        const { method_id, id, from_value, position, price } = await promptForMissing(
+          _options,
+          [
+            { key: "method_id", option: "--method-_id <method-_id>", name: "method_id", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/shipping/methods/{method_id}/tiers", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods/{method_id}/tiers/{id}`.replace(`{method_id}`, method_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -490,8 +574,8 @@ shipping
     ),
   );
 shipping
-  .command(`shipping-rates`)
-  .description(``)
+  .command(`rates`)
+  .description(`Resolve shipping rates for a buyer context (country, order value, weight/quantity/attribute measures) — the checkout question`)
   .option(`--attributes <attributes>`, `Measure values for attribute matrices, keyed by attribute name.`)
   .option(`--country <country>`, `Destination ISO 3166-1 alpha-2 code — checked against method country restrictions.`)
   .option(`--currency <currency>`, `Echoed into the rates (default 'EUR').`)

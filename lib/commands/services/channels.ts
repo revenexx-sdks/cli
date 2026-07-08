@@ -8,16 +8,23 @@ import {
   parseBool,
   parseInteger,
 } from "../../parser.js";
+import {
+  confirmDestructive,
+  promptForMissing,
+} from "../../interactive.js";
 
 export const channels = new Command("channels")
-  .description(commandDescriptions["channels"] ?? "")
+  .description(
+    commandDescriptions["channels"] ??
+      `Manage channels resources.`,
+  )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });
 
 channels
-  .command(`channels-list`)
-  .description(``)
+  .command(`list`)
+  .description(`List channels (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -50,10 +57,10 @@ channels
     ),
   );
 channels
-  .command(`channels-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, `Stable channel code, unique per tenant (e.g. shop, punchout-acme).`)
-  .requiredOption(`--name <name>`, `Display name.`)
+  .command(`create`)
+  .description(`Create a channel`)
+  .option(`--code <code>`, `Stable channel code, unique per tenant (e.g. shop, punchout-acme).`)
+  .option(`--name <name>`, `Display name.`)
   .option(
     `--is-_default [value]`,
     `Mark as the default channel (default false).`,
@@ -66,7 +73,15 @@ channels
   .option(`--type <type>`, `Where business happens (default 'storefront').`)
   .action(
     actionRunner(
-      async ({ code, name, is_default, labels, position, status, type }) => {
+      async (_options, _command) => {
+        const { code, name, is_default, labels, position, status, type } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", description: "Stable channel code, unique per tenant (e.g. shop, punchout-acme).", type: "string", required: true },
+            { key: "name", option: "--name <name>", name: "name", description: "Display name.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/channels`;
         const _payload: RequestParams = {};
@@ -105,8 +120,8 @@ channels
     ),
   );
 channels
-  .command(`channels-defaults`)
-  .description(``)
+  .command(`defaults`)
+  .description(`Ensure the default channels exist (idempotent) — seeds e.g. the shop channel; also runs automatically on app.installed.`)
   .action(
     actionRunner(
       async () => {
@@ -127,12 +142,20 @@ channels
     ),
   );
 channels
-  .command(`channels-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`delete`)
+  .description(`Delete a channel by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/channels", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`channels delete`);
         const _client = await sdkForProject();
         const _apiPath = `/channels/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -150,12 +173,19 @@ channels
     ),
   );
 channels
-  .command(`channels-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`get`)
+  .description(`Read one channel by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/channels", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/channels/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -173,9 +203,9 @@ channels
     ),
   );
 channels
-  .command(`channels-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`update`)
+  .description(`Update a channel by id`)
+  .option(`--id <id>`, ``)
   .option(`--code <code>`, `Stable channel code, unique per tenant (e.g. shop, punchout-acme).`)
   .option(
     `--is-_default [value]`,
@@ -190,7 +220,14 @@ channels
   .option(`--type <type>`, `Where business happens (default 'storefront').`)
   .action(
     actionRunner(
-      async ({ id, code, is_default, labels, name, position, status, type }) => {
+      async (_options, _command) => {
+        const { id, code, is_default, labels, name, position, status, type } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/channels", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/channels/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};

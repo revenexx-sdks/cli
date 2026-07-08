@@ -8,15 +8,22 @@ import {
   parseBool,
   parseInteger,
 } from "../../parser.js";
+import {
+  confirmDestructive,
+  promptForMissing,
+} from "../../interactive.js";
 
 export const messaging = new Command("messaging")
-  .description(commandDescriptions["messaging"] ?? "")
+  .description(
+    commandDescriptions["messaging"] ??
+      `Outbound messaging: email/push messages, providers, topics, targets.`,
+  )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });
 
 messaging
-  .command(`messaging-list-messages`)
+  .command(`list-messages`)
   .description(`Get a list of all messages from the current Revenexx project.`)
   .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: scheduledAt, deliveredAt, deliveredTotal, status, description, providerType`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
@@ -55,11 +62,11 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-create-email`)
+  .command(`create-email`)
   .description(`Create a new email message.`)
-  .requiredOption(`--content <content>`, `Email Content.`)
-  .requiredOption(`--message-id <message-id>`, `Message ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
-  .requiredOption(`--subject <subject>`, `Email Subject.`)
+  .option(`--content <content>`, `Email Content.`)
+  .option(`--message-id <message-id>`, `Message ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
+  .option(`--subject <subject>`, `Email Subject.`)
   .option(`--attachments [attachments...]`, `Array of compound ID strings of bucket IDs and file IDs to be attached to the email. They should be formatted as <BUCKET_ID>:<FILE_ID>.`)
   .option(`--bcc [bcc...]`, `Array of target IDs to be added as BCC.`)
   .option(`--cc [cc...]`, `Array of target IDs to be added as CC.`)
@@ -81,7 +88,16 @@ messaging
   .option(`--users [users...]`, `List of User IDs.`)
   .action(
     actionRunner(
-      async ({ content, messageId, subject, attachments, bcc, cc, draft, html, scheduledAt, targets, topics, users }) => {
+      async (_options, _command) => {
+        const { content, messageId, subject, attachments, bcc, cc, draft, html, scheduledAt, targets, topics, users } = await promptForMissing(
+          _options,
+          [
+            { key: "content", option: "--content <content>", name: "content", description: "Email Content.", type: "string", required: true },
+            { key: "messageId", option: "--message-id <message-id>", name: "messageId", description: "Message ID. Choose a custom ID or generate a random ID with `ID.unique()`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.", type: "string", required: true },
+            { key: "subject", option: "--subject <subject>", name: "subject", description: "Email Subject.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/messages/email`;
         const _payload: RequestParams = {};
@@ -135,10 +151,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-update-email`)
-  .description(`Update an email message by its unique ID. This endpoint only works on messages that are in draft status. Messages that are already processing, sent, or failed cannot be updated.
-`)
-  .requiredOption(`--message-id <message-id>`, `Message ID.`)
+  .command(`update-email`)
+  .description(`Update an email message by its unique ID. This endpoint only works on messages that are in draft status. Messages that are already processing, sent, or failed cannot be updated.`)
+  .option(`--message-id <message-id>`, `Message ID.`)
   .option(`--attachments [attachments...]`, `Array of compound ID strings of bucket IDs and file IDs to be attached to the email. They should be formatted as <BUCKET_ID>:<FILE_ID>.`)
   .option(`--bcc [bcc...]`, `Array of target IDs to be added as BCC.`)
   .option(`--cc [cc...]`, `Array of target IDs to be added as CC.`)
@@ -162,7 +177,14 @@ messaging
   .option(`--users [users...]`, `List of User IDs.`)
   .action(
     actionRunner(
-      async ({ messageId, attachments, bcc, cc, content, draft, html, scheduledAt, subject, targets, topics, users }) => {
+      async (_options, _command) => {
+        const { messageId, attachments, bcc, cc, content, draft, html, scheduledAt, subject, targets, topics, users } = await promptForMissing(
+          _options,
+          [
+            { key: "messageId", option: "--message-id <message-id>", name: "messageId", description: "Message ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/messages/email/{messageId}`.replace(`{messageId}`, messageId);
         const _payload: RequestParams = {};
@@ -213,9 +235,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-create-push`)
+  .command(`create-push`)
   .description(`Create a new push notification.`)
-  .requiredOption(`--message-id <message-id>`, `Message ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
+  .option(`--message-id <message-id>`, `Message ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
   .option(`--action <action>`, `Action for push notification.`)
   .option(`--badge <badge>`, `Badge for push notification. Available only for iOS Platform.`, parseInteger)
   .option(`--body <body>`, `Body for push notification.`)
@@ -251,7 +273,14 @@ messaging
   .option(`--users [users...]`, `List of User IDs.`)
   .action(
     actionRunner(
-      async ({ messageId, action, badge, body, color, contentAvailable, critical, data, draft, icon, image, priority, scheduledAt, sound, tag, targets, title, topics, users }) => {
+      async (_options, _command) => {
+        const { messageId, action, badge, body, color, contentAvailable, critical, data, draft, icon, image, priority, scheduledAt, sound, tag, targets, title, topics, users } = await promptForMissing(
+          _options,
+          [
+            { key: "messageId", option: "--message-id <message-id>", name: "messageId", description: "Message ID. Choose a custom ID or generate a random ID with `ID.unique()`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/messages/push`;
         const _payload: RequestParams = {};
@@ -326,10 +355,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-update-push`)
-  .description(`Update a push notification by its unique ID. This endpoint only works on messages that are in draft status. Messages that are already processing, sent, or failed cannot be updated.
-`)
-  .requiredOption(`--message-id <message-id>`, `Message ID.`)
+  .command(`update-push`)
+  .description(`Update a push notification by its unique ID. This endpoint only works on messages that are in draft status. Messages that are already processing, sent, or failed cannot be updated.`)
+  .option(`--message-id <message-id>`, `Message ID.`)
   .option(`--action <action>`, `Action for push notification.`)
   .option(`--badge <badge>`, `Badge for push notification. Available only for iOS platforms.`, parseInteger)
   .option(`--body <body>`, `Body for push notification.`)
@@ -365,7 +393,14 @@ messaging
   .option(`--users [users...]`, `List of User IDs.`)
   .action(
     actionRunner(
-      async ({ messageId, action, badge, body, color, contentAvailable, critical, data, draft, icon, image, priority, scheduledAt, sound, tag, targets, title, topics, users }) => {
+      async (_options, _command) => {
+        const { messageId, action, badge, body, color, contentAvailable, critical, data, draft, icon, image, priority, scheduledAt, sound, tag, targets, title, topics, users } = await promptForMissing(
+          _options,
+          [
+            { key: "messageId", option: "--message-id <message-id>", name: "messageId", description: "Message ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/messages/push/{messageId}`.replace(`{messageId}`, messageId);
         const _payload: RequestParams = {};
@@ -437,12 +472,20 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-delete`)
+  .command(`delete`)
   .description(`Delete a message. If the message is not a draft or scheduled, but has been sent, this will not recall the message.`)
-  .requiredOption(`--message-id <message-id>`, `Message ID.`)
+  .option(`--message-id <message-id>`, `Message ID.`)
   .action(
     actionRunner(
-      async ({ messageId }) => {
+      async (_options, _command) => {
+        const { messageId } = await promptForMissing(
+          _options,
+          [
+            { key: "messageId", option: "--message-id <message-id>", name: "messageId", description: "Message ID.", type: "string", required: true, resource: { listPath: "/messaging/messages", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`messaging delete`);
         const _client = await sdkForProject();
         const _apiPath = `/messaging/messages/{messageId}`.replace(`{messageId}`, messageId);
         const _payload: RequestParams = {};
@@ -460,13 +503,19 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-get-message`)
-  .description(`Get a message by its unique ID.
-`)
-  .requiredOption(`--message-id <message-id>`, `Message ID.`)
+  .command(`get-message`)
+  .description(`Get a message by its unique ID.`)
+  .option(`--message-id <message-id>`, `Message ID.`)
   .action(
     actionRunner(
-      async ({ messageId }) => {
+      async (_options, _command) => {
+        const { messageId } = await promptForMissing(
+          _options,
+          [
+            { key: "messageId", option: "--message-id <message-id>", name: "messageId", description: "Message ID.", type: "string", required: true, resource: { listPath: "/messaging/messages", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/messages/{messageId}`.replace(`{messageId}`, messageId);
         const _payload: RequestParams = {};
@@ -484,9 +533,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-list-message-logs`)
+  .command(`list-message-logs`)
   .description(`Get the message activity logs listed by its unique ID.`)
-  .requiredOption(`--message-id <message-id>`, `Message ID.`)
+  .option(`--message-id <message-id>`, `Message ID.`)
   .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Only supported methods are limit and offset`)
   .option(
     `--total [value]`,
@@ -496,7 +545,14 @@ messaging
   )
   .action(
     actionRunner(
-      async ({ messageId, queries, total }) => {
+      async (_options, _command) => {
+        const { messageId, queries, total } = await promptForMissing(
+          _options,
+          [
+            { key: "messageId", option: "--message-id <message-id>", name: "messageId", description: "Message ID.", type: "string", required: true, resource: { listPath: "/messaging/messages", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/messages/{messageId}/logs`.replace(`{messageId}`, messageId);
         const _payload: RequestParams = {};
@@ -520,9 +576,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-list-targets`)
+  .command(`list-targets`)
   .description(`Get a list of the targets associated with a message.`)
-  .requiredOption(`--message-id <message-id>`, `Message ID.`)
+  .option(`--message-id <message-id>`, `Message ID.`)
   .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: userId, providerId, identifier, providerType`)
   .option(
     `--total [value]`,
@@ -532,7 +588,14 @@ messaging
   )
   .action(
     actionRunner(
-      async ({ messageId, queries, total }) => {
+      async (_options, _command) => {
+        const { messageId, queries, total } = await promptForMissing(
+          _options,
+          [
+            { key: "messageId", option: "--message-id <message-id>", name: "messageId", description: "Message ID.", type: "string", required: true, resource: { listPath: "/messaging/messages", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/messages/{messageId}/targets`.replace(`{messageId}`, messageId);
         const _payload: RequestParams = {};
@@ -556,7 +619,7 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-list-providers`)
+  .command(`list-providers`)
   .description(`Get a list of all providers from the current Revenexx project.`)
   .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, provider, type, enabled`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
@@ -595,10 +658,10 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-create-mailgun-provider`)
+  .command(`create-mailgun-provider`)
   .description(`Create a new Mailgun provider.`)
-  .requiredOption(`--name <name>`, `Provider name.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
+  .option(`--name <name>`, `Provider name.`)
+  .option(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
   .option(`--api-key <api-key>`, `Mailgun API Key.`)
   .option(`--domain <domain>`, `Mailgun Domain.`)
   .option(
@@ -619,7 +682,15 @@ messaging
   .option(`--reply-to-name <reply-to-name>`, `Name set in the reply to field for the mail. Default value is sender name. Reply to name must have reply to email as well.`)
   .action(
     actionRunner(
-      async ({ name, providerId, apiKey, domain, enabled, fromEmail, fromName, isEuRegion, replyToEmail, replyToName }) => {
+      async (_options, _command) => {
+        const { name, providerId, apiKey, domain, enabled, fromEmail, fromName, isEuRegion, replyToEmail, replyToName } = await promptForMissing(
+          _options,
+          [
+            { key: "name", option: "--name <name>", name: "name", description: "Provider name.", type: "string", required: true },
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID. Choose a custom ID or generate a random ID with `ID.unique()`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/mailgun`;
         const _payload: RequestParams = {};
@@ -667,9 +738,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-update-mailgun-provider`)
+  .command(`update-mailgun-provider`)
   .description(`Update a Mailgun provider by its unique ID.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID.`)
+  .option(`--provider-id <provider-id>`, `Provider ID.`)
   .option(`--api-key <api-key>`, `Mailgun API Key.`)
   .option(`--domain <domain>`, `Mailgun Domain.`)
   .option(
@@ -691,7 +762,14 @@ messaging
   .option(`--reply-to-name <reply-to-name>`, `Name set in the reply to field for the mail. Default value is sender name.`)
   .action(
     actionRunner(
-      async ({ providerId, apiKey, domain, enabled, fromEmail, fromName, isEuRegion, name, replyToEmail, replyToName }) => {
+      async (_options, _command) => {
+        const { providerId, apiKey, domain, enabled, fromEmail, fromName, isEuRegion, name, replyToEmail, replyToName } = await promptForMissing(
+          _options,
+          [
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/mailgun/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
@@ -736,10 +814,10 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-create-msg-91-provider`)
+  .command(`create-msg-91-provider`)
   .description(`Create a new MSG91 provider.`)
-  .requiredOption(`--name <name>`, `Provider name.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
+  .option(`--name <name>`, `Provider name.`)
+  .option(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
   .option(`--auth-key <auth-key>`, `Msg91 auth key.`)
   .option(
     `--enabled [value]`,
@@ -751,7 +829,15 @@ messaging
   .option(`--template-id <template-id>`, `Msg91 template ID`)
   .action(
     actionRunner(
-      async ({ name, providerId, authKey, enabled, senderId, templateId }) => {
+      async (_options, _command) => {
+        const { name, providerId, authKey, enabled, senderId, templateId } = await promptForMissing(
+          _options,
+          [
+            { key: "name", option: "--name <name>", name: "name", description: "Provider name.", type: "string", required: true },
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID. Choose a custom ID or generate a random ID with `ID.unique()`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/msg91`;
         const _payload: RequestParams = {};
@@ -787,9 +873,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-update-msg-91-provider`)
+  .command(`update-msg-91-provider`)
   .description(`Update a MSG91 provider by its unique ID.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID.`)
+  .option(`--provider-id <provider-id>`, `Provider ID.`)
   .option(`--auth-key <auth-key>`, `Msg91 auth key.`)
   .option(
     `--enabled [value]`,
@@ -802,7 +888,14 @@ messaging
   .option(`--template-id <template-id>`, `Msg91 template ID.`)
   .action(
     actionRunner(
-      async ({ providerId, authKey, enabled, name, senderId, templateId }) => {
+      async (_options, _command) => {
+        const { providerId, authKey, enabled, name, senderId, templateId } = await promptForMissing(
+          _options,
+          [
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/msg91/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
@@ -835,10 +928,10 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-create-resend-provider`)
+  .command(`create-resend-provider`)
   .description(`Create a new Resend provider.`)
-  .requiredOption(`--name <name>`, `Provider name.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
+  .option(`--name <name>`, `Provider name.`)
+  .option(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
   .option(`--api-key <api-key>`, `Resend API key.`)
   .option(
     `--enabled [value]`,
@@ -852,7 +945,15 @@ messaging
   .option(`--reply-to-name <reply-to-name>`, `Name set in the reply to field for the mail. Default value is sender name.`)
   .action(
     actionRunner(
-      async ({ name, providerId, apiKey, enabled, fromEmail, fromName, replyToEmail, replyToName }) => {
+      async (_options, _command) => {
+        const { name, providerId, apiKey, enabled, fromEmail, fromName, replyToEmail, replyToName } = await promptForMissing(
+          _options,
+          [
+            { key: "name", option: "--name <name>", name: "name", description: "Provider name.", type: "string", required: true },
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID. Choose a custom ID or generate a random ID with `ID.unique()`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/resend`;
         const _payload: RequestParams = {};
@@ -894,9 +995,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-update-resend-provider`)
+  .command(`update-resend-provider`)
   .description(`Update a Resend provider by its unique ID.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID.`)
+  .option(`--provider-id <provider-id>`, `Provider ID.`)
   .option(`--api-key <api-key>`, `Resend API key.`)
   .option(
     `--enabled [value]`,
@@ -911,7 +1012,14 @@ messaging
   .option(`--reply-to-name <reply-to-name>`, `Name set in the Reply To field for the mail. Default value is Sender Name.`)
   .action(
     actionRunner(
-      async ({ providerId, apiKey, enabled, fromEmail, fromName, name, replyToEmail, replyToName }) => {
+      async (_options, _command) => {
+        const { providerId, apiKey, enabled, fromEmail, fromName, name, replyToEmail, replyToName } = await promptForMissing(
+          _options,
+          [
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/resend/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
@@ -950,10 +1058,10 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-create-sendgrid-provider`)
+  .command(`create-sendgrid-provider`)
   .description(`Create a new Sendgrid provider.`)
-  .requiredOption(`--name <name>`, `Provider name.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
+  .option(`--name <name>`, `Provider name.`)
+  .option(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
   .option(`--api-key <api-key>`, `Sendgrid API key.`)
   .option(
     `--enabled [value]`,
@@ -967,7 +1075,15 @@ messaging
   .option(`--reply-to-name <reply-to-name>`, `Name set in the reply to field for the mail. Default value is sender name.`)
   .action(
     actionRunner(
-      async ({ name, providerId, apiKey, enabled, fromEmail, fromName, replyToEmail, replyToName }) => {
+      async (_options, _command) => {
+        const { name, providerId, apiKey, enabled, fromEmail, fromName, replyToEmail, replyToName } = await promptForMissing(
+          _options,
+          [
+            { key: "name", option: "--name <name>", name: "name", description: "Provider name.", type: "string", required: true },
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID. Choose a custom ID or generate a random ID with `ID.unique()`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/sendgrid`;
         const _payload: RequestParams = {};
@@ -1009,9 +1125,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-update-sendgrid-provider`)
+  .command(`update-sendgrid-provider`)
   .description(`Update a Sendgrid provider by its unique ID.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID.`)
+  .option(`--provider-id <provider-id>`, `Provider ID.`)
   .option(`--api-key <api-key>`, `Sendgrid API key.`)
   .option(
     `--enabled [value]`,
@@ -1026,7 +1142,14 @@ messaging
   .option(`--reply-to-name <reply-to-name>`, `Name set in the Reply To field for the mail. Default value is Sender Name.`)
   .action(
     actionRunner(
-      async ({ providerId, apiKey, enabled, fromEmail, fromName, name, replyToEmail, replyToName }) => {
+      async (_options, _command) => {
+        const { providerId, apiKey, enabled, fromEmail, fromName, name, replyToEmail, replyToName } = await promptForMissing(
+          _options,
+          [
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/sendgrid/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
@@ -1065,10 +1188,10 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-create-telesign-provider`)
+  .command(`create-telesign-provider`)
   .description(`Create a new Telesign provider.`)
-  .requiredOption(`--name <name>`, `Provider name.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
+  .option(`--name <name>`, `Provider name.`)
+  .option(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
   .option(`--api-key <api-key>`, `Telesign API key.`)
   .option(`--customer-id <customer-id>`, `Telesign customer ID.`)
   .option(
@@ -1080,7 +1203,15 @@ messaging
   .option(`--from <from>`, `Sender Phone number. Format this number with a leading '+' and a country code, e.g., +16175551212.`)
   .action(
     actionRunner(
-      async ({ name, providerId, apiKey, customerId, enabled, from }) => {
+      async (_options, _command) => {
+        const { name, providerId, apiKey, customerId, enabled, from } = await promptForMissing(
+          _options,
+          [
+            { key: "name", option: "--name <name>", name: "name", description: "Provider name.", type: "string", required: true },
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID. Choose a custom ID or generate a random ID with `ID.unique()`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/telesign`;
         const _payload: RequestParams = {};
@@ -1116,9 +1247,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-update-telesign-provider`)
+  .command(`update-telesign-provider`)
   .description(`Update a Telesign provider by its unique ID.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID.`)
+  .option(`--provider-id <provider-id>`, `Provider ID.`)
   .option(`--api-key <api-key>`, `Telesign API key.`)
   .option(`--customer-id <customer-id>`, `Telesign customer ID.`)
   .option(
@@ -1131,7 +1262,14 @@ messaging
   .option(`--name <name>`, `Provider name.`)
   .action(
     actionRunner(
-      async ({ providerId, apiKey, customerId, enabled, from, name }) => {
+      async (_options, _command) => {
+        const { providerId, apiKey, customerId, enabled, from, name } = await promptForMissing(
+          _options,
+          [
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/telesign/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
@@ -1164,10 +1302,10 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-create-textmagic-provider`)
+  .command(`create-textmagic-provider`)
   .description(`Create a new Textmagic provider.`)
-  .requiredOption(`--name <name>`, `Provider name.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
+  .option(`--name <name>`, `Provider name.`)
+  .option(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
   .option(`--api-key <api-key>`, `Textmagic apiKey.`)
   .option(
     `--enabled [value]`,
@@ -1179,7 +1317,15 @@ messaging
   .option(`--username <username>`, `Textmagic username.`)
   .action(
     actionRunner(
-      async ({ name, providerId, apiKey, enabled, from, username }) => {
+      async (_options, _command) => {
+        const { name, providerId, apiKey, enabled, from, username } = await promptForMissing(
+          _options,
+          [
+            { key: "name", option: "--name <name>", name: "name", description: "Provider name.", type: "string", required: true },
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID. Choose a custom ID or generate a random ID with `ID.unique()`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/textmagic`;
         const _payload: RequestParams = {};
@@ -1215,9 +1361,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-update-textmagic-provider`)
+  .command(`update-textmagic-provider`)
   .description(`Update a Textmagic provider by its unique ID.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID.`)
+  .option(`--provider-id <provider-id>`, `Provider ID.`)
   .option(`--api-key <api-key>`, `Textmagic apiKey.`)
   .option(
     `--enabled [value]`,
@@ -1230,7 +1376,14 @@ messaging
   .option(`--username <username>`, `Textmagic username.`)
   .action(
     actionRunner(
-      async ({ providerId, apiKey, enabled, from, name, username }) => {
+      async (_options, _command) => {
+        const { providerId, apiKey, enabled, from, name, username } = await promptForMissing(
+          _options,
+          [
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/textmagic/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
@@ -1263,10 +1416,10 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-create-twilio-provider`)
+  .command(`create-twilio-provider`)
   .description(`Create a new Twilio provider.`)
-  .requiredOption(`--name <name>`, `Provider name.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
+  .option(`--name <name>`, `Provider name.`)
+  .option(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
   .option(`--account-sid <account-sid>`, `Twilio account secret ID.`)
   .option(`--auth-token <auth-token>`, `Twilio authentication token.`)
   .option(
@@ -1278,7 +1431,15 @@ messaging
   .option(`--from <from>`, `Sender Phone number. Format this number with a leading '+' and a country code, e.g., +16175551212.`)
   .action(
     actionRunner(
-      async ({ name, providerId, accountSid, authToken, enabled, from }) => {
+      async (_options, _command) => {
+        const { name, providerId, accountSid, authToken, enabled, from } = await promptForMissing(
+          _options,
+          [
+            { key: "name", option: "--name <name>", name: "name", description: "Provider name.", type: "string", required: true },
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID. Choose a custom ID or generate a random ID with `ID.unique()`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/twilio`;
         const _payload: RequestParams = {};
@@ -1314,9 +1475,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-update-twilio-provider`)
+  .command(`update-twilio-provider`)
   .description(`Update a Twilio provider by its unique ID.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID.`)
+  .option(`--provider-id <provider-id>`, `Provider ID.`)
   .option(`--account-sid <account-sid>`, `Twilio account secret ID.`)
   .option(`--auth-token <auth-token>`, `Twilio authentication token.`)
   .option(
@@ -1329,7 +1490,14 @@ messaging
   .option(`--name <name>`, `Provider name.`)
   .action(
     actionRunner(
-      async ({ providerId, accountSid, authToken, enabled, from, name }) => {
+      async (_options, _command) => {
+        const { providerId, accountSid, authToken, enabled, from, name } = await promptForMissing(
+          _options,
+          [
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/twilio/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
@@ -1362,10 +1530,10 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-create-vonage-provider`)
+  .command(`create-vonage-provider`)
   .description(`Create a new Vonage provider.`)
-  .requiredOption(`--name <name>`, `Provider name.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
+  .option(`--name <name>`, `Provider name.`)
+  .option(`--provider-id <provider-id>`, `Provider ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
   .option(`--api-key <api-key>`, `Vonage API key.`)
   .option(`--api-secret <api-secret>`, `Vonage API secret.`)
   .option(
@@ -1377,7 +1545,15 @@ messaging
   .option(`--from <from>`, `Sender Phone number. Format this number with a leading '+' and a country code, e.g., +16175551212.`)
   .action(
     actionRunner(
-      async ({ name, providerId, apiKey, apiSecret, enabled, from }) => {
+      async (_options, _command) => {
+        const { name, providerId, apiKey, apiSecret, enabled, from } = await promptForMissing(
+          _options,
+          [
+            { key: "name", option: "--name <name>", name: "name", description: "Provider name.", type: "string", required: true },
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID. Choose a custom ID or generate a random ID with `ID.unique()`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/vonage`;
         const _payload: RequestParams = {};
@@ -1413,9 +1589,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-update-vonage-provider`)
+  .command(`update-vonage-provider`)
   .description(`Update a Vonage provider by its unique ID.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID.`)
+  .option(`--provider-id <provider-id>`, `Provider ID.`)
   .option(`--api-key <api-key>`, `Vonage API key.`)
   .option(`--api-secret <api-secret>`, `Vonage API secret.`)
   .option(
@@ -1428,7 +1604,14 @@ messaging
   .option(`--name <name>`, `Provider name.`)
   .action(
     actionRunner(
-      async ({ providerId, apiKey, apiSecret, enabled, from, name }) => {
+      async (_options, _command) => {
+        const { providerId, apiKey, apiSecret, enabled, from, name } = await promptForMissing(
+          _options,
+          [
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/vonage/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
@@ -1461,12 +1644,20 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-delete-provider`)
+  .command(`delete-provider`)
   .description(`Delete a provider by its unique ID.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID.`)
+  .option(`--provider-id <provider-id>`, `Provider ID.`)
   .action(
     actionRunner(
-      async ({ providerId }) => {
+      async (_options, _command) => {
+        const { providerId } = await promptForMissing(
+          _options,
+          [
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID.", type: "string", required: true, resource: { listPath: "/messaging/providers", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`messaging delete-provider`);
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
@@ -1484,13 +1675,19 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-get-provider`)
-  .description(`Get a provider by its unique ID.
-`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID.`)
+  .command(`get-provider`)
+  .description(`Get a provider by its unique ID.`)
+  .option(`--provider-id <provider-id>`, `Provider ID.`)
   .action(
     actionRunner(
-      async ({ providerId }) => {
+      async (_options, _command) => {
+        const { providerId } = await promptForMissing(
+          _options,
+          [
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID.", type: "string", required: true, resource: { listPath: "/messaging/providers", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
@@ -1508,9 +1705,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-list-provider-logs`)
+  .command(`list-provider-logs`)
   .description(`Get the provider activity logs listed by its unique ID.`)
-  .requiredOption(`--provider-id <provider-id>`, `Provider ID.`)
+  .option(`--provider-id <provider-id>`, `Provider ID.`)
   .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Only supported methods are limit and offset`)
   .option(
     `--total [value]`,
@@ -1520,7 +1717,14 @@ messaging
   )
   .action(
     actionRunner(
-      async ({ providerId, queries, total }) => {
+      async (_options, _command) => {
+        const { providerId, queries, total } = await promptForMissing(
+          _options,
+          [
+            { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID.", type: "string", required: true, resource: { listPath: "/messaging/providers", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/{providerId}/logs`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
@@ -1544,9 +1748,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-list-subscriber-logs`)
+  .command(`list-subscriber-logs`)
   .description(`Get the subscriber activity logs listed by its unique ID.`)
-  .requiredOption(`--subscriber-id <subscriber-id>`, `Subscriber ID.`)
+  .option(`--subscriber-id <subscriber-id>`, `Subscriber ID.`)
   .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Only supported methods are limit and offset`)
   .option(
     `--total [value]`,
@@ -1556,7 +1760,14 @@ messaging
   )
   .action(
     actionRunner(
-      async ({ subscriberId, queries, total }) => {
+      async (_options, _command) => {
+        const { subscriberId, queries, total } = await promptForMissing(
+          _options,
+          [
+            { key: "subscriberId", option: "--subscriber-id <subscriber-id>", name: "subscriberId", description: "Subscriber ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/subscribers/{subscriberId}/logs`.replace(`{subscriberId}`, subscriberId);
         const _payload: RequestParams = {};
@@ -1580,7 +1791,7 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-list-topics`)
+  .command(`list-topics`)
   .description(`Get a list of all topics from the current Revenexx project.`)
   .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, description, emailTotal, smsTotal, pushTotal`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
@@ -1619,14 +1830,22 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-create-topic`)
+  .command(`create-topic`)
   .description(`Create a new topic.`)
-  .requiredOption(`--name <name>`, `Topic Name.`)
-  .requiredOption(`--topic-id <topic-id>`, `Topic ID. Choose a custom Topic ID or a new Topic ID.`)
+  .option(`--name <name>`, `Topic Name.`)
+  .option(`--topic-id <topic-id>`, `Topic ID. Choose a custom Topic ID or a new Topic ID.`)
   .option(`--subscribe [subscribe...]`, `An array of role strings with subscribe permission. By default all users are granted with any subscribe permission. [learn more about roles](https://appwrite.io/docs/permissions#permission-roles). Maximum of 100 roles are allowed, each 64 characters long.`)
   .action(
     actionRunner(
-      async ({ name, topicId, subscribe }) => {
+      async (_options, _command) => {
+        const { name, topicId, subscribe } = await promptForMissing(
+          _options,
+          [
+            { key: "name", option: "--name <name>", name: "name", description: "Topic Name.", type: "string", required: true },
+            { key: "topicId", option: "--topic-id <topic-id>", name: "topicId", description: "Topic ID. Choose a custom Topic ID or a new Topic ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/topics`;
         const _payload: RequestParams = {};
@@ -1653,12 +1872,20 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-delete-topic`)
+  .command(`delete-topic`)
   .description(`Delete a topic by its unique ID.`)
-  .requiredOption(`--topic-id <topic-id>`, `Topic ID.`)
+  .option(`--topic-id <topic-id>`, `Topic ID.`)
   .action(
     actionRunner(
-      async ({ topicId }) => {
+      async (_options, _command) => {
+        const { topicId } = await promptForMissing(
+          _options,
+          [
+            { key: "topicId", option: "--topic-id <topic-id>", name: "topicId", description: "Topic ID.", type: "string", required: true, resource: { listPath: "/messaging/topics", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`messaging delete-topic`);
         const _client = await sdkForProject();
         const _apiPath = `/messaging/topics/{topicId}`.replace(`{topicId}`, topicId);
         const _payload: RequestParams = {};
@@ -1676,13 +1903,19 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-get-topic`)
-  .description(`Get a topic by its unique ID.
-`)
-  .requiredOption(`--topic-id <topic-id>`, `Topic ID.`)
+  .command(`get-topic`)
+  .description(`Get a topic by its unique ID.`)
+  .option(`--topic-id <topic-id>`, `Topic ID.`)
   .action(
     actionRunner(
-      async ({ topicId }) => {
+      async (_options, _command) => {
+        const { topicId } = await promptForMissing(
+          _options,
+          [
+            { key: "topicId", option: "--topic-id <topic-id>", name: "topicId", description: "Topic ID.", type: "string", required: true, resource: { listPath: "/messaging/topics", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/topics/{topicId}`.replace(`{topicId}`, topicId);
         const _payload: RequestParams = {};
@@ -1700,15 +1933,21 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-update-topic`)
-  .description(`Update a topic by its unique ID.
-`)
-  .requiredOption(`--topic-id <topic-id>`, `Topic ID.`)
+  .command(`update-topic`)
+  .description(`Update a topic by its unique ID.`)
+  .option(`--topic-id <topic-id>`, `Topic ID.`)
   .option(`--name <name>`, `Topic Name.`)
   .option(`--subscribe [subscribe...]`, `An array of role strings with subscribe permission. By default all users are granted with any subscribe permission. [learn more about roles](https://appwrite.io/docs/permissions#permission-roles). Maximum of 100 roles are allowed, each 64 characters long.`)
   .action(
     actionRunner(
-      async ({ topicId, name, subscribe }) => {
+      async (_options, _command) => {
+        const { topicId, name, subscribe } = await promptForMissing(
+          _options,
+          [
+            { key: "topicId", option: "--topic-id <topic-id>", name: "topicId", description: "Topic ID.", type: "string", required: true, resource: { listPath: "/messaging/topics", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/topics/{topicId}`.replace(`{topicId}`, topicId);
         const _payload: RequestParams = {};
@@ -1732,9 +1971,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-list-topic-logs`)
+  .command(`list-topic-logs`)
   .description(`Get the topic activity logs listed by its unique ID.`)
-  .requiredOption(`--topic-id <topic-id>`, `Topic ID.`)
+  .option(`--topic-id <topic-id>`, `Topic ID.`)
   .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Only supported methods are limit and offset`)
   .option(
     `--total [value]`,
@@ -1744,7 +1983,14 @@ messaging
   )
   .action(
     actionRunner(
-      async ({ topicId, queries, total }) => {
+      async (_options, _command) => {
+        const { topicId, queries, total } = await promptForMissing(
+          _options,
+          [
+            { key: "topicId", option: "--topic-id <topic-id>", name: "topicId", description: "Topic ID.", type: "string", required: true, resource: { listPath: "/messaging/topics", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/topics/{topicId}/logs`.replace(`{topicId}`, topicId);
         const _payload: RequestParams = {};
@@ -1768,9 +2014,9 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-list-subscribers`)
+  .command(`list-subscribers`)
   .description(`Get a list of all subscribers from the current Revenexx project.`)
-  .requiredOption(`--topic-id <topic-id>`, `Topic ID. The topic ID subscribed to.`)
+  .option(`--topic-id <topic-id>`, `Topic ID. The topic ID subscribed to.`)
   .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, provider, type, enabled`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
   .option(
@@ -1781,7 +2027,14 @@ messaging
   )
   .action(
     actionRunner(
-      async ({ topicId, queries, search, total }) => {
+      async (_options, _command) => {
+        const { topicId, queries, search, total } = await promptForMissing(
+          _options,
+          [
+            { key: "topicId", option: "--topic-id <topic-id>", name: "topicId", description: "Topic ID. The topic ID subscribed to.", type: "string", required: true, resource: { listPath: "/messaging/topics", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/topics/{topicId}/subscribers`.replace(`{topicId}`, topicId);
         const _payload: RequestParams = {};
@@ -1808,14 +2061,23 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-create-subscriber`)
+  .command(`create-subscriber`)
   .description(`Create a new subscriber.`)
-  .requiredOption(`--topic-id <topic-id>`, `Topic ID. The topic ID to subscribe to.`)
-  .requiredOption(`--subscriber-id <subscriber-id>`, `Subscriber ID. Choose a custom Subscriber ID or a new Subscriber ID.`)
-  .requiredOption(`--target-id <target-id>`, `Target ID. The target ID to link to the specified Topic ID.`)
+  .option(`--topic-id <topic-id>`, `Topic ID. The topic ID to subscribe to.`)
+  .option(`--subscriber-id <subscriber-id>`, `Subscriber ID. Choose a custom Subscriber ID or a new Subscriber ID.`)
+  .option(`--target-id <target-id>`, `Target ID. The target ID to link to the specified Topic ID.`)
   .action(
     actionRunner(
-      async ({ topicId, subscriberId, targetId }) => {
+      async (_options, _command) => {
+        const { topicId, subscriberId, targetId } = await promptForMissing(
+          _options,
+          [
+            { key: "topicId", option: "--topic-id <topic-id>", name: "topicId", description: "Topic ID. The topic ID to subscribe to.", type: "string", required: true, resource: { listPath: "/messaging/topics", hasLimit: false } },
+            { key: "subscriberId", option: "--subscriber-id <subscriber-id>", name: "subscriberId", description: "Subscriber ID. Choose a custom Subscriber ID or a new Subscriber ID.", type: "string", required: true },
+            { key: "targetId", option: "--target-id <target-id>", name: "targetId", description: "Target ID. The target ID to link to the specified Topic ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/topics/{topicId}/subscribers`.replace(`{topicId}`, topicId);
         const _payload: RequestParams = {};
@@ -1839,13 +2101,22 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-delete-subscriber`)
+  .command(`delete-subscriber`)
   .description(`Delete a subscriber by its unique ID.`)
-  .requiredOption(`--topic-id <topic-id>`, `Topic ID. The topic ID subscribed to.`)
-  .requiredOption(`--subscriber-id <subscriber-id>`, `Subscriber ID.`)
+  .option(`--topic-id <topic-id>`, `Topic ID. The topic ID subscribed to.`)
+  .option(`--subscriber-id <subscriber-id>`, `Subscriber ID.`)
   .action(
     actionRunner(
-      async ({ topicId, subscriberId }) => {
+      async (_options, _command) => {
+        const { topicId, subscriberId } = await promptForMissing(
+          _options,
+          [
+            { key: "topicId", option: "--topic-id <topic-id>", name: "topicId", description: "Topic ID. The topic ID subscribed to.", type: "string", required: true, resource: { listPath: "/messaging/topics", hasLimit: false } },
+            { key: "subscriberId", option: "--subscriber-id <subscriber-id>", name: "subscriberId", description: "Subscriber ID.", type: "string", required: true, resource: { listPath: "/messaging/topics/{topicId}/subscribers", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`messaging delete-subscriber`);
         const _client = await sdkForProject();
         const _apiPath = `/messaging/topics/{topicId}/subscribers/{subscriberId}`.replace(`{topicId}`, topicId).replace(`{subscriberId}`, subscriberId);
         const _payload: RequestParams = {};
@@ -1863,14 +2134,21 @@ messaging
     ),
   );
 messaging
-  .command(`messaging-get-subscriber`)
-  .description(`Get a subscriber by its unique ID.
-`)
-  .requiredOption(`--topic-id <topic-id>`, `Topic ID. The topic ID subscribed to.`)
-  .requiredOption(`--subscriber-id <subscriber-id>`, `Subscriber ID.`)
+  .command(`get-subscriber`)
+  .description(`Get a subscriber by its unique ID.`)
+  .option(`--topic-id <topic-id>`, `Topic ID. The topic ID subscribed to.`)
+  .option(`--subscriber-id <subscriber-id>`, `Subscriber ID.`)
   .action(
     actionRunner(
-      async ({ topicId, subscriberId }) => {
+      async (_options, _command) => {
+        const { topicId, subscriberId } = await promptForMissing(
+          _options,
+          [
+            { key: "topicId", option: "--topic-id <topic-id>", name: "topicId", description: "Topic ID. The topic ID subscribed to.", type: "string", required: true, resource: { listPath: "/messaging/topics", hasLimit: false } },
+            { key: "subscriberId", option: "--subscriber-id <subscriber-id>", name: "subscriberId", description: "Subscriber ID.", type: "string", required: true, resource: { listPath: "/messaging/topics/{topicId}/subscribers", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/messaging/topics/{topicId}/subscribers/{subscriberId}`.replace(`{topicId}`, topicId).replace(`{subscriberId}`, subscriberId);
         const _payload: RequestParams = {};

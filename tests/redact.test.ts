@@ -44,6 +44,35 @@ describe("redactSecrets", () => {
     ).toContain("Bearer ***");
   });
 
+  it("masks OAuth token fields from the SSO token endpoint", () => {
+    const out = redactSecrets(
+      '{"access_token":"eyJabc.def.ghi","refresh_token":"r3fr3sh-t0ken-value","id_token":"eyJxxx.yyy.zzz"}',
+    );
+    expect(out).toMatch(/"access_token":"\*\*\*"/);
+    expect(out).toMatch(/"refresh_token":"\*\*\*"/);
+    expect(out).toMatch(/"id_token":"\*\*\*"/);
+  });
+
+  it("masks raw `a_session_…=` session cookies", () => {
+    const out = redactSecrets(
+      "cookie sent: a_session_console=eyJhbGciOiJ.payload.sig; path=/",
+    );
+    expect(out).toContain("a_session_console=***");
+    expect(out).not.toContain("eyJhbGciOiJ.payload.sig");
+    // Per-project session cookie variant.
+    expect(redactSecrets("a_session_myproj=deadbeefcafe")).toBe(
+      "a_session_myproj=***",
+    );
+  });
+
+  it("masks a raw JWT appearing anywhere in the text", () => {
+    const jwt =
+      "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxMjMiLCJlbWFpbCI6ImFAYi5jb20ifQ.signature-part";
+    const out = redactSecrets(`token expired: ${jwt} <-`);
+    expect(out).toContain("eyJ***");
+    expect(out).not.toContain("signature-part");
+  });
+
   it("leaves plain text untouched", () => {
     const msg = "Project with the requested ID could not be found.";
     expect(redactSecrets(msg)).toBe(msg);

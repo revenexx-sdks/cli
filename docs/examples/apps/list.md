@@ -1,0 +1,3 @@
+```bash
+revenexx apps list
+```

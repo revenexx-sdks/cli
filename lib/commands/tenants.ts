@@ -40,8 +40,21 @@ export const writeActiveTenant = (
   slug: string,
   file: string = defaultTenantFile(),
 ): void => {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, slug, "utf-8");
+  // Shares `~/.revenexx` with the credential store (prefs.json), so keep the
+  // directory owner-only; reassert on every write to repair drift.
+  const dir = path.dirname(file);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try {
+    fs.chmodSync(dir, 0o700);
+  } catch {
+    // Best-effort: non-POSIX filesystems may not support chmod.
+  }
+  fs.writeFileSync(file, slug, { encoding: "utf-8", mode: 0o600 });
+  try {
+    fs.chmodSync(file, 0o600);
+  } catch {
+    // Best-effort: non-POSIX filesystems may not support chmod.
+  }
 };
 
 export interface KnownTenant {

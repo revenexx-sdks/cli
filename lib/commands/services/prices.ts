@@ -8,16 +8,23 @@ import {
   parseBool,
   parseInteger,
 } from "../../parser.js";
+import {
+  confirmDestructive,
+  promptForMissing,
+} from "../../interactive.js";
 
 export const prices = new Command("prices")
-  .description(commandDescriptions["prices"] ?? "")
+  .description(
+    commandDescriptions["prices"] ??
+      `Manage prices resources.`,
+  )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });
 
 prices
-  .command(`prices-lists-list`)
-  .description(``)
+  .command(`lists-list`)
+  .description(`List price lists`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -50,10 +57,10 @@ prices
     ),
   );
 prices
-  .command(`prices-lists-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, `Unique list code per tenant.`)
-  .requiredOption(`--name <name>`, ``)
+  .command(`lists-create`)
+  .description(`Create a price list (currency, priority, validity, buyer scope)`)
+  .option(`--code <code>`, `Unique list code per tenant.`)
+  .option(`--name <name>`, ``)
   .option(`--channel-_id <channel-_id>`, `Scope: only this channel.`)
   .option(`--contact-_id <contact-_id>`, `Scope: only this contact — beats every other scope.`)
   .option(`--currency <currency>`, `ISO 4217 code (default EUR) — resolution only considers lists matching the requested currency.`)
@@ -85,7 +92,15 @@ prices
   .option(`--valid-_until <valid-_until>`, `Validity window end.`)
   .action(
     actionRunner(
-      async ({ code, name, channel_id, contact_id, currency, description, is_default, labels, metadata, organization_id, priority, requires_auth, status, tax_included, valid_from, valid_until }) => {
+      async (_options, _command) => {
+        const { code, name, channel_id, contact_id, currency, description, is_default, labels, metadata, organization_id, priority, requires_auth, status, tax_included, valid_from, valid_until } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", description: "Unique list code per tenant.", type: "string", required: true },
+            { key: "name", option: "--name <name>", name: "name", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists`;
         const _payload: RequestParams = {};
@@ -151,8 +166,8 @@ prices
     ),
   );
 prices
-  .command(`prices-lists-defaults`)
-  .description(``)
+  .command(`lists-defaults`)
+  .description(`Seed the standard price list — idempotent, also runs on app.installed`)
   .action(
     actionRunner(
       async () => {
@@ -173,12 +188,20 @@ prices
     ),
   );
 prices
-  .command(`prices-lists-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`lists-delete`)
+  .description(`Delete a price list including its entries`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`prices lists-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -196,12 +219,19 @@ prices
     ),
   );
 prices
-  .command(`prices-lists-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`lists-get`)
+  .description(`Read one price list`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -219,9 +249,9 @@ prices
     ),
   );
 prices
-  .command(`prices-lists-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`lists-update`)
+  .description(`Update a price list`)
+  .option(`--id <id>`, ``)
   .option(`--channel-_id <channel-_id>`, `Scope: only this channel.`)
   .option(`--code <code>`, `Unique list code per tenant.`)
   .option(`--contact-_id <contact-_id>`, `Scope: only this contact — beats every other scope.`)
@@ -255,7 +285,14 @@ prices
   .option(`--valid-_until <valid-_until>`, `Validity window end.`)
   .action(
     actionRunner(
-      async ({ id, channel_id, code, contact_id, currency, description, is_default, labels, metadata, name, organization_id, priority, requires_auth, status, tax_included, valid_from, valid_until }) => {
+      async (_options, _command) => {
+        const { id, channel_id, code, contact_id, currency, description, is_default, labels, metadata, name, organization_id, priority, requires_auth, status, tax_included, valid_from, valid_until } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -321,15 +358,22 @@ prices
     ),
   );
 prices
-  .command(`prices-entries-list`)
-  .description(``)
-  .requiredOption(`--list-_id <list-_id>`, ``)
+  .command(`entries-list`)
+  .description(`List the entries of a price list (tiers, validity, on-request markers)`)
+  .option(`--list-_id <list-_id>`, ``)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async ({ list_id, limit, offset, order }) => {
+      async (_options, _command) => {
+        const { list_id, limit, offset, order } = await promptForMissing(
+          _options,
+          [
+            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{list_id}/entries`.replace(`{list_id}`, list_id);
         const _payload: RequestParams = {};
@@ -356,9 +400,9 @@ prices
     ),
   );
 prices
-  .command(`prices-entries-create`)
-  .description(``)
-  .requiredOption(`--list-_id <list-_id>`, ``)
+  .command(`entries-create`)
+  .description(`Add a price entry (quantity tier)`)
+  .option(`--list-_id <list-_id>`, ``)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
   .option(`--price-_type <price-_type>`, `Default 'standard'; 'on_request' is the explicit no-price marker — it stops resolution and answers "price on request".`)
   .option(`--product-_id <product-_id>`, `Priced product.`)
@@ -370,7 +414,14 @@ prices
   .option(`--valid-_until <valid-_until>`, `Per-entry validity end.`)
   .action(
     actionRunner(
-      async ({ list_id, metadata, price_type, product_id, quantity_min, sku, unit, unit_price, valid_from, valid_until }) => {
+      async (_options, _command) => {
+        const { list_id, metadata, price_type, product_id, quantity_min, sku, unit, unit_price, valid_from, valid_until } = await promptForMissing(
+          _options,
+          [
+            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{list_id}/entries`.replace(`{list_id}`, list_id);
         const _payload: RequestParams = {};
@@ -415,13 +466,21 @@ prices
     ),
   );
 prices
-  .command(`prices-entries-replace`)
-  .description(``)
-  .requiredOption(`--list-_id <list-_id>`, ``)
-  .requiredOption(`--entries [entries...]`, `The complete new entry set (set semantics).`)
+  .command(`entries-replace`)
+  .description(`Replace ALL entries of a price list (table editing / import)`)
+  .option(`--list-_id <list-_id>`, ``)
+  .option(`--entries [entries...]`, `The complete new entry set (set semantics).`)
   .action(
     actionRunner(
-      async ({ list_id, entries }) => {
+      async (_options, _command) => {
+        const { list_id, entries } = await promptForMissing(
+          _options,
+          [
+            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
+            { key: "entries", option: "--entries [entries...]", name: "entries", description: "The complete new entry set (set semantics).", type: "array", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{list_id}/entries`.replace(`{list_id}`, list_id);
         const _payload: RequestParams = {};
@@ -442,13 +501,21 @@ prices
     ),
   );
 prices
-  .command(`prices-entries-bulk`)
-  .description(``)
-  .requiredOption(`--list-_id <list-_id>`, ``)
-  .requiredOption(`--entries [entries...]`, `The complete new entry set (set semantics).`)
+  .command(`entries-bulk`)
+  .description(`Bulk-APPEND entries (large imports; call in chunks, at most 5000 each)`)
+  .option(`--list-_id <list-_id>`, ``)
+  .option(`--entries [entries...]`, `The complete new entry set (set semantics).`)
   .action(
     actionRunner(
-      async ({ list_id, entries }) => {
+      async (_options, _command) => {
+        const { list_id, entries } = await promptForMissing(
+          _options,
+          [
+            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
+            { key: "entries", option: "--entries [entries...]", name: "entries", description: "The complete new entry set (set semantics).", type: "array", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{list_id}/entries/bulk`.replace(`{list_id}`, list_id);
         const _payload: RequestParams = {};
@@ -469,13 +536,22 @@ prices
     ),
   );
 prices
-  .command(`prices-entries-delete`)
-  .description(``)
-  .requiredOption(`--list-_id <list-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`entries-delete`)
+  .description(`Delete a price entry`)
+  .option(`--list-_id <list-_id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ list_id, id }) => {
+      async (_options, _command) => {
+        const { list_id, id } = await promptForMissing(
+          _options,
+          [
+            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/prices/lists/{list_id}/entries", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`prices entries-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{list_id}/entries/{id}`.replace(`{list_id}`, list_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -493,13 +569,21 @@ prices
     ),
   );
 prices
-  .command(`prices-entries-get`)
-  .description(``)
-  .requiredOption(`--list-_id <list-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`entries-get`)
+  .description(`Read one price entry`)
+  .option(`--list-_id <list-_id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ list_id, id }) => {
+      async (_options, _command) => {
+        const { list_id, id } = await promptForMissing(
+          _options,
+          [
+            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/prices/lists/{list_id}/entries", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{list_id}/entries/{id}`.replace(`{list_id}`, list_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -517,10 +601,10 @@ prices
     ),
   );
 prices
-  .command(`prices-entries-update`)
-  .description(``)
-  .requiredOption(`--list-_id <list-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`entries-update`)
+  .description(`Update a price entry`)
+  .option(`--list-_id <list-_id>`, ``)
+  .option(`--id <id>`, ``)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
   .option(`--price-_type <price-_type>`, `Default 'standard'; 'on_request' is the explicit no-price marker — it stops resolution and answers "price on request".`)
   .option(`--product-_id <product-_id>`, `Priced product.`)
@@ -532,7 +616,15 @@ prices
   .option(`--valid-_until <valid-_until>`, `Per-entry validity end.`)
   .action(
     actionRunner(
-      async ({ list_id, id, metadata, price_type, product_id, quantity_min, sku, unit, unit_price, valid_from, valid_until }) => {
+      async (_options, _command) => {
+        const { list_id, id, metadata, price_type, product_id, quantity_min, sku, unit, unit_price, valid_from, valid_until } = await promptForMissing(
+          _options,
+          [
+            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/prices/lists/{list_id}/entries", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{list_id}/entries/{id}`.replace(`{list_id}`, list_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -577,9 +669,9 @@ prices
     ),
   );
 prices
-  .command(`prices-resolve`)
-  .description(``)
-  .requiredOption(`--items [items...]`, `Items to price (at most 200 per call).`)
+  .command(`resolve`)
+  .description(`THE live price call: resolve unit prices + tier ladders for items in a buyer context (contact/org/market/channel). Most-customised surface in the field — designed to be replaced 1:1 by a custom app via the gateway capability override (ERP pricing).`)
+  .option(`--items [items...]`, `Items to price (at most 200 per call).`)
   .option(`--at <at>`, `Point in time for validity windows (ISO 8601 timestamp, default now).`)
   .option(`--channel-_id <channel-_id>`, `Buyer context: channel.`)
   .option(`--contact-_id <contact-_id>`, `Buyer context: contact — most specific scope.`)
@@ -588,7 +680,14 @@ prices
   .option(`--organization-_id <organization-_id>`, `Buyer context: organization.`)
   .action(
     actionRunner(
-      async ({ items, at, channel_id, contact_id, currency, market_id, organization_id }) => {
+      async (_options, _command) => {
+        const { items, at, channel_id, contact_id, currency, market_id, organization_id } = await promptForMissing(
+          _options,
+          [
+            { key: "items", option: "--items [items...]", name: "items", description: "Items to price (at most 200 per call).", type: "array", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/prices/resolve`;
         const _payload: RequestParams = {};

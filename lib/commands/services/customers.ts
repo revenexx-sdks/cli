@@ -8,16 +8,23 @@ import {
   parseBool,
   parseInteger,
 } from "../../parser.js";
+import {
+  confirmDestructive,
+  promptForMissing,
+} from "../../interactive.js";
 
 export const customers = new Command("customers")
-  .description(commandDescriptions["customers"] ?? "")
+  .description(
+    commandDescriptions["customers"] ??
+      `Manage customers resources.`,
+  )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });
 
 customers
-  .command(`customers-addresses-list`)
-  .description(``)
+  .command(`addresses-list`)
+  .description(`List addresses (filter by column; paginate limit/offset/order)`)
   .option(`--contact-_id <contact-_id>`, `Filter to one owning contact.`)
   .option(`--organization-_id <organization-_id>`, `Filter to one organization.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
@@ -58,12 +65,12 @@ customers
     ),
   );
 customers
-  .command(`customers-addresses-create`)
-  .description(``)
-  .requiredOption(`--city <city>`, ``)
-  .requiredOption(`--country <country>`, `ISO 3166-1 alpha-2 code.`)
-  .requiredOption(`--street <street>`, ``)
-  .requiredOption(`--zip <zip>`, ``)
+  .command(`addresses-create`)
+  .description(`Create a address`)
+  .option(`--city <city>`, ``)
+  .option(`--country <country>`, `ISO 3166-1 alpha-2 code.`)
+  .option(`--street <street>`, ``)
+  .option(`--zip <zip>`, ``)
   .option(`--company <company>`, ``)
   .option(`--contact-_id <contact-_id>`, `Owning contact (personal address).`)
   .option(
@@ -80,7 +87,17 @@ customers
   .option(`--type <type>`, `Default 'shipping'.`)
   .action(
     actionRunner(
-      async ({ city, country, street, zip, company, contact_id, is_default, name, organization_id, phone, region, street2, type }) => {
+      async (_options, _command) => {
+        const { city, country, street, zip, company, contact_id, is_default, name, organization_id, phone, region, street2, type } = await promptForMissing(
+          _options,
+          [
+            { key: "city", option: "--city <city>", name: "city", type: "string", required: true },
+            { key: "country", option: "--country <country>", name: "country", description: "ISO 3166-1 alpha-2 code.", type: "string", required: true },
+            { key: "street", option: "--street <street>", name: "street", type: "string", required: true },
+            { key: "zip", option: "--zip <zip>", name: "zip", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/customers/addresses`;
         const _payload: RequestParams = {};
@@ -137,12 +154,20 @@ customers
     ),
   );
 customers
-  .command(`customers-addresses-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`addresses-delete`)
+  .description(`Delete a address by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/customers/addresses", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`customers addresses-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/customers/addresses/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -160,12 +185,19 @@ customers
     ),
   );
 customers
-  .command(`customers-addresses-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`addresses-get`)
+  .description(`Read one address by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/customers/addresses", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/customers/addresses/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -183,9 +215,9 @@ customers
     ),
   );
 customers
-  .command(`customers-addresses-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`addresses-update`)
+  .description(`Update a address by id`)
+  .option(`--id <id>`, ``)
   .option(`--city <city>`, ``)
   .option(`--company <company>`, ``)
   .option(`--contact-_id <contact-_id>`, `Owning contact (personal address).`)
@@ -206,7 +238,14 @@ customers
   .option(`--zip <zip>`, ``)
   .action(
     actionRunner(
-      async ({ id, city, company, contact_id, country, is_default, name, organization_id, phone, region, street, street2, type, zip }) => {
+      async (_options, _command) => {
+        const { id, city, company, contact_id, country, is_default, name, organization_id, phone, region, street, street2, type, zip } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/customers/addresses", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/customers/addresses/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -263,13 +302,21 @@ customers
     ),
   );
 customers
-  .command(`customers-auth-login`)
-  .description(``)
-  .requiredOption(`--email <email>`, ``)
-  .requiredOption(`--password <password>`, ``)
+  .command(`auth-login`)
+  .description(`Create a platform session from email + password; answers the session and the matching contact.`)
+  .option(`--email <email>`, ``)
+  .option(`--password <password>`, ``)
   .action(
     actionRunner(
-      async ({ email, password }) => {
+      async (_options, _command) => {
+        const { email, password } = await promptForMissing(
+          _options,
+          [
+            { key: "email", option: "--email <email>", name: "email", type: "string", required: true },
+            { key: "password", option: "--password <password>", name: "password", type: "string", required: true, secret: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/customers/auth/login`;
         const _payload: RequestParams = {};
@@ -293,13 +340,21 @@ customers
     ),
   );
 customers
-  .command(`customers-auth-logout`)
-  .description(``)
-  .requiredOption(`--session-_id <session-_id>`, ``)
-  .requiredOption(`--user-_id <user-_id>`, ``)
+  .command(`auth-logout`)
+  .description(`Revoke a platform session.`)
+  .option(`--session-_id <session-_id>`, ``)
+  .option(`--user-_id <user-_id>`, ``)
   .action(
     actionRunner(
-      async ({ session_id, user_id }) => {
+      async (_options, _command) => {
+        const { session_id, user_id } = await promptForMissing(
+          _options,
+          [
+            { key: "session_id", option: "--session-_id <session-_id>", name: "session_id", type: "string", required: true },
+            { key: "user_id", option: "--user-_id <user-_id>", name: "user_id", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/customers/auth/logout`;
         const _payload: RequestParams = {};
@@ -323,13 +378,20 @@ customers
     ),
   );
 customers
-  .command(`customers-auth-me`)
-  .description(``)
-  .requiredOption(`--user-_id <user-_id>`, ``)
+  .command(`auth-me`)
+  .description(`Resolve the platform user and its contact (trusted-BFF call).`)
+  .option(`--user-_id <user-_id>`, ``)
   .option(`--session-_id <session-_id>`, `Optional session to verify — answers 401 when the session is expired or revoked.`)
   .action(
     actionRunner(
-      async ({ user_id, session_id }) => {
+      async (_options, _command) => {
+        const { user_id, session_id } = await promptForMissing(
+          _options,
+          [
+            { key: "user_id", option: "--user-_id <user-_id>", name: "user_id", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/customers/auth/me`;
         const _payload: RequestParams = {};
@@ -353,13 +415,21 @@ customers
     ),
   );
 customers
-  .command(`customers-auth-recovery`)
-  .description(``)
-  .requiredOption(`--email <email>`, ``)
-  .requiredOption(`--url <url>`, `Redirect URL carrying userId + secret.`)
+  .command(`auth-recovery`)
+  .description(`Start password recovery: the platform mails a recovery link to the buyer.`)
+  .option(`--email <email>`, ``)
+  .option(`--url <url>`, `Redirect URL carrying userId + secret.`)
   .action(
     actionRunner(
-      async ({ email, url }) => {
+      async (_options, _command) => {
+        const { email, url } = await promptForMissing(
+          _options,
+          [
+            { key: "email", option: "--email <email>", name: "email", type: "string", required: true },
+            { key: "url", option: "--url <url>", name: "url", description: "Redirect URL carrying userId + secret.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/customers/auth/recovery`;
         const _payload: RequestParams = {};
@@ -383,14 +453,23 @@ customers
     ),
   );
 customers
-  .command(`customers-auth-recovery-confirm`)
-  .description(``)
-  .requiredOption(`--password <password>`, ``)
-  .requiredOption(`--secret <secret>`, ``)
-  .requiredOption(`--user-_id <user-_id>`, ``)
+  .command(`auth-recovery-confirm`)
+  .description(`Confirm password recovery with the mailed secret and set the new password.`)
+  .option(`--password <password>`, ``)
+  .option(`--secret <secret>`, ``)
+  .option(`--user-_id <user-_id>`, ``)
   .action(
     actionRunner(
-      async ({ password, secret, user_id }) => {
+      async (_options, _command) => {
+        const { password, secret, user_id } = await promptForMissing(
+          _options,
+          [
+            { key: "password", option: "--password <password>", name: "password", type: "string", required: true, secret: true },
+            { key: "secret", option: "--secret <secret>", name: "secret", type: "string", required: true, secret: true },
+            { key: "user_id", option: "--user-_id <user-_id>", name: "user_id", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/customers/auth/recovery`;
         const _payload: RequestParams = {};
@@ -417,10 +496,10 @@ customers
     ),
   );
 customers
-  .command(`customers-auth-register`)
-  .description(``)
-  .requiredOption(`--email <email>`, ``)
-  .requiredOption(`--password <password>`, ``)
+  .command(`auth-register`)
+  .description(`Register a buyer: contact (system of record) + platform user; optionally founds an organization (mirrored as a team) with the contact as its admin.`)
+  .option(`--email <email>`, ``)
+  .option(`--password <password>`, ``)
   .option(`--first-_name <first-_name>`, ``)
   .option(`--last-_name <last-_name>`, ``)
   .option(`--locale <locale>`, `BCP 47, e.g. de-DE`)
@@ -429,7 +508,15 @@ customers
   .option(`--vat-_id <vat-_id>`, `The new organization's VAT id; required when the tenant's organization_vat_id_required setting is on.`)
   .action(
     actionRunner(
-      async ({ email, password, first_name, last_name, locale, organization_id, organization_name, vat_id }) => {
+      async (_options, _command) => {
+        const { email, password, first_name, last_name, locale, organization_id, organization_name, vat_id } = await promptForMissing(
+          _options,
+          [
+            { key: "email", option: "--email <email>", name: "email", type: "string", required: true },
+            { key: "password", option: "--password <password>", name: "password", type: "string", required: true, secret: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/customers/auth/register`;
         const _payload: RequestParams = {};
@@ -471,8 +558,8 @@ customers
     ),
   );
 customers
-  .command(`customers-contacts-list`)
-  .description(``)
+  .command(`contacts-list`)
+  .description(`List contacts (filter by column; paginate limit/offset/order)`)
   .option(`--organization-_id <organization-_id>`, `Filter to one organization.`)
   .option(`--role <role>`, `Filter by role (buyer | approver | admin | requester).`)
   .option(`--status <status>`, `Filter by status (invited | active | blocked).`)
@@ -521,9 +608,9 @@ customers
     ),
   );
 customers
-  .command(`customers-contacts-create`)
-  .description(``)
-  .requiredOption(`--email <email>`, ``)
+  .command(`contacts-create`)
+  .description(`Create a contact`)
+  .option(`--email <email>`, ``)
   .option(`--first-_name <first-_name>`, ``)
   .option(
     `--is-_primary [value]`,
@@ -539,7 +626,14 @@ customers
   .option(`--status <status>`, `Default 'invited' on create.`)
   .action(
     actionRunner(
-      async ({ email, first_name, is_primary, last_name, locale, organization_id, phone, role, status }) => {
+      async (_options, _command) => {
+        const { email, first_name, is_primary, last_name, locale, organization_id, phone, role, status } = await promptForMissing(
+          _options,
+          [
+            { key: "email", option: "--email <email>", name: "email", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/customers/contacts`;
         const _payload: RequestParams = {};
@@ -584,12 +678,20 @@ customers
     ),
   );
 customers
-  .command(`customers-contacts-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`contacts-delete`)
+  .description(`Delete a contact by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`customers contacts-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/customers/contacts/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -607,12 +709,19 @@ customers
     ),
   );
 customers
-  .command(`customers-contacts-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`contacts-get`)
+  .description(`Read one contact by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/customers/contacts/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -630,9 +739,9 @@ customers
     ),
   );
 customers
-  .command(`customers-contacts-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`contacts-update`)
+  .description(`Update a contact by id`)
+  .option(`--id <id>`, ``)
   .option(`--email <email>`, ``)
   .option(`--first-_name <first-_name>`, ``)
   .option(
@@ -649,7 +758,14 @@ customers
   .option(`--status <status>`, `Default 'invited' on create.`)
   .action(
     actionRunner(
-      async ({ id, email, first_name, is_primary, last_name, locale, organization_id, phone, role, status }) => {
+      async (_options, _command) => {
+        const { id, email, first_name, is_primary, last_name, locale, organization_id, phone, role, status } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/customers/contacts/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -694,8 +810,8 @@ customers
     ),
   );
 customers
-  .command(`customers-organizations-list`)
-  .description(``)
+  .command(`organizations-list`)
+  .description(`List organizations (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -728,15 +844,22 @@ customers
     ),
   );
 customers
-  .command(`customers-organizations-create`)
-  .description(``)
-  .requiredOption(`--name <name>`, `Company name — mirrored to the platform team.`)
+  .command(`organizations-create`)
+  .description(`Create a organization`)
+  .option(`--name <name>`, `Company name — mirrored to the platform team.`)
   .option(`--settings <settings>`, `Free-form organization settings.`)
   .option(`--status <status>`, `Default 'active'.`)
   .option(`--vat-_id <vat-_id>`, ``)
   .action(
     actionRunner(
-      async ({ name, settings, status, vat_id }) => {
+      async (_options, _command) => {
+        const { name, settings, status, vat_id } = await promptForMissing(
+          _options,
+          [
+            { key: "name", option: "--name <name>", name: "name", description: "Company name — mirrored to the platform team.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/customers/organizations`;
         const _payload: RequestParams = {};
@@ -766,12 +889,20 @@ customers
     ),
   );
 customers
-  .command(`customers-organizations-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`organizations-delete`)
+  .description(`Delete a organization by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/customers/organizations", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`customers organizations-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/customers/organizations/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -789,12 +920,19 @@ customers
     ),
   );
 customers
-  .command(`customers-organizations-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`organizations-get`)
+  .description(`Read one organization by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/customers/organizations", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/customers/organizations/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -812,16 +950,23 @@ customers
     ),
   );
 customers
-  .command(`customers-organizations-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`organizations-update`)
+  .description(`Update a organization by id`)
+  .option(`--id <id>`, ``)
   .option(`--name <name>`, `Company name — mirrored to the platform team.`)
   .option(`--settings <settings>`, `Free-form organization settings.`)
   .option(`--status <status>`, `Default 'active'.`)
   .option(`--vat-_id <vat-_id>`, ``)
   .action(
     actionRunner(
-      async ({ id, name, settings, status, vat_id }) => {
+      async (_options, _command) => {
+        const { id, name, settings, status, vat_id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/customers/organizations", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/customers/organizations/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};

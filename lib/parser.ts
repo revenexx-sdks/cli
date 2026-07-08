@@ -4,6 +4,7 @@ import Table from "cli-table3";
 import packageJson from "../package.json" with { type: "json" };
 const { description } = packageJson;
 import { globalConfig } from "./config.js";
+import { redactSecrets } from "./redact.js";
 import os from "os";
 import Client from "./client.js";
 import { isCloud } from "./utils.js";
@@ -13,16 +14,17 @@ import {
   SDK_TITLE,
   SDK_LOGO,
   EXECUTABLE_NAME,
+  GITHUB_REPO,
 } from "./constants.js";
 
 const cliConfig: CliConfig = {
   verbose: false,
   json: false,
   force: false,
-  all: false,
-  ids: [],
   report: false,
   reportData: {},
+  retry: true,
+  debug: false,
 };
 
 type JsonObject = Record<string, unknown>;
@@ -41,38 +43,9 @@ const toJsonObject = (value: unknown): JsonObject | null => {
   return null;
 };
 
-/**
- * Strip token-like and credential-like substrings from text before it ever
- * reaches stdout/stderr or a bug-report URL. Conservative: prefers to over-
- * redact rather than leak. Patterns kept simple and ordered.
- */
-export const redactSecrets = (input: unknown): string => {
-  if (input === null || input === undefined) return "";
-  let s = typeof input === "string" ? input : String(input);
-
-  // Server-issued API keys (long opaque tokens with a `standard_` prefix)
-  s = s.replace(/standard_[A-Za-z0-9]{32,}/g, "standard_***");
-  // Gateway-issued API keys (`rvxk_…`)
-  s = s.replace(/rvxk_[A-Za-z0-9]{16,}/g, "rvxk_***");
-  // Auth-related headers
-  s = s.replace(
-    /(X-Revenexx-(?:Api-Key|Key|Cookie|JWT|Session|Dev-Key|Mode))(\s*[:=]\s*)([^\s,'"`}\]]+)/gi,
-    "$1$2***",
-  );
-  // `Authorization: Bearer …`
-  s = s.replace(/(Bearer\s+)([A-Za-z0-9._\-]{20,})/gi, "$1***");
-  // Inline shell env assignments
-  s = s.replace(
-    /\b(REVENEXX_(?:TOKEN|API_KEY|KEY|COOKIE)\s*=\s*)([^\s;'"`]+)/g,
-    "$1***",
-  );
-  // JSON / kv: token / api_key / secret / password / cookie / key
-  s = s.replace(
-    /(["'`]?(?:token|api[_-]?key|secret|password|cookie|key)["'`]?\s*[:=]\s*["'`]?)([^"'`\s,;}\]]{4,})/gi,
-    "$1***",
-  );
-  return s;
-};
+// redactSecrets lives in ./redact.js so low-level modules (the HTTP client)
+// can redact without importing parser.ts. Re-exported here for existing callers.
+export { redactSecrets };
 
 const redactArgs = (args: string[]): string[] => {
   const out: string[] = [];
@@ -115,40 +88,105 @@ const extractReportCommandArgs = (value: unknown): string[] => {
   return redactArgs(reportData.data.args);
 };
 
+/** Max rendered width for a table cell before truncation. */
+const MAX_CELL_WIDTH = 60;
+/** Max rendered width for a nested-value preview (compact JSON). */
+const MAX_PREVIEW_WIDTH = 40;
+
+const isBigNumber = (value: unknown): boolean =>
+  (value as { constructor?: { name?: string } })?.constructor?.name ===
+  "BigNumber";
+
+/** True for values rendered inline on a `key : value` line. */
+const isScalarish = (value: unknown): boolean =>
+  value === null ||
+  value === undefined ||
+  typeof value !== "object" ||
+  isBigNumber(value);
+
+const truncate = (value: string, max: number): string =>
+  value.length > max ? `${value.slice(0, max - 1)}…` : value;
+
+/** Compact single-line preview of a nested value, e.g. `{"a":1,…`. */
+const previewValue = (value: unknown): string =>
+  truncate(JSON.stringify(value) ?? "", MAX_PREVIEW_WIDTH);
+
+const formatScalar = (value: unknown): string => {
+  if (value === null || value === undefined) return chalk.dim("-");
+  if (typeof value === "boolean") return chalk.yellow(String(value));
+  if (typeof value === "number" || isBigNumber(value))
+    return chalk.yellow(String(value));
+  const s = String(value);
+  return s === "" ? chalk.dim("(empty)") : s;
+};
+
+const sectionTitle = (title: string): string => chalk.bold(title);
+
+/**
+ * Print an aligned `key : value` block. Keys are padded *before* the ` : `
+ * separator, which keeps the output parseable with `line.split(" : ")` —
+ * the CI runtime tests rely on that contract for the first output line.
+ */
+const drawKeyValues = (obj: JsonObject, indent: number = 0): void => {
+  const keys = Object.keys(obj);
+  const width = keys.reduce((max, key) => Math.max(max, key.length), 0);
+  const pad = " ".repeat(indent);
+  for (const key of keys) {
+    const value = obj[key];
+    const rendered = isScalarish(value)
+      ? formatScalar(value)
+      : chalk.dim(previewValue(value));
+    console.log(`${pad}${chalk.cyan(key.padEnd(width))} : ${rendered}`);
+  }
+};
+
 export const parse = (data: unknown): void => {
   if (cliConfig.json) {
     drawJSON(data);
     return;
   }
 
-  const obj = data as JsonObject;
-  for (const key in obj) {
-    if (obj[key] === null) {
-      console.log(`${chalk.yellow.bold(key)} : null`);
-    } else if (Array.isArray(obj[key])) {
-      console.log(`${chalk.yellow.bold.underline(key)}`);
-      if (typeof (obj[key] as unknown[])[0] === "object") {
-        drawTable(obj[key] as JsonObject[]);
+  const obj = toJsonObject(data);
+  if (obj === null) {
+    drawJSON(data);
+    return;
+  }
+
+  const keys = Object.keys(obj);
+  const scalarKeys = keys.filter((key) => isScalarish(obj[key]));
+  const width = scalarKeys.reduce((max, key) => Math.max(max, key.length), 0);
+
+  for (const key of keys) {
+    const value = obj[key];
+    if (isScalarish(value)) {
+      console.log(
+        `${chalk.cyan(key.padEnd(width))} : ${formatScalar(value)}`,
+      );
+    } else if (Array.isArray(value)) {
+      console.log("");
+      console.log(sectionTitle(key));
+      if (
+        value.length > 0 &&
+        typeof value[0] === "object" &&
+        value[0] !== null
+      ) {
+        drawTable(value as JsonObject[]);
       } else {
-        drawJSON(obj[key]);
-      }
-    } else if (typeof obj[key] === "object") {
-      if ((obj[key] as { constructor?: { name?: string } })?.constructor?.name === "BigNumber") {
-        console.log(`${chalk.yellow.bold(key)} : ${obj[key]}`);
-      } else {
-        console.log(`${chalk.yellow.bold.underline(key)}`);
-        const tableRow = toJsonObject(obj[key]) ?? {};
-        drawTable([tableRow]);
+        drawJSON(value);
       }
     } else {
-      console.log(`${chalk.yellow.bold(key)} : ${obj[key]}`);
+      console.log("");
+      console.log(sectionTitle(key));
+      drawKeyValues(toJsonObject(value) ?? {}, 2);
     }
   }
 };
 
 export const drawTable = (data: Array<JsonObject | null | undefined>): void => {
   if (data.length == 0) {
-    console.log("[]");
+    // Keep piped output script-friendly (`[]`, as before this redesign);
+    // the friendly message is for humans at a terminal.
+    console.log(process.stdout.isTTY ? chalk.dim("No results.") : "[]");
     return;
   }
 
@@ -162,9 +200,9 @@ export const drawTable = (data: Array<JsonObject | null | undefined>): void => {
     drawJSON(data);
     return;
   }
-  // Create an object with all keys set to the default value ''
-  const def = keys.reduce((result: Record<string, string>, key) => {
-    result[key] = "-";
+  // Create an object with all keys set to a null default
+  const def = keys.reduce((result: Record<string, unknown>, key) => {
+    result[key] = null;
     return result;
   }, {});
   // Use object destructuring to replace all default values with the ones we have
@@ -172,47 +210,123 @@ export const drawTable = (data: Array<JsonObject | null | undefined>): void => {
 
   const columns = Object.keys(normalizedData[0]);
 
+  // Measure plain (unstyled) cell text first so column widths are known
+  // before any coloring is applied.
+  interface Cell {
+    text: string;
+    dim: boolean;
+  }
+  const cellFor = (value: unknown): Cell => {
+    if (value === null || value === undefined) return { text: "-", dim: true };
+    if (
+      (Array.isArray(value) || typeof value === "object") &&
+      !isBigNumber(value)
+    ) {
+      return { text: previewValue(value), dim: true };
+    }
+    return { text: truncate(String(value), MAX_CELL_WIDTH), dim: false };
+  };
+  const grid = normalizedData.map((row) =>
+    columns.map((key) => cellFor(row[key])),
+  );
+
+  // Fit the table to the terminal so rows never wrap and interleave: keep
+  // leading columns while they fit, and list the dropped ones below. Piped
+  // (non-TTY) output keeps every column so scripts see the full table.
+  // Per-column overhead: paddingRight (2) plus the column separator (1).
+  const OVERHEAD = 3;
+  const budget = process.stdout.isTTY
+    ? (process.stdout.columns || 80) - 1
+    : Infinity;
+  const naturalWidths = columns.map((column, i) =>
+    Math.max(column.length, ...grid.map((cells) => cells[i].text.length)),
+  );
+  let used = 0;
+  let visible = 0;
+  while (
+    visible < columns.length &&
+    (used + naturalWidths[visible] + OVERHEAD <= budget || visible === 0)
+  ) {
+    used += naturalWidths[visible] + OVERHEAD;
+    visible++;
+  }
+  // Even a lone first column must not exceed the terminal.
+  const widths = naturalWidths
+    .slice(0, visible)
+    .map((width) => Math.min(width, Math.max(budget - OVERHEAD, 8)));
+  const hidden = columns.slice(visible);
+
   const table = new Table({
-    head: columns.map((c) => chalk.cyan.italic.bold(c)),
+    head: columns
+      .slice(0, visible)
+      .map((c, i) => chalk.bold(truncate(c, widths[i]))),
     chars: {
-      top: " ",
-      "top-mid": " ",
-      "top-left": " ",
-      "top-right": " ",
-      bottom: " ",
-      "bottom-mid": " ",
-      "bottom-left": " ",
-      "bottom-right": " ",
-      left: " ",
-      "left-mid": " ",
-      mid: chalk.cyan("─"),
-      "mid-mid": chalk.cyan("┼"),
-      right: " ",
-      "right-mid": " ",
-      middle: chalk.cyan("│"),
+      top: "",
+      "top-mid": "",
+      "top-left": "",
+      "top-right": "",
+      bottom: "",
+      "bottom-mid": "",
+      "bottom-left": "",
+      "bottom-right": "",
+      left: "",
+      "left-mid": "",
+      mid: "",
+      "mid-mid": "",
+      right: "",
+      "right-mid": "",
+      middle: " ",
     },
+    style: { head: [], border: [], "padding-left": 0, "padding-right": 2 },
   });
 
-  normalizedData.forEach((row) => {
-    const rowValues: string[] = [];
-    for (const key of columns) {
-      if (row[key] == null) {
-        rowValues.push("-");
-      } else if (Array.isArray(row[key])) {
-        rowValues.push(JSON.stringify(row[key]));
-      } else if (typeof row[key] === "object") {
-        rowValues.push(JSON.stringify(row[key]));
-      } else {
-        rowValues.push(String(row[key]));
-      }
-    }
-    table.push(rowValues);
+  grid.forEach((cells) => {
+    table.push(
+      cells.slice(0, visible).map((cell, i) => {
+        const text = truncate(cell.text, widths[i]);
+        return cell.dim ? chalk.dim(text) : text;
+      }),
+    );
   });
   console.log(table.toString());
+  if (hidden.length > 0) {
+    console.log(
+      chalk.dim(
+        `(+${hidden.length} more column${hidden.length === 1 ? "" : "s"}: ${hidden.join(", ")} — use --json for the full output)`,
+      ),
+    );
+  }
+};
+
+/**
+ * Colorize a `JSON.stringify(…, null, 2)` string for terminal display. A
+ * no-op when color is disabled (piped output, NO_COLOR), so plain-text
+ * consumers always see valid, uncolored JSON.
+ */
+const colorizeJSON = (json: string): string => {
+  if (chalk.level === 0) return json;
+  return json.replace(
+    /("(?:\\.|[^"\\])*")(\s*:)?|\b(?:true|false|null)\b|-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g,
+    (match, str?: string, colon?: string) => {
+      if (str !== undefined) {
+        return colon !== undefined ? `${chalk.cyan(str)}${colon}` : chalk.green(str);
+      }
+      if (match === "null") return chalk.dim(match);
+      return chalk.yellow(match);
+    },
+  );
 };
 
 export const drawJSON = (data: unknown): void => {
-  console.log(JSON.stringify(data, null, 2));
+  // JSON.stringify returns undefined for undefined/functions — print the
+  // literal text (matching console.log's old behavior) instead of throwing.
+  const json = JSON.stringify(data, null, 2) ?? "undefined";
+  // The --json path must stay byte-stable for scripting/pipes: never colorize.
+  if (cliConfig.json) {
+    console.log(json);
+    return;
+  }
+  console.log(colorizeJSON(json));
 };
 
 /**
@@ -238,7 +352,7 @@ export const authHint = (err: unknown): string | null => {
     /Project is not set/i.test(message) ||
     /No API token found/i.test(message)
   ) {
-    return `Tip: configure credentials with \`${EXECUTABLE_NAME} login\` or set REVENEXX_API_KEY + REVENEXX_TENANT.`;
+    return `Configure credentials with \`${EXECUTABLE_NAME} login\` or set REVENEXX_API_KEY + REVENEXX_TENANT.`;
   }
 
   // Server-side rejections.
@@ -259,21 +373,102 @@ export const authHint = (err: unknown): string | null => {
       type === "user_session_expired" ||
       /expired/i.test(message)
     ) {
-      return `Tip: your token expired — run \`${EXECUTABLE_NAME} login --browser\` to mint a new one.`;
+      return `Your token expired — run \`${EXECUTABLE_NAME} login --browser\` to mint a new one.`;
     }
     if (type === "general_unauthorized_scope") {
-      return `Tip: the token is valid but lacks the required scope — issue a new Personal Access Token with the right permissions.`;
+      return `The token is valid but lacks the required scope — issue a new Personal Access Token with the right permissions.`;
     }
-    return `Tip: authentication failed — run \`${EXECUTABLE_NAME} login\` (or pass --token) and try again.`;
+    return `Authentication failed — run \`${EXECUTABLE_NAME} login\` (or pass --token) and try again.`;
   }
 
   return null;
 };
 
+/**
+ * Render extra detail carried by the typed errors in lib/commands/errors.ts
+ * (duck-typed on `name` so this file stays decoupled from command code).
+ */
+const drawErrorDetails = (err: Error): void => {
+  if (err.name === "ConfigValidationError") {
+    const validationErrors = (
+      err as unknown as {
+        getValidationErrors?: () => Array<{ path: string; message: string }>;
+      }
+    ).getValidationErrors?.();
+    for (const item of validationErrors ?? []) {
+      console.error(
+        `  ${chalk.red("✗")} ${chalk.cyan(item.path)}: ${redactSecrets(item.message)}`,
+      );
+    }
+    return;
+  }
+
+  if (err.name === "DestructiveChangeError") {
+    const metadata = (
+      err as unknown as {
+        getMetadata?: () => {
+          changes: Array<{
+            type: string;
+            resource: string;
+            field: string;
+            oldValue?: unknown;
+            newValue?: unknown;
+          }>;
+        };
+      }
+    ).getMetadata?.();
+    for (const change of metadata?.changes ?? []) {
+      const from =
+        change.oldValue === undefined
+          ? "-"
+          : redactSecrets(previewValue(change.oldValue));
+      const to =
+        change.newValue === undefined
+          ? "-"
+          : redactSecrets(previewValue(change.newValue));
+      console.error(
+        `  ${chalk.yellow("!")} ${change.type} ${chalk.cyan(`${change.resource}.${change.field}`)}${change.oldValue !== undefined || change.newValue !== undefined ? chalk.dim(` (${from} → ${to})`) : ""}`,
+      );
+    }
+    hint(`Re-run with --force to apply these changes.`);
+    return;
+  }
+
+  if (err.name === "ProjectNotInitializedError") {
+    hint(`Run \`${EXECUTABLE_NAME} login\` in your project directory to get set up.`);
+    return;
+  }
+
+  if (err.name === "AuthenticationError") {
+    hint(`Run \`${EXECUTABLE_NAME} login\` to authenticate and try again.`);
+    return;
+  }
+};
+
+/** Dim `code / type / response` metadata lines for verbose error output. */
+const drawErrorMeta = (err: Error): void => {
+  const meta = err as unknown as {
+    code?: unknown;
+    type?: unknown;
+    response?: unknown;
+    requestId?: unknown;
+  };
+  if (meta.code !== undefined)
+    console.error(chalk.dim(`  code: ${meta.code}`));
+  if (meta.type !== undefined)
+    console.error(chalk.dim(`  type: ${redactSecrets(meta.type)}`));
+  // The gateway correlation id ties this failure to a server-side log line —
+  // invaluable when asking support to investigate.
+  if (meta.requestId !== undefined && meta.requestId !== "")
+    console.error(chalk.dim(`  request-id: ${redactSecrets(meta.requestId)}`));
+  if (meta.response !== undefined)
+    console.error(chalk.dim(`  response: ${redactSecrets(meta.response)}`));
+};
+
 export const parseError = (err: Error): void => {
   if (cliConfig.report) {
     void (async () => {
-      let appwriteVersion = "unknown";
+      let serverVersion = "unknown";
       const endpoint = globalConfig.getEndpoint();
 
       try {
@@ -281,7 +476,7 @@ export const parseError = (err: Error): void => {
         const res = (await client.call("get", "/health/version")) as {
           version: string;
         };
-        appwriteVersion = res.version;
+        serverVersion = res.version;
       } catch {
         // Silently fail
       }
@@ -289,60 +484,54 @@ export const parseError = (err: Error): void => {
       const version = SDK_VERSION;
       const commandArgs = extractReportCommandArgs(cliConfig.reportData);
       const stepsToReproduce = `Running \`${EXECUTABLE_NAME} ${commandArgs.join(" ")}\``;
-      const yourEnvironment = `CLI version: ${version}\nOperation System: ${os.type()}\nRevenexx version: ${appwriteVersion}\nIs Cloud: ${isCloud()}`;
+      // Surface the gateway correlation id so support can tie the report to a
+      // server-side log line.
+      const requestId = (err as unknown as { requestId?: string }).requestId;
+      const requestIdLine = requestId ? `\nRequest ID: ${redactSecrets(requestId)}` : "";
+      const yourEnvironment = `CLI version: ${version}\nOperating System: ${os.type()}\nServer version: ${serverVersion}\nIs Cloud: ${isCloud()}${requestIdLine}`;
 
       const stack =
         "```\n" + redactSecrets(err.stack || err.message) + "\n```";
 
+      // Point at the public CLI repo (GITHUB_REPO) so the link resolves for
+      // external users, and use GitHub's generic `title`/`body` query params
+      // rather than issue-form field keys so it works without a specific
+      // issue template installed.
       const githubIssueUrl = new URL(
-        "https://github.com/revenexx/revenexx/issues/new",
+        `https://github.com/${GITHUB_REPO}/issues/new`,
       );
       githubIssueUrl.searchParams.append("labels", "bug");
-      githubIssueUrl.searchParams.append("template", "bug.yaml");
       githubIssueUrl.searchParams.append(
         "title",
-        `🐛 Bug Report: ${err.message}`,
+        `🐛 Bug Report: ${redactSecrets(err.message)}`,
       );
       githubIssueUrl.searchParams.append(
-        "actual-behavior",
-        `CLI Error:\n${stack}`,
-      );
-      githubIssueUrl.searchParams.append(
-        "steps-to-reproduce",
-        stepsToReproduce,
-      );
-      githubIssueUrl.searchParams.append("environment", yourEnvironment);
-
-      log(
-        `To report this error you can:\n - Create a support ticket in our Discord server https://appwrite.io/discord \n - Create an issue in our Github\n   ${githubIssueUrl.href}\n`,
+        "body",
+        `**Steps to reproduce**\n${stepsToReproduce}\n\n**Actual behavior**\nCLI Error:\n${stack}\n\n**Environment**\n${yourEnvironment}`,
       );
 
-      error("\n Stack Trace: \n");
-      console.error(redactSecrets(err.stack || err.message));
+      error(err.message);
+      drawErrorDetails(err);
+      console.error(chalk.dim(redactSecrets(err.stack ?? "")));
+      log(`To report this error, open an issue on GitHub:\n  ${githubIssueUrl.href}`);
       const tip = authHint(err);
       if (tip) hint(tip);
       process.exit(1);
     })();
   } else {
+    error(err.message);
+    drawErrorDetails(err);
     if (cliConfig.verbose) {
-      console.error(redactSecrets(err.stack || err.message));
-      // Surface structured fields (code / type / response) without secrets.
-      const meta = err as unknown as {
-        code?: unknown;
-        type?: unknown;
-        response?: unknown;
-      };
-      if (meta.code !== undefined) console.error(`  code: ${meta.code}`);
-      if (meta.type !== undefined)
-        console.error(`  type: ${redactSecrets(meta.type)}`);
-      if (meta.response !== undefined)
-        console.error(`  response: ${redactSecrets(meta.response)}`);
-    } else {
-      log("For detailed error pass the --verbose or --report flag");
-      error(err.message);
+      console.error(chalk.dim(redactSecrets(err.stack ?? "")));
+      drawErrorMeta(err);
     }
     const tip = authHint(err);
     if (tip) hint(tip);
+    if (!cliConfig.verbose) {
+      console.error(
+        chalk.dim(`Re-run with --verbose or --report for more detail.`),
+      );
+    }
     process.exit(1);
   }
 };
@@ -353,14 +542,6 @@ export const actionRunner = <
   fn: T,
 ): ((...args: Parameters<T>) => Promise<void>) => {
   return (...args: Parameters<T>) => {
-    if (
-      cliConfig.all &&
-      Array.isArray(cliConfig.ids) &&
-      cliConfig.ids.length !== 0
-    ) {
-      error(`The '--all' and '--id' flags cannot be used together.`);
-      process.exit(1);
-    }
     return fn(...args)
       .then(() => undefined)
       .catch(parseError);
@@ -381,60 +562,48 @@ export const parseBool = (value: string): boolean => {
   throw new InvalidArgumentError("Not a boolean.");
 };
 
+/**
+ * Status lines follow one gh-style system: a colored symbol, then the plain
+ * message. Message text is left uncolored for readability; chalk drops the
+ * ANSI codes automatically for non-TTY output and NO_COLOR.
+ */
 export const log = (message?: string): void => {
-  console.log(`${chalk.cyan.bold("ℹ Info:")} ${chalk.cyan(message ?? "")}`);
+  console.log(`${chalk.cyan("ℹ")} ${message ?? ""}`);
 };
 
 export const warn = (message?: string): void => {
-  console.log(
-    `${chalk.yellow.bold("ℹ Warning:")} ${chalk.yellow(message ?? "")}`,
-  );
+  console.log(`${chalk.yellow("!")} ${message ?? ""}`);
 };
 
 export const hint = (message?: string): void => {
-  console.log(`${chalk.cyan.bold("♥ Hint:")} ${chalk.cyan(message ?? "")}`);
+  console.log(chalk.dim(`  Tip: ${message ?? ""}`));
 };
 
 export const success = (message?: string): void => {
-  console.log(
-    `${chalk.green.bold("✓ Success:")} ${chalk.green(message ?? "")}`,
-  );
+  console.log(`${chalk.green("✓")} ${message ?? ""}`);
 };
 
 export const error = (message?: string): void => {
   const safe = redactSecrets(message);
-  console.error(`${chalk.red.bold("✗ Error:")} ${chalk.red(safe)}`);
+  console.error(`${chalk.red("✗")} ${safe}`);
 };
 
 export const logo = SDK_LOGO;
 
+/**
+ * Hand-written help text for the CLI's own (non-generated) commands. Service
+ * command descriptions come from the spec at generation time (see
+ * services.ts.twig), so only CLI-native commands need entries here — anything
+ * consumed without a fallback (login/logout/whoami/register/client) must stay.
+ */
 export const commandDescriptions: Record<string, string> = {
-  account: `The account command allows you to authenticate and manage a user account.`,
-  graphql: `The graphql command allows you to query and mutate any resource type on your Revenexx server.`,
-  avatars: `The avatars command aims to help you complete everyday tasks related to your app image, icons, and avatars.`,
-  databases: `(Legacy) The databases command allows you to create structured collections of documents and query and filter lists of documents.`,
-  "tables-db": `The tables-db command allows you to create structured tables of columns and query and filter lists of rows.`,
-  functions: `The functions command allows you to view, create, and manage your Cloud Functions.`,
-  generate: `The generate command allows you to generate a type-safe SDK from your ${SDK_TITLE} project configuration.`,
-  health: `The health command allows you to both validate and monitor your ${SDK_TITLE} server's health.`,
-  locale: `The locale command allows you to customize your app based on your users' location.`,
-  sites: `The sites command allows you to view, create and manage your Revenexx Sites.`,
-  storage: `The storage command allows you to manage your project files.`,
-  teams: `The teams command allows you to group users of your project to enable them to share read and write access to your project resources.`,
-  update: `The update command allows you to update the ${SDK_TITLE} CLI to the latest version.`,
-  users: `The users command allows you to manage your project users.`,
-  projects: `The projects command allows you to manage your projects, add platforms, manage API keys, Dev Keys etc.`,
-  project: `The project command allows you to manage project related resources like usage, variables, etc.`,
-  client: `The client command allows you to configure your CLI`,
-  login: `The login command allows you to authenticate and manage a user account.`,
+  login: `The login command allows you to authenticate to your ${SDK_TITLE} account.`,
   logout: `The logout command allows you to log out of your ${SDK_TITLE} account.`,
   whoami: `The whoami command gives information about the currently logged-in user.`,
-  register: `Outputs the link to create an ${SDK_TITLE} account.`,
-  console: `The console command gives you access to the APIs used by the Revenexx Console.`,
-  messaging: `The messaging command allows you to manage topics and targets and send messages.`,
-  migrations: `The migrations command allows you to migrate data between services.`,
-  vcs: `The vcs command allows you to interact with VCS providers and manage your code repositories.`,
-  main: chalk.redBright(`${logo}${description}`),
+  register: `Outputs the link to create a ${SDK_TITLE} account.`,
+  client: `The client command allows you to configure your CLI.`,
+  tenants: `The tenants command scopes follow-up commands to a specific ${SDK_TITLE} tenant.`,
+  main: `${chalk.redBright(logo)}${description}`,
 };
 
 export { cliConfig };

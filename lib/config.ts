@@ -150,13 +150,25 @@ class Config<T extends ConfigData = ConfigData> {
   }
 
   write(): void {
+    this.writeSecure(JSONBig.stringify(this.data, null, 4));
+  }
+
+  /**
+   * Persist `serialized` to `this.path` with owner-only permissions. The
+   * containing directory is created `0o700` and the file `0o600`; because
+   * `writeFileSync`'s `mode` only applies when the file is *created*, the
+   * mode is reasserted with `chmodSync` on every write to repair drift on
+   * files that predate this hardening or were written under a loose umask.
+   */
+  protected writeSecure(serialized: string): void {
     const dir = _path.dirname(this.path);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(this.path, serialized, { mode: 0o600 });
+    try {
+      fs.chmodSync(this.path, 0o600);
+    } catch {
+      // Best-effort: non-POSIX filesystems may not support chmod.
     }
-    fs.writeFileSync(this.path, JSONBig.stringify(this.data, null, 4), {
-      mode: 0o600,
-    });
   }
 
   get<K extends keyof T>(key: K): T[K];
@@ -270,14 +282,7 @@ class Local extends Config<ConfigType> {
   }
 
   write(): void {
-    const dir = _path.dirname(this.path);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    const orderedData = orderConfigKeys(this.data);
-    fs.writeFileSync(this.path, JSONBig.stringify(orderedData, null, 4), {
-      mode: 0o600,
-    });
+    this.writeSecure(JSONBig.stringify(orderConfigKeys(this.data), null, 4));
   }
 
   static findConfigFile(filename: string): string | null {
@@ -683,6 +688,10 @@ class Global extends Config<GlobalConfigData> {
   static PREFERENCE_KEY = "key" as const;
   static PREFERENCE_LOCALE = "locale" as const;
   static PREFERENCE_MODE = "mode" as const;
+  static PREFERENCE_JWT = "jwt" as const;
+  static PREFERENCE_REFRESH_TOKEN = "refreshToken" as const;
+  static PREFERENCE_JWT_EXPIRES = "jwtExpiresAt" as const;
+  static PREFERENCE_AUTH_METHOD = "authMethod" as const;
 
   static IGNORE_ATTRIBUTES: readonly string[] = [
     Global.PREFERENCE_CURRENT,
@@ -693,6 +702,10 @@ class Global extends Config<GlobalConfigData> {
     Global.PREFERENCE_KEY,
     Global.PREFERENCE_LOCALE,
     Global.PREFERENCE_MODE,
+    Global.PREFERENCE_JWT,
+    Global.PREFERENCE_REFRESH_TOKEN,
+    Global.PREFERENCE_JWT_EXPIRES,
+    Global.PREFERENCE_AUTH_METHOD,
   ];
 
   static MODE_ADMIN = "admin";
@@ -703,6 +716,19 @@ class Global extends Config<GlobalConfigData> {
   constructor(path: string = Global.CONFIG_FILE_PATH) {
     const homeDir = os.homedir();
     super(`${homeDir}/${path}`);
+  }
+
+  write(): void {
+    super.write();
+    // prefs.json holds the JWT, refresh token, API key and session cookie, so
+    // lock down the credential directory itself too — reasserted on every
+    // write to repair a `~/.revenexx` created world-traversable under a loose
+    // umask before this hardening.
+    try {
+      fs.chmodSync(_path.dirname(this.path), 0o700);
+    } catch {
+      // Best-effort: non-POSIX filesystems may not support chmod.
+    }
   }
 
   getCurrentSession(): string {
@@ -827,6 +853,50 @@ class Global extends Config<GlobalConfigData> {
 
   setKey(key: string): void {
     this.setTo(Global.PREFERENCE_KEY, key);
+  }
+
+  getJWT(): string {
+    if (!this.hasFrom(Global.PREFERENCE_JWT)) {
+      return "";
+    }
+    return this.getFrom(Global.PREFERENCE_JWT);
+  }
+
+  setJWT(jwt: string): void {
+    this.setTo(Global.PREFERENCE_JWT, jwt);
+  }
+
+  getRefreshToken(): string {
+    if (!this.hasFrom(Global.PREFERENCE_REFRESH_TOKEN)) {
+      return "";
+    }
+    return this.getFrom(Global.PREFERENCE_REFRESH_TOKEN);
+  }
+
+  setRefreshToken(refreshToken: string): void {
+    this.setTo(Global.PREFERENCE_REFRESH_TOKEN, refreshToken);
+  }
+
+  getJwtExpires(): number {
+    if (!this.hasFrom(Global.PREFERENCE_JWT_EXPIRES)) {
+      return 0;
+    }
+    return this.getFrom(Global.PREFERENCE_JWT_EXPIRES);
+  }
+
+  setJwtExpires(expiresAt: number): void {
+    this.setTo(Global.PREFERENCE_JWT_EXPIRES, expiresAt);
+  }
+
+  getAuthMethod(): string {
+    if (!this.hasFrom(Global.PREFERENCE_AUTH_METHOD)) {
+      return "";
+    }
+    return this.getFrom(Global.PREFERENCE_AUTH_METHOD);
+  }
+
+  setAuthMethod(authMethod: string): void {
+    this.setTo(Global.PREFERENCE_AUTH_METHOD, authMethod);
   }
 
   hasFrom(key: string): boolean {

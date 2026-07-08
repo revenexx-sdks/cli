@@ -7,16 +7,23 @@ import {
   parse,
   parseInteger,
 } from "../../parser.js";
+import {
+  confirmDestructive,
+  promptForMissing,
+} from "../../interactive.js";
 
 export const orders = new Command("orders")
-  .description(commandDescriptions["orders"] ?? "")
+  .description(
+    commandDescriptions["orders"] ??
+      `Manage orders resources.`,
+  )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });
 
 orders
-  .command(`orders-list`)
-  .description(``)
+  .command(`list`)
+  .description(`List orders — filter by status/payment_status/fulfillment_status/contact_id/organization_id/channel_id/number, paginate via limit+offset, sort via order (e.g. created_at.desc)`)
   .option(`--status <status>`, `Filter by order status (exact match).`)
   .option(`--payment-_status <payment-_status>`, `Filter by payment status (exact match).`)
   .option(`--fulfillment-_status <fulfillment-_status>`, `Filter by fulfillment status (exact match).`)
@@ -77,8 +84,8 @@ orders
     ),
   );
 orders
-  .command(`orders-number-ranges-list`)
-  .description(``)
+  .command(`number-ranges-list`)
+  .description(`List number ranges (paginate via limit+offset, sort via order, e.g. created_at.desc)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -111,9 +118,9 @@ orders
     ),
   );
 orders
-  .command(`orders-number-ranges-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, `Range key drawn by the app ('order', 'delivery', 'return') — unique per tenant.`)
+  .command(`number-ranges-create`)
+  .description(`Create a number range ({prefix}{counter:padding}{suffix}, configurable position numbering)`)
+  .option(`--code <code>`, `Range key drawn by the app ('order', 'delivery', 'return') — unique per tenant.`)
   .option(`--channel-_id <channel-_id>`, ``)
   .option(`--counter <counter>`, `Current counter value (default 0) — the next number draws counter+step.`, parseInteger)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
@@ -124,7 +131,14 @@ orders
   .option(`--suffix <suffix>`, `Default ''.`)
   .action(
     actionRunner(
-      async ({ code, channel_id, counter, metadata, padding, position_step, prefix, step, suffix }) => {
+      async (_options, _command) => {
+        const { code, channel_id, counter, metadata, padding, position_step, prefix, step, suffix } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", description: "Range key drawn by the app ('order', 'delivery', 'return') — unique per tenant.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/number-ranges`;
         const _payload: RequestParams = {};
@@ -169,8 +183,8 @@ orders
     ),
   );
 orders
-  .command(`orders-number-ranges-defaults`)
-  .description(``)
+  .command(`number-ranges-defaults`)
+  .description(`Seed the order/delivery/return ranges — idempotent, also runs on app.installed`)
   .action(
     actionRunner(
       async () => {
@@ -191,12 +205,20 @@ orders
     ),
   );
 orders
-  .command(`orders-number-ranges-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`number-ranges-delete`)
+  .description(`Delete a number range`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders/number-ranges", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`orders number-ranges-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/orders/number-ranges/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -214,12 +236,19 @@ orders
     ),
   );
 orders
-  .command(`orders-number-ranges-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`number-ranges-get`)
+  .description(`Read one number range`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders/number-ranges", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/number-ranges/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -237,9 +266,9 @@ orders
     ),
   );
 orders
-  .command(`orders-number-ranges-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`number-ranges-update`)
+  .description(`Update a number range`)
+  .option(`--id <id>`, ``)
   .option(`--channel-_id <channel-_id>`, ``)
   .option(`--code <code>`, `Range key drawn by the app ('order', 'delivery', 'return') — unique per tenant.`)
   .option(`--counter <counter>`, `Current counter value (default 0) — the next number draws counter+step.`, parseInteger)
@@ -251,7 +280,14 @@ orders
   .option(`--suffix <suffix>`, `Default ''.`)
   .action(
     actionRunner(
-      async ({ id, channel_id, code, counter, metadata, padding, position_step, prefix, step, suffix }) => {
+      async (_options, _command) => {
+        const { id, channel_id, code, counter, metadata, padding, position_step, prefix, step, suffix } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders/number-ranges", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/number-ranges/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -296,9 +332,9 @@ orders
     ),
   );
 orders
-  .command(`orders-place`)
-  .description(``)
-  .requiredOption(`--items [items...]`, `The order positions (at most 500).`)
+  .command(`place`)
+  .description(`Place an order from a snapshot payload (items, buyer, addresses, payment, shipping) — draws the order number, computes totals, emits order.placed`)
+  .option(`--items [items...]`, `The order positions (at most 500).`)
   .option(`--billing-_address <billing-_address>`, `Frozen billing address.`)
   .option(`--buyer <buyer>`, `Frozen buyer snapshot (name, email, …).`)
   .option(`--cart-_id <cart-_id>`, `Source cart (the carts.order hand-over).`)
@@ -316,7 +352,14 @@ orders
   .option(`--user-_data <user-_data>`, `Free-form user data.`)
   .action(
     actionRunner(
-      async ({ items, billing_address, buyer, cart_id, channel_id, contact_id, currency, customer_order_number, grand_total, metadata, organization_id, payment, shipping, shipping_address, shipping_total, user_data }) => {
+      async (_options, _command) => {
+        const { items, billing_address, buyer, cart_id, channel_id, contact_id, currency, customer_order_number, grand_total, metadata, organization_id, payment, shipping, shipping_address, shipping_total, user_data } = await promptForMissing(
+          _options,
+          [
+            { key: "items", option: "--items [items...]", name: "items", description: "The order positions (at most 500).", type: "array", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/place`;
         const _payload: RequestParams = {};
@@ -382,12 +425,19 @@ orders
     ),
   );
 orders
-  .command(`orders-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`get`)
+  .description(`The order aggregate: order + items + shipments + returns + cancellations`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -405,9 +455,9 @@ orders
     ),
   );
 orders
-  .command(`orders-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`update`)
+  .description(`Narrow modification (addresses, buyer, references, user_data) — blocked once acknowledged`)
+  .option(`--id <id>`, ``)
   .option(`--billing-_address <billing-_address>`, ``)
   .option(`--buyer <buyer>`, ``)
   .option(`--customer-_order-_number <customer-_order-_number>`, ``)
@@ -416,7 +466,14 @@ orders
   .option(`--user-_data <user-_data>`, `Free-form user data.`)
   .action(
     actionRunner(
-      async ({ id, billing_address, buyer, customer_order_number, metadata, shipping_address, user_data }) => {
+      async (_options, _command) => {
+        const { id, billing_address, buyer, customer_order_number, metadata, shipping_address, user_data } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -452,13 +509,20 @@ orders
     ),
   );
 orders
-  .command(`orders-acknowledge`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`acknowledge`)
+  .description(`The fulfilling system took over (sets external_ref + acknowledged_at, once) — the return channel for Integration Studio`)
+  .option(`--id <id>`, ``)
   .option(`--external-_ref <external-_ref>`, `The fulfilling system's order reference (e.g. the ERP order number).`)
   .action(
     actionRunner(
-      async ({ id, external_ref }) => {
+      async (_options, _command) => {
+        const { id, external_ref } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/acknowledge`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -479,14 +543,21 @@ orders
     ),
   );
 orders
-  .command(`orders-cancel`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`cancel`)
+  .description(`Full cancel — only while nothing has shipped; shipped orders cancel open quantities via items/cancel`)
+  .option(`--id <id>`, ``)
   .option(`--cancelled-_by <cancelled-_by>`, `Acting user/system.`)
   .option(`--reason <reason>`, ``)
   .action(
     actionRunner(
-      async ({ id, cancelled_by, reason }) => {
+      async (_options, _command) => {
+        const { id, cancelled_by, reason } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/cancel`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -510,12 +581,19 @@ orders
     ),
   );
 orders
-  .command(`orders-comments-list`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`comments-list`)
+  .description(`List comments (internal + customer-visible)`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/comments`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -533,15 +611,23 @@ orders
     ),
   );
 orders
-  .command(`orders-comments-create`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
-  .requiredOption(`--body <body>`, ``)
+  .command(`comments-create`)
+  .description(`Add a comment (visibility internal|customer)`)
+  .option(`--id <id>`, ``)
+  .option(`--body <body>`, ``)
   .option(`--author <author>`, ``)
   .option(`--visibility <visibility>`, `Default 'internal'.`)
   .action(
     actionRunner(
-      async ({ id, body, author, visibility }) => {
+      async (_options, _command) => {
+        const { id, body, author, visibility } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+            { key: "body", option: "--body <body>", name: "body", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/comments`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -568,12 +654,19 @@ orders
     ),
   );
 orders
-  .command(`orders-events-list`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`events-list`)
+  .description(`The audit trail — every lifecycle action as an event row (also the domain event feed: manifest emits order_event.created on insert)`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/events`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -591,13 +684,20 @@ orders
     ),
   );
 orders
-  .command(`orders-hold`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`hold`)
+  .description(`Put the order on hold — blocks shipping until unhold`)
+  .option(`--id <id>`, ``)
   .option(`--reason <reason>`, `Why the order is blocked (shown on the shipping guard).`)
   .action(
     actionRunner(
-      async ({ id, reason }) => {
+      async (_options, _command) => {
+        const { id, reason } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/hold`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -618,15 +718,23 @@ orders
     ),
   );
 orders
-  .command(`orders-items-cancel`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
-  .requiredOption(`--positions [positions...]`, ``)
+  .command(`items-cancel`)
+  .description(`Quantity-based position cancel (positions: [{order_item_id, quantity}]) — guarded against the open quantity`)
+  .option(`--id <id>`, ``)
+  .option(`--positions [positions...]`, ``)
   .option(`--cancelled-_by <cancelled-_by>`, `Acting user/system.`)
   .option(`--reason <reason>`, ``)
   .action(
     actionRunner(
-      async ({ id, positions, cancelled_by, reason }) => {
+      async (_options, _command) => {
+        const { id, positions, cancelled_by, reason } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+            { key: "positions", option: "--positions [positions...]", name: "positions", type: "array", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/items/cancel`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -653,14 +761,22 @@ orders
     ),
   );
 orders
-  .command(`orders-payment-status-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
-  .requiredOption(`--status <status>`, `The new payment dimension value.`)
+  .command(`payment-status-update`)
+  .description(`Update the payment dimension (open/pending/authorized/paid/partially_paid/refunded/failed, optional payment_id)`)
+  .option(`--id <id>`, ``)
+  .option(`--status <status>`, `The new payment dimension value.`)
   .option(`--payment-_id <payment-_id>`, `Reference into the payment system — merged into the order's payment snapshot.`)
   .action(
     actionRunner(
-      async ({ id, status, payment_id }) => {
+      async (_options, _command) => {
+        const { id, status, payment_id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+            { key: "status", option: "--status <status>", name: "status", description: "The new payment dimension value.", type: "string", required: true, enum: ["open","pending","authorized","paid","partially_paid","refunded","failed"] },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/payment-status`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -684,15 +800,23 @@ orders
     ),
   );
 orders
-  .command(`orders-return`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
-  .requiredOption(`--positions [positions...]`, ``)
+  .command(`return`)
+  .description(`Register a return (positions with per-position restock flags) against the shipped quantities`)
+  .option(`--id <id>`, ``)
+  .option(`--positions [positions...]`, ``)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
   .option(`--reason <reason>`, ``)
   .action(
     actionRunner(
-      async ({ id, positions, metadata, reason }) => {
+      async (_options, _command) => {
+        const { id, positions, metadata, reason } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+            { key: "positions", option: "--positions [positions...]", name: "positions", type: "array", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/return`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -719,14 +843,22 @@ orders
     ),
   );
 orders
-  .command(`orders-returns-complete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
-  .requiredOption(`--rid <rid>`, ``)
+  .command(`returns-complete`)
+  .description(`Complete a return: books quantity_returned, reports restock positions for the explicit inventories.restock call`)
+  .option(`--id <id>`, ``)
+  .option(`--rid <rid>`, ``)
   .option(`--resolution <resolution>`, `How the return was settled (refund, replacement, …).`)
   .action(
     actionRunner(
-      async ({ id, rid, resolution }) => {
+      async (_options, _command) => {
+        const { id, rid, resolution } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+            { key: "rid", option: "--rid <rid>", name: "rid", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/returns/{rid}/complete`.replace(`{id}`, id).replace(`{rid}`, rid);
         const _payload: RequestParams = {};
@@ -747,14 +879,23 @@ orders
     ),
   );
 orders
-  .command(`orders-returns-receive`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
-  .requiredOption(`--rid <rid>`, ``)
-  .requiredOption(`--data <data>`, `Request body`)
+  .command(`returns-receive`)
+  .description(`Goods arrived back (registered → received)`)
+  .option(`--id <id>`, ``)
+  .option(`--rid <rid>`, ``)
+  .option(`--data <data>`, `Request body`)
   .action(
     actionRunner(
-      async ({ id, rid, data }) => {
+      async (_options, _command) => {
+        const { id, rid, data } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+            { key: "rid", option: "--rid <rid>", name: "rid", type: "string", required: true },
+            { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/returns/{rid}/receive`.replace(`{id}`, id).replace(`{rid}`, rid);
         const _payload: RequestParams = {};
@@ -775,15 +916,23 @@ orders
     ),
   );
 orders
-  .command(`orders-returns-reject`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
-  .requiredOption(`--rid <rid>`, ``)
+  .command(`returns-reject`)
+  .description(`Reject a return (with resolution)`)
+  .option(`--id <id>`, ``)
+  .option(`--rid <rid>`, ``)
   .option(`--reason <reason>`, `Fallback for 'resolution'.`)
   .option(`--resolution <resolution>`, `Why the return was rejected.`)
   .action(
     actionRunner(
-      async ({ id, rid, reason, resolution }) => {
+      async (_options, _command) => {
+        const { id, rid, reason, resolution } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+            { key: "rid", option: "--rid <rid>", name: "rid", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/returns/{rid}/reject`.replace(`{id}`, id).replace(`{rid}`, rid);
         const _payload: RequestParams = {};
@@ -807,9 +956,9 @@ orders
     ),
   );
 orders
-  .command(`orders-ship`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`ship`)
+  .description(`Create a shipment (positions + quantities + carrier/tracking; positions omitted = ship everything open). Books quantity_shipped, derives fulfillment_status, completes the order when fulfilled`)
+  .option(`--id <id>`, ``)
   .option(`--carrier <carrier>`, ``)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
   .option(`--number <number>`, `Delivery note number — drawn from the 'delivery' range when omitted.`)
@@ -819,7 +968,14 @@ orders
   .option(`--tracking-_url <tracking-_url>`, ``)
   .action(
     actionRunner(
-      async ({ id, carrier, metadata, number, positions, shipped_at, tracking_code, tracking_url }) => {
+      async (_options, _command) => {
+        const { id, carrier, metadata, number, positions, shipped_at, tracking_code, tracking_url } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/ship`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -858,13 +1014,21 @@ orders
     ),
   );
 orders
-  .command(`orders-unhold`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
-  .requiredOption(`--data <data>`, `Request body`)
+  .command(`unhold`)
+  .description(`Release the hold`)
+  .option(`--id <id>`, ``)
+  .option(`--data <data>`, `Request body`)
   .action(
     actionRunner(
-      async ({ id, data }) => {
+      async (_options, _command) => {
+        const { id, data } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+            { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/unhold`.replace(`{id}`, id);
         const _payload: RequestParams = {};

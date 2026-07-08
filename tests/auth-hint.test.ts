@@ -24,7 +24,7 @@ describe("authHint", () => {
       type: "user_unauthorized",
       message: "The current user is not authorized…",
     });
-    expect(tip).toMatch(/authentication failed/);
+    expect(tip).toMatch(/authentication failed/i);
   });
 
   it("hints on expired JWT", () => {

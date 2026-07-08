@@ -2,7 +2,7 @@
 
 Revenexx command-line interface for managing your platform.
 
-- **Version:** 0.0.7
+- **Version:** 0.0.8
 - **Language:** cli
 - **API version:** 1.0.0
 - **Endpoint:** https://api.revenexx.com

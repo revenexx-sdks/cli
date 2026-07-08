@@ -8,22 +8,37 @@ import {
   parseBool,
   parseInteger,
 } from "../../parser.js";
+import {
+  confirmDestructive,
+  promptForMissing,
+} from "../../interactive.js";
 
 export const inventories = new Command("inventories")
-  .description(commandDescriptions["inventories"] ?? "")
+  .description(
+    commandDescriptions["inventories"] ??
+      `Manage inventories resources.`,
+  )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });
 
 inventories
-  .command(`inventories-adjust`)
-  .description(``)
-  .requiredOption(`--items [items...]`, `The corrections — quantities are SIGNED deltas (at most 200).`)
-  .requiredOption(`--reason <reason>`, `Mandatory audit reason — every adjustment is a ledger row.`)
+  .command(`adjust`)
+  .description(`Manual correction: ±on_hand with mandatory reason`)
+  .option(`--items [items...]`, `The corrections — quantities are SIGNED deltas (at most 200).`)
+  .option(`--reason <reason>`, `Mandatory audit reason — every adjustment is a ledger row.`)
   .option(`--location-_code <location-_code>`, `Adjusted location (default 'main').`)
   .action(
     actionRunner(
-      async ({ items, reason, location_code }) => {
+      async (_options, _command) => {
+        const { items, reason, location_code } = await promptForMissing(
+          _options,
+          [
+            { key: "items", option: "--items [items...]", name: "items", description: "The corrections — quantities are SIGNED deltas (at most 200).", type: "array", required: true },
+            { key: "reason", option: "--reason <reason>", name: "reason", description: "Mandatory audit reason — every adjustment is a ledger row.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/adjust`;
         const _payload: RequestParams = {};
@@ -50,13 +65,20 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-availability`)
-  .description(``)
-  .requiredOption(`--items [items...]`, `The items to check (batch, at most 200).`)
+  .command(`availability`)
+  .description(`THE stock call (batch): on_hand/reserved/available + orderable per item across locations. Most-customised surface in the field — designed to be replaced 1:1 by a custom app via the gateway capability override (ERP/SAP live stock).`)
+  .option(`--items [items...]`, `The items to check (batch, at most 200).`)
   .option(`--location-_code <location-_code>`, `Restrict the check to one location (default: all enabled locations).`)
   .action(
     actionRunner(
-      async ({ items, location_code }) => {
+      async (_options, _command) => {
+        const { items, location_code } = await promptForMissing(
+          _options,
+          [
+            { key: "items", option: "--items [items...]", name: "items", description: "The items to check (batch, at most 200).", type: "array", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/availability`;
         const _payload: RequestParams = {};
@@ -80,12 +102,19 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-commit`)
-  .description(``)
-  .requiredOption(`--order-_ref <order-_ref>`, `The order whose active reservations are committed (shipment).`)
+  .command(`commit`)
+  .description(`Commit an order_ref's reservations on shipment (−on_hand −reserved)`)
+  .option(`--order-_ref <order-_ref>`, `The order whose active reservations are committed (shipment).`)
   .action(
     actionRunner(
-      async ({ order_ref }) => {
+      async (_options, _command) => {
+        const { order_ref } = await promptForMissing(
+          _options,
+          [
+            { key: "order_ref", option: "--order-_ref <order-_ref>", name: "order_ref", description: "The order whose active reservations are committed (shipment).", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/commit`;
         const _payload: RequestParams = {};
@@ -106,8 +135,8 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-locations-list`)
-  .description(``)
+  .command(`locations-list`)
+  .description(`List stock locations`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -140,10 +169,10 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-locations-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, `Unique location code (per tenant).`)
-  .requiredOption(`--name <name>`, ``)
+  .command(`locations-create`)
+  .description(`Create a location (warehouse, store, dropship, virtual)`)
+  .option(`--code <code>`, `Unique location code (per tenant).`)
+  .option(`--name <name>`, ``)
   .option(`--address <address>`, ``)
   .option(
     `--enabled [value]`,
@@ -157,7 +186,15 @@ inventories
   .option(`--type <type>`, `Default 'warehouse'.`)
   .action(
     actionRunner(
-      async ({ code, name, address, enabled, labels, metadata, priority, type }) => {
+      async (_options, _command) => {
+        const { code, name, address, enabled, labels, metadata, priority, type } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", description: "Unique location code (per tenant).", type: "string", required: true },
+            { key: "name", option: "--name <name>", name: "name", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/locations`;
         const _payload: RequestParams = {};
@@ -199,8 +236,8 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-locations-defaults`)
-  .description(``)
+  .command(`locations-defaults`)
+  .description(`Seed the main warehouse — idempotent, also runs on app.installed`)
   .action(
     actionRunner(
       async () => {
@@ -221,12 +258,20 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-locations-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`locations-delete`)
+  .description(`Delete a location including its stock`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/locations", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`inventories locations-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/inventories/locations/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -244,12 +289,19 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-locations-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`locations-get`)
+  .description(`Read one location`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/locations", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/locations/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -267,9 +319,9 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-locations-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`locations-update`)
+  .description(`Update a location`)
+  .option(`--id <id>`, ``)
   .option(`--address <address>`, ``)
   .option(`--code <code>`, `Unique location code (per tenant).`)
   .option(
@@ -285,7 +337,14 @@ inventories
   .option(`--type <type>`, `Default 'warehouse'.`)
   .action(
     actionRunner(
-      async ({ id, address, code, enabled, labels, metadata, name, priority, type }) => {
+      async (_options, _command) => {
+        const { id, address, code, enabled, labels, metadata, name, priority, type } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/locations", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/locations/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -327,8 +386,8 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-movements-list`)
-  .description(``)
+  .command(`movements-list`)
+  .description(`The movements ledger — every stock change as a booking row (audit trail + event feed)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -361,12 +420,19 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-movements-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`movements-get`)
+  .description(`Read one movement`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/movements", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/movements/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -384,14 +450,21 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-receive`)
-  .description(``)
-  .requiredOption(`--items [items...]`, `The inbound items (at most 200).`)
+  .command(`receive`)
+  .description(`Goods inbound: +on_hand with a ledger row`)
+  .option(`--items [items...]`, `The inbound items (at most 200).`)
   .option(`--location-_code <location-_code>`, `Receiving location (default 'main').`)
   .option(`--reason <reason>`, `Ledger note (e.g. delivery note number).`)
   .action(
     actionRunner(
-      async ({ items, location_code, reason }) => {
+      async (_options, _command) => {
+        const { items, location_code, reason } = await promptForMissing(
+          _options,
+          [
+            { key: "items", option: "--items [items...]", name: "items", description: "The inbound items (at most 200).", type: "array", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/receive`;
         const _payload: RequestParams = {};
@@ -418,12 +491,19 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-release`)
-  .description(``)
-  .requiredOption(`--order-_ref <order-_ref>`, `The order whose active reservations are released.`)
+  .command(`release`)
+  .description(`Release an order_ref's active reservations (cancellation)`)
+  .option(`--order-_ref <order-_ref>`, `The order whose active reservations are released.`)
   .action(
     actionRunner(
-      async ({ order_ref }) => {
+      async (_options, _command) => {
+        const { order_ref } = await promptForMissing(
+          _options,
+          [
+            { key: "order_ref", option: "--order-_ref <order-_ref>", name: "order_ref", description: "The order whose active reservations are released.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/release`;
         const _payload: RequestParams = {};
@@ -444,8 +524,8 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-reservations-list`)
-  .description(``)
+  .command(`reservations-list`)
+  .description(`List reservations (filter by order_ref/status)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -478,12 +558,19 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-reservations-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`reservations-get`)
+  .description(`Read one reservation`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/reservations", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/reservations/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -501,14 +588,22 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-reserve`)
-  .description(``)
-  .requiredOption(`--items [items...]`, `The items to reserve — all-or-nothing (at most 200).`)
-  .requiredOption(`--order-_ref <order-_ref>`, `The order this reservation belongs to.`)
+  .command(`reserve`)
+  .description(`Reserve stock for an order_ref (all-or-nothing, location by priority)`)
+  .option(`--items [items...]`, `The items to reserve — all-or-nothing (at most 200).`)
+  .option(`--order-_ref <order-_ref>`, `The order this reservation belongs to.`)
   .option(`--expires-_at <expires-_at>`, `Optional reservation expiry.`)
   .action(
     actionRunner(
-      async ({ items, order_ref, expires_at }) => {
+      async (_options, _command) => {
+        const { items, order_ref, expires_at } = await promptForMissing(
+          _options,
+          [
+            { key: "items", option: "--items [items...]", name: "items", description: "The items to reserve — all-or-nothing (at most 200).", type: "array", required: true },
+            { key: "order_ref", option: "--order-_ref <order-_ref>", name: "order_ref", description: "The order this reservation belongs to.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/reserve`;
         const _payload: RequestParams = {};
@@ -535,15 +630,22 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-restock`)
-  .description(``)
-  .requiredOption(`--items [items...]`, `The returned items (at most 200).`)
+  .command(`restock`)
+  .description(`Returns back to stock: +on_hand with a ledger row`)
+  .option(`--items [items...]`, `The returned items (at most 200).`)
   .option(`--location-_code <location-_code>`, `Restocking location (default 'main').`)
   .option(`--order-_ref <order-_ref>`, `Originating order (ledger reference).`)
   .option(`--reason <reason>`, `Ledger note (e.g. return reason).`)
   .action(
     actionRunner(
-      async ({ items, location_code, order_ref, reason }) => {
+      async (_options, _command) => {
+        const { items, location_code, order_ref, reason } = await promptForMissing(
+          _options,
+          [
+            { key: "items", option: "--items [items...]", name: "items", description: "The returned items (at most 200).", type: "array", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/restock`;
         const _payload: RequestParams = {};
@@ -573,8 +675,8 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-stock-list`)
-  .description(``)
+  .command(`stock-list`)
+  .description(`List stock levels (filter by location_id/product_id/sku)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -607,9 +709,9 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-stock-create`)
-  .description(``)
-  .requiredOption(`--location-_id <location-_id>`, `Owning location.`)
+  .command(`stock-create`)
+  .description(`Create a stock level row`)
+  .option(`--location-_id <location-_id>`, `Owning location.`)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
   .option(`--on-_hand <on-_hand>`, `Physical stock (default 0).`, parseInteger)
   .option(`--product-_id <product-_id>`, `Tracked product.`)
@@ -618,7 +720,14 @@ inventories
   .option(`--sku <sku>`, `Tracked SKU (alternative to product_id).`)
   .action(
     actionRunner(
-      async ({ location_id, metadata, on_hand, product_id, reorder_point, reserved, sku }) => {
+      async (_options, _command) => {
+        const { location_id, metadata, on_hand, product_id, reorder_point, reserved, sku } = await promptForMissing(
+          _options,
+          [
+            { key: "location_id", option: "--location-_id <location-_id>", name: "location_id", description: "Owning location.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/stock`;
         const _payload: RequestParams = {};
@@ -657,12 +766,20 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-stock-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`stock-delete`)
+  .description(`Delete a stock level row`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/stock", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`inventories stock-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/inventories/stock/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -680,12 +797,19 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-stock-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`stock-get`)
+  .description(`Read one stock level`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/stock", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/stock/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -703,9 +827,9 @@ inventories
     ),
   );
 inventories
-  .command(`inventories-stock-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`stock-update`)
+  .description(`Update a stock level row`)
+  .option(`--id <id>`, ``)
   .option(`--location-_id <location-_id>`, `Owning location.`)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
   .option(`--on-_hand <on-_hand>`, `Physical stock (default 0).`, parseInteger)
@@ -715,7 +839,14 @@ inventories
   .option(`--sku <sku>`, `Tracked SKU (alternative to product_id).`)
   .action(
     actionRunner(
-      async ({ id, location_id, metadata, on_hand, product_id, reorder_point, reserved, sku }) => {
+      async (_options, _command) => {
+        const { id, location_id, metadata, on_hand, product_id, reorder_point, reserved, sku } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/stock", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/stock/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};

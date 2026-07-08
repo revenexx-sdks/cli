@@ -12,6 +12,7 @@ import {
   GITHUB_RELEASES_URL,
   NPM_PACKAGE_NAME,
   SDK_TITLE,
+  EXECUTABLE_NAME,
 } from "../constants.js";
 import packageJson from "../../package.json" with { type: "json" };
 const { version } = packageJson;
@@ -100,14 +101,14 @@ const updateViaNpm = async (): Promise<void> => {
     await execCommand("npm", ["install", "-g", `${NPM_PACKAGE_NAME}@latest`]);
     console.log("");
     success("Updated to latest version via npm!");
-    hint("Run 'appwrite --version' to verify the new version.");
+    hint(`Run '${EXECUTABLE_NAME} --version' to verify the new version.`);
   } catch (e: unknown) {
     const message = getErrorMessage(e);
 
     if (message.includes("EEXIST") || message.includes("file already exists")) {
       console.log("");
       success("Latest version is already installed via npm!");
-      hint("The CLI is up to date. Run 'appwrite --version' to verify.");
+      hint(`The CLI is up to date. Run '${EXECUTABLE_NAME} --version' to verify.`);
     } else {
       console.log("");
       error(`Failed to update via npm: ${message}`);
@@ -120,27 +121,10 @@ const updateViaNpm = async (): Promise<void> => {
  * Update via Homebrew
  */
 const updateViaHomebrew = async (): Promise<void> => {
-  try {
-    await execCommand("brew", ["upgrade", "appwrite"]);
-    console.log("");
-    success("Updated to latest version via Homebrew!");
-    hint("Run 'appwrite --version' to verify the new version.");
-  } catch (e: unknown) {
-    const message = getErrorMessage(e);
-
-    if (
-      message.includes("already installed") ||
-      message.includes("up-to-date")
-    ) {
-      console.log("");
-      success("Latest version is already installed via Homebrew!");
-      hint("The CLI is up to date. Run 'appwrite --version' to verify.");
-    } else {
-      console.log("");
-      error(`Failed to update via Homebrew: ${message}`);
-      hint("Try running: brew upgrade appwrite");
-    }
-  }
+  // Homebrew distribution is not available yet for this CLI.
+  console.log("");
+  warn("Homebrew distribution is not available yet.");
+  hint(`Update via NPM instead: npm install -g ${NPM_PACKAGE_NAME}@latest`);
 };
 
 /**
@@ -154,8 +138,7 @@ const showManualInstructions = (latestVersion: string): void => {
   console.log(`  npm install -g ${NPM_PACKAGE_NAME}@latest`);
   console.log("");
 
-  log(`${chalk.bold("Option 2: Homebrew")}`);
-  console.log(`  brew upgrade appwrite`);
+  log(`${chalk.bold("Option 2: Homebrew")} (not available yet)`);
   console.log("");
 
   log(`${chalk.bold("Option 3: Download Binary")}`);

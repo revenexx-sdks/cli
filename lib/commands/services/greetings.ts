@@ -6,16 +6,23 @@ import {
   commandDescriptions,
   parse,
 } from "../../parser.js";
+import {
+  confirmDestructive,
+  promptForMissing,
+} from "../../interactive.js";
 
 export const greetings = new Command("greetings")
-  .description(commandDescriptions["greetings"] ?? "")
+  .description(
+    commandDescriptions["greetings"] ??
+      `Manage greetings resources.`,
+  )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });
 
 greetings
-  .command(`greetings-digest`)
-  .description(``)
+  .command(`digest`)
+  .description(`Aggregate greetings and return a derived upper-cased shout view`)
   .action(
     actionRunner(
       async () => {
@@ -36,8 +43,8 @@ greetings
     ),
   );
 greetings
-  .command(`greetings-list`)
-  .description(``)
+  .command(`list`)
+  .description(`List greetings with filtering (locale, name, q) and pagination (limit, offset, order)`)
   .action(
     actionRunner(
       async () => {
@@ -58,13 +65,20 @@ greetings
     ),
   );
 greetings
-  .command(`greetings-create`)
-  .description(``)
-  .requiredOption(`--name <name>`, `Who to greet`)
+  .command(`create`)
+  .description(`Create a greeting and return the rendered message`)
+  .option(`--name <name>`, `Who to greet`)
   .option(`--locale <locale>`, `BCP-47 locale`)
   .action(
     actionRunner(
-      async ({ name, locale }) => {
+      async (_options, _command) => {
+        const { name, locale } = await promptForMissing(
+          _options,
+          [
+            { key: "name", option: "--name <name>", name: "name", description: "Who to greet", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/greetings`;
         const _payload: RequestParams = {};
@@ -88,12 +102,20 @@ greetings
     ),
   );
 greetings
-  .command(`greetings-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`delete`)
+  .description(`Delete a greeting by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/greetings", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`greetings delete`);
         const _client = await sdkForProject();
         const _apiPath = `/greetings/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -111,12 +133,19 @@ greetings
     ),
   );
 greetings
-  .command(`greetings-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`get`)
+  .description(`Read a single greeting by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/greetings", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/greetings/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -134,16 +163,23 @@ greetings
     ),
   );
 greetings
-  .command(`greetings-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`update`)
+  .description(`Update a greeting by id`)
+  .option(`--id <id>`, ``)
   .option(`--locale <locale>`, ``)
   .option(`--message <message>`, ``)
   .option(`--metadata <metadata>`, ``)
   .option(`--name <name>`, ``)
   .action(
     actionRunner(
-      async ({ id, locale, message, metadata, name }) => {
+      async (_options, _command) => {
+        const { id, locale, message, metadata, name } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/greetings", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/greetings/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};

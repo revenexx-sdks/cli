@@ -9,15 +9,22 @@ import {
   parseBool,
   parseInteger,
 } from "../../parser.js";
+import {
+  confirmDestructive,
+  promptForMissing,
+} from "../../interactive.js";
 
 export const sites = new Command("sites")
-  .description(commandDescriptions["sites"] ?? "")
+  .description(
+    commandDescriptions["sites"] ??
+      `Static sites and their deployments.`,
+  )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });
 
 sites
-  .command(`sites-list`)
+  .command(`list`)
   .description(`Get a list of all the project's sites. You can use the query params to filter your results.`)
   .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, enabled, framework, deploymentId, buildCommand, installCommand, outputDirectory, installationId`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
@@ -56,12 +63,12 @@ sites
     ),
   );
 sites
-  .command(`sites-create`)
+  .command(`create`)
   .description(`Create a new site.`)
-  .requiredOption(`--build-runtime <build-runtime>`, `Runtime to use during build step.`)
-  .requiredOption(`--framework <framework>`, `Sites framework.`)
-  .requiredOption(`--name <name>`, `Site name. Max length: 128 chars.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
+  .option(`--build-runtime <build-runtime>`, `Runtime to use during build step.`)
+  .option(`--framework <framework>`, `Sites framework.`)
+  .option(`--name <name>`, `Site name. Max length: 128 chars.`)
+  .option(`--site-id <site-id>`, `Site ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
   .option(`--adapter <adapter>`, `Framework adapter defining rendering strategy. Allowed values are: static, ssr`)
   .option(`--build-command <build-command>`, `Build Command.`)
   .option(
@@ -93,7 +100,17 @@ sites
   .option(`--timeout <timeout>`, `Maximum request time in seconds.`, parseInteger)
   .action(
     actionRunner(
-      async ({ buildRuntime, framework, name, siteId, adapter, buildCommand, enabled, fallbackFile, installCommand, installationId, logging, outputDirectory, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, specification, timeout }) => {
+      async (_options, _command) => {
+        const { buildRuntime, framework, name, siteId, adapter, buildCommand, enabled, fallbackFile, installCommand, installationId, logging, outputDirectory, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, specification, timeout } = await promptForMissing(
+          _options,
+          [
+            { key: "buildRuntime", option: "--build-runtime <build-runtime>", name: "buildRuntime", description: "Runtime to use during build step.", type: "string", required: true, enum: ["node-18.0","node-20.0","node-22","node-23","node-24","node-25","php-8.1","php-8.2","php-8.3","php-8.4","ruby-3.1","ruby-3.2","ruby-3.3","ruby-3.4","ruby-4.0","python-3.9","python-3.10","python-3.11","python-3.12","python-3.13","python-3.14","python-ml-3.11","python-ml-3.12","python-ml-3.13","deno-1.46","deno-2.0","deno-2.5","deno-2.6","dart-2.18","dart-2.19","dart-3.0","dart-3.1","dart-3.3","dart-3.5","dart-3.8","dart-3.9","dart-3.10","dotnet-8.0","dotnet-10","java-8.0","java-11.0","java-17.0","java-21.0","java-22","java-25","swift-5.8","swift-5.9","swift-5.10","swift-6.2","kotlin-1.8","kotlin-1.9","kotlin-2.0","kotlin-2.3","cpp-17","cpp-20","cpp-23","bun-1.0","bun-1.1","bun-1.2","bun-1.3","go-1.23","go-1.24","go-1.25","go-1.26","static-1","flutter-3.24","flutter-3.27","flutter-3.29","flutter-3.32","flutter-3.35","flutter-3.38"] },
+            { key: "framework", option: "--framework <framework>", name: "framework", description: "Sites framework.", type: "string", required: true, enum: ["analog","angular","nextjs","react","nuxt","vue","sveltekit","astro","tanstack-start","remix","lynx","flutter","react-native","vite","other"] },
+            { key: "name", option: "--name <name>", name: "name", description: "Site name. Max length: 128 chars.", type: "string", required: true },
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID. Choose a custom ID or generate a random ID with `ID.unique()`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites`;
         const _payload: RequestParams = {};
@@ -165,7 +182,7 @@ sites
     ),
   );
 sites
-  .command(`sites-list-frameworks`)
+  .command(`list-frameworks`)
   .description(`Get a list of all frameworks that are currently available on the server instance.`)
   .action(
     actionRunner(
@@ -187,7 +204,7 @@ sites
     ),
   );
 sites
-  .command(`sites-list-specifications`)
+  .command(`list-specifications`)
   .description(`List allowed site specifications for this instance.`)
   .action(
     actionRunner(
@@ -209,12 +226,20 @@ sites
     ),
   );
 sites
-  .command(`sites-delete`)
+  .command(`delete`)
   .description(`Delete a site by its unique ID.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
   .action(
     actionRunner(
-      async ({ siteId }) => {
+      async (_options, _command) => {
+        const { siteId } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`sites delete`);
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
@@ -232,12 +257,19 @@ sites
     ),
   );
 sites
-  .command(`sites-get`)
+  .command(`get`)
   .description(`Get a site by its unique ID.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
   .action(
     actionRunner(
-      async ({ siteId }) => {
+      async (_options, _command) => {
+        const { siteId } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
@@ -255,11 +287,11 @@ sites
     ),
   );
 sites
-  .command(`sites-update`)
+  .command(`update`)
   .description(`Update site by its unique ID.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
-  .requiredOption(`--framework <framework>`, `Sites framework.`)
-  .requiredOption(`--name <name>`, `Site name. Max length: 128 chars.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .option(`--framework <framework>`, `Sites framework.`)
+  .option(`--name <name>`, `Site name. Max length: 128 chars.`)
   .option(`--adapter <adapter>`, `Framework adapter defining rendering strategy. Allowed values are: static, ssr`)
   .option(`--build-command <build-command>`, `Build Command.`)
   .option(`--build-runtime <build-runtime>`, `Runtime to use during build step.`)
@@ -292,7 +324,16 @@ sites
   .option(`--timeout <timeout>`, `Maximum request time in seconds.`, parseInteger)
   .action(
     actionRunner(
-      async ({ siteId, framework, name, adapter, buildCommand, buildRuntime, enabled, fallbackFile, installCommand, installationId, logging, outputDirectory, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, specification, timeout }) => {
+      async (_options, _command) => {
+        const { siteId, framework, name, adapter, buildCommand, buildRuntime, enabled, fallbackFile, installCommand, installationId, logging, outputDirectory, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, specification, timeout } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "framework", option: "--framework <framework>", name: "framework", description: "Sites framework.", type: "string", required: true, enum: ["analog","angular","nextjs","react","nuxt","vue","sveltekit","astro","tanstack-start","remix","lynx","flutter","react-native","vite","other"] },
+            { key: "name", option: "--name <name>", name: "name", description: "Site name. Max length: 128 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
@@ -361,13 +402,21 @@ sites
     ),
   );
 sites
-  .command(`sites-update-site-deployment`)
+  .command(`update-site-deployment`)
   .description(`Update the site active deployment. Use this endpoint to switch the code deployment that should be used when visitor opens your site.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
-  .requiredOption(`--deployment-id <deployment-id>`, `Deployment ID.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .option(`--deployment-id <deployment-id>`, `Deployment ID.`)
   .action(
     actionRunner(
-      async ({ siteId, deploymentId }) => {
+      async (_options, _command) => {
+        const { siteId, deploymentId } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/deployment`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
@@ -388,9 +437,9 @@ sites
     ),
   );
 sites
-  .command(`sites-list-deployments`)
+  .command(`list-deployments`)
   .description(`Get a list of all the site's code deployments. You can use the query params to filter your results.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
   .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: buildSize, sourceSize, totalSize, buildDuration, status, activate, type`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
   .option(
@@ -401,7 +450,14 @@ sites
   )
   .action(
     actionRunner(
-      async ({ siteId, queries, search, total }) => {
+      async (_options, _command) => {
+        const { siteId, queries, search, total } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/deployments`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
@@ -428,17 +484,26 @@ sites
     ),
   );
 sites
-  .command(`sites-create-deployment`)
+  .command(`create-deployment`)
   .description(`Create a new site code deployment. Use this endpoint to upload a new version of your site code. To activate your newly uploaded code, you'll need to update the site's deployment to use your new deployment ID.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
-  .requiredOption(`--activate <activate>`, `Automatically activate the deployment when it is finished building.`, parseBool)
-  .requiredOption(`--code <code>`, `Gzip file with your code package. When used with the Appwrite CLI, pass the path to your code directory, and the CLI will automatically package your code. Use a path that is within the current directory.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .option(`--activate <activate>`, `Automatically activate the deployment when it is finished building.`, parseBool)
+  .option(`--code <code>`, `Gzip file with your code package. When used with the Appwrite CLI, pass the path to your code directory, and the CLI will automatically package your code. Use a path that is within the current directory.`)
   .option(`--build-command <build-command>`, `Build Commands.`)
   .option(`--install-command <install-command>`, `Install Commands.`)
   .option(`--output-directory <output-directory>`, `Output Directory.`)
   .action(
     actionRunner(
-      async ({ siteId, activate, code, buildCommand, installCommand, outputDirectory }) => {
+      async (_options, _command) => {
+        const { siteId, activate, code, buildCommand, installCommand, outputDirectory } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "activate", option: "--activate <activate>", name: "activate", description: "Automatically activate the deployment when it is finished building.", type: "boolean", required: true },
+            { key: "code", option: "--code <code>", name: "code", description: "Gzip file with your code package. When used with the Appwrite CLI, pass the path to your code directory, and the CLI will automatically package your code. Use a path that is within the current directory.", type: "file", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/deployments`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
@@ -471,13 +536,21 @@ sites
     ),
   );
 sites
-  .command(`sites-create-duplicate-deployment`)
+  .command(`create-duplicate-deployment`)
   .description(`Create a new build for an existing site deployment. This endpoint allows you to rebuild a deployment with the updated site configuration, including its commands and output directory if they have been modified. The build process will be queued and executed asynchronously. The original deployment's code will be preserved and used for the new build.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
-  .requiredOption(`--deployment-id <deployment-id>`, `Deployment ID.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .option(`--deployment-id <deployment-id>`, `Deployment ID.`)
   .action(
     actionRunner(
-      async ({ siteId, deploymentId }) => {
+      async (_options, _command) => {
+        const { siteId, deploymentId } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/deployments/duplicate`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
@@ -498,16 +571,16 @@ sites
     ),
   );
 sites
-  .command(`sites-create-template-deployment`)
+  .command(`create-template-deployment`)
   .description(`Create a deployment based on a template.
 
 Use this endpoint with combination of [listTemplates](https://appwrite.io/docs/products/sites/templates) to find the template details.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
-  .requiredOption(`--owner <owner>`, `The name of the owner of the template.`)
-  .requiredOption(`--reference <reference>`, `Reference value, can be a commit hash, branch name, or release tag`)
-  .requiredOption(`--repository <repository>`, `Repository name of the template.`)
-  .requiredOption(`--root-directory <root-directory>`, `Path to site code in the template repo.`)
-  .requiredOption(`--type <type>`, `Type for the reference provided. Can be commit, branch, or tag`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .option(`--owner <owner>`, `The name of the owner of the template.`)
+  .option(`--reference <reference>`, `Reference value, can be a commit hash, branch name, or release tag`)
+  .option(`--repository <repository>`, `Repository name of the template.`)
+  .option(`--root-directory <root-directory>`, `Path to site code in the template repo.`)
+  .option(`--type <type>`, `Type for the reference provided. Can be commit, branch, or tag`)
   .option(
     `--activate [value]`,
     `Automatically activate the deployment when it is finished building.`,
@@ -516,7 +589,19 @@ Use this endpoint with combination of [listTemplates](https://appwrite.io/docs/p
   )
   .action(
     actionRunner(
-      async ({ siteId, owner, reference, repository, rootDirectory, type, activate }) => {
+      async (_options, _command) => {
+        const { siteId, owner, reference, repository, rootDirectory, type, activate } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "owner", option: "--owner <owner>", name: "owner", description: "The name of the owner of the template.", type: "string", required: true },
+            { key: "reference", option: "--reference <reference>", name: "reference", description: "Reference value, can be a commit hash, branch name, or release tag", type: "string", required: true },
+            { key: "repository", option: "--repository <repository>", name: "repository", description: "Repository name of the template.", type: "string", required: true },
+            { key: "rootDirectory", option: "--root-directory <root-directory>", name: "rootDirectory", description: "Path to site code in the template repo.", type: "string", required: true },
+            { key: "type", option: "--type <type>", name: "type", description: "Type for the reference provided. Can be commit, branch, or tag", type: "string", required: true, enum: ["branch","commit","tag"] },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/deployments/template`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
@@ -552,13 +637,13 @@ Use this endpoint with combination of [listTemplates](https://appwrite.io/docs/p
     ),
   );
 sites
-  .command(`sites-create-vcs-deployment`)
+  .command(`create-vcs-deployment`)
   .description(`Create a deployment when a site is connected to VCS.
 
 This endpoint lets you create deployment from a branch, commit, or a tag.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
-  .requiredOption(`--reference <reference>`, `VCS reference to create deployment from. Depending on type this can be: branch name, commit hash`)
-  .requiredOption(`--type <type>`, `Type of reference passed. Allowed values are: branch, commit`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .option(`--reference <reference>`, `VCS reference to create deployment from. Depending on type this can be: branch name, commit hash`)
+  .option(`--type <type>`, `Type of reference passed. Allowed values are: branch, commit`)
   .option(
     `--activate [value]`,
     `Automatically activate the deployment when it is finished building.`,
@@ -567,7 +652,16 @@ This endpoint lets you create deployment from a branch, commit, or a tag.`)
   )
   .action(
     actionRunner(
-      async ({ siteId, reference, type, activate }) => {
+      async (_options, _command) => {
+        const { siteId, reference, type, activate } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "reference", option: "--reference <reference>", name: "reference", description: "VCS reference to create deployment from. Depending on type this can be: branch name, commit hash", type: "string", required: true },
+            { key: "type", option: "--type <type>", name: "type", description: "Type of reference passed. Allowed values are: branch, commit", type: "string", required: true, enum: ["branch","commit","tag"] },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/deployments/vcs`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
@@ -594,13 +688,22 @@ This endpoint lets you create deployment from a branch, commit, or a tag.`)
     ),
   );
 sites
-  .command(`sites-delete-deployment`)
+  .command(`delete-deployment`)
   .description(`Delete a site deployment by its unique ID.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
-  .requiredOption(`--deployment-id <deployment-id>`, `Deployment ID.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .option(`--deployment-id <deployment-id>`, `Deployment ID.`)
   .action(
     actionRunner(
-      async ({ siteId, deploymentId }) => {
+      async (_options, _command) => {
+        const { siteId, deploymentId } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/deployments", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`sites delete-deployment`);
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/deployments/{deploymentId}`.replace(`{siteId}`, siteId).replace(`{deploymentId}`, deploymentId);
         const _payload: RequestParams = {};
@@ -618,13 +721,21 @@ sites
     ),
   );
 sites
-  .command(`sites-get-deployment`)
+  .command(`get-deployment`)
   .description(`Get a site deployment by its unique ID.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
-  .requiredOption(`--deployment-id <deployment-id>`, `Deployment ID.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .option(`--deployment-id <deployment-id>`, `Deployment ID.`)
   .action(
     actionRunner(
-      async ({ siteId, deploymentId }) => {
+      async (_options, _command) => {
+        const { siteId, deploymentId } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/deployments", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/deployments/{deploymentId}`.replace(`{siteId}`, siteId).replace(`{deploymentId}`, deploymentId);
         const _payload: RequestParams = {};
@@ -642,14 +753,22 @@ sites
     ),
   );
 sites
-  .command(`sites-get-deployment-download`)
+  .command(`get-deployment-download`)
   .description(`Get a site deployment content by its unique ID. The endpoint response return with a 'Content-Disposition: attachment' header that tells the browser to start downloading the file to user downloads directory.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
-  .requiredOption(`--deployment-id <deployment-id>`, `Deployment ID.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .option(`--deployment-id <deployment-id>`, `Deployment ID.`)
   .option(`--type <type>`, `Deployment file to download. Can be: "source", "output".`)
   .action(
     actionRunner(
-      async ({ siteId, deploymentId, type }) => {
+      async (_options, _command) => {
+        const { siteId, deploymentId, type } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/deployments", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/deployments/{deploymentId}/download`.replace(`{siteId}`, siteId).replace(`{deploymentId}`, deploymentId);
         const _payload: RequestParams = {};
@@ -670,13 +789,21 @@ sites
     ),
   );
 sites
-  .command(`sites-update-deployment-status`)
+  .command(`update-deployment-status`)
   .description(`Cancel an ongoing site deployment build. If the build is already in progress, it will be stopped and marked as canceled. If the build hasn't started yet, it will be marked as canceled without executing. You cannot cancel builds that have already completed (status 'ready') or failed. The response includes the final build status and details.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
-  .requiredOption(`--deployment-id <deployment-id>`, `Deployment ID.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .option(`--deployment-id <deployment-id>`, `Deployment ID.`)
   .action(
     actionRunner(
-      async ({ siteId, deploymentId }) => {
+      async (_options, _command) => {
+        const { siteId, deploymentId } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/deployments", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/deployments/{deploymentId}/status`.replace(`{siteId}`, siteId).replace(`{deploymentId}`, deploymentId);
         const _payload: RequestParams = {};
@@ -694,9 +821,9 @@ sites
     ),
   );
 sites
-  .command(`sites-list-logs`)
+  .command(`list-logs`)
   .description(`Get a list of all site logs. You can use the query params to filter your results.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
   .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: trigger, status, responseStatusCode, duration, requestMethod, requestPath, deploymentId`)
   .option(
     `--total [value]`,
@@ -706,7 +833,14 @@ sites
   )
   .action(
     actionRunner(
-      async ({ siteId, queries, total }) => {
+      async (_options, _command) => {
+        const { siteId, queries, total } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/logs`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
@@ -730,13 +864,22 @@ sites
     ),
   );
 sites
-  .command(`sites-delete-log`)
+  .command(`delete-log`)
   .description(`Delete a site log by its unique ID.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
-  .requiredOption(`--log-id <log-id>`, `Log ID.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .option(`--log-id <log-id>`, `Log ID.`)
   .action(
     actionRunner(
-      async ({ siteId, logId }) => {
+      async (_options, _command) => {
+        const { siteId, logId } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "logId", option: "--log-id <log-id>", name: "logId", description: "Log ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/logs", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`sites delete-log`);
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/logs/{logId}`.replace(`{siteId}`, siteId).replace(`{logId}`, logId);
         const _payload: RequestParams = {};
@@ -754,13 +897,21 @@ sites
     ),
   );
 sites
-  .command(`sites-get-log`)
+  .command(`get-log`)
   .description(`Get a site request log by its unique ID.`)
-  .requiredOption(`--site-id <site-id>`, `Site ID.`)
-  .requiredOption(`--log-id <log-id>`, `Log ID.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .option(`--log-id <log-id>`, `Log ID.`)
   .action(
     actionRunner(
-      async ({ siteId, logId }) => {
+      async (_options, _command) => {
+        const { siteId, logId } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "logId", option: "--log-id <log-id>", name: "logId", description: "Log ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/logs", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/logs/{logId}`.replace(`{siteId}`, siteId).replace(`{logId}`, logId);
         const _payload: RequestParams = {};
@@ -778,12 +929,19 @@ sites
     ),
   );
 sites
-  .command(`sites-list-variables`)
+  .command(`list-variables`)
   .description(`Get a list of all variables of a specific site.`)
-  .requiredOption(`--site-id <site-id>`, `Site unique ID.`)
+  .option(`--site-id <site-id>`, `Site unique ID.`)
   .action(
     actionRunner(
-      async ({ siteId }) => {
+      async (_options, _command) => {
+        const { siteId } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site unique ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/variables`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
@@ -801,11 +959,11 @@ sites
     ),
   );
 sites
-  .command(`sites-create-variable`)
+  .command(`create-variable`)
   .description(`Create a new site variable. These variables can be accessed during build and runtime (server-side rendering) as environment variables.`)
-  .requiredOption(`--site-id <site-id>`, `Site unique ID.`)
-  .requiredOption(`--key <key>`, `Variable key. Max length: 255 chars.`)
-  .requiredOption(`--value <value>`, `Variable value. Max length: 8192 chars.`)
+  .option(`--site-id <site-id>`, `Site unique ID.`)
+  .option(`--key <key>`, `Variable key. Max length: 255 chars.`)
+  .option(`--value <value>`, `Variable value. Max length: 8192 chars.`)
   .option(
     `--secret [value]`,
     `Secret variables can be updated or deleted, but only sites can read them during build and runtime.`,
@@ -814,7 +972,16 @@ sites
   )
   .action(
     actionRunner(
-      async ({ siteId, key, value, secret }) => {
+      async (_options, _command) => {
+        const { siteId, key, value, secret } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site unique ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "key", option: "--key <key>", name: "key", description: "Variable key. Max length: 255 chars.", type: "string", required: true },
+            { key: "value", option: "--value <value>", name: "value", description: "Variable value. Max length: 8192 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/variables`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
@@ -841,13 +1008,22 @@ sites
     ),
   );
 sites
-  .command(`sites-delete-variable`)
+  .command(`delete-variable`)
   .description(`Delete a variable by its unique ID.`)
-  .requiredOption(`--site-id <site-id>`, `Site unique ID.`)
-  .requiredOption(`--variable-id <variable-id>`, `Variable unique ID.`)
+  .option(`--site-id <site-id>`, `Site unique ID.`)
+  .option(`--variable-id <variable-id>`, `Variable unique ID.`)
   .action(
     actionRunner(
-      async ({ siteId, variableId }) => {
+      async (_options, _command) => {
+        const { siteId, variableId } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site unique ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "variableId", option: "--variable-id <variable-id>", name: "variableId", description: "Variable unique ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/variables", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`sites delete-variable`);
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/variables/{variableId}`.replace(`{siteId}`, siteId).replace(`{variableId}`, variableId);
         const _payload: RequestParams = {};
@@ -865,13 +1041,21 @@ sites
     ),
   );
 sites
-  .command(`sites-get-variable`)
+  .command(`get-variable`)
   .description(`Get a variable by its unique ID.`)
-  .requiredOption(`--site-id <site-id>`, `Site unique ID.`)
-  .requiredOption(`--variable-id <variable-id>`, `Variable unique ID.`)
+  .option(`--site-id <site-id>`, `Site unique ID.`)
+  .option(`--variable-id <variable-id>`, `Variable unique ID.`)
   .action(
     actionRunner(
-      async ({ siteId, variableId }) => {
+      async (_options, _command) => {
+        const { siteId, variableId } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site unique ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "variableId", option: "--variable-id <variable-id>", name: "variableId", description: "Variable unique ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/variables", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/variables/{variableId}`.replace(`{siteId}`, siteId).replace(`{variableId}`, variableId);
         const _payload: RequestParams = {};
@@ -889,11 +1073,11 @@ sites
     ),
   );
 sites
-  .command(`sites-update-variable`)
+  .command(`update-variable`)
   .description(`Update variable by its unique ID.`)
-  .requiredOption(`--site-id <site-id>`, `Site unique ID.`)
-  .requiredOption(`--variable-id <variable-id>`, `Variable unique ID.`)
-  .requiredOption(`--key <key>`, `Variable key. Max length: 255 chars.`)
+  .option(`--site-id <site-id>`, `Site unique ID.`)
+  .option(`--variable-id <variable-id>`, `Variable unique ID.`)
+  .option(`--key <key>`, `Variable key. Max length: 255 chars.`)
   .option(
     `--secret [value]`,
     `Secret variables can be updated or deleted, but only sites can read them during build and runtime.`,
@@ -903,7 +1087,16 @@ sites
   .option(`--value <value>`, `Variable value. Max length: 8192 chars.`)
   .action(
     actionRunner(
-      async ({ siteId, variableId, key, secret, value }) => {
+      async (_options, _command) => {
+        const { siteId, variableId, key, secret, value } = await promptForMissing(
+          _options,
+          [
+            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site unique ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
+            { key: "variableId", option: "--variable-id <variable-id>", name: "variableId", description: "Variable unique ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/variables", hasLimit: false } },
+            { key: "key", option: "--key <key>", name: "key", description: "Variable key. Max length: 255 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/variables/{variableId}`.replace(`{siteId}`, siteId).replace(`{variableId}`, variableId);
         const _payload: RequestParams = {};

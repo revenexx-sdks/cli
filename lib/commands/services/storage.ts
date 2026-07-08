@@ -9,9 +9,16 @@ import {
   parseBool,
   parseInteger,
 } from "../../parser.js";
+import {
+  confirmDestructive,
+  promptForMissing,
+} from "../../interactive.js";
 
 export const storage = new Command("storage")
-  .description(commandDescriptions["storage"] ?? "")
+  .description(
+    commandDescriptions["storage"] ??
+      `Media storage: assets, folders, quotas (revenexx storage service).`,
+  )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });
@@ -45,7 +52,7 @@ storage
 storage
   .command(`asset-store`)
   .description(``)
-  .requiredOption(`--file <file>`, ``)
+  .option(`--file <file>`, ``)
   .option(`--alt-_text <alt-_text>`, ``)
   .option(`--description <description>`, ``)
   .option(`--display-_name <display-_name>`, ``)
@@ -66,7 +73,14 @@ storage
   .option(`--visibility <visibility>`, ``)
   .action(
     actionRunner(
-      async ({ file, alt_text, description, display_name, folder_id, keep_archive, tags, unpack, visibility }) => {
+      async (_options, _command) => {
+        const { file, alt_text, description, display_name, folder_id, keep_archive, tags, unpack, visibility } = await promptForMissing(
+          _options,
+          [
+            { key: "file", option: "--file <file>", name: "file", type: "file", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets`;
         const _payload: RequestParams = {};
@@ -143,10 +157,18 @@ storage
 storage
   .command(`asset-destroy`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`storage asset-destroy`);
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -166,10 +188,17 @@ storage
 storage
   .command(`asset-show`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -189,7 +218,7 @@ storage
 storage
   .command(`asset-update`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .option(`--id <id>`, ``)
   .option(`--alt-_text <alt-_text>`, ``)
   .option(`--description <description>`, ``)
   .option(`--display-_name <display-_name>`, ``)
@@ -199,7 +228,14 @@ storage
   .option(`--visibility <visibility>`, ``)
   .action(
     actionRunner(
-      async ({ id, alt_text, description, display_name, folder_id, name, tags, visibility }) => {
+      async (_options, _command) => {
+        const { id, alt_text, description, display_name, folder_id, name, tags, visibility } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -240,10 +276,17 @@ storage
 storage
   .command(`asset-download`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets/{id}/download`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -263,10 +306,18 @@ storage
 storage
   .command(`asset-permanent`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`storage asset-permanent`);
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets/{id}/permanent`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -286,10 +337,17 @@ storage
 storage
   .command(`asset-reprocess`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets/{id}/reprocess`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -309,10 +367,17 @@ storage
 storage
   .command(`asset-restore`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets/{id}/restore`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -332,11 +397,18 @@ storage
 storage
   .command(`asset-sign`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .option(`--id <id>`, ``)
   .option(`--ttl-_seconds <ttl-_seconds>`, ``, parseInteger)
   .action(
     actionRunner(
-      async ({ id, ttl_seconds }) => {
+      async (_options, _command) => {
+        const { id, ttl_seconds } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets/{id}/sign`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -358,8 +430,11 @@ storage
   );
 storage
   .command(`asset-unpack`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .description(`Unpack an already-uploaded archive: its members are ingested into a folder
+named after the archive (mirroring its structure). Asynchronous — poll the
+folder/asset list for the results. \`keep_archive\` (default true) controls
+whether the archive itself is kept`)
+  .option(`--id <id>`, ``)
   .option(
     `--keep-_archive [value]`,
     ``,
@@ -369,7 +444,14 @@ storage
   .option(`--target-_folder-_id <target-_folder-_id>`, ``)
   .action(
     actionRunner(
-      async ({ id, keep_archive, target_folder_id }) => {
+      async (_options, _command) => {
+        const { id, keep_archive, target_folder_id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets/{id}/unpack`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -417,11 +499,18 @@ storage
 storage
   .command(`folder-store`)
   .description(``)
-  .requiredOption(`--name <name>`, ``)
+  .option(`--name <name>`, ``)
   .option(`--parent-_id <parent-_id>`, ``)
   .action(
     actionRunner(
-      async ({ name, parent_id }) => {
+      async (_options, _command) => {
+        const { name, parent_id } = await promptForMissing(
+          _options,
+          [
+            { key: "name", option: "--name <name>", name: "name", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/folders`;
         const _payload: RequestParams = {};
@@ -447,7 +536,7 @@ storage
 storage
   .command(`folder-destroy`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .option(`--id <id>`, ``)
   .option(
     `--recursive [value]`,
     ``,
@@ -456,7 +545,15 @@ storage
   )
   .action(
     actionRunner(
-      async ({ id, recursive }) => {
+      async (_options, _command) => {
+        const { id, recursive } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/folders", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`storage folder-destroy`);
         const _client = await sdkForProject();
         const _apiPath = `/storage/folders/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -479,10 +576,17 @@ storage
 storage
   .command(`folder-show`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/folders", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/folders/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -502,12 +606,19 @@ storage
 storage
   .command(`folder-update`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .option(`--id <id>`, ``)
   .option(`--name <name>`, ``)
   .option(`--parent-_id <parent-_id>`, ``)
   .action(
     actionRunner(
-      async ({ id, name, parent_id }) => {
+      async (_options, _command) => {
+        const { id, name, parent_id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/folders", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/folders/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -577,10 +688,18 @@ storage
 storage
   .command(`sync-rule-destroy`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/sftp/rules", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`storage sync-rule-destroy`);
         const _client = await sdkForProject();
         const _apiPath = `/storage/sftp/rules/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -600,10 +719,17 @@ storage
 storage
   .command(`sync-rule-show`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/sftp/rules", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/sftp/rules/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -623,10 +749,17 @@ storage
 storage
   .command(`sync-rule-update`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/sftp/rules", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/sftp/rules/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -646,10 +779,17 @@ storage
 storage
   .command(`sync-rule-run`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/sftp/rules", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/sftp/rules/{id}/run`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -669,11 +809,19 @@ storage
 storage
   .command(`sync-rule-run-protocol`)
   .description(``)
-  .requiredOption(`--id <id>`, ``)
-  .requiredOption(`--run-id <run-id>`, ``)
+  .option(`--id <id>`, ``)
+  .option(`--run-id <run-id>`, ``)
   .action(
     actionRunner(
-      async ({ id, runId }) => {
+      async (_options, _command) => {
+        const { id, runId } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/sftp/rules", hasLimit: false } },
+            { key: "runId", option: "--run-id <run-id>", name: "runId", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/sftp/rules/{id}/runs/{runId}`.replace(`{id}`, id).replace(`{runId}`, runId);
         const _payload: RequestParams = {};

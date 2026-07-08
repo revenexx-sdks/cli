@@ -53,13 +53,17 @@ export interface CliConfig {
   verbose: boolean;
   json: boolean;
   force: boolean;
-  all: boolean;
-  ids: string[];
   report: boolean;
   reportData: Record<string, unknown>;
   endpoint?: string;
   token?: string;
   tenant?: string;
+  /** Per-request timeout in ms (--timeout). Undefined → client default. */
+  timeout?: number;
+  /** Auto-retry idempotent requests. False when --no-retry is passed. */
+  retry: boolean;
+  /** Redacted HTTP debug logging on stderr (--debug). */
+  debug: boolean;
 }
 
 export interface SessionData {
@@ -67,6 +71,10 @@ export interface SessionData {
   email?: string;
   phone?: string;
   cookie?: string;
+  jwt?: string;
+  refreshToken?: string;
+  jwtExpiresAt?: number;
+  authMethod?: "apikey" | "sso";
 }
 
 export interface GlobalConfigData extends ConfigData {

@@ -6,24 +6,24 @@
 # Love open-source, dev-tooling and passionate about code as much as we do?
 # ---
 # We're always looking for awesome hackers like you to join our 100% remote team!
-# Check and see if you find any relevant position @ https://revenexx api — revenexx.io/company/careers 👩‍💻 😎
+# Check and see if you find any relevant position @ https://revenexx.com/careers 👩‍💻 😎
 # (and let us know you found this message...)
 
 # This script contains hidden JS code to allow better readability and syntax highlighting
 # You can use "View source" of this page to see the full script.
 
 # REPO
-$GITHUB_x64_URL = "https://github.com/revenexx-sdks/cli/releases/download/0.0.7/revenexx-cli-win-x64.exe"
-$GITHUB_arm64_URL = "https://github.com/revenexx-sdks/cli/releases/download/0.0.7/revenexx-cli-win-arm64.exe"
+$GITHUB_x64_URL = "https://github.com/revenexx-sdks/cli/releases/download/0.0.8/revenexx-cli-win-x64.exe"
+$GITHUB_arm64_URL = "https://github.com/revenexx-sdks/cli/releases/download/0.0.8/revenexx-cli-win-arm64.exe"
 
-$REVENEXX API — REVENEXX_BINARY_NAME = "revenexx.exe"
+$REVENEXX_BINARY_NAME = "revenexx.exe"
 
-# RevenexxAPIRevenexx download directory
-$REVENEXX API — REVENEXX_DOWNLOAD_DIR = Join-Path -Path $env:TEMP -ChildPath $REVENEXX API — REVENEXX_BINARY_NAME
+# Revenexx download directory
+$REVENEXX_DOWNLOAD_DIR = Join-Path -Path $env:TEMP -ChildPath $REVENEXX_BINARY_NAME
 
-# RevenexxAPIRevenexx CLI location
-$REVENEXX API — REVENEXX_INSTALL_DIR = Join-Path -Path $env:LOCALAPPDATA -ChildPath "RevenexxAPIRevenexx"
-$REVENEXX API — REVENEXX_INSTALL_PATH = Join-Path -Path "$REVENEXX API — REVENEXX_INSTALL_DIR" -ChildPath "$REVENEXX API — REVENEXX_BINARY_NAME"
+# Revenexx CLI location
+$REVENEXX_INSTALL_DIR = Join-Path -Path $env:LOCALAPPDATA -ChildPath "Revenexx"
+$REVENEXX_INSTALL_PATH = Join-Path -Path "$REVENEXX_INSTALL_DIR" -ChildPath "$REVENEXX_BINARY_NAME"
 
 $USER_PATH_ENV_VAR = [Environment]::GetEnvironmentVariable("PATH", "User")
 
@@ -41,7 +41,7 @@ function Greeting {
                                                                              CLI      
 
 "@ -ForegroundColor red
-    Write-Host "Welcome to the RevenexxAPIRevenexx CLI install shield."  
+    Write-Host "Welcome to the Revenexx CLI install shield."  
 }
 
 function CheckSystemInfo {
@@ -55,26 +55,26 @@ function CheckSystemInfo {
 }
 
 function DownloadBinary {
-    Write-Host "[2/4] Downloading RevenexxAPIRevenexx CLI binary ..."
+    Write-Host "[2/4] Downloading Revenexx CLI binary ..."
     Write-Host "🚦 Fetching latest version ... " -ForegroundColor green
 
     if((Get-CimInstance Win32_operatingsystem).OSArchitecture -like '*ARM*') {
-      Invoke-WebRequest -Uri $GITHUB_arm64_URL -OutFile $REVENEXX API — REVENEXX_DOWNLOAD_DIR
+      Invoke-WebRequest -Uri $GITHUB_arm64_URL -OutFile $REVENEXX_DOWNLOAD_DIR
     } else {
-      Invoke-WebRequest -Uri $GITHUB_x64_URL -OutFile $REVENEXX API — REVENEXX_DOWNLOAD_DIR
+      Invoke-WebRequest -Uri $GITHUB_x64_URL -OutFile $REVENEXX_DOWNLOAD_DIR
     }
 
-    New-Item -ItemType Directory -Path $REVENEXX API — REVENEXX_INSTALL_DIR
-    Move-Item $REVENEXX API — REVENEXX_DOWNLOAD_DIR $REVENEXX API — REVENEXX_INSTALL_PATH
+    New-Item -ItemType Directory -Path $REVENEXX_INSTALL_DIR
+    Move-Item $REVENEXX_DOWNLOAD_DIR $REVENEXX_INSTALL_PATH
 }
 
 function Install {
     Write-Host "[3/4] Starting installation ..."
 
-    if ($USER_PATH_ENV_VAR -like '*RevenexxAPIRevenexx*') {
-        Write-Host "Skipping to add RevenexxAPIRevenexx to User Path."
+    if ($USER_PATH_ENV_VAR -like '*Revenexx*') {
+        Write-Host "Skipping to add Revenexx to User Path."
     } else {
-        [System.Environment]::SetEnvironmentVariable("PATH", $USER_PATH_ENV_VAR + ";$REVENEXX API — REVENEXX_INSTALL_DIR", "User")
+        [System.Environment]::SetEnvironmentVariable("PATH", $USER_PATH_ENV_VAR + ";$REVENEXX_INSTALL_DIR", "User")
         $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User") 
     }
 }
@@ -86,8 +86,8 @@ function CleanUp {
 function InstallCompleted {
     Write-Host "[4/4] Finishing Installation ... "
     cleanup
-    Write-Host "To get started with RevenexxAPIRevenexx CLI, please visit https://revenexx.com/docs/command-line"
-    Write-Host "As first step, you can login to your RevenexxAPIRevenexx account using 'revenexx login'"
+    Write-Host "To get started with Revenexx CLI, please visit https://revenexx.com/docs/command-line"
+    Write-Host "As first step, you can login to your Revenexx account using 'revenexx login'"
 }
 
 Greeting

@@ -1,7 +1,7 @@
 require "language/node"
 
-class RevenexxAPIRevenexx < Formula
-  desc "CLI is a Node based command-line tool for RevenexxAPIRevenexx API"
+class Revenexx < Formula
+  desc "Node-based command-line tool for the Revenexx API"
   homepage "https://revenexx.com"
   license "MIT"
   head "https://github.com/revenexx-sdks/cli.git", branch: "master"

@@ -8,16 +8,23 @@ import {
   parseBool,
   parseInteger,
 } from "../../parser.js";
+import {
+  confirmDestructive,
+  promptForMissing,
+} from "../../interactive.js";
 
 export const products = new Command("products")
-  .description(commandDescriptions["products"] ?? "")
+  .description(
+    commandDescriptions["products"] ??
+      `Manage products resources.`,
+  )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });
 
 products
-  .command(`products-list`)
-  .description(``)
+  .command(`list`)
+  .description(`List products (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -50,9 +57,9 @@ products
     ),
   );
 products
-  .command(`products-create`)
-  .description(``)
-  .requiredOption(`--sku <sku>`, ``)
+  .command(`create`)
+  .description(`Create one of products`)
+  .option(`--sku <sku>`, ``)
   .option(`--attribute-_values <attribute-_values>`, ``)
   .option(`--completeness <completeness>`, ``)
   .option(`--deleted-_at <deleted-_at>`, ``)
@@ -70,7 +77,14 @@ products
   .option(`--tax-_class <tax-_class>`, ``)
   .action(
     actionRunner(
-      async ({ sku, attribute_values, completeness, deleted_at, enabled, family_id, family_variant_id, kind, parent_id, quantified_associations, tax_class }) => {
+      async (_options, _command) => {
+        const { sku, attribute_values, completeness, deleted_at, enabled, family_id, family_variant_id, kind, parent_id, quantified_associations, tax_class } = await promptForMissing(
+          _options,
+          [
+            { key: "sku", option: "--sku <sku>", name: "sku", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products`;
         const _payload: RequestParams = {};
@@ -121,8 +135,8 @@ products
     ),
   );
 products
-  .command(`products-asset-families-list`)
-  .description(``)
+  .command(`asset-families-list`)
+  .description(`List asset families (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -155,14 +169,21 @@ products
     ),
   );
 products
-  .command(`products-asset-families-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, ``)
+  .command(`asset-families-create`)
+  .description(`Create one of asset families`)
+  .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
   .option(`--naming-_convention <naming-_convention>`, ``)
   .action(
     actionRunner(
-      async ({ code, labels, naming_convention }) => {
+      async (_options, _command) => {
+        const { code, labels, naming_convention } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/asset_families`;
         const _payload: RequestParams = {};
@@ -189,12 +210,20 @@ products
     ),
   );
 products
-  .command(`products-asset-families-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`asset-families-delete`)
+  .description(`Delete one of asset families by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/asset_families", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products asset-families-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/asset_families/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -212,12 +241,19 @@ products
     ),
   );
 products
-  .command(`products-asset-families-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`asset-families-get`)
+  .description(`Read one of asset families by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/asset_families", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/asset_families/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -235,15 +271,22 @@ products
     ),
   );
 products
-  .command(`products-asset-families-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`asset-families-update`)
+  .description(`Update one of asset families by id`)
+  .option(`--id <id>`, ``)
   .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
   .option(`--naming-_convention <naming-_convention>`, ``)
   .action(
     actionRunner(
-      async ({ id, code, labels, naming_convention }) => {
+      async (_options, _command) => {
+        const { id, code, labels, naming_convention } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/asset_families", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/asset_families/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -270,8 +313,8 @@ products
     ),
   );
 products
-  .command(`products-assets-list`)
-  .description(``)
+  .command(`assets-list`)
+  .description(`List assets (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -304,15 +347,23 @@ products
     ),
   );
 products
-  .command(`products-assets-create`)
-  .description(``)
-  .requiredOption(`--asset-_family-_id <asset-_family-_id>`, ``)
-  .requiredOption(`--code <code>`, ``)
+  .command(`assets-create`)
+  .description(`Create one of assets`)
+  .option(`--asset-_family-_id <asset-_family-_id>`, ``)
+  .option(`--code <code>`, ``)
   .option(`--attribute-_values <attribute-_values>`, ``)
   .option(`--media-_uuid <media-_uuid>`, ``)
   .action(
     actionRunner(
-      async ({ asset_family_id, code, attribute_values, media_uuid }) => {
+      async (_options, _command) => {
+        const { asset_family_id, code, attribute_values, media_uuid } = await promptForMissing(
+          _options,
+          [
+            { key: "asset_family_id", option: "--asset-_family-_id <asset-_family-_id>", name: "asset_family_id", type: "string", required: true },
+            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/assets`;
         const _payload: RequestParams = {};
@@ -342,12 +393,20 @@ products
     ),
   );
 products
-  .command(`products-assets-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`assets-delete`)
+  .description(`Delete one of assets by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/assets", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products assets-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/assets/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -365,12 +424,19 @@ products
     ),
   );
 products
-  .command(`products-assets-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`assets-get`)
+  .description(`Read one of assets by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/assets", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/assets/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -388,16 +454,23 @@ products
     ),
   );
 products
-  .command(`products-assets-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`assets-update`)
+  .description(`Update one of assets by id`)
+  .option(`--id <id>`, ``)
   .option(`--asset-_family-_id <asset-_family-_id>`, ``)
   .option(`--attribute-_values <attribute-_values>`, ``)
   .option(`--code <code>`, ``)
   .option(`--media-_uuid <media-_uuid>`, ``)
   .action(
     actionRunner(
-      async ({ id, asset_family_id, attribute_values, code, media_uuid }) => {
+      async (_options, _command) => {
+        const { id, asset_family_id, attribute_values, code, media_uuid } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/assets", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/assets/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -427,8 +500,8 @@ products
     ),
   );
 products
-  .command(`products-association-types-list`)
-  .description(``)
+  .command(`association-types-list`)
+  .description(`List association types (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -461,9 +534,9 @@ products
     ),
   );
 products
-  .command(`products-association-types-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, ``)
+  .command(`association-types-create`)
+  .description(`Create one of association types`)
+  .option(`--code <code>`, ``)
   .option(
     `--is-_quantified [value]`,
     ``,
@@ -479,7 +552,14 @@ products
   .option(`--labels <labels>`, ``)
   .action(
     actionRunner(
-      async ({ code, is_quantified, is_two_way, labels }) => {
+      async (_options, _command) => {
+        const { code, is_quantified, is_two_way, labels } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/association_types`;
         const _payload: RequestParams = {};
@@ -509,12 +589,20 @@ products
     ),
   );
 products
-  .command(`products-association-types-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`association-types-delete`)
+  .description(`Delete one of association types by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/association_types", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products association-types-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/association_types/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -532,12 +620,19 @@ products
     ),
   );
 products
-  .command(`products-association-types-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`association-types-get`)
+  .description(`Read one of association types by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/association_types", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/association_types/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -555,9 +650,9 @@ products
     ),
   );
 products
-  .command(`products-association-types-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`association-types-update`)
+  .description(`Update one of association types by id`)
+  .option(`--id <id>`, ``)
   .option(`--code <code>`, ``)
   .option(
     `--is-_quantified [value]`,
@@ -574,7 +669,14 @@ products
   .option(`--labels <labels>`, ``)
   .action(
     actionRunner(
-      async ({ id, code, is_quantified, is_two_way, labels }) => {
+      async (_options, _command) => {
+        const { id, code, is_quantified, is_two_way, labels } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/association_types", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/association_types/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -604,8 +706,8 @@ products
     ),
   );
 products
-  .command(`products-attribute-groups-list`)
-  .description(``)
+  .command(`attribute-groups-list`)
+  .description(`List attribute groups (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -638,14 +740,21 @@ products
     ),
   );
 products
-  .command(`products-attribute-groups-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, ``)
+  .command(`attribute-groups-create`)
+  .description(`Create one of attribute groups`)
+  .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
   .option(`--position <position>`, ``, parseInteger)
   .action(
     actionRunner(
-      async ({ code, labels, position }) => {
+      async (_options, _command) => {
+        const { code, labels, position } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/attribute_groups`;
         const _payload: RequestParams = {};
@@ -672,12 +781,20 @@ products
     ),
   );
 products
-  .command(`products-attribute-groups-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`attribute-groups-delete`)
+  .description(`Delete one of attribute groups by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_groups", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products attribute-groups-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/attribute_groups/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -695,12 +812,19 @@ products
     ),
   );
 products
-  .command(`products-attribute-groups-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`attribute-groups-get`)
+  .description(`Read one of attribute groups by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_groups", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/attribute_groups/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -718,15 +842,22 @@ products
     ),
   );
 products
-  .command(`products-attribute-groups-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`attribute-groups-update`)
+  .description(`Update one of attribute groups by id`)
+  .option(`--id <id>`, ``)
   .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
   .option(`--position <position>`, ``, parseInteger)
   .action(
     actionRunner(
-      async ({ id, code, labels, position }) => {
+      async (_options, _command) => {
+        const { id, code, labels, position } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_groups", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/attribute_groups/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -753,8 +884,8 @@ products
     ),
   );
 products
-  .command(`products-attribute-options-list`)
-  .description(``)
+  .command(`attribute-options-list`)
+  .description(`List attribute options (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -787,97 +918,8 @@ products
     ),
   );
 products
-  .command(`products-attribute-options-create`)
-  .description(``)
-  .requiredOption(`--attribute-_id <attribute-_id>`, ``)
-  .requiredOption(`--code <code>`, ``)
-  .option(`--labels <labels>`, ``)
-  .option(`--position <position>`, ``, parseInteger)
-  .option(`--swatch <swatch>`, ``)
-  .action(
-    actionRunner(
-      async ({ attribute_id, code, labels, position, swatch }) => {
-        const _client = await sdkForProject();
-        const _apiPath = `/products/attribute_options`;
-        const _payload: RequestParams = {};
-        if (attribute_id !== undefined) {
-          _payload[`attribute_id`] = attribute_id;
-        }
-        if (code !== undefined) {
-          _payload[`code`] = code;
-        }
-        if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
-        }
-        if (position !== undefined) {
-          _payload[`position`] = position;
-        }
-        if (swatch !== undefined) {
-          _payload[`swatch`] = JSON.parse(swatch);
-        }
-        const _headers: Record<string, string> = {
-          "content-type": "application/json",
-        };
-        const _response = await _client.call(
-          `post`,
-          _apiPath,
-          _headers,
-          _payload,
-        );
-        parse(_response as Record<string, unknown>);
-      },
-    ),
-  );
-products
-  .command(`products-attribute-options-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
-  .action(
-    actionRunner(
-      async ({ id }) => {
-        const _client = await sdkForProject();
-        const _apiPath = `/products/attribute_options/{id}`.replace(`{id}`, id);
-        const _payload: RequestParams = {};
-        const _headers: Record<string, string> = {
-          "content-type": "application/json",
-        };
-        const _response = await _client.call(
-          `delete`,
-          _apiPath,
-          _headers,
-          _payload,
-        );
-        parse(_response as Record<string, unknown>);
-      },
-    ),
-  );
-products
-  .command(`products-attribute-options-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
-  .action(
-    actionRunner(
-      async ({ id }) => {
-        const _client = await sdkForProject();
-        const _apiPath = `/products/attribute_options/{id}`.replace(`{id}`, id);
-        const _payload: RequestParams = {};
-        const _headers: Record<string, string> = {
-          "content-type": "application/json",
-        };
-        const _response = await _client.call(
-          `get`,
-          _apiPath,
-          _headers,
-          _payload,
-        );
-        parse(_response as Record<string, unknown>);
-      },
-    ),
-  );
-products
-  .command(`products-attribute-options-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`attribute-options-create`)
+  .description(`Create one of attribute options`)
   .option(`--attribute-_id <attribute-_id>`, ``)
   .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
@@ -885,7 +927,126 @@ products
   .option(`--swatch <swatch>`, ``)
   .action(
     actionRunner(
-      async ({ id, attribute_id, code, labels, position, swatch }) => {
+      async (_options, _command) => {
+        const { attribute_id, code, labels, position, swatch } = await promptForMissing(
+          _options,
+          [
+            { key: "attribute_id", option: "--attribute-_id <attribute-_id>", name: "attribute_id", type: "string", required: true },
+            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+          ],
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/attribute_options`;
+        const _payload: RequestParams = {};
+        if (attribute_id !== undefined) {
+          _payload[`attribute_id`] = attribute_id;
+        }
+        if (code !== undefined) {
+          _payload[`code`] = code;
+        }
+        if (labels !== undefined) {
+          _payload[`labels`] = JSON.parse(labels);
+        }
+        if (position !== undefined) {
+          _payload[`position`] = position;
+        }
+        if (swatch !== undefined) {
+          _payload[`swatch`] = JSON.parse(swatch);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+products
+  .command(`attribute-options-delete`)
+  .description(`Delete one of attribute options by id`)
+  .option(`--id <id>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_options", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products attribute-options-delete`);
+        const _client = await sdkForProject();
+        const _apiPath = `/products/attribute_options/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `delete`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+products
+  .command(`attribute-options-get`)
+  .description(`Read one of attribute options by id`)
+  .option(`--id <id>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_options", hasLimit: true } },
+          ],
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/attribute_options/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+products
+  .command(`attribute-options-update`)
+  .description(`Update one of attribute options by id`)
+  .option(`--id <id>`, ``)
+  .option(`--attribute-_id <attribute-_id>`, ``)
+  .option(`--code <code>`, ``)
+  .option(`--labels <labels>`, ``)
+  .option(`--position <position>`, ``, parseInteger)
+  .option(`--swatch <swatch>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, attribute_id, code, labels, position, swatch } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_options", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/attribute_options/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -918,8 +1079,8 @@ products
     ),
   );
 products
-  .command(`products-attributes-list`)
-  .description(``)
+  .command(`attributes-list`)
+  .description(`List attributes (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -952,10 +1113,10 @@ products
     ),
   );
 products
-  .command(`products-attributes-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, ``)
-  .requiredOption(`--type <type>`, ``)
+  .command(`attributes-create`)
+  .description(`Create one of attributes`)
+  .option(`--code <code>`, ``)
+  .option(`--type <type>`, ``)
   .option(`--config <config>`, ``)
   .option(`--entity-_ref <entity-_ref>`, ``)
   .option(`--entity-_type <entity-_type>`, ``)
@@ -995,7 +1156,15 @@ products
   .option(`--validation <validation>`, ``)
   .action(
     actionRunner(
-      async ({ code, type, config, entity_ref, entity_type, group_id, is_filterable, is_unique, labels, localizable, position, scopable, usable_in_grid, validation }) => {
+      async (_options, _command) => {
+        const { code, type, config, entity_ref, entity_type, group_id, is_filterable, is_unique, labels, localizable, position, scopable, usable_in_grid, validation } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+            { key: "type", option: "--type <type>", name: "type", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/attributes`;
         const _payload: RequestParams = {};
@@ -1055,12 +1224,20 @@ products
     ),
   );
 products
-  .command(`products-attributes-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`attributes-delete`)
+  .description(`Delete one of attributes by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attributes", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products attributes-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/attributes/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1078,12 +1255,19 @@ products
     ),
   );
 products
-  .command(`products-attributes-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`attributes-get`)
+  .description(`Read one of attributes by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attributes", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/attributes/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1101,9 +1285,9 @@ products
     ),
   );
 products
-  .command(`products-attributes-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`attributes-update`)
+  .description(`Update one of attributes by id`)
+  .option(`--id <id>`, ``)
   .option(`--code <code>`, ``)
   .option(`--config <config>`, ``)
   .option(`--entity-_ref <entity-_ref>`, ``)
@@ -1145,7 +1329,14 @@ products
   .option(`--validation <validation>`, ``)
   .action(
     actionRunner(
-      async ({ id, code, config, entity_ref, entity_type, group_id, is_filterable, is_unique, labels, localizable, position, scopable, type, usable_in_grid, validation }) => {
+      async (_options, _command) => {
+        const { id, code, config, entity_ref, entity_type, group_id, is_filterable, is_unique, labels, localizable, position, scopable, type, usable_in_grid, validation } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attributes", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/attributes/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1205,8 +1396,8 @@ products
     ),
   );
 products
-  .command(`products-batch`)
-  .description(``)
+  .command(`batch`)
+  .description(`Bulk-read products by ids and/or skus — minimal fields incl. tax_class, for cross-app resolution.`)
   .option(`--ids [ids...]`, ``)
   .option(`--skus [skus...]`, ``)
   .action(
@@ -1235,8 +1426,8 @@ products
     ),
   );
 products
-  .command(`products-categories-list`)
-  .description(``)
+  .command(`categories-list`)
+  .description(`List categories (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -1269,9 +1460,9 @@ products
     ),
   );
 products
-  .command(`products-categories-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, ``)
+  .command(`categories-create`)
+  .description(`Create one of categories`)
+  .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
   .option(`--parent-_id <parent-_id>`, ``)
   .option(`--path <path>`, ``)
@@ -1279,7 +1470,14 @@ products
   .option(`--values <values>`, ``)
   .action(
     actionRunner(
-      async ({ code, labels, parent_id, path, position, values }) => {
+      async (_options, _command) => {
+        const { code, labels, parent_id, path, position, values } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/categories`;
         const _payload: RequestParams = {};
@@ -1315,12 +1513,20 @@ products
     ),
   );
 products
-  .command(`products-categories-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`categories-delete`)
+  .description(`Delete one of categories by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/categories", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products categories-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/categories/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1338,12 +1544,19 @@ products
     ),
   );
 products
-  .command(`products-categories-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`categories-get`)
+  .description(`Read one of categories by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/categories", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/categories/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1361,9 +1574,9 @@ products
     ),
   );
 products
-  .command(`products-categories-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`categories-update`)
+  .description(`Update one of categories by id`)
+  .option(`--id <id>`, ``)
   .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
   .option(`--parent-_id <parent-_id>`, ``)
@@ -1372,7 +1585,14 @@ products
   .option(`--values <values>`, ``)
   .action(
     actionRunner(
-      async ({ id, code, labels, parent_id, path, position, values }) => {
+      async (_options, _command) => {
+        const { id, code, labels, parent_id, path, position, values } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/categories", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/categories/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1408,8 +1628,8 @@ products
     ),
   );
 products
-  .command(`products-families-list`)
-  .description(``)
+  .command(`families-list`)
+  .description(`List families (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -1442,15 +1662,22 @@ products
     ),
   );
 products
-  .command(`products-families-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, ``)
+  .command(`families-create`)
+  .description(`Create one of families`)
+  .option(`--code <code>`, ``)
   .option(`--image-_attribute <image-_attribute>`, ``)
   .option(`--label-_attribute <label-_attribute>`, ``)
   .option(`--labels <labels>`, ``)
   .action(
     actionRunner(
-      async ({ code, image_attribute, label_attribute, labels }) => {
+      async (_options, _command) => {
+        const { code, image_attribute, label_attribute, labels } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/families`;
         const _payload: RequestParams = {};
@@ -1480,12 +1707,20 @@ products
     ),
   );
 products
-  .command(`products-families-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`families-delete`)
+  .description(`Delete one of families by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/families", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products families-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/families/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1503,12 +1738,19 @@ products
     ),
   );
 products
-  .command(`products-families-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`families-get`)
+  .description(`Read one of families by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/families", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/families/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1526,16 +1768,23 @@ products
     ),
   );
 products
-  .command(`products-families-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`families-update`)
+  .description(`Update one of families by id`)
+  .option(`--id <id>`, ``)
   .option(`--code <code>`, ``)
   .option(`--image-_attribute <image-_attribute>`, ``)
   .option(`--label-_attribute <label-_attribute>`, ``)
   .option(`--labels <labels>`, ``)
   .action(
     actionRunner(
-      async ({ id, code, image_attribute, label_attribute, labels }) => {
+      async (_options, _command) => {
+        const { id, code, image_attribute, label_attribute, labels } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/families", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/families/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1565,8 +1814,8 @@ products
     ),
   );
 products
-  .command(`products-family-attributes-list`)
-  .description(``)
+  .command(`family-attributes-list`)
+  .description(`List family attributes (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -1599,102 +1848,8 @@ products
     ),
   );
 products
-  .command(`products-family-attributes-create`)
-  .description(``)
-  .requiredOption(`--attribute-_id <attribute-_id>`, ``)
-  .requiredOption(`--family-_id <family-_id>`, ``)
-  .option(
-    `--is-_required [value]`,
-    ``,
-    (value: string | undefined) =>
-      value === undefined ? true : parseBool(value),
-  )
-  .option(`--position <position>`, ``, parseInteger)
-  .option(`--required-_channels <required-_channels>`, ``)
-  .action(
-    actionRunner(
-      async ({ attribute_id, family_id, is_required, position, required_channels }) => {
-        const _client = await sdkForProject();
-        const _apiPath = `/products/family_attributes`;
-        const _payload: RequestParams = {};
-        if (attribute_id !== undefined) {
-          _payload[`attribute_id`] = attribute_id;
-        }
-        if (family_id !== undefined) {
-          _payload[`family_id`] = family_id;
-        }
-        if (is_required !== undefined) {
-          _payload[`is_required`] = is_required;
-        }
-        if (position !== undefined) {
-          _payload[`position`] = position;
-        }
-        if (required_channels !== undefined) {
-          _payload[`required_channels`] = JSON.parse(required_channels);
-        }
-        const _headers: Record<string, string> = {
-          "content-type": "application/json",
-        };
-        const _response = await _client.call(
-          `post`,
-          _apiPath,
-          _headers,
-          _payload,
-        );
-        parse(_response as Record<string, unknown>);
-      },
-    ),
-  );
-products
-  .command(`products-family-attributes-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
-  .action(
-    actionRunner(
-      async ({ id }) => {
-        const _client = await sdkForProject();
-        const _apiPath = `/products/family_attributes/{id}`.replace(`{id}`, id);
-        const _payload: RequestParams = {};
-        const _headers: Record<string, string> = {
-          "content-type": "application/json",
-        };
-        const _response = await _client.call(
-          `delete`,
-          _apiPath,
-          _headers,
-          _payload,
-        );
-        parse(_response as Record<string, unknown>);
-      },
-    ),
-  );
-products
-  .command(`products-family-attributes-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
-  .action(
-    actionRunner(
-      async ({ id }) => {
-        const _client = await sdkForProject();
-        const _apiPath = `/products/family_attributes/{id}`.replace(`{id}`, id);
-        const _payload: RequestParams = {};
-        const _headers: Record<string, string> = {
-          "content-type": "application/json",
-        };
-        const _response = await _client.call(
-          `get`,
-          _apiPath,
-          _headers,
-          _payload,
-        );
-        parse(_response as Record<string, unknown>);
-      },
-    ),
-  );
-products
-  .command(`products-family-attributes-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`family-attributes-create`)
+  .description(`Create one of family attributes`)
   .option(`--attribute-_id <attribute-_id>`, ``)
   .option(`--family-_id <family-_id>`, ``)
   .option(
@@ -1707,7 +1862,131 @@ products
   .option(`--required-_channels <required-_channels>`, ``)
   .action(
     actionRunner(
-      async ({ id, attribute_id, family_id, is_required, position, required_channels }) => {
+      async (_options, _command) => {
+        const { attribute_id, family_id, is_required, position, required_channels } = await promptForMissing(
+          _options,
+          [
+            { key: "attribute_id", option: "--attribute-_id <attribute-_id>", name: "attribute_id", type: "string", required: true },
+            { key: "family_id", option: "--family-_id <family-_id>", name: "family_id", type: "string", required: true },
+          ],
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/family_attributes`;
+        const _payload: RequestParams = {};
+        if (attribute_id !== undefined) {
+          _payload[`attribute_id`] = attribute_id;
+        }
+        if (family_id !== undefined) {
+          _payload[`family_id`] = family_id;
+        }
+        if (is_required !== undefined) {
+          _payload[`is_required`] = is_required;
+        }
+        if (position !== undefined) {
+          _payload[`position`] = position;
+        }
+        if (required_channels !== undefined) {
+          _payload[`required_channels`] = JSON.parse(required_channels);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+products
+  .command(`family-attributes-delete`)
+  .description(`Delete one of family attributes by id`)
+  .option(`--id <id>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_attributes", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products family-attributes-delete`);
+        const _client = await sdkForProject();
+        const _apiPath = `/products/family_attributes/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `delete`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+products
+  .command(`family-attributes-get`)
+  .description(`Read one of family attributes by id`)
+  .option(`--id <id>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_attributes", hasLimit: true } },
+          ],
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/family_attributes/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+products
+  .command(`family-attributes-update`)
+  .description(`Update one of family attributes by id`)
+  .option(`--id <id>`, ``)
+  .option(`--attribute-_id <attribute-_id>`, ``)
+  .option(`--family-_id <family-_id>`, ``)
+  .option(
+    `--is-_required [value]`,
+    ``,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--position <position>`, ``, parseInteger)
+  .option(`--required-_channels <required-_channels>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, attribute_id, family_id, is_required, position, required_channels } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_attributes", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/family_attributes/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1740,8 +2019,8 @@ products
     ),
   );
 products
-  .command(`products-family-variants-list`)
-  .description(``)
+  .command(`family-variants-list`)
+  .description(`List family variants (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -1774,15 +2053,23 @@ products
     ),
   );
 products
-  .command(`products-family-variants-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, ``)
-  .requiredOption(`--family-_id <family-_id>`, ``)
+  .command(`family-variants-create`)
+  .description(`Create one of family variants`)
+  .option(`--code <code>`, ``)
+  .option(`--family-_id <family-_id>`, ``)
   .option(`--axes <axes>`, ``)
   .option(`--labels <labels>`, ``)
   .action(
     actionRunner(
-      async ({ code, family_id, axes, labels }) => {
+      async (_options, _command) => {
+        const { code, family_id, axes, labels } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+            { key: "family_id", option: "--family-_id <family-_id>", name: "family_id", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/family_variants`;
         const _payload: RequestParams = {};
@@ -1812,12 +2099,20 @@ products
     ),
   );
 products
-  .command(`products-family-variants-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`family-variants-delete`)
+  .description(`Delete one of family variants by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_variants", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products family-variants-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/family_variants/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1835,12 +2130,19 @@ products
     ),
   );
 products
-  .command(`products-family-variants-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`family-variants-get`)
+  .description(`Read one of family variants by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_variants", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/family_variants/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1858,16 +2160,23 @@ products
     ),
   );
 products
-  .command(`products-family-variants-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`family-variants-update`)
+  .description(`Update one of family variants by id`)
+  .option(`--id <id>`, ``)
   .option(`--axes <axes>`, ``)
   .option(`--code <code>`, ``)
   .option(`--family-_id <family-_id>`, ``)
   .option(`--labels <labels>`, ``)
   .action(
     actionRunner(
-      async ({ id, axes, code, family_id, labels }) => {
+      async (_options, _command) => {
+        const { id, axes, code, family_id, labels } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_variants", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/family_variants/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1897,8 +2206,8 @@ products
     ),
   );
 products
-  .command(`products-measurement-families-list`)
-  .description(``)
+  .command(`measurement-families-list`)
+  .description(`List measurement families (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -1931,15 +2240,23 @@ products
     ),
   );
 products
-  .command(`products-measurement-families-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, ``)
-  .requiredOption(`--standard-_unit <standard-_unit>`, ``)
+  .command(`measurement-families-create`)
+  .description(`Create one of measurement families`)
+  .option(`--code <code>`, ``)
+  .option(`--standard-_unit <standard-_unit>`, ``)
   .option(`--labels <labels>`, ``)
   .option(`--units <units>`, ``)
   .action(
     actionRunner(
-      async ({ code, standard_unit, labels, units }) => {
+      async (_options, _command) => {
+        const { code, standard_unit, labels, units } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+            { key: "standard_unit", option: "--standard-_unit <standard-_unit>", name: "standard_unit", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/measurement_families`;
         const _payload: RequestParams = {};
@@ -1969,12 +2286,20 @@ products
     ),
   );
 products
-  .command(`products-measurement-families-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`measurement-families-delete`)
+  .description(`Delete one of measurement families by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/measurement_families", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products measurement-families-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/measurement_families/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1992,12 +2317,19 @@ products
     ),
   );
 products
-  .command(`products-measurement-families-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`measurement-families-get`)
+  .description(`Read one of measurement families by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/measurement_families", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/measurement_families/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2015,16 +2347,23 @@ products
     ),
   );
 products
-  .command(`products-measurement-families-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`measurement-families-update`)
+  .description(`Update one of measurement families by id`)
+  .option(`--id <id>`, ``)
   .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
   .option(`--standard-_unit <standard-_unit>`, ``)
   .option(`--units <units>`, ``)
   .action(
     actionRunner(
-      async ({ id, code, labels, standard_unit, units }) => {
+      async (_options, _command) => {
+        const { id, code, labels, standard_unit, units } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/measurement_families", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/measurement_families/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2054,8 +2393,8 @@ products
     ),
   );
 products
-  .command(`products-product-associations-list`)
-  .description(``)
+  .command(`product-associations-list`)
+  .description(`List product associations (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -2088,16 +2427,25 @@ products
     ),
   );
 products
-  .command(`products-product-associations-create`)
-  .description(``)
-  .requiredOption(`--association-_type-_id <association-_type-_id>`, ``)
-  .requiredOption(`--product-_id <product-_id>`, ``)
-  .requiredOption(`--target-_product-_id <target-_product-_id>`, ``)
+  .command(`product-associations-create`)
+  .description(`Create one of product associations`)
+  .option(`--association-_type-_id <association-_type-_id>`, ``)
+  .option(`--product-_id <product-_id>`, ``)
+  .option(`--target-_product-_id <target-_product-_id>`, ``)
   .option(`--position <position>`, ``, parseInteger)
   .option(`--quantity <quantity>`, ``, parseInteger)
   .action(
     actionRunner(
-      async ({ association_type_id, product_id, target_product_id, position, quantity }) => {
+      async (_options, _command) => {
+        const { association_type_id, product_id, target_product_id, position, quantity } = await promptForMissing(
+          _options,
+          [
+            { key: "association_type_id", option: "--association-_type-_id <association-_type-_id>", name: "association_type_id", type: "string", required: true },
+            { key: "product_id", option: "--product-_id <product-_id>", name: "product_id", type: "string", required: true },
+            { key: "target_product_id", option: "--target-_product-_id <target-_product-_id>", name: "target_product_id", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/product_associations`;
         const _payload: RequestParams = {};
@@ -2130,12 +2478,20 @@ products
     ),
   );
 products
-  .command(`products-product-associations-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`product-associations-delete`)
+  .description(`Delete one of product associations by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_associations", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products product-associations-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/product_associations/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2153,12 +2509,19 @@ products
     ),
   );
 products
-  .command(`products-product-associations-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`product-associations-get`)
+  .description(`Read one of product associations by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_associations", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/product_associations/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2176,9 +2539,9 @@ products
     ),
   );
 products
-  .command(`products-product-associations-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`product-associations-update`)
+  .description(`Update one of product associations by id`)
+  .option(`--id <id>`, ``)
   .option(`--association-_type-_id <association-_type-_id>`, ``)
   .option(`--position <position>`, ``, parseInteger)
   .option(`--product-_id <product-_id>`, ``)
@@ -2186,7 +2549,14 @@ products
   .option(`--target-_product-_id <target-_product-_id>`, ``)
   .action(
     actionRunner(
-      async ({ id, association_type_id, position, product_id, quantity, target_product_id }) => {
+      async (_options, _command) => {
+        const { id, association_type_id, position, product_id, quantity, target_product_id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_associations", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/product_associations/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2219,8 +2589,8 @@ products
     ),
   );
 products
-  .command(`products-product-categories-list`)
-  .description(``)
+  .command(`product-categories-list`)
+  .description(`List product categories (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -2253,14 +2623,22 @@ products
     ),
   );
 products
-  .command(`products-product-categories-create`)
-  .description(``)
-  .requiredOption(`--category-_id <category-_id>`, ``)
-  .requiredOption(`--product-_id <product-_id>`, ``)
+  .command(`product-categories-create`)
+  .description(`Create one of product categories`)
+  .option(`--category-_id <category-_id>`, ``)
+  .option(`--product-_id <product-_id>`, ``)
   .option(`--position <position>`, ``, parseInteger)
   .action(
     actionRunner(
-      async ({ category_id, product_id, position }) => {
+      async (_options, _command) => {
+        const { category_id, product_id, position } = await promptForMissing(
+          _options,
+          [
+            { key: "category_id", option: "--category-_id <category-_id>", name: "category_id", type: "string", required: true },
+            { key: "product_id", option: "--product-_id <product-_id>", name: "product_id", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/product_categories`;
         const _payload: RequestParams = {};
@@ -2287,12 +2665,20 @@ products
     ),
   );
 products
-  .command(`products-product-categories-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`product-categories-delete`)
+  .description(`Delete one of product categories by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_categories", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products product-categories-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/product_categories/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2310,12 +2696,19 @@ products
     ),
   );
 products
-  .command(`products-product-categories-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`product-categories-get`)
+  .description(`Read one of product categories by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_categories", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/product_categories/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2333,15 +2726,22 @@ products
     ),
   );
 products
-  .command(`products-product-categories-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`product-categories-update`)
+  .description(`Update one of product categories by id`)
+  .option(`--id <id>`, ``)
   .option(`--category-_id <category-_id>`, ``)
   .option(`--position <position>`, ``, parseInteger)
   .option(`--product-_id <product-_id>`, ``)
   .action(
     actionRunner(
-      async ({ id, category_id, position, product_id }) => {
+      async (_options, _command) => {
+        const { id, category_id, position, product_id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_categories", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/product_categories/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2368,8 +2768,8 @@ products
     ),
   );
 products
-  .command(`products-reference-entities-list`)
-  .description(``)
+  .command(`reference-entities-list`)
+  .description(`List reference entities (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -2402,14 +2802,21 @@ products
     ),
   );
 products
-  .command(`products-reference-entities-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, ``)
+  .command(`reference-entities-create`)
+  .description(`Create one of reference entities`)
+  .option(`--code <code>`, ``)
   .option(`--image <image>`, ``)
   .option(`--labels <labels>`, ``)
   .action(
     actionRunner(
-      async ({ code, image, labels }) => {
+      async (_options, _command) => {
+        const { code, image, labels } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entities`;
         const _payload: RequestParams = {};
@@ -2436,12 +2843,20 @@ products
     ),
   );
 products
-  .command(`products-reference-entities-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`reference-entities-delete`)
+  .description(`Delete one of reference entities by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entities", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products reference-entities-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entities/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2459,12 +2874,19 @@ products
     ),
   );
 products
-  .command(`products-reference-entities-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`reference-entities-get`)
+  .description(`Read one of reference entities by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entities", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entities/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2482,15 +2904,22 @@ products
     ),
   );
 products
-  .command(`products-reference-entities-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`reference-entities-update`)
+  .description(`Update one of reference entities by id`)
+  .option(`--id <id>`, ``)
   .option(`--code <code>`, ``)
   .option(`--image <image>`, ``)
   .option(`--labels <labels>`, ``)
   .action(
     actionRunner(
-      async ({ id, code, image, labels }) => {
+      async (_options, _command) => {
+        const { id, code, image, labels } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entities", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entities/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2517,8 +2946,8 @@ products
     ),
   );
 products
-  .command(`products-reference-entity-records-list`)
-  .description(``)
+  .command(`reference-entity-records-list`)
+  .description(`List reference entity records (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -2551,15 +2980,23 @@ products
     ),
   );
 products
-  .command(`products-reference-entity-records-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, ``)
-  .requiredOption(`--reference-_entity-_id <reference-_entity-_id>`, ``)
+  .command(`reference-entity-records-create`)
+  .description(`Create one of reference entity records`)
+  .option(`--code <code>`, ``)
+  .option(`--reference-_entity-_id <reference-_entity-_id>`, ``)
   .option(`--attribute-_values <attribute-_values>`, ``)
   .option(`--labels <labels>`, ``)
   .action(
     actionRunner(
-      async ({ code, reference_entity_id, attribute_values, labels }) => {
+      async (_options, _command) => {
+        const { code, reference_entity_id, attribute_values, labels } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+            { key: "reference_entity_id", option: "--reference-_entity-_id <reference-_entity-_id>", name: "reference_entity_id", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entity_records`;
         const _payload: RequestParams = {};
@@ -2589,12 +3026,20 @@ products
     ),
   );
 products
-  .command(`products-reference-entity-records-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`reference-entity-records-delete`)
+  .description(`Delete one of reference entity records by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entity_records", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products reference-entity-records-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entity_records/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2612,12 +3057,19 @@ products
     ),
   );
 products
-  .command(`products-reference-entity-records-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`reference-entity-records-get`)
+  .description(`Read one of reference entity records by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entity_records", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entity_records/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2635,16 +3087,23 @@ products
     ),
   );
 products
-  .command(`products-reference-entity-records-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`reference-entity-records-update`)
+  .description(`Update one of reference entity records by id`)
+  .option(`--id <id>`, ``)
   .option(`--attribute-_values <attribute-_values>`, ``)
   .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
   .option(`--reference-_entity-_id <reference-_entity-_id>`, ``)
   .action(
     actionRunner(
-      async ({ id, attribute_values, code, labels, reference_entity_id }) => {
+      async (_options, _command) => {
+        const { id, attribute_values, code, labels, reference_entity_id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entity_records", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entity_records/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2674,12 +3133,20 @@ products
     ),
   );
 products
-  .command(`products-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`delete`)
+  .description(`Delete one of products by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`products delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2697,12 +3164,19 @@ products
     ),
   );
 products
-  .command(`products-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`get`)
+  .description(`Read one of products by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2720,9 +3194,9 @@ products
     ),
   );
 products
-  .command(`products-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`update`)
+  .description(`Update one of products by id`)
+  .option(`--id <id>`, ``)
   .option(`--attribute-_values <attribute-_values>`, ``)
   .option(`--completeness <completeness>`, ``)
   .option(`--deleted-_at <deleted-_at>`, ``)
@@ -2741,7 +3215,14 @@ products
   .option(`--tax-_class <tax-_class>`, ``)
   .action(
     actionRunner(
-      async ({ id, attribute_values, completeness, deleted_at, enabled, family_id, family_variant_id, kind, parent_id, quantified_associations, sku, tax_class }) => {
+      async (_options, _command) => {
+        const { id, attribute_values, completeness, deleted_at, enabled, family_id, family_variant_id, kind, parent_id, quantified_associations, sku, tax_class } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};

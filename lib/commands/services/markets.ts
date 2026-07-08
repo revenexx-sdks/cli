@@ -8,16 +8,23 @@ import {
   parseBool,
   parseInteger,
 } from "../../parser.js";
+import {
+  confirmDestructive,
+  promptForMissing,
+} from "../../interactive.js";
 
 export const markets = new Command("markets")
-  .description(commandDescriptions["markets"] ?? "")
+  .description(
+    commandDescriptions["markets"] ??
+      `Manage markets resources.`,
+  )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });
 
 markets
-  .command(`markets-list`)
-  .description(``)
+  .command(`list`)
+  .description(`List markets (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -50,10 +57,10 @@ markets
     ),
   );
 markets
-  .command(`markets-create`)
-  .description(``)
-  .requiredOption(`--code <code>`, `Market code (unique per tenant).`)
-  .requiredOption(`--name <name>`, ``)
+  .command(`create`)
+  .description(`Create a market`)
+  .option(`--code <code>`, `Market code (unique per tenant).`)
+  .option(`--name <name>`, ``)
   .option(`--currency <currency>`, `ISO 4217 code (default 'EUR').`)
   .option(
     `--is-_default [value]`,
@@ -66,7 +73,15 @@ markets
   .option(`--status <status>`, `Default 'active'.`)
   .action(
     actionRunner(
-      async ({ code, name, currency, is_default, labels, position, status }) => {
+      async (_options, _command) => {
+        const { code, name, currency, is_default, labels, position, status } = await promptForMissing(
+          _options,
+          [
+            { key: "code", option: "--code <code>", name: "code", description: "Market code (unique per tenant).", type: "string", required: true },
+            { key: "name", option: "--name <name>", name: "name", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets`;
         const _payload: RequestParams = {};
@@ -105,12 +120,20 @@ markets
     ),
   );
 markets
-  .command(`markets-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`delete`)
+  .description(`Delete a market by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`markets delete`);
         const _client = await sdkForProject();
         const _apiPath = `/markets/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -128,12 +151,19 @@ markets
     ),
   );
 markets
-  .command(`markets-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`get`)
+  .description(`Read one market by id`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -151,9 +181,9 @@ markets
     ),
   );
 markets
-  .command(`markets-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`update`)
+  .description(`Update a market by id`)
+  .option(`--id <id>`, ``)
   .option(`--code <code>`, `Market code (unique per tenant).`)
   .option(`--currency <currency>`, `ISO 4217 code (default 'EUR').`)
   .option(
@@ -168,7 +198,14 @@ markets
   .option(`--status <status>`, `Default 'active'.`)
   .action(
     actionRunner(
-      async ({ id, code, currency, is_default, labels, name, position, status }) => {
+      async (_options, _command) => {
+        const { id, code, currency, is_default, labels, name, position, status } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -207,12 +244,19 @@ markets
     ),
   );
 markets
-  .command(`markets-context`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`context`)
+  .description(`Resolve the full market context (market + locales + currencies + tax classes) in one call — the storefront bootstrap.`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets/{id}/context`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -230,15 +274,22 @@ markets
     ),
   );
 markets
-  .command(`markets-currencies-list`)
-  .description(``)
-  .requiredOption(`--market-_id <market-_id>`, ``)
+  .command(`currencies-list`)
+  .description(`List currencies of a market (filter by column; paginate limit/offset/order)`)
+  .option(`--market-_id <market-_id>`, ``)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async ({ market_id, limit, offset, order }) => {
+      async (_options, _command) => {
+        const { market_id, limit, offset, order } = await promptForMissing(
+          _options,
+          [
+            { key: "market_id", option: "--market-_id <market-_id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/currencies`.replace(`{market_id}`, market_id);
         const _payload: RequestParams = {};
@@ -265,10 +316,10 @@ markets
     ),
   );
 markets
-  .command(`markets-currencies-create`)
-  .description(``)
-  .requiredOption(`--market-_id <market-_id>`, ``)
-  .requiredOption(`--code <code>`, `ISO 4217 code, e.g. EUR (unique per market).`)
+  .command(`currencies-create`)
+  .description(`Create a currency of a market`)
+  .option(`--market-_id <market-_id>`, ``)
+  .option(`--code <code>`, `ISO 4217 code, e.g. EUR (unique per market).`)
   .option(
     `--is-_default [value]`,
     ``,
@@ -278,7 +329,15 @@ markets
   .option(`--position <position>`, `Sort position (default 0).`, parseInteger)
   .action(
     actionRunner(
-      async ({ market_id, code, is_default, position }) => {
+      async (_options, _command) => {
+        const { market_id, code, is_default, position } = await promptForMissing(
+          _options,
+          [
+            { key: "market_id", option: "--market-_id <market-_id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+            { key: "code", option: "--code <code>", name: "code", description: "ISO 4217 code, e.g. EUR (unique per market).", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/currencies`.replace(`{market_id}`, market_id);
         const _payload: RequestParams = {};
@@ -305,13 +364,22 @@ markets
     ),
   );
 markets
-  .command(`markets-currencies-delete`)
-  .description(``)
-  .requiredOption(`--market-_id <market-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`currencies-delete`)
+  .description(`Delete a currency of a market by id`)
+  .option(`--market-_id <market-_id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ market_id, id }) => {
+      async (_options, _command) => {
+        const { market_id, id } = await promptForMissing(
+          _options,
+          [
+            { key: "market_id", option: "--market-_id <market-_id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets/{market_id}/currencies", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`markets currencies-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/currencies/{id}`.replace(`{market_id}`, market_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -329,13 +397,21 @@ markets
     ),
   );
 markets
-  .command(`markets-currencies-get`)
-  .description(``)
-  .requiredOption(`--market-_id <market-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`currencies-get`)
+  .description(`Read one currency of a market by id`)
+  .option(`--market-_id <market-_id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ market_id, id }) => {
+      async (_options, _command) => {
+        const { market_id, id } = await promptForMissing(
+          _options,
+          [
+            { key: "market_id", option: "--market-_id <market-_id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets/{market_id}/currencies", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/currencies/{id}`.replace(`{market_id}`, market_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -353,10 +429,10 @@ markets
     ),
   );
 markets
-  .command(`markets-currencies-update`)
-  .description(``)
-  .requiredOption(`--market-_id <market-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`currencies-update`)
+  .description(`Update a currency of a market by id`)
+  .option(`--market-_id <market-_id>`, ``)
+  .option(`--id <id>`, ``)
   .option(`--code <code>`, `ISO 4217 code, e.g. EUR (unique per market).`)
   .option(
     `--is-_default [value]`,
@@ -367,7 +443,15 @@ markets
   .option(`--position <position>`, `Sort position (default 0).`, parseInteger)
   .action(
     actionRunner(
-      async ({ market_id, id, code, is_default, position }) => {
+      async (_options, _command) => {
+        const { market_id, id, code, is_default, position } = await promptForMissing(
+          _options,
+          [
+            { key: "market_id", option: "--market-_id <market-_id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets/{market_id}/currencies", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/currencies/{id}`.replace(`{market_id}`, market_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -394,15 +478,22 @@ markets
     ),
   );
 markets
-  .command(`markets-locales-list`)
-  .description(``)
-  .requiredOption(`--market-_id <market-_id>`, ``)
+  .command(`locales-list`)
+  .description(`List locales of a market (filter by column; paginate limit/offset/order)`)
+  .option(`--market-_id <market-_id>`, ``)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async ({ market_id, limit, offset, order }) => {
+      async (_options, _command) => {
+        const { market_id, limit, offset, order } = await promptForMissing(
+          _options,
+          [
+            { key: "market_id", option: "--market-_id <market-_id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/locales`.replace(`{market_id}`, market_id);
         const _payload: RequestParams = {};
@@ -429,12 +520,12 @@ markets
     ),
   );
 markets
-  .command(`markets-locales-create`)
-  .description(``)
-  .requiredOption(`--market-_id <market-_id>`, ``)
-  .requiredOption(`--code <code>`, `Locale code, e.g. 'de-DE' (unique per market).`)
-  .requiredOption(`--country <country>`, `ISO 3166-1 alpha-2 country code.`)
-  .requiredOption(`--language <language>`, `ISO 639-1 language code.`)
+  .command(`locales-create`)
+  .description(`Create a locale of a market`)
+  .option(`--market-_id <market-_id>`, ``)
+  .option(`--code <code>`, `Locale code, e.g. 'de-DE' (unique per market).`)
+  .option(`--country <country>`, `ISO 3166-1 alpha-2 country code.`)
+  .option(`--language <language>`, `ISO 639-1 language code.`)
   .option(
     `--is-_default [value]`,
     ``,
@@ -444,7 +535,17 @@ markets
   .option(`--position <position>`, `Sort position (default 0).`, parseInteger)
   .action(
     actionRunner(
-      async ({ market_id, code, country, language, is_default, position }) => {
+      async (_options, _command) => {
+        const { market_id, code, country, language, is_default, position } = await promptForMissing(
+          _options,
+          [
+            { key: "market_id", option: "--market-_id <market-_id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+            { key: "code", option: "--code <code>", name: "code", description: "Locale code, e.g. 'de-DE' (unique per market).", type: "string", required: true },
+            { key: "country", option: "--country <country>", name: "country", description: "ISO 3166-1 alpha-2 country code.", type: "string", required: true },
+            { key: "language", option: "--language <language>", name: "language", description: "ISO 639-1 language code.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/locales`.replace(`{market_id}`, market_id);
         const _payload: RequestParams = {};
@@ -477,13 +578,22 @@ markets
     ),
   );
 markets
-  .command(`markets-locales-delete`)
-  .description(``)
-  .requiredOption(`--market-_id <market-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`locales-delete`)
+  .description(`Delete a locale of a market by id`)
+  .option(`--market-_id <market-_id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ market_id, id }) => {
+      async (_options, _command) => {
+        const { market_id, id } = await promptForMissing(
+          _options,
+          [
+            { key: "market_id", option: "--market-_id <market-_id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets/{market_id}/locales", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`markets locales-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/locales/{id}`.replace(`{market_id}`, market_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -501,13 +611,21 @@ markets
     ),
   );
 markets
-  .command(`markets-locales-get`)
-  .description(``)
-  .requiredOption(`--market-_id <market-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`locales-get`)
+  .description(`Read one locale of a market by id`)
+  .option(`--market-_id <market-_id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ market_id, id }) => {
+      async (_options, _command) => {
+        const { market_id, id } = await promptForMissing(
+          _options,
+          [
+            { key: "market_id", option: "--market-_id <market-_id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets/{market_id}/locales", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/locales/{id}`.replace(`{market_id}`, market_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -525,10 +643,10 @@ markets
     ),
   );
 markets
-  .command(`markets-locales-update`)
-  .description(``)
-  .requiredOption(`--market-_id <market-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`locales-update`)
+  .description(`Update a locale of a market by id`)
+  .option(`--market-_id <market-_id>`, ``)
+  .option(`--id <id>`, ``)
   .option(`--code <code>`, `Locale code, e.g. 'de-DE' (unique per market).`)
   .option(`--country <country>`, `ISO 3166-1 alpha-2 country code.`)
   .option(
@@ -541,7 +659,15 @@ markets
   .option(`--position <position>`, `Sort position (default 0).`, parseInteger)
   .action(
     actionRunner(
-      async ({ market_id, id, code, country, is_default, language, position }) => {
+      async (_options, _command) => {
+        const { market_id, id, code, country, is_default, language, position } = await promptForMissing(
+          _options,
+          [
+            { key: "market_id", option: "--market-_id <market-_id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets/{market_id}/locales", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/locales/{id}`.replace(`{market_id}`, market_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -574,15 +700,22 @@ markets
     ),
   );
 markets
-  .command(`markets-tax-classes-list`)
-  .description(``)
-  .requiredOption(`--market-_id <market-_id>`, ``)
+  .command(`tax-classes-list`)
+  .description(`List tax classes of a market (filter by column; paginate limit/offset/order)`)
+  .option(`--market-_id <market-_id>`, ``)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async ({ market_id, limit, offset, order }) => {
+      async (_options, _command) => {
+        const { market_id, limit, offset, order } = await promptForMissing(
+          _options,
+          [
+            { key: "market_id", option: "--market-_id <market-_id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/tax_classes`.replace(`{market_id}`, market_id);
         const _payload: RequestParams = {};
@@ -609,11 +742,11 @@ markets
     ),
   );
 markets
-  .command(`markets-tax-classes-create`)
-  .description(``)
-  .requiredOption(`--market-_id <market-_id>`, ``)
-  .requiredOption(`--code <code>`, `Tax class code (unique per market).`)
-  .requiredOption(`--name <name>`, ``)
+  .command(`tax-classes-create`)
+  .description(`Create a tax class of a market`)
+  .option(`--market-_id <market-_id>`, ``)
+  .option(`--code <code>`, `Tax class code (unique per market).`)
+  .option(`--name <name>`, ``)
   .option(
     `--is-_default [value]`,
     ``,
@@ -625,7 +758,16 @@ markets
   .option(`--rate <rate>`, `Tax rate in percent, 0–100 (default 0).`, parseInteger)
   .action(
     actionRunner(
-      async ({ market_id, code, name, is_default, labels, position, rate }) => {
+      async (_options, _command) => {
+        const { market_id, code, name, is_default, labels, position, rate } = await promptForMissing(
+          _options,
+          [
+            { key: "market_id", option: "--market-_id <market-_id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+            { key: "code", option: "--code <code>", name: "code", description: "Tax class code (unique per market).", type: "string", required: true },
+            { key: "name", option: "--name <name>", name: "name", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/tax_classes`.replace(`{market_id}`, market_id);
         const _payload: RequestParams = {};
@@ -661,13 +803,22 @@ markets
     ),
   );
 markets
-  .command(`markets-tax-classes-delete`)
-  .description(``)
-  .requiredOption(`--market-_id <market-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`tax-classes-delete`)
+  .description(`Delete a tax class of a market by id`)
+  .option(`--market-_id <market-_id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ market_id, id }) => {
+      async (_options, _command) => {
+        const { market_id, id } = await promptForMissing(
+          _options,
+          [
+            { key: "market_id", option: "--market-_id <market-_id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets/{market_id}/tax_classes", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`markets tax-classes-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/tax_classes/{id}`.replace(`{market_id}`, market_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -685,13 +836,21 @@ markets
     ),
   );
 markets
-  .command(`markets-tax-classes-get`)
-  .description(``)
-  .requiredOption(`--market-_id <market-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`tax-classes-get`)
+  .description(`Read one tax class of a market by id`)
+  .option(`--market-_id <market-_id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ market_id, id }) => {
+      async (_options, _command) => {
+        const { market_id, id } = await promptForMissing(
+          _options,
+          [
+            { key: "market_id", option: "--market-_id <market-_id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets/{market_id}/tax_classes", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/tax_classes/{id}`.replace(`{market_id}`, market_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -709,10 +868,10 @@ markets
     ),
   );
 markets
-  .command(`markets-tax-classes-update`)
-  .description(``)
-  .requiredOption(`--market-_id <market-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`tax-classes-update`)
+  .description(`Update a tax class of a market by id`)
+  .option(`--market-_id <market-_id>`, ``)
+  .option(`--id <id>`, ``)
   .option(`--code <code>`, `Tax class code (unique per market).`)
   .option(
     `--is-_default [value]`,
@@ -726,7 +885,15 @@ markets
   .option(`--rate <rate>`, `Tax rate in percent, 0–100 (default 0).`, parseInteger)
   .action(
     actionRunner(
-      async ({ market_id, id, code, is_default, labels, name, position, rate }) => {
+      async (_options, _command) => {
+        const { market_id, id, code, is_default, labels, name, position, rate } = await promptForMissing(
+          _options,
+          [
+            { key: "market_id", option: "--market-_id <market-_id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets/{market_id}/tax_classes", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/tax_classes/{id}`.replace(`{market_id}`, market_id).replace(`{id}`, id);
         const _payload: RequestParams = {};

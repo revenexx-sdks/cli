@@ -8,16 +8,23 @@ import {
   parseBool,
   parseInteger,
 } from "../../parser.js";
+import {
+  confirmDestructive,
+  promptForMissing,
+} from "../../interactive.js";
 
 export const orderlists = new Command("orderlists")
-  .description(commandDescriptions["orderlists"] ?? "")
+  .description(
+    commandDescriptions["orderlists"] ??
+      `Manage orderlists resources.`,
+  )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });
 
 orderlists
-  .command(`orderlists-list`)
-  .description(``)
+  .command(`list`)
+  .description(`List the caller's own lists plus the organization's public lists (filters: owner_id, organization_id, kind)`)
   .option(`--owner-_id <owner-_id>`, `Filter to one owning contact.`)
   .option(`--organization-_id <organization-_id>`, `Filter to one organization.`)
   .option(`--kind <kind>`, `Filter by list kind (shopping | label).`)
@@ -62,11 +69,11 @@ orderlists
     ),
   );
 orderlists
-  .command(`orderlists-create`)
-  .description(``)
-  .requiredOption(`--name <name>`, ``)
-  .requiredOption(`--owner-_id <owner-_id>`, `Owning contact.`)
-  .requiredOption(`--owner-_name <owner-_name>`, `Owner display name (snapshot).`)
+  .command(`create`)
+  .description(`Create an order list, optionally pre-filled with positions`)
+  .option(`--name <name>`, ``)
+  .option(`--owner-_id <owner-_id>`, `Owning contact.`)
+  .option(`--owner-_name <owner-_name>`, `Owner display name (snapshot).`)
   .option(`--items [items...]`, `Optional initial positions.`)
   .option(`--kind <kind>`, `List kind (default 'shopping').`)
   .option(`--metadata <metadata>`, ``)
@@ -79,7 +86,16 @@ orderlists
   )
   .action(
     actionRunner(
-      async ({ name, owner_id, owner_name, items, kind, metadata, organization_id, shared }) => {
+      async (_options, _command) => {
+        const { name, owner_id, owner_name, items, kind, metadata, organization_id, shared } = await promptForMissing(
+          _options,
+          [
+            { key: "name", option: "--name <name>", name: "name", type: "string", required: true },
+            { key: "owner_id", option: "--owner-_id <owner-_id>", name: "owner_id", description: "Owning contact.", type: "string", required: true },
+            { key: "owner_name", option: "--owner-_name <owner-_name>", name: "owner_name", description: "Owner display name (snapshot).", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orderlists`;
         const _payload: RequestParams = {};
@@ -121,8 +137,8 @@ orderlists
     ),
   );
 orderlists
-  .command(`orderlists-defaults`)
-  .description(``)
+  .command(`defaults`)
+  .description(`No-op lifecycle seed (Order Lists has no seed data)`)
   .action(
     actionRunner(
       async () => {
@@ -143,12 +159,20 @@ orderlists
     ),
   );
 orderlists
-  .command(`orderlists-delete`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`delete`)
+  .description(`Delete an order list including its positions`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`orderlists delete`);
         const _client = await sdkForProject();
         const _apiPath = `/orderlists/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -166,12 +190,19 @@ orderlists
     ),
   );
 orderlists
-  .command(`orderlists-get`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`get`)
+  .description(`Read one order list with its positions`)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ id }) => {
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orderlists/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -189,9 +220,9 @@ orderlists
     ),
   );
 orderlists
-  .command(`orderlists-update`)
-  .description(``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`update`)
+  .description(`Rename a list, change its visibility or kind`)
+  .option(`--id <id>`, ``)
   .option(`--kind <kind>`, `List kind (default 'shopping').`)
   .option(`--metadata <metadata>`, ``)
   .option(`--name <name>`, ``)
@@ -203,7 +234,14 @@ orderlists
   )
   .action(
     actionRunner(
-      async ({ id, kind, metadata, name, shared }) => {
+      async (_options, _command) => {
+        const { id, kind, metadata, name, shared } = await promptForMissing(
+          _options,
+          [
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orderlists/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -233,12 +271,19 @@ orderlists
     ),
   );
 orderlists
-  .command(`orderlists-items-list`)
-  .description(``)
-  .requiredOption(`--list-_id <list-_id>`, ``)
+  .command(`items-list`)
+  .description(`List the positions of an order list`)
+  .option(`--list-_id <list-_id>`, ``)
   .action(
     actionRunner(
-      async ({ list_id }) => {
+      async (_options, _command) => {
+        const { list_id } = await promptForMissing(
+          _options,
+          [
+            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orderlists/{list_id}/items`.replace(`{list_id}`, list_id);
         const _payload: RequestParams = {};
@@ -256,10 +301,10 @@ orderlists
     ),
   );
 orderlists
-  .command(`orderlists-items-create`)
-  .description(``)
-  .requiredOption(`--list-_id <list-_id>`, ``)
-  .requiredOption(`--name <name>`, `Display name (snapshot).`)
+  .command(`items-create`)
+  .description(`Add a position to an order list`)
+  .option(`--list-_id <list-_id>`, ``)
+  .option(`--name <name>`, `Display name (snapshot).`)
   .option(`--category-_slug <category-_slug>`, ``)
   .option(`--cost-_center-_id <cost-_center-_id>`, `Cost center reference (free-text).`)
   .option(`--custom-_sku <custom-_sku>`, `Customer's own article number.`)
@@ -276,7 +321,15 @@ orderlists
   .option(`--unit <unit>`, ``)
   .action(
     actionRunner(
-      async ({ list_id, name, category_slug, cost_center_id, custom_sku, image, metadata, position, position_texts, price, product_id, quantity, sku, subcategory_slug, tax_rate, unit }) => {
+      async (_options, _command) => {
+        const { list_id, name, category_slug, cost_center_id, custom_sku, image, metadata, position, position_texts, price, product_id, quantity, sku, subcategory_slug, tax_rate, unit } = await promptForMissing(
+          _options,
+          [
+            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+            { key: "name", option: "--name <name>", name: "name", description: "Display name (snapshot).", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orderlists/{list_id}/items`.replace(`{list_id}`, list_id);
         const _payload: RequestParams = {};
@@ -339,13 +392,21 @@ orderlists
     ),
   );
 orderlists
-  .command(`orderlists-items-replace`)
-  .description(``)
-  .requiredOption(`--list-_id <list-_id>`, ``)
-  .requiredOption(`--items [items...]`, `The new full set of positions.`)
+  .command(`items-replace`)
+  .description(`Replace all positions of an order list (set semantics)`)
+  .option(`--list-_id <list-_id>`, ``)
+  .option(`--items [items...]`, `The new full set of positions.`)
   .action(
     actionRunner(
-      async ({ list_id, items }) => {
+      async (_options, _command) => {
+        const { list_id, items } = await promptForMissing(
+          _options,
+          [
+            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+            { key: "items", option: "--items [items...]", name: "items", description: "The new full set of positions.", type: "array", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orderlists/{list_id}/items`.replace(`{list_id}`, list_id);
         const _payload: RequestParams = {};
@@ -366,13 +427,22 @@ orderlists
     ),
   );
 orderlists
-  .command(`orderlists-items-delete`)
-  .description(``)
-  .requiredOption(`--list-_id <list-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`items-delete`)
+  .description(`Remove a position from an order list`)
+  .option(`--list-_id <list-_id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ list_id, id }) => {
+      async (_options, _command) => {
+        const { list_id, id } = await promptForMissing(
+          _options,
+          [
+            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists/{list_id}/items", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`orderlists items-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/orderlists/{list_id}/items/{id}`.replace(`{list_id}`, list_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -390,13 +460,21 @@ orderlists
     ),
   );
 orderlists
-  .command(`orderlists-items-get`)
-  .description(``)
-  .requiredOption(`--list-_id <list-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`items-get`)
+  .description(`Read one position`)
+  .option(`--list-_id <list-_id>`, ``)
+  .option(`--id <id>`, ``)
   .action(
     actionRunner(
-      async ({ list_id, id }) => {
+      async (_options, _command) => {
+        const { list_id, id } = await promptForMissing(
+          _options,
+          [
+            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists/{list_id}/items", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orderlists/{list_id}/items/{id}`.replace(`{list_id}`, list_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -414,10 +492,10 @@ orderlists
     ),
   );
 orderlists
-  .command(`orderlists-items-update`)
-  .description(``)
-  .requiredOption(`--list-_id <list-_id>`, ``)
-  .requiredOption(`--id <id>`, ``)
+  .command(`items-update`)
+  .description(`Update a position`)
+  .option(`--list-_id <list-_id>`, ``)
+  .option(`--id <id>`, ``)
   .option(`--category-_slug <category-_slug>`, ``)
   .option(`--cost-_center-_id <cost-_center-_id>`, `Cost center reference (free-text).`)
   .option(`--custom-_sku <custom-_sku>`, `Customer's own article number.`)
@@ -435,7 +513,15 @@ orderlists
   .option(`--unit <unit>`, ``)
   .action(
     actionRunner(
-      async ({ list_id, id, category_slug, cost_center_id, custom_sku, image, metadata, name, position, position_texts, price, product_id, quantity, sku, subcategory_slug, tax_rate, unit }) => {
+      async (_options, _command) => {
+        const { list_id, id, category_slug, cost_center_id, custom_sku, image, metadata, name, position, position_texts, price, product_id, quantity, sku, subcategory_slug, tax_rate, unit } = await promptForMissing(
+          _options,
+          [
+            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists/{list_id}/items", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orderlists/{list_id}/items/{id}`.replace(`{list_id}`, list_id).replace(`{id}`, id);
         const _payload: RequestParams = {};

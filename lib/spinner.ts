@@ -29,6 +29,59 @@ const spinners: Record<string, SpinnerConfig> = {
   },
 };
 
+/**
+ * Lightweight single-line spinner for ordinary API waits (DX-96). Rendered on
+ * stderr so stdout stays clean for parsing/pipes, and only when explicitly
+ * enabled by the CLI entry point — the same modules are bundled as a library,
+ * where a spinner would be unwanted noise.
+ */
+let requestSpinnerEnabled = false;
+let requestSpinnerActive = false;
+let multibarActive = false;
+
+const enableRequestSpinner = (): void => {
+  requestSpinnerEnabled = true;
+};
+
+const disableRequestSpinner = (): void => {
+  requestSpinnerEnabled = false;
+};
+
+/**
+ * Start the request spinner and return a stop function. A no-op (returning a
+ * no-op stop) when disabled, already running, not a TTY, or while the
+ * push/deploy multibar owns the terminal.
+ */
+const startRequestSpinner = (label: string = "Loading…"): (() => void) => {
+  if (
+    !requestSpinnerEnabled ||
+    requestSpinnerActive ||
+    multibarActive ||
+    !process.stderr.isTTY
+  ) {
+    return () => {};
+  }
+  requestSpinnerActive = true;
+  const { frames, interval } = spinners[SPINNER_DOTS];
+  let frame = 0;
+  const render = (): void => {
+    process.stderr.write(
+      `\r${chalk.cyan(frames[frame])} ${chalk.dim(label)}`,
+    );
+    frame = (frame + 1) % frames.length;
+  };
+  render();
+  const timer = setInterval(render, interval);
+  // Never let a spinner keep the process alive if a stop() is missed.
+  timer.unref();
+  return () => {
+    clearInterval(timer);
+    requestSpinnerActive = false;
+    // Clear the spinner line so regular output starts on a clean row.
+    process.stderr.write("\r\x1b[2K");
+  };
+};
+
 class Spinner {
   static updatesBar: progress.MultiBar;
   private bar: progress.SingleBar;
@@ -38,6 +91,7 @@ class Spinner {
     clearOnComplete: boolean = true,
     hideCursor: boolean = true,
   ): void {
+    multibarActive = true;
     Spinner.updatesBar = new progress.MultiBar({
       format: this.formatter,
       hideCursor,
@@ -50,6 +104,7 @@ class Spinner {
 
   static stop(): void {
     Spinner.updatesBar.stop();
+    multibarActive = false;
   }
 
   static formatter(
@@ -132,4 +187,11 @@ class Spinner {
   }
 }
 
-export { Spinner, SPINNER_ARC, SPINNER_DOTS };
+export {
+  Spinner,
+  SPINNER_ARC,
+  SPINNER_DOTS,
+  enableRequestSpinner,
+  disableRequestSpinner,
+  startRequestSpinner,
+};

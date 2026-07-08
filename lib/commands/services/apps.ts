@@ -9,15 +9,22 @@ import {
   parseBool,
   parseInteger,
 } from "../../parser.js";
+import {
+  confirmDestructive,
+  promptForMissing,
+} from "../../interactive.js";
 
 export const apps = new Command("apps")
-  .description(commandDescriptions["apps"] ?? "")
+  .description(
+    commandDescriptions["apps"] ??
+      `The Revenexx app runtime (Appwrite functions, extended) and marketplace.`,
+  )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });
 
 apps
-  .command(`apps-list`)
+  .command(`list`)
   .description(`List all Apps in the active project. Pass \`search\` to filter by name.`)
   .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, enabled, runtime, deploymentId, schedule, scheduleNext, schedulePrevious, timeout, entrypoint, commands, installationId`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
@@ -56,13 +63,13 @@ apps
     ),
   );
 apps
-  .command(`apps-create`)
+  .command(`create`)
   .description(`Create a new revenexx App. An App is the deployment surface for code that runs on the platform — backend jobs, APIs, integrations. The created App owns subsequent deployments and executions.
 
 Phase 1 mirrors the underlying Functions runtime 1:1; future phases will add manifest validation, registry coupling and schema migrations.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
-  .requiredOption(`--name <name>`, `Function name. Max length: 128 chars.`)
-  .requiredOption(`--runtime <runtime>`, `Execution runtime.`)
+  .option(`--function-id <function-id>`, `Function ID. Choose a custom ID or generate a random ID with \`ID.unique()\`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.`)
+  .option(`--name <name>`, `Function name. Max length: 128 chars.`)
+  .option(`--runtime <runtime>`, `Execution runtime.`)
   .option(`--commands <commands>`, `Build Commands.`)
   .option(
     `--enabled [value]`,
@@ -95,7 +102,16 @@ Phase 1 mirrors the underlying Functions runtime 1:1; future phases will add man
   .option(`--timeout <timeout>`, `Function maximum execution time in seconds.`, parseInteger)
   .action(
     actionRunner(
-      async ({ functionId, name, runtime, commands, enabled, entrypoint, events, execute, installationId, logging, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, schedule, scopes, specification, timeout }) => {
+      async (_options, _command) => {
+        const { functionId, name, runtime, commands, enabled, entrypoint, events, execute, installationId, logging, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, schedule, scopes, specification, timeout } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID. Choose a custom ID or generate a random ID with `ID.unique()`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.", type: "string", required: true },
+            { key: "name", option: "--name <name>", name: "name", description: "Function name. Max length: 128 chars.", type: "string", required: true },
+            { key: "runtime", option: "--runtime <runtime>", name: "runtime", description: "Execution runtime.", type: "string", required: true, enum: ["node-18.0","node-20.0","node-22","node-23","node-24","node-25","php-8.1","php-8.2","php-8.3","php-8.4","ruby-3.1","ruby-3.2","ruby-3.3","ruby-3.4","ruby-4.0","python-3.9","python-3.10","python-3.11","python-3.12","python-3.13","python-3.14","python-ml-3.11","python-ml-3.12","python-ml-3.13","deno-1.46","deno-2.0","deno-2.5","deno-2.6","dart-2.18","dart-2.19","dart-3.0","dart-3.1","dart-3.3","dart-3.5","dart-3.8","dart-3.9","dart-3.10","dotnet-8.0","dotnet-10","java-8.0","java-11.0","java-17.0","java-21.0","java-22","java-25","swift-5.8","swift-5.9","swift-5.10","swift-6.2","kotlin-1.8","kotlin-1.9","kotlin-2.0","kotlin-2.3","cpp-17","cpp-20","cpp-23","bun-1.0","bun-1.1","bun-1.2","bun-1.3","go-1.23","go-1.24","go-1.25","go-1.26","static-1","flutter-3.24","flutter-3.27","flutter-3.29","flutter-3.32","flutter-3.35","flutter-3.38"] },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps`;
         const _payload: RequestParams = {};
@@ -167,7 +183,7 @@ Phase 1 mirrors the underlying Functions runtime 1:1; future phases will add man
     ),
   );
 apps
-  .command(`apps-list-marketplace`)
+  .command(`list-marketplace`)
   .description(`List apps published to the Marketplace. Proxies the App Registry on Console with \`?published=true\` filter.`)
   .option(`--search <search>`, `Search by app name, title or vendor.`)
   .option(`--per-_page <per-_page>`, `Items per page.`, parseInteger)
@@ -201,13 +217,21 @@ apps
     ),
   );
 apps
-  .command(`apps-install-from-marketplace`)
+  .command(`install-from-marketplace`)
   .description(`Install a Marketplace app on the calling project's tenant. Body: { owner, name }.`)
-  .requiredOption(`--name <name>`, `App name.`)
-  .requiredOption(`--owner <owner>`, `Owner tenant slug of the app being installed.`)
+  .option(`--name <name>`, `App name.`)
+  .option(`--owner <owner>`, `Owner tenant slug of the app being installed.`)
   .action(
     actionRunner(
-      async ({ name, owner }) => {
+      async (_options, _command) => {
+        const { name, owner } = await promptForMissing(
+          _options,
+          [
+            { key: "name", option: "--name <name>", name: "name", description: "App name.", type: "string", required: true },
+            { key: "owner", option: "--owner <owner>", name: "owner", description: "Owner tenant slug of the app being installed.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/marketplace/install`;
         const _payload: RequestParams = {};
@@ -231,7 +255,7 @@ apps
     ),
   );
 apps
-  .command(`apps-list-runtimes`)
+  .command(`list-runtimes`)
   .description(`Get a list of all runtimes available for an App. Identical content to \`functions.listRuntimes()\`.`)
   .action(
     actionRunner(
@@ -253,7 +277,7 @@ apps
     ),
   );
 apps
-  .command(`apps-list-specifications`)
+  .command(`list-specifications`)
   .description(`List the compute specifications (CPU + memory) available to Apps in this project.`)
   .action(
     actionRunner(
@@ -275,7 +299,7 @@ apps
     ),
   );
 apps
-  .command(`apps-list-templates`)
+  .command(`list-templates`)
   .description(`List the curated catalogue of App templates that can be used as starting points.`)
   .option(`--runtimes [runtimes...]`, `List of runtimes allowed for filtering function templates. Maximum of 100 runtimes are allowed.`)
   .option(`--use-cases [use-cases...]`, `List of use cases allowed for filtering function templates. Maximum of 100 use cases are allowed.`)
@@ -322,12 +346,19 @@ apps
     ),
   );
 apps
-  .command(`apps-get-template`)
+  .command(`get-template`)
   .description(`Get a single App template by its ID.`)
-  .requiredOption(`--template-id <template-id>`, `Template ID.`)
+  .option(`--template-id <template-id>`, `Template ID.`)
   .action(
     actionRunner(
-      async ({ templateId }) => {
+      async (_options, _command) => {
+        const { templateId } = await promptForMissing(
+          _options,
+          [
+            { key: "templateId", option: "--template-id <template-id>", name: "templateId", description: "Template ID.", type: "string", required: true, resource: { listPath: "/apps/templates", hasLimit: true } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/templates/{templateId}`.replace(`{templateId}`, templateId);
         const _payload: RequestParams = {};
@@ -345,7 +376,7 @@ apps
     ),
   );
 apps
-  .command(`apps-list-usage`)
+  .command(`list-usage`)
   .description(`Get aggregated usage stats across all Apps in the project for the requested time range.`)
   .option(`--range <range>`, `Date range.`)
   .action(
@@ -371,12 +402,20 @@ apps
     ),
   );
 apps
-  .command(`apps-delete`)
+  .command(`delete`)
   .description(`Delete an App and all of its deployments. Cascades to the App Registry — Console removes the matching \`RegisteredApp\` row.`)
-  .requiredOption(`--function-id <function-id>`, `App ID.`)
+  .option(`--function-id <function-id>`, `App ID.`)
   .action(
     actionRunner(
-      async ({ functionId }) => {
+      async (_options, _command) => {
+        const { functionId } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "App ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`apps delete`);
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -394,12 +433,19 @@ apps
     ),
   );
 apps
-  .command(`apps-get`)
+  .command(`get`)
   .description(`Get an App by its unique ID.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
+  .option(`--function-id <function-id>`, `Function ID.`)
   .action(
     actionRunner(
-      async ({ functionId }) => {
+      async (_options, _command) => {
+        const { functionId } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -417,10 +463,10 @@ apps
     ),
   );
 apps
-  .command(`apps-update`)
+  .command(`update`)
   .description(`Update an App. Use this endpoint to rename, change runtime, schedule, environment variables and other configuration.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
-  .requiredOption(`--name <name>`, `Function name. Max length: 128 chars.`)
+  .option(`--function-id <function-id>`, `Function ID.`)
+  .option(`--name <name>`, `Function name. Max length: 128 chars.`)
   .option(`--commands <commands>`, `Build Commands.`)
   .option(
     `--enabled [value]`,
@@ -454,7 +500,15 @@ apps
   .option(`--timeout <timeout>`, `Maximum execution time in seconds.`, parseInteger)
   .action(
     actionRunner(
-      async ({ functionId, name, commands, enabled, entrypoint, events, execute, installationId, logging, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, runtime, schedule, scopes, specification, timeout }) => {
+      async (_options, _command) => {
+        const { functionId, name, commands, enabled, entrypoint, events, execute, installationId, logging, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, runtime, schedule, scopes, specification, timeout } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "name", option: "--name <name>", name: "name", description: "Function name. Max length: 128 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -523,13 +577,21 @@ apps
     ),
   );
 apps
-  .command(`apps-update-deployment`)
+  .command(`update-deployment`)
   .description(`Set the active deployment for an App. The chosen deployment must already be \`ready\`.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
-  .requiredOption(`--deployment-id <deployment-id>`, `Deployment ID.`)
+  .option(`--function-id <function-id>`, `Function ID.`)
+  .option(`--deployment-id <deployment-id>`, `Deployment ID.`)
   .action(
     actionRunner(
-      async ({ functionId, deploymentId }) => {
+      async (_options, _command) => {
+        const { functionId, deploymentId } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/deployment`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -550,9 +612,9 @@ apps
     ),
   );
 apps
-  .command(`apps-list-deployments`)
+  .command(`list-deployments`)
   .description(`List the deployment history of an App.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
+  .option(`--function-id <function-id>`, `Function ID.`)
   .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: buildSize, sourceSize, totalSize, buildDuration, status, activate, type`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
   .option(
@@ -563,7 +625,14 @@ apps
   )
   .action(
     actionRunner(
-      async ({ functionId, queries, search, total }) => {
+      async (_options, _command) => {
+        const { functionId, queries, search, total } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/deployments`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -590,19 +659,28 @@ apps
     ),
   );
 apps
-  .command(`apps-create-deployment`)
+  .command(`create-deployment`)
   .description(`Upload a new code deployment for an App. Accepts a \`.tar.gz\`
 archive containing the App source. Phase 2 will extract the
 manifest from this archive and validate it against the App
 Registry before kicking off the build.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
-  .requiredOption(`--activate <activate>`, `Automatically activate the deployment when it is finished building.`, parseBool)
-  .requiredOption(`--code <code>`, `Gzip file with your code package. When used with the Appwrite CLI, pass the path to your code directory, and the CLI will automatically package your code. Use a path that is within the current directory.`)
+  .option(`--function-id <function-id>`, `Function ID.`)
+  .option(`--activate <activate>`, `Automatically activate the deployment when it is finished building.`, parseBool)
+  .option(`--code <code>`, `Gzip file with your code package. When used with the Appwrite CLI, pass the path to your code directory, and the CLI will automatically package your code. Use a path that is within the current directory.`)
   .option(`--commands <commands>`, `Build Commands.`)
   .option(`--entrypoint <entrypoint>`, `Entrypoint File.`)
   .action(
     actionRunner(
-      async ({ functionId, activate, code, commands, entrypoint }) => {
+      async (_options, _command) => {
+        const { functionId, activate, code, commands, entrypoint } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "activate", option: "--activate <activate>", name: "activate", description: "Automatically activate the deployment when it is finished building.", type: "boolean", required: true },
+            { key: "code", option: "--code <code>", name: "code", description: "Gzip file with your code package. When used with the Appwrite CLI, pass the path to your code directory, and the CLI will automatically package your code. Use a path that is within the current directory.", type: "file", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/deployments`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -632,14 +710,22 @@ Registry before kicking off the build.`)
     ),
   );
 apps
-  .command(`apps-create-duplicate-deployment`)
+  .command(`create-duplicate-deployment`)
   .description(`Re-deploy an existing build under a new deployment ID. Useful for promoting a known-good preview build to production without rebuilding.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
-  .requiredOption(`--deployment-id <deployment-id>`, `Deployment ID.`)
+  .option(`--function-id <function-id>`, `Function ID.`)
+  .option(`--deployment-id <deployment-id>`, `Deployment ID.`)
   .option(`--build-id <build-id>`, `Build unique ID.`)
   .action(
     actionRunner(
-      async ({ functionId, deploymentId, buildId }) => {
+      async (_options, _command) => {
+        const { functionId, deploymentId, buildId } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/deployments/duplicate`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -663,14 +749,14 @@ apps
     ),
   );
 apps
-  .command(`apps-create-template-deployment`)
+  .command(`create-template-deployment`)
   .description(`Create a new App deployment from a template in the App Templates catalogue.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
-  .requiredOption(`--owner <owner>`, `The name of the owner of the template.`)
-  .requiredOption(`--reference <reference>`, `Reference value, can be a commit hash, branch name, or release tag`)
-  .requiredOption(`--repository <repository>`, `Repository name of the template.`)
-  .requiredOption(`--root-directory <root-directory>`, `Path to function code in the template repo.`)
-  .requiredOption(`--type <type>`, `Type for the reference provided. Can be commit, branch, or tag`)
+  .option(`--function-id <function-id>`, `Function ID.`)
+  .option(`--owner <owner>`, `The name of the owner of the template.`)
+  .option(`--reference <reference>`, `Reference value, can be a commit hash, branch name, or release tag`)
+  .option(`--repository <repository>`, `Repository name of the template.`)
+  .option(`--root-directory <root-directory>`, `Path to function code in the template repo.`)
+  .option(`--type <type>`, `Type for the reference provided. Can be commit, branch, or tag`)
   .option(
     `--activate [value]`,
     `Automatically activate the deployment when it is finished building.`,
@@ -679,7 +765,19 @@ apps
   )
   .action(
     actionRunner(
-      async ({ functionId, owner, reference, repository, rootDirectory, type, activate }) => {
+      async (_options, _command) => {
+        const { functionId, owner, reference, repository, rootDirectory, type, activate } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "owner", option: "--owner <owner>", name: "owner", description: "The name of the owner of the template.", type: "string", required: true },
+            { key: "reference", option: "--reference <reference>", name: "reference", description: "Reference value, can be a commit hash, branch name, or release tag", type: "string", required: true },
+            { key: "repository", option: "--repository <repository>", name: "repository", description: "Repository name of the template.", type: "string", required: true },
+            { key: "rootDirectory", option: "--root-directory <root-directory>", name: "rootDirectory", description: "Path to function code in the template repo.", type: "string", required: true },
+            { key: "type", option: "--type <type>", name: "type", description: "Type for the reference provided. Can be commit, branch, or tag", type: "string", required: true, enum: ["commit","branch","tag"] },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/deployments/template`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -715,11 +813,11 @@ apps
     ),
   );
 apps
-  .command(`apps-create-vcs-deployment`)
+  .command(`create-vcs-deployment`)
   .description(`Trigger a new deployment from the App's connected Git repository.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
-  .requiredOption(`--reference <reference>`, `VCS reference to create deployment from. Depending on type this can be: branch name, commit hash`)
-  .requiredOption(`--type <type>`, `Type of reference passed. Allowed values are: branch, commit`)
+  .option(`--function-id <function-id>`, `Function ID.`)
+  .option(`--reference <reference>`, `VCS reference to create deployment from. Depending on type this can be: branch name, commit hash`)
+  .option(`--type <type>`, `Type of reference passed. Allowed values are: branch, commit`)
   .option(
     `--activate [value]`,
     `Automatically activate the deployment when it is finished building.`,
@@ -728,7 +826,16 @@ apps
   )
   .action(
     actionRunner(
-      async ({ functionId, reference, type, activate }) => {
+      async (_options, _command) => {
+        const { functionId, reference, type, activate } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "reference", option: "--reference <reference>", name: "reference", description: "VCS reference to create deployment from. Depending on type this can be: branch name, commit hash", type: "string", required: true },
+            { key: "type", option: "--type <type>", name: "type", description: "Type of reference passed. Allowed values are: branch, commit", type: "string", required: true, enum: ["branch","commit"] },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/deployments/vcs`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -755,13 +862,22 @@ apps
     ),
   );
 apps
-  .command(`apps-delete-deployment`)
+  .command(`delete-deployment`)
   .description(`Delete a deployment. The active deployment cannot be deleted while it is active — switch first via the deployment-update endpoint.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
-  .requiredOption(`--deployment-id <deployment-id>`, `Deployment ID.`)
+  .option(`--function-id <function-id>`, `Function ID.`)
+  .option(`--deployment-id <deployment-id>`, `Deployment ID.`)
   .action(
     actionRunner(
-      async ({ functionId, deploymentId }) => {
+      async (_options, _command) => {
+        const { functionId, deploymentId } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/apps/{functionId}/deployments", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`apps delete-deployment`);
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/deployments/{deploymentId}`.replace(`{functionId}`, functionId).replace(`{deploymentId}`, deploymentId);
         const _payload: RequestParams = {};
@@ -779,13 +895,21 @@ apps
     ),
   );
 apps
-  .command(`apps-get-deployment`)
+  .command(`get-deployment`)
   .description(`Get a deployment by its unique ID.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
-  .requiredOption(`--deployment-id <deployment-id>`, `Deployment ID.`)
+  .option(`--function-id <function-id>`, `Function ID.`)
+  .option(`--deployment-id <deployment-id>`, `Deployment ID.`)
   .action(
     actionRunner(
-      async ({ functionId, deploymentId }) => {
+      async (_options, _command) => {
+        const { functionId, deploymentId } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/apps/{functionId}/deployments", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/deployments/{deploymentId}`.replace(`{functionId}`, functionId).replace(`{deploymentId}`, deploymentId);
         const _payload: RequestParams = {};
@@ -803,14 +927,22 @@ apps
     ),
   );
 apps
-  .command(`apps-get-deployment-download`)
+  .command(`get-deployment-download`)
   .description(`Get a redirect URL to download the source archive of an App deployment. Useful for re-running a build locally or auditing what was deployed.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
-  .requiredOption(`--deployment-id <deployment-id>`, `Deployment ID.`)
+  .option(`--function-id <function-id>`, `Function ID.`)
+  .option(`--deployment-id <deployment-id>`, `Deployment ID.`)
   .option(`--type <type>`, `Deployment file to download. Can be: "source", "output".`)
   .action(
     actionRunner(
-      async ({ functionId, deploymentId, type }) => {
+      async (_options, _command) => {
+        const { functionId, deploymentId, type } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/apps/{functionId}/deployments", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/deployments/{deploymentId}/download`.replace(`{functionId}`, functionId).replace(`{deploymentId}`, deploymentId);
         const _payload: RequestParams = {};
@@ -831,13 +963,21 @@ apps
     ),
   );
 apps
-  .command(`apps-update-deployment-status`)
+  .command(`update-deployment-status`)
   .description(`Cancel an in-progress deployment build. Used by the Cockpit "Cancel build" affordance.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
-  .requiredOption(`--deployment-id <deployment-id>`, `Deployment ID.`)
+  .option(`--function-id <function-id>`, `Function ID.`)
+  .option(`--deployment-id <deployment-id>`, `Deployment ID.`)
   .action(
     actionRunner(
-      async ({ functionId, deploymentId }) => {
+      async (_options, _command) => {
+        const { functionId, deploymentId } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/apps/{functionId}/deployments", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/deployments/{deploymentId}/status`.replace(`{functionId}`, functionId).replace(`{deploymentId}`, deploymentId);
         const _payload: RequestParams = {};
@@ -855,9 +995,9 @@ apps
     ),
   );
 apps
-  .command(`apps-list-executions`)
+  .command(`list-executions`)
   .description(`List the execution history of an App.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
+  .option(`--function-id <function-id>`, `Function ID.`)
   .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: trigger, status, responseStatusCode, duration, requestMethod, requestPath, deploymentId`)
   .option(
     `--total [value]`,
@@ -867,7 +1007,14 @@ apps
   )
   .action(
     actionRunner(
-      async ({ functionId, queries, total }) => {
+      async (_options, _command) => {
+        const { functionId, queries, total } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/executions`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -891,9 +1038,9 @@ apps
     ),
   );
 apps
-  .command(`apps-create-execution`)
+  .command(`create-execution`)
   .description(`Trigger an App execution. Use the optional \`body\`, \`path\`, \`method\` and \`headers\` parameters to invoke the App as if from an HTTP request.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
+  .option(`--function-id <function-id>`, `Function ID.`)
   .option(
     `--async [value]`,
     `Execute code in the background. Default value is false.`,
@@ -907,7 +1054,14 @@ apps
   .option(`--scheduled-at <scheduled-at>`, `Scheduled execution time in [ISO 8601](https://www.iso.org/iso-8601-date-and-time-format.html) format. DateTime value must be in future with precision in minutes.`)
   .action(
     actionRunner(
-      async ({ functionId, async, body, headers, method, path, scheduledAt }) => {
+      async (_options, _command) => {
+        const { functionId, async, body, headers, method, path, scheduledAt } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/executions`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -943,13 +1097,22 @@ apps
     ),
   );
 apps
-  .command(`apps-delete-execution`)
+  .command(`delete-execution`)
   .description(`Delete an App execution by its unique ID.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
-  .requiredOption(`--execution-id <execution-id>`, `Execution ID.`)
+  .option(`--function-id <function-id>`, `Function ID.`)
+  .option(`--execution-id <execution-id>`, `Execution ID.`)
   .action(
     actionRunner(
-      async ({ functionId, executionId }) => {
+      async (_options, _command) => {
+        const { functionId, executionId } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "executionId", option: "--execution-id <execution-id>", name: "executionId", description: "Execution ID.", type: "string", required: true, resource: { listPath: "/apps/{functionId}/executions", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`apps delete-execution`);
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/executions/{executionId}`.replace(`{functionId}`, functionId).replace(`{executionId}`, executionId);
         const _payload: RequestParams = {};
@@ -967,13 +1130,21 @@ apps
     ),
   );
 apps
-  .command(`apps-get-execution`)
+  .command(`get-execution`)
   .description(`Get an App execution by its unique ID.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
-  .requiredOption(`--execution-id <execution-id>`, `Execution ID.`)
+  .option(`--function-id <function-id>`, `Function ID.`)
+  .option(`--execution-id <execution-id>`, `Execution ID.`)
   .action(
     actionRunner(
-      async ({ functionId, executionId }) => {
+      async (_options, _command) => {
+        const { functionId, executionId } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "executionId", option: "--execution-id <execution-id>", name: "executionId", description: "Execution ID.", type: "string", required: true, resource: { listPath: "/apps/{functionId}/executions", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/executions/{executionId}`.replace(`{functionId}`, functionId).replace(`{executionId}`, executionId);
         const _payload: RequestParams = {};
@@ -991,12 +1162,19 @@ apps
     ),
   );
 apps
-  .command(`apps-get-marketplace-status`)
+  .command(`get-marketplace-status`)
   .description(`Read-through view of the App's App Registry row — visibility + Marketplace publish flag. Used by Cockpit to render the Publish/Unpublish button correctly on cold load.`)
-  .requiredOption(`--function-id <function-id>`, `App ID.`)
+  .option(`--function-id <function-id>`, `App ID.`)
   .action(
     actionRunner(
-      async ({ functionId }) => {
+      async (_options, _command) => {
+        const { functionId } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "App ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/marketplace-status`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -1014,12 +1192,20 @@ apps
     ),
   );
 apps
-  .command(`apps-unpublish`)
+  .command(`unpublish`)
   .description(`Remove this App from the Marketplace listing. Existing tenant installations are unaffected. Idempotent.`)
-  .requiredOption(`--function-id <function-id>`, `App ID.`)
+  .option(`--function-id <function-id>`, `App ID.`)
   .action(
     actionRunner(
-      async ({ functionId }) => {
+      async (_options, _command) => {
+        const { functionId } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "App ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`apps unpublish`);
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/publish`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -1037,15 +1223,22 @@ apps
     ),
   );
 apps
-  .command(`apps-publish`)
+  .command(`publish`)
   .description(`Publish this App to the Marketplace. The App must have at
 least one \`ready\` deployment with a registered manifest,
 and its visibility (derived from \`billing.json\`) must be
 \`public\` or \`included\`. Idempotent.`)
-  .requiredOption(`--function-id <function-id>`, `App ID.`)
+  .option(`--function-id <function-id>`, `App ID.`)
   .action(
     actionRunner(
-      async ({ functionId }) => {
+      async (_options, _command) => {
+        const { functionId } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "App ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/publish`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -1063,13 +1256,20 @@ and its visibility (derived from \`billing.json\`) must be
     ),
   );
 apps
-  .command(`apps-get-usage`)
+  .command(`get-usage`)
   .description(`Get usage stats for a single App over the requested time range.`)
-  .requiredOption(`--function-id <function-id>`, `Function ID.`)
+  .option(`--function-id <function-id>`, `Function ID.`)
   .option(`--range <range>`, `Date range.`)
   .action(
     actionRunner(
-      async ({ functionId, range }) => {
+      async (_options, _command) => {
+        const { functionId, range } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/usage`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -1090,12 +1290,19 @@ apps
     ),
   );
 apps
-  .command(`apps-list-variables`)
+  .command(`list-variables`)
   .description(`List all environment variables defined for the App.`)
-  .requiredOption(`--function-id <function-id>`, `Function unique ID.`)
+  .option(`--function-id <function-id>`, `Function unique ID.`)
   .action(
     actionRunner(
-      async ({ functionId }) => {
+      async (_options, _command) => {
+        const { functionId } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function unique ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/variables`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -1113,11 +1320,11 @@ apps
     ),
   );
 apps
-  .command(`apps-create-variable`)
+  .command(`create-variable`)
   .description(`Create a new App environment variable. These are passed into the App at runtime as \`process.env.*\`.`)
-  .requiredOption(`--function-id <function-id>`, `Function unique ID.`)
-  .requiredOption(`--key <key>`, `Variable key. Max length: 255 chars.`)
-  .requiredOption(`--value <value>`, `Variable value. Max length: 8192 chars.`)
+  .option(`--function-id <function-id>`, `Function unique ID.`)
+  .option(`--key <key>`, `Variable key. Max length: 255 chars.`)
+  .option(`--value <value>`, `Variable value. Max length: 8192 chars.`)
   .option(
     `--secret [value]`,
     `Secret variables can be updated or deleted, but only functions can read them during build and runtime.`,
@@ -1126,7 +1333,16 @@ apps
   )
   .action(
     actionRunner(
-      async ({ functionId, key, value, secret }) => {
+      async (_options, _command) => {
+        const { functionId, key, value, secret } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function unique ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "key", option: "--key <key>", name: "key", description: "Variable key. Max length: 255 chars.", type: "string", required: true },
+            { key: "value", option: "--value <value>", name: "value", description: "Variable value. Max length: 8192 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/variables`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
@@ -1153,13 +1369,22 @@ apps
     ),
   );
 apps
-  .command(`apps-delete-variable`)
+  .command(`delete-variable`)
   .description(`Delete an App environment variable.`)
-  .requiredOption(`--function-id <function-id>`, `Function unique ID.`)
-  .requiredOption(`--variable-id <variable-id>`, `Variable unique ID.`)
+  .option(`--function-id <function-id>`, `Function unique ID.`)
+  .option(`--variable-id <variable-id>`, `Variable unique ID.`)
   .action(
     actionRunner(
-      async ({ functionId, variableId }) => {
+      async (_options, _command) => {
+        const { functionId, variableId } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function unique ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "variableId", option: "--variable-id <variable-id>", name: "variableId", description: "Variable unique ID.", type: "string", required: true, resource: { listPath: "/apps/{functionId}/variables", hasLimit: false } },
+          ],
+          _command,
+        );
+        await confirmDestructive(`apps delete-variable`);
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/variables/{variableId}`.replace(`{functionId}`, functionId).replace(`{variableId}`, variableId);
         const _payload: RequestParams = {};
@@ -1177,13 +1402,21 @@ apps
     ),
   );
 apps
-  .command(`apps-get-variable`)
+  .command(`get-variable`)
   .description(`Get an App variable by its unique ID.`)
-  .requiredOption(`--function-id <function-id>`, `Function unique ID.`)
-  .requiredOption(`--variable-id <variable-id>`, `Variable unique ID.`)
+  .option(`--function-id <function-id>`, `Function unique ID.`)
+  .option(`--variable-id <variable-id>`, `Variable unique ID.`)
   .action(
     actionRunner(
-      async ({ functionId, variableId }) => {
+      async (_options, _command) => {
+        const { functionId, variableId } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function unique ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "variableId", option: "--variable-id <variable-id>", name: "variableId", description: "Variable unique ID.", type: "string", required: true, resource: { listPath: "/apps/{functionId}/variables", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/variables/{variableId}`.replace(`{functionId}`, functionId).replace(`{variableId}`, variableId);
         const _payload: RequestParams = {};
@@ -1201,11 +1434,11 @@ apps
     ),
   );
 apps
-  .command(`apps-update-variable`)
+  .command(`update-variable`)
   .description(`Update an App environment variable.`)
-  .requiredOption(`--function-id <function-id>`, `Function unique ID.`)
-  .requiredOption(`--variable-id <variable-id>`, `Variable unique ID.`)
-  .requiredOption(`--key <key>`, `Variable key. Max length: 255 chars.`)
+  .option(`--function-id <function-id>`, `Function unique ID.`)
+  .option(`--variable-id <variable-id>`, `Variable unique ID.`)
+  .option(`--key <key>`, `Variable key. Max length: 255 chars.`)
   .option(
     `--secret [value]`,
     `Secret variables can be updated or deleted, but only functions can read them during build and runtime.`,
@@ -1215,7 +1448,16 @@ apps
   .option(`--value <value>`, `Variable value. Max length: 8192 chars.`)
   .action(
     actionRunner(
-      async ({ functionId, variableId, key, secret, value }) => {
+      async (_options, _command) => {
+        const { functionId, variableId, key, secret, value } = await promptForMissing(
+          _options,
+          [
+            { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function unique ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false } },
+            { key: "variableId", option: "--variable-id <variable-id>", name: "variableId", description: "Variable unique ID.", type: "string", required: true, resource: { listPath: "/apps/{functionId}/variables", hasLimit: false } },
+            { key: "key", option: "--key <key>", name: "key", description: "Variable key. Max length: 255 chars.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/variables/{variableId}`.replace(`{functionId}`, functionId).replace(`{variableId}`, variableId);
         const _payload: RequestParams = {};

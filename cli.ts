@@ -12,7 +12,10 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 
 import packageJson from './package.json' with { type: 'json' };
-import { commandDescriptions, cliConfig } from './lib/parser.js';
+import { commandDescriptions, cliConfig, parseInteger } from './lib/parser.js';
+import { resolveCommandArgv } from './lib/command-picker.js';
+import { globalConfig } from './lib/config.js';
+import { enableRequestSpinner, disableRequestSpinner } from './lib/spinner.js';
 import { getLatestVersion, compareVersions } from './lib/utils.js';
 import inquirerSearchList from 'inquirer-search-list';
 
@@ -47,6 +50,8 @@ import { sites } from './lib/commands/services/sites.js';
 import { storage } from './lib/commands/services/storage.js';
 import { tokens } from './lib/commands/services/tokens.js';
 import { about } from './lib/commands/about.js';
+import { create } from "./lib/commands/create.js";
+import { deploy } from "./lib/commands/deploy.js";
 // Side-effect import: attaches DX-22 alias shapes onto the generated apps Command.
 import './lib/commands/apps-aliases.js';
 const { version } = packageJson;
@@ -65,18 +70,18 @@ async function checkVersion(): Promise<void> {
         if (comparison > 0) {
             // Current version is older than latest
             process.stdout.write(
-                chalk.yellow(`\n⚠️  A newer version is available: ${chalk.bold(latestVersion)}`) + '\n'
+                `\n${chalk.yellow('!')} A newer version is available: ${chalk.bold(latestVersion)}` + '\n'
             );
             process.stdout.write(
-                chalk.cyan(
-                    `💡 Run '${chalk.bold('revenexx update')}' to update to the latest version.`
+                chalk.dim(
+                    `  Tip: Run 'revenexx update' to update to the latest version.`
                 ) + '\n'
             );
         } else if (comparison === 0) {
-            process.stdout.write(chalk.green('\n✅ You are running the latest version!') + '\n');
+            process.stdout.write(`\n${chalk.green('✓')} You are running the latest version.` + '\n');
         } else {
             // Current version is newer than latest (pre-release/dev)
-            process.stdout.write(chalk.blue('\n🚀 You are running a pre-release or development version.') + '\n');
+            process.stdout.write(`\n${chalk.cyan('ℹ')} You are running a pre-release or development version.` + '\n');
         }
     } catch (_error) {
         // Silently fail version check, just show current version
@@ -91,6 +96,21 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         process.exit(0);
     })();
 } else {
+    // Persistent reminder while TLS verification is globally disabled. Written
+    // to stderr on every run so it can't be forgotten, and so it never
+    // corrupts machine-readable stdout (`--json`). Turn it back on with
+    // `revenexx client --self-signed false`.
+    if (globalConfig.getSelfSigned()) {
+        process.stderr.write(
+            chalk.yellow('! TLS certificate verification is DISABLED (self-signed mode is active). ') +
+            chalk.dim(`Requests are vulnerable to interception — re-enable it with 'revenexx client --self-signed false'.`) +
+            '\n'
+        );
+    }
+
+    // Show progress feedback for API waits (stderr, TTY-only; see spinner.ts).
+    enableRequestSpinner();
+
     program
         .description(commandDescriptions['main'])
         .configureHelp({
@@ -103,17 +123,28 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .option('-j, --json', 'Output in JSON format')
         .hook('preAction', migrate)
         .option('-f,--force', 'Flag to confirm all warnings')
-        .option('-a,--all', 'Flag to push all resources')
-        .option('--id [id...]', 'Flag to pass a list of ids for a given action')
         .option('--report', 'Enable reporting in case of CLI errors')
         .option('--endpoint [endpoint]', 'Revenexx API URL (overrides REVENEXX_API_URL / config). Use to target staging or self-hosted instances.')
         .option('--token [token]', 'Gateway API key (overrides REVENEXX_API_KEY / config) for this command.')
         .option('--tenant [tenant]', 'Tenant slug (overrides REVENEXX_TENANT / config) for this command.')
+.option('--timeout <ms>', 'Per-request timeout in milliseconds (default 30000).', parseInteger)
+        .option('--no-retry', 'Disable automatic retries for transient failures (network errors, 429/503, 5xx).')
+        .option('--debug', 'Log HTTP requests (method, path, status, duration, request-id) to stderr, fully redacted.')
         .on('option:json', () => {
             cliConfig.json = true;
+            disableRequestSpinner();
         })
         .on('option:verbose', () => {
             cliConfig.verbose = true;
+        })
+        .on('option:timeout', function () {
+            cliConfig.timeout = this.opts().timeout as number;
+        })
+        .on('option:no-retry', () => {
+            cliConfig.retry = false;
+        })
+        .on('option:debug', () => {
+            cliConfig.debug = true;
         })
         .on('option:report', function () {
             cliConfig.report = true;
@@ -121,12 +152,6 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         })
         .on('option:force', () => {
             cliConfig.force = true;
-        })
-        .on('option:all', () => {
-            cliConfig.all = true;
-        })
-        .on('option:id', function () {
-            cliConfig.ids = (this.opts().id as string[]);
         })
         .on('option:endpoint', function () {
             cliConfig.endpoint = this.opts().endpoint as string;
@@ -170,8 +195,22 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(storage)
         .addCommand(tokens)
         .addCommand(about)
-        .addCommand(client)
-        .parse(process.argv);
+        .addCommand(create)
+        .addCommand(deploy)
+        .addCommand(client);
 
-    process.stdout.columns = oldWidth;
+    // Guided mode (DX-98): on a TTY, a bare or partial invocation resolves to
+    // a real command via a searchable picker before commander parses. In
+    // non-TTY / --json / help contexts this returns process.argv untouched.
+    void (async () => {
+        try {
+            program.parse(await resolveCommandArgv(program, process.argv));
+        } finally {
+            process.stdout.columns = oldWidth;
+        }
+    })().catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        process.stderr.write(`${message}\n`);
+        process.exit(1);
+    });
 }

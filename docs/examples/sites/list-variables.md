@@ -1,0 +1,4 @@
+```bash
+revenexx sites list-variables \
+    --site-id ''
+```

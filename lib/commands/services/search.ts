@@ -7,15 +7,21 @@ import {
   parse,
   parseInteger,
 } from "../../parser.js";
+import {
+  promptForMissing,
+} from "../../interactive.js";
 
 export const search = new Command("search")
-  .description(commandDescriptions["search"] ?? "")
+  .description(
+    commandDescriptions["search"] ??
+      `Read-only full-text search over the tenant's installed collections.`,
+  )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });
 
 search
-  .command(`search-list-collections`)
+  .command(`list-collections`)
   .description(`The collections the tenant's installed apps have provisioned.`)
   .action(
     actionRunner(
@@ -37,9 +43,9 @@ search
     ),
   );
 search
-  .command(`search-search-documents-get`)
+  .command(`search-documents-get`)
   .description(`Full-text search within one collection using Typesense query parameters as the query string.`)
-  .requiredOption(`--collection <collection>`, `Collection key (one the tenant has installed).`)
+  .option(`--collection <collection>`, `Collection key (one the tenant has installed).`)
   .option(`--q <q>`, `Query text. Use \`*\` to match all.`)
   .option(`--query-_by <query-_by>`, `Comma-separated fields to search.`)
   .option(`--filter-_by <filter-_by>`, `Filter expression.`)
@@ -48,7 +54,14 @@ search
   .option(`--per-_page <per-_page>`, `Hits per page (max 250).`, parseInteger)
   .action(
     actionRunner(
-      async ({ collection, q, query_by, filter_by, sort_by, page, per_page }) => {
+      async (_options, _command) => {
+        const { collection, q, query_by, filter_by, sort_by, page, per_page } = await promptForMissing(
+          _options,
+          [
+            { key: "collection", option: "--collection <collection>", name: "collection", description: "Collection key (one the tenant has installed).", type: "string", required: true, enum: ["greetings","products"], resource: { listPath: "/search/collections", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/search/collections/{collection}/documents/search`.replace(`{collection}`, collection);
         const _payload: RequestParams = {};
@@ -84,9 +97,9 @@ search
     ),
   );
 search
-  .command(`search-search-documents`)
+  .command(`search-documents`)
   .description(`Full-text search within one collection. The body holds Typesense search parameters.`)
-  .requiredOption(`--collection <collection>`, `Collection key (one the tenant has installed).`)
+  .option(`--collection <collection>`, `Collection key (one the tenant has installed).`)
   .option(`--facet-_by <facet-_by>`, `Comma-separated fields to facet on.`)
   .option(`--filter-_by <filter-_by>`, `Filter expression, e.g. \`in_stock:=true\`.`)
   .option(`--page <page>`, ``, parseInteger)
@@ -96,7 +109,14 @@ search
   .option(`--sort-_by <sort-_by>`, `Sort expression, e.g. \`price:desc\`.`)
   .action(
     actionRunner(
-      async ({ collection, facet_by, filter_by, page, per_page, q, query_by, sort_by }) => {
+      async (_options, _command) => {
+        const { collection, facet_by, filter_by, page, per_page, q, query_by, sort_by } = await promptForMissing(
+          _options,
+          [
+            { key: "collection", option: "--collection <collection>", name: "collection", description: "Collection key (one the tenant has installed).", type: "string", required: true, enum: ["greetings","products"], resource: { listPath: "/search/collections", hasLimit: false } },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/search/collections/{collection}/documents/search`.replace(`{collection}`, collection);
         const _payload: RequestParams = {};
@@ -135,13 +155,21 @@ search
     ),
   );
 search
-  .command(`search-get-document`)
+  .command(`get-document`)
   .description(`Fetch a single document by id from a collection the tenant has installed.`)
-  .requiredOption(`--collection <collection>`, `Collection key (one the tenant has installed).`)
-  .requiredOption(`--document-id <document-id>`, `Document id within the collection.`)
+  .option(`--collection <collection>`, `Collection key (one the tenant has installed).`)
+  .option(`--document-id <document-id>`, `Document id within the collection.`)
   .action(
     actionRunner(
-      async ({ collection, documentId }) => {
+      async (_options, _command) => {
+        const { collection, documentId } = await promptForMissing(
+          _options,
+          [
+            { key: "collection", option: "--collection <collection>", name: "collection", description: "Collection key (one the tenant has installed).", type: "string", required: true, enum: ["greetings","products"], resource: { listPath: "/search/collections", hasLimit: false } },
+            { key: "documentId", option: "--document-id <document-id>", name: "documentId", description: "Document id within the collection.", type: "string", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/search/collections/{collection}/documents/{documentId}`.replace(`{collection}`, collection).replace(`{documentId}`, documentId);
         const _payload: RequestParams = {};
@@ -159,12 +187,19 @@ search
     ),
   );
 search
-  .command(`search-multi-search`)
+  .command(`multi-search`)
   .description(`Run several searches in one request (the InstantSearch adapter uses this). Each entry names its collection.`)
-  .requiredOption(`--searches [searches...]`, ``)
+  .option(`--searches [searches...]`, ``)
   .action(
     actionRunner(
-      async ({ searches }) => {
+      async (_options, _command) => {
+        const { searches } = await promptForMissing(
+          _options,
+          [
+            { key: "searches", option: "--searches [searches...]", name: "searches", type: "array", required: true },
+          ],
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/search/multi_search`;
         const _payload: RequestParams = {};
