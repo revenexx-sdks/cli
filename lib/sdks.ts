@@ -19,7 +19,7 @@ import { decodeJwtClaims, discoverEndpoints, refreshTokens } from "./oauth.js";
  * JWT session exists. Throws with a re-login hint when a refresh is needed but
  * fails.
  */
-const resolveSsoJwt = async (): Promise<string> => {
+export const resolveSsoJwt = async (): Promise<string> => {
   let jwt = globalConfig.getJWT();
   if (!jwt) {
     return "";

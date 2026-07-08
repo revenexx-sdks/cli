@@ -28,7 +28,7 @@ Once the installation is complete, you can verify the install using
 
 ```sh
 $ revenexx -v
-0.0.8
+0.0.9
 ```
 
 ### Install using prebuilt binaries
@@ -62,7 +62,7 @@ $ scoop install https://raw.githubusercontent.com/revenexx-sdks/cli/master/scoop
 Once the installation completes, you can verify your install using
 ```
 $ revenexx -v
-0.0.8
+0.0.9
 ```
 
 ## Getting Started

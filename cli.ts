@@ -52,6 +52,7 @@ import { tokens } from './lib/commands/services/tokens.js';
 import { about } from './lib/commands/about.js';
 import { create } from "./lib/commands/create.js";
 import { deploy } from "./lib/commands/deploy.js";
+import { skills } from './lib/commands/skills.js';
 // Side-effect import: attaches DX-22 alias shapes onto the generated apps Command.
 import './lib/commands/apps-aliases.js';
 const { version } = packageJson;
@@ -197,6 +198,7 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(about)
         .addCommand(create)
         .addCommand(deploy)
+        .addCommand(skills)
         .addCommand(client);
 
     // Guided mode (DX-98): on a TTY, a bare or partial invocation resolves to
