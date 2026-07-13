@@ -1,9 +1,11 @@
 import { Command } from "commander";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
   actionRunner,
   commandDescriptions,
+  cliConfig,
   parse,
   parseBool,
   parseInteger,
@@ -95,6 +97,13 @@ shipping
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (carrier !== undefined) {
           _payload[`carrier`] = carrier;
         }
@@ -123,7 +132,7 @@ shipping
           _payload[`free_above`] = free_above;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (matrix_attribute !== undefined) {
           _payload[`matrix_attribute`] = matrix_attribute;
@@ -132,7 +141,7 @@ shipping
           _payload[`matrix_basis`] = matrix_basis;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -281,6 +290,13 @@ shipping
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (carrier !== undefined) {
           _payload[`carrier`] = carrier;
         }
@@ -309,7 +325,7 @@ shipping
           _payload[`free_above`] = free_above;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (matrix_attribute !== undefined) {
           _payload[`matrix_attribute`] = matrix_attribute;
@@ -318,7 +334,7 @@ shipping
           _payload[`matrix_basis`] = matrix_basis;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -407,6 +423,13 @@ shipping
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods/{method_id}/tiers`.replace(`{method_id}`, method_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (from_value !== undefined) {
           _payload[`from_value`] = from_value;
         }
@@ -448,6 +471,13 @@ shipping
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods/{method_id}/tiers`.replace(`{method_id}`, method_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (tiers !== undefined) {
           _payload[`tiers`] = tiers;
         }
@@ -551,6 +581,13 @@ shipping
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods/{method_id}/tiers/{id}`.replace(`{method_id}`, method_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (from_value !== undefined) {
           _payload[`from_value`] = from_value;
         }
@@ -589,8 +626,15 @@ shipping
         const _client = await sdkForProject();
         const _apiPath = `/shipping/rates`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (attributes !== undefined) {
-          _payload[`attributes`] = JSON.parse(attributes);
+          _payload[`attributes`] = resolveBodyParam(attributes);
         }
         if (country !== undefined) {
           _payload[`country`] = country;

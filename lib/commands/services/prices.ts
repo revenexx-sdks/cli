@@ -1,9 +1,11 @@
 import { Command } from "commander";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
   actionRunner,
   commandDescriptions,
+  cliConfig,
   parse,
   parseBool,
   parseInteger,
@@ -104,6 +106,13 @@ prices
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (channel_id !== undefined) {
           _payload[`channel_id`] = channel_id;
         }
@@ -123,10 +132,10 @@ prices
           _payload[`is_default`] = is_default;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -296,6 +305,13 @@ prices
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (channel_id !== undefined) {
           _payload[`channel_id`] = channel_id;
         }
@@ -315,10 +331,10 @@ prices
           _payload[`is_default`] = is_default;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -425,8 +441,15 @@ prices
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{list_id}/entries`.replace(`{list_id}`, list_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (price_type !== undefined) {
           _payload[`price_type`] = price_type;
@@ -484,6 +507,13 @@ prices
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{list_id}/entries`.replace(`{list_id}`, list_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (entries !== undefined) {
           _payload[`entries`] = entries;
         }
@@ -519,6 +549,13 @@ prices
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{list_id}/entries/bulk`.replace(`{list_id}`, list_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (entries !== undefined) {
           _payload[`entries`] = entries;
         }
@@ -628,8 +665,15 @@ prices
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{list_id}/entries/{id}`.replace(`{list_id}`, list_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (price_type !== undefined) {
           _payload[`price_type`] = price_type;
@@ -691,6 +735,13 @@ prices
         const _client = await sdkForProject();
         const _apiPath = `/prices/resolve`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (at !== undefined) {
           _payload[`at`] = at;
         }

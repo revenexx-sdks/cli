@@ -612,6 +612,7 @@ interface ClientCommandOptions {
   key?: string;
   debug?: boolean;
   reset?: boolean;
+  sensitiveTenants?: string;
 }
 
 export const client = new Command("client")
@@ -629,6 +630,10 @@ export const client = new Command("client")
   .option("-k, --key <key>", "Set your Revenexx server's API key")
   .option("-d, --debug", "Print CLI debug information")
   .option("-r, --reset", "Reset the CLI configuration")
+  .option(
+    "--sensitive-tenants <list>",
+    "Comma-separated tenant slugs to always flag as production in the context banner (empty string clears the list)",
+  )
   .action(
     actionRunner(
       async (
@@ -641,7 +646,7 @@ export const client = new Command("client")
         };
         const endpoint = localOpts.endpoint ?? parentOpts.endpoint;
         const projectId = localOpts.projectId ?? parentOpts.projectId;
-        const { selfSigned, key, debug, reset } = localOpts;
+        const { selfSigned, key, debug, reset, sensitiveTenants } = localOpts;
 
         if (
           selfSigned == undefined &&
@@ -649,7 +654,8 @@ export const client = new Command("client")
           projectId == undefined &&
           key == undefined &&
           debug == undefined &&
-          reset == undefined
+          reset == undefined &&
+          sensitiveTenants == undefined
         ) {
           command.help();
         }
@@ -743,6 +749,12 @@ export const client = new Command("client")
           }
 
           globalConfig.setCurrentSession("");
+        }
+
+        if (sensitiveTenants !== undefined) {
+          globalConfig.setSensitiveTenants(
+            sensitiveTenants.split(",").map((slug) => slug.trim()),
+          );
         }
 
         if (!debug) {

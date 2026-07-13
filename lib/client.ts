@@ -132,6 +132,28 @@ export class RevenexxException extends Error {
   }
 }
 
+/**
+ * Map a failed request to a meaningful process exit code so scripts and CI can
+ * branch on *why* a command failed instead of a blanket `1`. Keyed off the
+ * numeric status carried on {@link RevenexxException.code}; falls back to `1`
+ * for locally-raised or non-HTTP errors.
+ *
+ *   2  usage error (bad flags/args — raised by the arg parser, not here)
+ *   4  authentication/authorization failure (401/403)
+ *   5  not found (404)
+ *   8  rate limited (429)
+ *   1  generic failure (network, timeout, 5xx, everything else)
+ */
+export const exitCodeForError = (err: unknown): number => {
+  const raw = (err as { code?: number | string })?.code;
+  const status = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(status)) return 1;
+  if (status === 401 || status === 403) return 4;
+  if (status === 404) return 5;
+  if (status === 429) return 8;
+  return 1;
+};
+
 class Client {
   private endpoint: string;
   headers: Headers;

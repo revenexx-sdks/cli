@@ -49,9 +49,43 @@ export interface CommandDescription {
   [key: string]: string;
 }
 
+/** Machine- or human-readable renderer chosen with `-o/--output`. */
+export type OutputFormat =
+  | "table"
+  | "json"
+  | "jsonl"
+  | "csv"
+  | "yaml"
+  | "markdown";
+
+export const OUTPUT_FORMATS: readonly OutputFormat[] = [
+  "table",
+  "json",
+  "jsonl",
+  "csv",
+  "yaml",
+  "markdown",
+];
+
 export interface CliConfig {
   verbose: boolean;
+  /** Selected output renderer (`-o/--output`). Default `table`. */
+  output: OutputFormat;
+  /**
+   * Legacy alias kept in sync with `output === "json"`. Existing call sites
+   * (byte-stable JSON path, non-interactive gating) still read this boolean;
+   * `--json` is the documented shorthand for `--output json`.
+   */
   json: boolean;
+  /** Column/field projection (`--fields a,b,c`) applied before rendering. */
+  fields?: string[];
+  /**
+   * Suppress human chrome and emit machine-readable errors to stderr with a
+   * meaningful exit code (`--quiet`), without forcing a specific stdout format.
+   */
+  quiet: boolean;
+  /** Raw `--data` value (inline JSON, `@file`, or `-` for stdin) for bodies. */
+  data?: string;
   force: boolean;
   report: boolean;
   reportData: Record<string, unknown>;

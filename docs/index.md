@@ -28,7 +28,7 @@ Once the installation is complete, you can verify the install using
 
 ```sh
 $ revenexx -v
-0.0.9
+0.1.0
 ```
 
 ### Install using prebuilt binaries
@@ -62,7 +62,7 @@ $ scoop install https://raw.githubusercontent.com/revenexx-sdks/cli/master/scoop
 Once the installation completes, you can verify your install using
 ```
 $ revenexx -v
-0.0.9
+0.1.0
 ```
 
 ## Getting Started
@@ -113,6 +113,19 @@ $ revenexx products products-list
 ```
 
 Ready-to-copy examples for every command are generated under [`docs/examples/`](docs/examples).
+
+### 4. Go faster
+
+A few power-user conveniences once you're set up:
+
+```sh
+$ revenexx status              # identity, tenant, endpoint, token expiry & gateway health
+$ revenexx p ls                # built-in aliases: same as `products list`
+$ revenexx alias set deploy "apps create-deployment --activate true"
+$ revenexx repl                # interactive shell — many commands, one session
+```
+
+A **production safety banner** is printed before most commands showing which tenant/endpoint you're hitting (prominent and red for production). Silence it with `-q`/`--quiet`. See [Command aliases](../README.md#command-aliases), [Production safety banner](../README.md#production-safety-banner), [`status`](../README.md#status) and [Interactive shell (`repl`)](../README.md#interactive-shell-repl) in the README.
 
 > ### Note
 > By default, requests to domains with self-signed SSL certificates (or no certificates) are rejected. If you trust the host, you can bypass certificate validation using
@@ -228,6 +241,91 @@ Use the `--image` flag on the script to pin a specific Node base (e.g. `--image 
 | `revenexx tenants current` | ✅ Prints the active slug. Pass `--check` to verify it against the gateway. |
 | `revenexx tenants list` | ✅ Lists every tenant known to this machine (flag, env, `.revenexx.yaml`, `~/.revenexx/tenant`, login sessions) with its sources and whether the current API key can access it. The gateway doesn't expose a `/v1/tenants` endpoint (and by design never discloses whether a tenant exists), so this is a client-side aggregate verified per-slug. |
 
+## Command aliases
+
+Type less. The CLI resolves both **built-in** abbreviations and your own **user-defined** aliases before running a command — git-style — so `revenexx p ls` reaches `revenexx products list`. A real command always wins over an alias of the same name, and a built-in alias is a no-op when its target service isn't part of this SDK.
+
+### Built-in abbreviations
+
+| Kind | Examples |
+|---|---|
+| Services (first token) | `p`/`prod` → `products`, `o`/`ord` → `orders`, `cust` → `customers`, `cat` → `categories`, `inv` → `inventories`, `pay` → `payments`, `ship` → `shipping`, `msg` → `messaging` |
+| Verbs (second token) | `ls`/`l` → `list`, `g` → `get`, `mk`/`new`/`add` → `create`, `up`/`upd`/`edit` → `update`, `rm`/`del`/`d` → `delete` |
+
+Run `revenexx alias list` to see the full built-in table.
+
+### User-defined aliases
+
+Persisted in `~/.revenexx/prefs.json` and shared across all sessions on the machine.
+
+```sh
+# Create / update an alias (quote multi-word expansions):
+$ revenexx alias set deploy "apps create-deployment --activate true"
+$ revenexx deploy            # runs the expansion above
+
+# List and remove:
+$ revenexx alias list
+$ revenexx alias remove deploy
+```
+
+## Production safety banner
+
+Before most commands, the CLI prints a one-line banner to **stderr** showing which tenant and endpoint you're about to hit. When the context is **production** the banner turns into a prominent red `PRODUCTION` badge — the single best guard against "I ran that against prod". It is suppressed automatically for context-free commands such as `status`, `alias`, and `repl`.
+
+```
+ PRODUCTION  acme → api.revenexx.com          # prod / sensitive
+● staging → staging.revenexx.internal          # everything else (dim)
+```
+
+A context is treated as production when any of these hold:
+
+- the endpoint is the built-in default (the live production gateway),
+- the endpoint or tenant slug contains `prod`, or
+- the tenant is in your configured **sensitive** list.
+
+Configure the sensitive list (comma-separated, empty string clears it) or point at it from the environment:
+
+```sh
+$ revenexx client --sensitive-tenants "acme,globex"
+$ REVENEXX_SENSITIVE_TENANTS="acme,globex" revenexx products list
+```
+
+Because it's on stderr the banner never contaminates `--json` output, and it's suppressed automatically for `--json`, non-interactive (piped) runs, and when you pass `-q` / `--quiet`.
+
+## `status`
+
+A one-glance health/identity panel — richer than `whoami`. Shows the signed-in user, active tenant and endpoint, auth method, the SSO **token expiry countdown**, and a live **gateway health** probe (with a short timeout so it never hangs offline).
+
+```sh
+$ revenexx status
+User          : you@example.com
+Auth method   : SSO (Zitadel)
+Tenant        : acme
+Endpoint      : https://api.revenexx.com
+Token expires : in 2h 41m
+Gateway       : ok (v1.4.0)
+```
+
+Add `--json` for a machine-readable object.
+
+## Interactive shell (`repl`)
+
+`revenexx repl` opens an authenticated interactive shell so you can run several commands without re-typing `revenexx` or re-resolving auth each time. It reuses the same command tree as the CLI, so everything — including built-in and user-defined aliases — works identically.
+
+```sh
+$ revenexx repl
+ℹ Interactive shell — type a command, help, or exit. Tab completes command names.
+revenexx> products list
+revenexx> p get --product-id abc123
+revenexx> help
+revenexx> exit
+```
+
+- **Tab** completes top-level command names, then a service's subcommands.
+- `help` (or `?`) prints the command list; `exit` (or `quit`, `q`, Ctrl-D) leaves the shell.
+- Missing required options **prompt interactively** just like they do outside the shell (search/select), so `p get` will ask for the product id. Ctrl-C cancels the current line without leaving the shell.
+- The [production safety banner](#production-safety-banner) is shown before **every** command in the session (prominent and red for production) — the safeguard matters most in a rapid-fire shell. Launch with `revenexx --quiet repl` to silence it for the session.
+
 ## Global Configuration
 
 The CLI stores its state in `~/.revenexx/prefs.json`. It holds one entry per signed-in **session**, keyed by a generated session ID, plus a top-level `current` that points at the active one. You don't normally edit this by hand — it's written by `login`, `logout`, `tenants use`, and `client`.
@@ -264,6 +362,87 @@ Rather than editing the file, configure the active session via the CLI:
 $ revenexx client --endpoint https://api.revenexx.com
 $ revenexx client --key YOUR_API_KEY
 $ revenexx client --self-signed true
+```
+
+## Scripting & automation
+
+The CLI is built to drop into shell scripts and CI pipelines.
+
+### Output formats
+
+Pick a renderer with `-o, --output <format>`:
+
+| Format | Use |
+|--------|-----|
+| `table` (default) | Human-readable, aligned columns; adapts to the terminal width. |
+| `json` | Byte-stable, uncolored JSON for piping to `jq` etc. `--json` (`-j`) is a shorthand. |
+| `jsonl` (`ndjson`) | NDJSON / JSON Lines — one compact record per line, ideal for streaming large lists into `jq -c`, `xargs`, or log pipelines. `--jsonl` is a shorthand. |
+| `csv` | RFC 4180 rows — a header line plus one line per record. `--csv` is a shorthand. |
+| `yaml` | Losslessly structured YAML. `--yaml` is a shorthand. |
+| `markdown` (`md`) | GitHub-flavored Markdown table — handy for docs, PR comments, and issues. `--markdown` / `--md` are shorthands. |
+
+Narrow the columns/fields with `--fields`. On a list response it projects the columns of the returned collection; on a single record it keeps just those keys:
+
+```sh
+$ revenexx <service> list -o csv --fields id,name,createdAt
+$ revenexx <service> get <id> -o json --fields id,status | jq .status
+```
+
+> On a terminal, all formats prompt for any missing required option; when the output is piped (non-TTY) the command fails fast instead of hanging — so automation never blocks on a prompt.
+
+### Machine-readable errors & exit codes
+
+Under `--json`/`-o json` or `--quiet`, failures are written to **stderr** as `{ "error": { "message", "code", "type", "requestId" } }` and the process exits with a meaningful code so scripts can branch on *why* a command failed:
+
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | Success |
+| `2` | Usage error (bad flags/arguments) |
+| `4` | Authentication/authorization failure (401/403) |
+| `5` | Not found (404) |
+| `8` | Rate limited (429) |
+| `1` | Generic failure (network, timeout, 5xx, …) |
+
+`--quiet` opts into structured errors and exit codes without committing to a specific stdout format — useful when you only care about success/failure, or want to pair it with a non-JSON renderer.
+
+```sh
+if ! revenexx --quiet <service> get "$id" > /dev/null; then
+  case $? in
+    4) echo "not authenticated"  ;;
+    5) echo "no such resource"   ;;
+    8) echo "rate limited — back off and retry" ;;
+    *) echo "request failed"     ;;
+  esac
+fi
+```
+
+### Request bodies from a file or stdin
+
+Create/update commands accept a JSON body inline, from a file (`@path`), or from stdin (`-`) via `--data`, so you can round-trip resources:
+
+```sh
+$ revenexx <service> get <id> -o json > body.json
+# edit body.json ...
+$ revenexx <service> update <id> --data @body.json
+
+# or straight through a pipe
+$ cat body.json | revenexx <service> create --data -
+```
+
+Explicit flags (e.g. `--name`) override matching keys from `--data`.
+
+### Putting it together
+
+```sh
+# Stream a large list one record per line straight into jq
+$ revenexx <service> list --jsonl | jq -r 'select(.status == "active") | .id'
+
+# Edit-in-place round-trip
+$ revenexx <service> get "$id" -o json > item.json
+$ jq '.name = "Renamed"' item.json | revenexx <service> update "$id" --data -
+
+# Drop a Markdown table into a PR comment or report
+$ revenexx <service> list --md --fields id,name,status >> report.md
 ```
 
 ## Sample

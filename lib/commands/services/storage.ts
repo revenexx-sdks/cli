@@ -1,10 +1,12 @@
 import { Command } from "commander";
 import { resolveFileParam } from "../utils/deployment.js";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
   actionRunner,
   commandDescriptions,
+  cliConfig,
   parse,
   parseBool,
   parseInteger,
@@ -84,6 +86,13 @@ storage
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (alt_text !== undefined) {
           _payload[`alt_text`] = alt_text;
         }
@@ -135,6 +144,13 @@ storage
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets/bulk`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (folder_id !== undefined) {
           _payload[`folder_id`] = folder_id;
         }
@@ -239,6 +255,13 @@ storage
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (alt_text !== undefined) {
           _payload[`alt_text`] = alt_text;
         }
@@ -412,6 +435,13 @@ storage
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets/{id}/sign`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (ttl_seconds !== undefined) {
           _payload[`ttl_seconds`] = ttl_seconds;
         }
@@ -455,6 +485,13 @@ whether the archive itself is kept`)
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets/{id}/unpack`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (keep_archive !== undefined) {
           _payload[`keep_archive`] = keep_archive;
         }
@@ -514,6 +551,13 @@ storage
         const _client = await sdkForProject();
         const _apiPath = `/storage/folders`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (name !== undefined) {
           _payload[`name`] = name;
         }
@@ -622,6 +666,13 @@ storage
         const _client = await sdkForProject();
         const _apiPath = `/storage/folders/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (name !== undefined) {
           _payload[`name`] = name;
         }

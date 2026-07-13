@@ -1,9 +1,11 @@
 import { Command } from "commander";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
   actionRunner,
   commandDescriptions,
+  cliConfig,
   parse,
   parseBool,
   parseInteger,
@@ -228,6 +230,13 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/editor/translate`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (items !== undefined) {
           _payload[`items`] = items;
         }
@@ -276,8 +285,15 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/editor/user-settings`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (settings !== undefined) {
-          _payload[`settings`] = JSON.parse(settings);
+          _payload[`settings`] = resolveBodyParam(settings);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -365,6 +381,13 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/editor/{page_id}/comments`.replace(`{page_id}`, page_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (blockUuids !== undefined) {
           _payload[`blockUuids`] = blockUuids;
         }
@@ -441,6 +464,13 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/editor/{page_id}/comments/{uuid}`.replace(`{page_id}`, page_id).replace(`{uuid}`, uuid);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (body !== undefined) {
           _payload[`body`] = body;
         }
@@ -510,6 +540,13 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/editor/{page_id}/comments/{uuid}/toggle-task`.replace(`{page_id}`, page_id).replace(`{uuid}`, uuid);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (taskIndex !== undefined) {
           _payload[`taskIndex`] = taskIndex;
         }
@@ -578,6 +615,13 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/editor/{page_id}/history`.replace(`{page_id}`, page_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (index !== undefined) {
           _payload[`index`] = index;
         }
@@ -649,6 +693,13 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/editor/{page_id}/mutation-status`.replace(`{page_id}`, page_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (enabled !== undefined) {
           _payload[`enabled`] = enabled;
         }
@@ -692,11 +743,18 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/editor/{page_id}/mutations`.replace(`{page_id}`, page_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (langcode !== undefined) {
           _payload[`langcode`] = langcode;
         }
         if (payload !== undefined) {
-          _payload[`payload`] = JSON.parse(payload);
+          _payload[`payload`] = resolveBodyParam(payload);
         }
         if (plugin !== undefined) {
           _payload[`plugin`] = plugin;
@@ -732,6 +790,13 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/editor/{page_id}/preview-grant`.replace(`{page_id}`, page_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (ttlHours !== undefined) {
           _payload[`ttlHours`] = ttlHours;
         }
@@ -772,6 +837,13 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/editor/{page_id}/publish`.replace(`{page_id}`, page_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (force !== undefined) {
           _payload[`force`] = force;
         }
@@ -840,6 +912,13 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/editor/{page_id}/schedule`.replace(`{page_id}`, page_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (scheduledAt !== undefined) {
           _payload[`scheduledAt`] = scheduledAt;
         }
@@ -946,6 +1025,13 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/editor/{page_id}/templates`.replace(`{page_id}`, page_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (description !== undefined) {
           _payload[`description`] = description;
         }
@@ -1122,6 +1208,13 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/library/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (bundle !== undefined) {
           _payload[`bundle`] = bundle;
         }
@@ -1129,7 +1222,7 @@ pages
           _payload[`label`] = label;
         }
         if (tree !== undefined) {
-          _payload[`tree`] = JSON.parse(tree);
+          _payload[`tree`] = resolveBodyParam(tree);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1198,6 +1291,13 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/menus`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (items !== undefined) {
           _payload[`items`] = items;
         }
@@ -1300,6 +1400,13 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/menus/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (items !== undefined) {
           _payload[`items`] = items;
         }
@@ -1375,14 +1482,21 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/pages`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (bundle !== undefined) {
           _payload[`bundle`] = bundle;
         }
         if (hostOptions !== undefined) {
-          _payload[`hostOptions`] = JSON.parse(hostOptions);
+          _payload[`hostOptions`] = resolveBodyParam(hostOptions);
         }
         if (meta !== undefined) {
-          _payload[`meta`] = JSON.parse(meta);
+          _payload[`meta`] = resolveBodyParam(meta);
         }
         if (slug !== undefined) {
           _payload[`slug`] = slug;
@@ -1489,11 +1603,18 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/pages/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (bundle !== undefined) {
           _payload[`bundle`] = bundle;
         }
         if (meta !== undefined) {
-          _payload[`meta`] = JSON.parse(meta);
+          _payload[`meta`] = resolveBodyParam(meta);
         }
         if (slug !== undefined) {
           _payload[`slug`] = slug;
@@ -1570,6 +1691,13 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/seed`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (menus !== undefined) {
           _payload[`menus`] = menus;
         }
@@ -1712,6 +1840,13 @@ pages
         const _client = await sdkForProject();
         const _apiPath = `/pages/templates/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (description !== undefined) {
           _payload[`description`] = description;
         }

@@ -1,3 +1,6 @@
+## v0.1.0
+- skills; scaffolding; interactive REPL mode; cli is fully searchable now; 
+
 ## v0.0.9
 - Regenerated from the latest API specification
 

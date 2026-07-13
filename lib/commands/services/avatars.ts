@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -379,7 +380,7 @@ When width and height are specified, the image is resized accordingly. If both d
           _payload[`url`] = url;
         }
         if (headers !== undefined) {
-          _payload[`headers`] = JSON.parse(headers);
+          _payload[`headers`] = resolveBodyParam(headers);
         }
         if (viewportWidth !== undefined) {
           _payload[`viewportWidth`] = viewportWidth;

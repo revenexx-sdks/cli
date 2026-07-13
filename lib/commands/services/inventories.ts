@@ -1,9 +1,11 @@
 import { Command } from "commander";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
   actionRunner,
   commandDescriptions,
+  cliConfig,
   parse,
   parseBool,
   parseInteger,
@@ -42,6 +44,13 @@ inventories
         const _client = await sdkForProject();
         const _apiPath = `/inventories/adjust`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (items !== undefined) {
           _payload[`items`] = items;
         }
@@ -82,6 +91,13 @@ inventories
         const _client = await sdkForProject();
         const _apiPath = `/inventories/availability`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (items !== undefined) {
           _payload[`items`] = items;
         }
@@ -118,6 +134,13 @@ inventories
         const _client = await sdkForProject();
         const _apiPath = `/inventories/commit`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (order_ref !== undefined) {
           _payload[`order_ref`] = order_ref;
         }
@@ -198,8 +221,15 @@ inventories
         const _client = await sdkForProject();
         const _apiPath = `/inventories/locations`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (address !== undefined) {
-          _payload[`address`] = JSON.parse(address);
+          _payload[`address`] = resolveBodyParam(address);
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -208,10 +238,10 @@ inventories
           _payload[`enabled`] = enabled;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -348,8 +378,15 @@ inventories
         const _client = await sdkForProject();
         const _apiPath = `/inventories/locations/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (address !== undefined) {
-          _payload[`address`] = JSON.parse(address);
+          _payload[`address`] = resolveBodyParam(address);
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -358,10 +395,10 @@ inventories
           _payload[`enabled`] = enabled;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -468,6 +505,13 @@ inventories
         const _client = await sdkForProject();
         const _apiPath = `/inventories/receive`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (items !== undefined) {
           _payload[`items`] = items;
         }
@@ -507,6 +551,13 @@ inventories
         const _client = await sdkForProject();
         const _apiPath = `/inventories/release`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (order_ref !== undefined) {
           _payload[`order_ref`] = order_ref;
         }
@@ -607,6 +658,13 @@ inventories
         const _client = await sdkForProject();
         const _apiPath = `/inventories/reserve`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (expires_at !== undefined) {
           _payload[`expires_at`] = expires_at;
         }
@@ -649,6 +707,13 @@ inventories
         const _client = await sdkForProject();
         const _apiPath = `/inventories/restock`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (items !== undefined) {
           _payload[`items`] = items;
         }
@@ -731,11 +796,18 @@ inventories
         const _client = await sdkForProject();
         const _apiPath = `/inventories/stock`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (location_id !== undefined) {
           _payload[`location_id`] = location_id;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (on_hand !== undefined) {
           _payload[`on_hand`] = on_hand;
@@ -850,11 +922,18 @@ inventories
         const _client = await sdkForProject();
         const _apiPath = `/inventories/stock/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (location_id !== undefined) {
           _payload[`location_id`] = location_id;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (on_hand !== undefined) {
           _payload[`on_hand`] = on_hand;

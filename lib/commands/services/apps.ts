@@ -1,10 +1,12 @@
 import { Command } from "commander";
 import { resolveFileParam } from "../utils/deployment.js";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
   actionRunner,
   commandDescriptions,
+  cliConfig,
   parse,
   parseBool,
   parseInteger,
@@ -115,6 +117,13 @@ Phase 1 mirrors the underlying Functions runtime 1:1; future phases will add man
         const _client = await sdkForProject();
         const _apiPath = `/apps`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (commands !== undefined) {
           _payload[`commands`] = commands;
         }
@@ -235,6 +244,13 @@ apps
         const _client = await sdkForProject();
         const _apiPath = `/apps/marketplace/install`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (name !== undefined) {
           _payload[`name`] = name;
         }
@@ -512,6 +528,13 @@ apps
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (commands !== undefined) {
           _payload[`commands`] = commands;
         }
@@ -595,6 +618,13 @@ apps
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/deployment`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (deploymentId !== undefined) {
           _payload[`deploymentId`] = deploymentId;
         }
@@ -684,6 +714,13 @@ Registry before kicking off the build.`)
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/deployments`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (activate !== undefined) {
           _payload[`activate`] = activate;
         }
@@ -729,6 +766,13 @@ apps
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/deployments/duplicate`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (buildId !== undefined) {
           _payload[`buildId`] = buildId;
         }
@@ -781,6 +825,13 @@ apps
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/deployments/template`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (activate !== undefined) {
           _payload[`activate`] = activate;
         }
@@ -839,6 +890,13 @@ apps
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/deployments/vcs`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (activate !== undefined) {
           _payload[`activate`] = activate;
         }
@@ -1065,6 +1123,13 @@ apps
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/executions`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (async !== undefined) {
           _payload[`async`] = async;
         }
@@ -1072,7 +1137,7 @@ apps
           _payload[`body`] = body;
         }
         if (headers !== undefined) {
-          _payload[`headers`] = JSON.parse(headers);
+          _payload[`headers`] = resolveBodyParam(headers);
         }
         if (method !== undefined) {
           _payload[`method`] = method;
@@ -1346,6 +1411,13 @@ apps
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/variables`.replace(`{functionId}`, functionId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (key !== undefined) {
           _payload[`key`] = key;
         }
@@ -1461,6 +1533,13 @@ apps
         const _client = await sdkForProject();
         const _apiPath = `/apps/{functionId}/variables/{variableId}`.replace(`{functionId}`, functionId).replace(`{variableId}`, variableId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (key !== undefined) {
           _payload[`key`] = key;
         }

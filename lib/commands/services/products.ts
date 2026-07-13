@@ -1,9 +1,11 @@
 import { Command } from "commander";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
   actionRunner,
   commandDescriptions,
+  cliConfig,
   parse,
   parseBool,
   parseInteger,
@@ -88,11 +90,18 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (attribute_values !== undefined) {
-          _payload[`attribute_values`] = JSON.parse(attribute_values);
+          _payload[`attribute_values`] = resolveBodyParam(attribute_values);
         }
         if (completeness !== undefined) {
-          _payload[`completeness`] = JSON.parse(completeness);
+          _payload[`completeness`] = resolveBodyParam(completeness);
         }
         if (deleted_at !== undefined) {
           _payload[`deleted_at`] = deleted_at;
@@ -113,7 +122,7 @@ products
           _payload[`parent_id`] = parent_id;
         }
         if (quantified_associations !== undefined) {
-          _payload[`quantified_associations`] = JSON.parse(quantified_associations);
+          _payload[`quantified_associations`] = resolveBodyParam(quantified_associations);
         }
         if (sku !== undefined) {
           _payload[`sku`] = sku;
@@ -187,14 +196,21 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/asset_families`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (naming_convention !== undefined) {
-          _payload[`naming_convention`] = JSON.parse(naming_convention);
+          _payload[`naming_convention`] = resolveBodyParam(naming_convention);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -290,14 +306,21 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/asset_families/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (naming_convention !== undefined) {
-          _payload[`naming_convention`] = JSON.parse(naming_convention);
+          _payload[`naming_convention`] = resolveBodyParam(naming_convention);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -367,11 +390,18 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/assets`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (asset_family_id !== undefined) {
           _payload[`asset_family_id`] = asset_family_id;
         }
         if (attribute_values !== undefined) {
-          _payload[`attribute_values`] = JSON.parse(attribute_values);
+          _payload[`attribute_values`] = resolveBodyParam(attribute_values);
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -474,11 +504,18 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/assets/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (asset_family_id !== undefined) {
           _payload[`asset_family_id`] = asset_family_id;
         }
         if (attribute_values !== undefined) {
-          _payload[`attribute_values`] = JSON.parse(attribute_values);
+          _payload[`attribute_values`] = resolveBodyParam(attribute_values);
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -563,6 +600,13 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/association_types`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -573,7 +617,7 @@ products
           _payload[`is_two_way`] = is_two_way;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -680,6 +724,13 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/association_types/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -690,7 +741,7 @@ products
           _payload[`is_two_way`] = is_two_way;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -758,11 +809,18 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/attribute_groups`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (position !== undefined) {
           _payload[`position`] = position;
@@ -861,11 +919,18 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/attribute_groups/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (position !== undefined) {
           _payload[`position`] = position;
@@ -939,6 +1004,13 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/attribute_options`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (attribute_id !== undefined) {
           _payload[`attribute_id`] = attribute_id;
         }
@@ -946,13 +1018,13 @@ products
           _payload[`code`] = code;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (position !== undefined) {
           _payload[`position`] = position;
         }
         if (swatch !== undefined) {
-          _payload[`swatch`] = JSON.parse(swatch);
+          _payload[`swatch`] = resolveBodyParam(swatch);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1050,6 +1122,13 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/attribute_options/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (attribute_id !== undefined) {
           _payload[`attribute_id`] = attribute_id;
         }
@@ -1057,13 +1136,13 @@ products
           _payload[`code`] = code;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (position !== undefined) {
           _payload[`position`] = position;
         }
         if (swatch !== undefined) {
-          _payload[`swatch`] = JSON.parse(swatch);
+          _payload[`swatch`] = resolveBodyParam(swatch);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1168,11 +1247,18 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/attributes`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
         if (config !== undefined) {
-          _payload[`config`] = JSON.parse(config);
+          _payload[`config`] = resolveBodyParam(config);
         }
         if (entity_ref !== undefined) {
           _payload[`entity_ref`] = entity_ref;
@@ -1190,7 +1276,7 @@ products
           _payload[`is_unique`] = is_unique;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (localizable !== undefined) {
           _payload[`localizable`] = localizable;
@@ -1208,7 +1294,7 @@ products
           _payload[`usable_in_grid`] = usable_in_grid;
         }
         if (validation !== undefined) {
-          _payload[`validation`] = JSON.parse(validation);
+          _payload[`validation`] = resolveBodyParam(validation);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1340,11 +1426,18 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/attributes/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
         if (config !== undefined) {
-          _payload[`config`] = JSON.parse(config);
+          _payload[`config`] = resolveBodyParam(config);
         }
         if (entity_ref !== undefined) {
           _payload[`entity_ref`] = entity_ref;
@@ -1362,7 +1455,7 @@ products
           _payload[`is_unique`] = is_unique;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (localizable !== undefined) {
           _payload[`localizable`] = localizable;
@@ -1380,7 +1473,7 @@ products
           _payload[`usable_in_grid`] = usable_in_grid;
         }
         if (validation !== undefined) {
-          _payload[`validation`] = JSON.parse(validation);
+          _payload[`validation`] = resolveBodyParam(validation);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1406,6 +1499,13 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/batch`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (ids !== undefined) {
           _payload[`ids`] = ids;
         }
@@ -1481,11 +1581,18 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/categories`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (parent_id !== undefined) {
           _payload[`parent_id`] = parent_id;
@@ -1497,7 +1604,7 @@ products
           _payload[`position`] = position;
         }
         if (values !== undefined) {
-          _payload[`values`] = JSON.parse(values);
+          _payload[`values`] = resolveBodyParam(values);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1596,11 +1703,18 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/categories/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (parent_id !== undefined) {
           _payload[`parent_id`] = parent_id;
@@ -1612,7 +1726,7 @@ products
           _payload[`position`] = position;
         }
         if (values !== undefined) {
-          _payload[`values`] = JSON.parse(values);
+          _payload[`values`] = resolveBodyParam(values);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1681,6 +1795,13 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/families`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -1691,7 +1812,7 @@ products
           _payload[`label_attribute`] = label_attribute;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1788,6 +1909,13 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/families/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -1798,7 +1926,7 @@ products
           _payload[`label_attribute`] = label_attribute;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1874,6 +2002,13 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/family_attributes`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (attribute_id !== undefined) {
           _payload[`attribute_id`] = attribute_id;
         }
@@ -1887,7 +2022,7 @@ products
           _payload[`position`] = position;
         }
         if (required_channels !== undefined) {
-          _payload[`required_channels`] = JSON.parse(required_channels);
+          _payload[`required_channels`] = resolveBodyParam(required_channels);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1990,6 +2125,13 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/family_attributes/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (attribute_id !== undefined) {
           _payload[`attribute_id`] = attribute_id;
         }
@@ -2003,7 +2145,7 @@ products
           _payload[`position`] = position;
         }
         if (required_channels !== undefined) {
-          _payload[`required_channels`] = JSON.parse(required_channels);
+          _payload[`required_channels`] = resolveBodyParam(required_channels);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2073,8 +2215,15 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/family_variants`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (axes !== undefined) {
-          _payload[`axes`] = JSON.parse(axes);
+          _payload[`axes`] = resolveBodyParam(axes);
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -2083,7 +2232,7 @@ products
           _payload[`family_id`] = family_id;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2180,8 +2329,15 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/family_variants/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (axes !== undefined) {
-          _payload[`axes`] = JSON.parse(axes);
+          _payload[`axes`] = resolveBodyParam(axes);
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -2190,7 +2346,7 @@ products
           _payload[`family_id`] = family_id;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2260,17 +2416,24 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/measurement_families`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (standard_unit !== undefined) {
           _payload[`standard_unit`] = standard_unit;
         }
         if (units !== undefined) {
-          _payload[`units`] = JSON.parse(units);
+          _payload[`units`] = resolveBodyParam(units);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2367,17 +2530,24 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/measurement_families/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (standard_unit !== undefined) {
           _payload[`standard_unit`] = standard_unit;
         }
         if (units !== undefined) {
-          _payload[`units`] = JSON.parse(units);
+          _payload[`units`] = resolveBodyParam(units);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2449,6 +2619,13 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/product_associations`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (association_type_id !== undefined) {
           _payload[`association_type_id`] = association_type_id;
         }
@@ -2560,6 +2737,13 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/product_associations/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (association_type_id !== undefined) {
           _payload[`association_type_id`] = association_type_id;
         }
@@ -2642,6 +2826,13 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/product_categories`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (category_id !== undefined) {
           _payload[`category_id`] = category_id;
         }
@@ -2745,6 +2936,13 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/product_categories/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (category_id !== undefined) {
           _payload[`category_id`] = category_id;
         }
@@ -2820,6 +3018,13 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entities`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -2827,7 +3032,7 @@ products
           _payload[`image`] = image;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2923,6 +3128,13 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entities/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -2930,7 +3142,7 @@ products
           _payload[`image`] = image;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -3000,14 +3212,21 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entity_records`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (attribute_values !== undefined) {
-          _payload[`attribute_values`] = JSON.parse(attribute_values);
+          _payload[`attribute_values`] = resolveBodyParam(attribute_values);
         }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (reference_entity_id !== undefined) {
           _payload[`reference_entity_id`] = reference_entity_id;
@@ -3107,14 +3326,21 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entity_records/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (attribute_values !== undefined) {
-          _payload[`attribute_values`] = JSON.parse(attribute_values);
+          _payload[`attribute_values`] = resolveBodyParam(attribute_values);
         }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (reference_entity_id !== undefined) {
           _payload[`reference_entity_id`] = reference_entity_id;
@@ -3226,11 +3452,18 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (attribute_values !== undefined) {
-          _payload[`attribute_values`] = JSON.parse(attribute_values);
+          _payload[`attribute_values`] = resolveBodyParam(attribute_values);
         }
         if (completeness !== undefined) {
-          _payload[`completeness`] = JSON.parse(completeness);
+          _payload[`completeness`] = resolveBodyParam(completeness);
         }
         if (deleted_at !== undefined) {
           _payload[`deleted_at`] = deleted_at;
@@ -3251,7 +3484,7 @@ products
           _payload[`parent_id`] = parent_id;
         }
         if (quantified_associations !== undefined) {
-          _payload[`quantified_associations`] = JSON.parse(quantified_associations);
+          _payload[`quantified_associations`] = resolveBodyParam(quantified_associations);
         }
         if (sku !== undefined) {
           _payload[`sku`] = sku;

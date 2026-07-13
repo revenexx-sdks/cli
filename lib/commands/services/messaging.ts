@@ -1,9 +1,11 @@
 import { Command } from "commander";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
   actionRunner,
   commandDescriptions,
+  cliConfig,
   parse,
   parseBool,
   parseInteger,
@@ -101,6 +103,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/messages/email`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (attachments !== undefined) {
           _payload[`attachments`] = attachments;
         }
@@ -188,6 +197,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/messages/email/{messageId}`.replace(`{messageId}`, messageId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (attachments !== undefined) {
           _payload[`attachments`] = attachments;
         }
@@ -284,6 +300,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/messages/push`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (action !== undefined) {
           _payload[`action`] = action;
         }
@@ -303,7 +326,7 @@ messaging
           _payload[`critical`] = critical;
         }
         if (data !== undefined) {
-          _payload[`data`] = JSON.parse(data);
+          _payload[`data`] = resolveBodyParam(data);
         }
         if (draft !== undefined) {
           _payload[`draft`] = draft;
@@ -404,6 +427,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/messages/push/{messageId}`.replace(`{messageId}`, messageId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (action !== undefined) {
           _payload[`action`] = action;
         }
@@ -423,7 +453,7 @@ messaging
           _payload[`critical`] = critical;
         }
         if (data !== undefined) {
-          _payload[`data`] = JSON.parse(data);
+          _payload[`data`] = resolveBodyParam(data);
         }
         if (draft !== undefined) {
           _payload[`draft`] = draft;
@@ -694,6 +724,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/mailgun`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (apiKey !== undefined) {
           _payload[`apiKey`] = apiKey;
         }
@@ -773,6 +810,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/mailgun/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (apiKey !== undefined) {
           _payload[`apiKey`] = apiKey;
         }
@@ -841,6 +885,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/msg91`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (authKey !== undefined) {
           _payload[`authKey`] = authKey;
         }
@@ -899,6 +950,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/msg91/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (authKey !== undefined) {
           _payload[`authKey`] = authKey;
         }
@@ -957,6 +1015,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/resend`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (apiKey !== undefined) {
           _payload[`apiKey`] = apiKey;
         }
@@ -1023,6 +1088,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/resend/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (apiKey !== undefined) {
           _payload[`apiKey`] = apiKey;
         }
@@ -1087,6 +1159,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/sendgrid`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (apiKey !== undefined) {
           _payload[`apiKey`] = apiKey;
         }
@@ -1153,6 +1232,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/sendgrid/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (apiKey !== undefined) {
           _payload[`apiKey`] = apiKey;
         }
@@ -1215,6 +1301,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/telesign`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (apiKey !== undefined) {
           _payload[`apiKey`] = apiKey;
         }
@@ -1273,6 +1366,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/telesign/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (apiKey !== undefined) {
           _payload[`apiKey`] = apiKey;
         }
@@ -1329,6 +1429,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/textmagic`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (apiKey !== undefined) {
           _payload[`apiKey`] = apiKey;
         }
@@ -1387,6 +1494,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/textmagic/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (apiKey !== undefined) {
           _payload[`apiKey`] = apiKey;
         }
@@ -1443,6 +1557,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/twilio`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (accountSid !== undefined) {
           _payload[`accountSid`] = accountSid;
         }
@@ -1501,6 +1622,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/twilio/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (accountSid !== undefined) {
           _payload[`accountSid`] = accountSid;
         }
@@ -1557,6 +1685,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/vonage`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (apiKey !== undefined) {
           _payload[`apiKey`] = apiKey;
         }
@@ -1615,6 +1750,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/providers/vonage/{providerId}`.replace(`{providerId}`, providerId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (apiKey !== undefined) {
           _payload[`apiKey`] = apiKey;
         }
@@ -1849,6 +1991,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/topics`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (name !== undefined) {
           _payload[`name`] = name;
         }
@@ -1951,6 +2100,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/topics/{topicId}`.replace(`{topicId}`, topicId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (name !== undefined) {
           _payload[`name`] = name;
         }
@@ -2081,6 +2237,13 @@ messaging
         const _client = await sdkForProject();
         const _apiPath = `/messaging/topics/{topicId}/subscribers`.replace(`{topicId}`, topicId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (subscriberId !== undefined) {
           _payload[`subscriberId`] = subscriberId;
         }

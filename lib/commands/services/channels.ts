@@ -1,9 +1,11 @@
 import { Command } from "commander";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
   actionRunner,
   commandDescriptions,
+  cliConfig,
   parse,
   parseBool,
   parseInteger,
@@ -85,6 +87,13 @@ channels
         const _client = await sdkForProject();
         const _apiPath = `/channels`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -92,7 +101,7 @@ channels
           _payload[`is_default`] = is_default;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -231,6 +240,13 @@ channels
         const _client = await sdkForProject();
         const _apiPath = `/channels/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -238,7 +254,7 @@ channels
           _payload[`is_default`] = is_default;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (name !== undefined) {
           _payload[`name`] = name;

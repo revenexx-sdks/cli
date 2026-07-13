@@ -1,10 +1,12 @@
 import { Command } from "commander";
 import { resolveFileParam } from "../utils/deployment.js";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
   actionRunner,
   commandDescriptions,
+  cliConfig,
   parse,
   parseBool,
   parseInteger,
@@ -114,6 +116,13 @@ sites
         const _client = await sdkForProject();
         const _apiPath = `/sites`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (adapter !== undefined) {
           _payload[`adapter`] = adapter;
         }
@@ -337,6 +346,13 @@ sites
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (adapter !== undefined) {
           _payload[`adapter`] = adapter;
         }
@@ -420,6 +436,13 @@ sites
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/deployment`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (deploymentId !== undefined) {
           _payload[`deploymentId`] = deploymentId;
         }
@@ -507,6 +530,13 @@ sites
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/deployments`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (activate !== undefined) {
           _payload[`activate`] = activate;
         }
@@ -554,6 +584,13 @@ sites
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/deployments/duplicate`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (deploymentId !== undefined) {
           _payload[`deploymentId`] = deploymentId;
         }
@@ -605,6 +642,13 @@ Use this endpoint with combination of [listTemplates](https://appwrite.io/docs/p
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/deployments/template`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (activate !== undefined) {
           _payload[`activate`] = activate;
         }
@@ -665,6 +709,13 @@ This endpoint lets you create deployment from a branch, commit, or a tag.`)
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/deployments/vcs`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (activate !== undefined) {
           _payload[`activate`] = activate;
         }
@@ -985,6 +1036,13 @@ sites
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/variables`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (key !== undefined) {
           _payload[`key`] = key;
         }
@@ -1100,6 +1158,13 @@ sites
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/variables/{variableId}`.replace(`{siteId}`, siteId).replace(`{variableId}`, variableId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (key !== undefined) {
           _payload[`key`] = key;
         }

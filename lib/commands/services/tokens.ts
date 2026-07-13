@@ -1,9 +1,11 @@
 import { Command } from "commander";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
   actionRunner,
   commandDescriptions,
+  cliConfig,
   parse,
   parseBool,
 } from "../../parser.js";
@@ -86,6 +88,13 @@ tokens
         const _client = await sdkForProject();
         const _apiPath = `/tokens/buckets/{bucketId}/files/{fileId}`.replace(`{bucketId}`, bucketId).replace(`{fileId}`, fileId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (expire !== undefined) {
           _payload[`expire`] = expire;
         }
@@ -181,6 +190,13 @@ tokens
         const _client = await sdkForProject();
         const _apiPath = `/tokens/{tokenId}`.replace(`{tokenId}`, tokenId);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (expire !== undefined) {
           _payload[`expire`] = expire;
         }

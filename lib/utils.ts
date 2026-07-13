@@ -49,6 +49,48 @@ export function compareVersions(current: string, latest: string): number {
   return 0; // Same version
 }
 
+/**
+ * Resolve a `--data`-style body argument into a parsed JSON value. Accepts an
+ * inline JSON string, `@path/to/file.json` to read the body from a file, or `-`
+ * to read the whole of stdin — enabling round-trips such as
+ * `… get -o json > body.json` → edit → `… update --data @body.json`.
+ *
+ * Throws a clear, user-facing error when the file can't be read or the payload
+ * isn't valid JSON.
+ */
+export function resolveBodyParam(value: string): unknown {
+  let raw: string;
+  if (value === "-") {
+    // fd 0 = stdin; blocks until EOF, which is the expected behavior for a pipe.
+    raw = fs.readFileSync(0, "utf8");
+  } else if (value.startsWith("@")) {
+    const filePath = value.slice(1);
+    try {
+      raw = fs.readFileSync(filePath, "utf8");
+    } catch (error) {
+      throw new Error(
+        `Could not read --data file '${filePath}': ${getErrorMessage(error)}`,
+      );
+    }
+  } else {
+    raw = value;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    const source =
+      value === "-"
+        ? "stdin"
+        : value.startsWith("@")
+          ? `file '${value.slice(1)}'`
+          : "inline --data";
+    throw new Error(
+      `Invalid JSON body from ${source}: ${getErrorMessage(error)}`,
+    );
+  }
+}
+
 export function getAllFiles(folder: string): string[] {
   const files: string[] = [];
   for (const pathDir of fs.readdirSync(folder)) {

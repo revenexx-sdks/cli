@@ -1,9 +1,11 @@
 import { Command } from "commander";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
   actionRunner,
   commandDescriptions,
+  cliConfig,
   parse,
   parseInteger,
 } from "../../parser.js";
@@ -78,17 +80,24 @@ forms
         const _client = await sdkForProject();
         const _apiPath = `/forms`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (definition !== undefined) {
           _payload[`definition`] = definition;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (name !== undefined) {
           _payload[`name`] = name;
         }
         if (settings !== undefined) {
-          _payload[`settings`] = JSON.parse(settings);
+          _payload[`settings`] = resolveBodyParam(settings);
         }
         if (slug !== undefined) {
           _payload[`slug`] = slug;
@@ -189,8 +198,15 @@ forms
         const _client = await sdkForProject();
         const _apiPath = `/forms/submissions`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (data !== undefined) {
-          _payload[`data`] = JSON.parse(data);
+          _payload[`data`] = resolveBodyParam(data);
         }
         if (form_id !== undefined) {
           _payload[`form_id`] = form_id;
@@ -199,7 +215,7 @@ forms
           _payload[`form_slug`] = form_slug;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (source !== undefined) {
           _payload[`source`] = source;
@@ -304,8 +320,15 @@ forms
         const _client = await sdkForProject();
         const _apiPath = `/forms/submissions/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (data !== undefined) {
-          _payload[`data`] = JSON.parse(data);
+          _payload[`data`] = resolveBodyParam(data);
         }
         if (form_id !== undefined) {
           _payload[`form_id`] = form_id;
@@ -314,7 +337,7 @@ forms
           _payload[`form_slug`] = form_slug;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (source !== undefined) {
           _payload[`source`] = source;
@@ -419,17 +442,24 @@ forms
         const _client = await sdkForProject();
         const _apiPath = `/forms/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (definition !== undefined) {
           _payload[`definition`] = definition;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (name !== undefined) {
           _payload[`name`] = name;
         }
         if (settings !== undefined) {
-          _payload[`settings`] = JSON.parse(settings);
+          _payload[`settings`] = resolveBodyParam(settings);
         }
         if (slug !== undefined) {
           _payload[`slug`] = slug;

@@ -1,9 +1,11 @@
 import { Command } from "commander";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
   actionRunner,
   commandDescriptions,
+  cliConfig,
   parse,
   parseInteger,
 } from "../../parser.js";
@@ -120,6 +122,13 @@ search
         const _client = await sdkForProject();
         const _apiPath = `/search/collections/{collection}/documents/search`.replace(`{collection}`, collection);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (facet_by !== undefined) {
           _payload[`facet_by`] = facet_by;
         }
@@ -203,6 +212,13 @@ search
         const _client = await sdkForProject();
         const _apiPath = `/search/multi_search`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (searches !== undefined) {
           _payload[`searches`] = searches;
         }

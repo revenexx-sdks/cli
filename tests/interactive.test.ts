@@ -43,6 +43,7 @@ beforeEach(() => {
   promptMock.mockReset();
   callMock.mockReset();
   cliConfig.json = false;
+  cliConfig.output = "table";
   cliConfig.force = false;
   setTTY(false);
 });
@@ -60,14 +61,25 @@ describe("isInteractive", () => {
     expect(isInteractive()).toBe(false);
   });
 
-  it("is true with TTY stdin/stdout and no --json", () => {
+  it("is true with TTY stdin/stdout", () => {
     setTTY(true);
     expect(isInteractive()).toBe(true);
   });
 
-  it("is false when --json is active, even on a TTY", () => {
+  it("stays interactive on a TTY regardless of output format", () => {
+    // Interactivity keys off the streams, not the format, so --json/--csv/--yaml
+    // all prompt on a terminal. Piping (non-TTY) is what suppresses prompts and
+    // keeps machine output byte-stable.
     setTTY(true);
     cliConfig.json = true;
+    cliConfig.output = "json";
+    expect(isInteractive()).toBe(true);
+  });
+
+  it("is false when piped, even with a format flag", () => {
+    setTTY(false);
+    cliConfig.json = true;
+    cliConfig.output = "json";
     expect(isInteractive()).toBe(false);
   });
 });

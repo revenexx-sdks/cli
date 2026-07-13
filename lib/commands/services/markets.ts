@@ -1,9 +1,11 @@
 import { Command } from "commander";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
   actionRunner,
   commandDescriptions,
+  cliConfig,
   parse,
   parseBool,
   parseInteger,
@@ -85,6 +87,13 @@ markets
         const _client = await sdkForProject();
         const _apiPath = `/markets`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -95,7 +104,7 @@ markets
           _payload[`is_default`] = is_default;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -209,6 +218,13 @@ markets
         const _client = await sdkForProject();
         const _apiPath = `/markets/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -219,7 +235,7 @@ markets
           _payload[`is_default`] = is_default;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -341,6 +357,13 @@ markets
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/currencies`.replace(`{market_id}`, market_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -455,6 +478,13 @@ markets
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/currencies/{id}`.replace(`{market_id}`, market_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -549,6 +579,13 @@ markets
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/locales`.replace(`{market_id}`, market_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -671,6 +708,13 @@ markets
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/locales/{id}`.replace(`{market_id}`, market_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -771,6 +815,13 @@ markets
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/tax_classes`.replace(`{market_id}`, market_id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -778,7 +829,7 @@ markets
           _payload[`is_default`] = is_default;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -897,6 +948,13 @@ markets
         const _client = await sdkForProject();
         const _apiPath = `/markets/{market_id}/tax_classes/{id}`.replace(`{market_id}`, market_id).replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -904,7 +962,7 @@ markets
           _payload[`is_default`] = is_default;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (name !== undefined) {
           _payload[`name`] = name;

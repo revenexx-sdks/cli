@@ -692,6 +692,8 @@ class Global extends Config<GlobalConfigData> {
   static PREFERENCE_REFRESH_TOKEN = "refreshToken" as const;
   static PREFERENCE_JWT_EXPIRES = "jwtExpiresAt" as const;
   static PREFERENCE_AUTH_METHOD = "authMethod" as const;
+  static PREFERENCE_ALIASES = "aliases" as const;
+  static PREFERENCE_SENSITIVE_TENANTS = "sensitiveTenants" as const;
 
   static IGNORE_ATTRIBUTES: readonly string[] = [
     Global.PREFERENCE_CURRENT,
@@ -706,6 +708,8 @@ class Global extends Config<GlobalConfigData> {
     Global.PREFERENCE_REFRESH_TOKEN,
     Global.PREFERENCE_JWT_EXPIRES,
     Global.PREFERENCE_AUTH_METHOD,
+    Global.PREFERENCE_ALIASES,
+    Global.PREFERENCE_SENSITIVE_TENANTS,
   ];
 
   static MODE_ADMIN = "admin";
@@ -897,6 +901,54 @@ class Global extends Config<GlobalConfigData> {
 
   setAuthMethod(authMethod: string): void {
     this.setTo(Global.PREFERENCE_AUTH_METHOD, authMethod);
+  }
+
+  /**
+   * User-defined command aliases (git-style), keyed by alias name. These are
+   * machine-wide rather than session-scoped, so they live at the top level of
+   * prefs.json (and are excluded from the session list via IGNORE_ATTRIBUTES).
+   */
+  getAliases(): Record<string, string> {
+    const aliases = this.get(Global.PREFERENCE_ALIASES) as
+      | Record<string, string>
+      | undefined;
+    return aliases ?? {};
+  }
+
+  setAlias(name: string, expansion: string): void {
+    const aliases = this.getAliases();
+    aliases[name] = expansion;
+    this.set(Global.PREFERENCE_ALIASES, aliases);
+  }
+
+  removeAlias(name: string): boolean {
+    const aliases = this.getAliases();
+    if (!(name in aliases)) {
+      return false;
+    }
+    delete aliases[name];
+    this.set(Global.PREFERENCE_ALIASES, aliases);
+    return true;
+  }
+
+  /**
+   * Tenant slugs the user has flagged as sensitive, so the context banner
+   * (lib/parser.ts) renders its prominent production warning for them even
+   * when the endpoint alone wouldn't trigger it. Machine-wide, top-level.
+   */
+  getSensitiveTenants(): string[] {
+    const tenants = this.get(Global.PREFERENCE_SENSITIVE_TENANTS) as
+      | string[]
+      | undefined;
+    return Array.isArray(tenants) ? tenants : [];
+  }
+
+  setSensitiveTenants(tenants: string[]): void {
+    // Normalise: trim, drop blanks, de-duplicate, keep a stable order.
+    const cleaned = Array.from(
+      new Set(tenants.map((t) => t.trim()).filter((t) => t !== "")),
+    );
+    this.set(Global.PREFERENCE_SENSITIVE_TENANTS, cleaned);
   }
 
   hasFrom(key: string): boolean {

@@ -1,9 +1,11 @@
 import { Command } from "commander";
+import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
   actionRunner,
   commandDescriptions,
+  cliConfig,
   parse,
   parseBool,
   parseInteger,
@@ -83,6 +85,13 @@ payments
         const _client = await sdkForProject();
         const _apiPath = `/payments`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (amount !== undefined) {
           _payload[`amount`] = amount;
         }
@@ -102,7 +111,7 @@ payments
           _payload[`idempotency_key`] = idempotency_key;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (method_code !== undefined) {
           _payload[`method_code`] = method_code;
@@ -198,6 +207,13 @@ payments
         const _client = await sdkForProject();
         const _apiPath = `/payments/methods`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -223,13 +239,13 @@ payments
           _payload[`kind`] = kind;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (max_order_value !== undefined) {
           _payload[`max_order_value`] = max_order_value;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (min_order_value !== undefined) {
           _payload[`min_order_value`] = min_order_value;
@@ -293,6 +309,13 @@ payments
         const _client = await sdkForProject();
         const _apiPath = `/payments/methods/eligible`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (amount !== undefined) {
           _payload[`amount`] = amount;
         }
@@ -414,6 +437,13 @@ payments
         const _client = await sdkForProject();
         const _apiPath = `/payments/methods/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
@@ -439,13 +469,13 @@ payments
           _payload[`kind`] = kind;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = JSON.parse(labels);
+          _payload[`labels`] = resolveBodyParam(labels);
         }
         if (max_order_value !== undefined) {
           _payload[`max_order_value`] = max_order_value;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = JSON.parse(metadata);
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (min_order_value !== undefined) {
           _payload[`min_order_value`] = min_order_value;
@@ -542,8 +572,15 @@ payments
         const _client = await sdkForProject();
         const _apiPath = `/payments/providers`;
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (credentials !== undefined) {
-          _payload[`credentials`] = JSON.parse(credentials);
+          _payload[`credentials`] = resolveBodyParam(credentials);
         }
         if (enabled !== undefined) {
           _payload[`enabled`] = enabled;
@@ -552,7 +589,7 @@ payments
           _payload[`name`] = name;
         }
         if (options !== undefined) {
-          _payload[`options`] = JSON.parse(options);
+          _payload[`options`] = resolveBodyParam(options);
         }
         if (provider !== undefined) {
           _payload[`provider`] = provider;
@@ -693,8 +730,15 @@ payments
         const _client = await sdkForProject();
         const _apiPath = `/payments/providers/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
         if (credentials !== undefined) {
-          _payload[`credentials`] = JSON.parse(credentials);
+          _payload[`credentials`] = resolveBodyParam(credentials);
         }
         if (enabled !== undefined) {
           _payload[`enabled`] = enabled;
@@ -703,7 +747,7 @@ payments
           _payload[`name`] = name;
         }
         if (options !== undefined) {
-          _payload[`options`] = JSON.parse(options);
+          _payload[`options`] = resolveBodyParam(options);
         }
         if (provider !== undefined) {
           _payload[`provider`] = provider;
@@ -747,7 +791,7 @@ payments
         const _apiPath = `/payments/webhooks/{provider}`.replace(`{provider}`, provider);
         const _payload: RequestParams = {};
         if (data !== undefined) {
-          Object.assign(_payload, JSON.parse(data));
+          Object.assign(_payload, resolveBodyParam(data));
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

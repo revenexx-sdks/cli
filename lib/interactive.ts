@@ -38,12 +38,16 @@ export interface PromptSpec {
 }
 
 /**
- * Prompting is reserved for humans at a terminal: both stdin and stdout must
- * be TTYs, and `--json` output must stay byte-stable for pipes even when the
- * streams are interactive.
+ * Prompting is reserved for humans at a terminal: both stdin and stdout must be
+ * TTYs. This keys off the streams alone, not the output format, so every format
+ * behaves the same — `--json`/`--csv`/`--yaml` all prompt on a terminal and all
+ * fail fast when piped. Machine-readable output stays byte-stable regardless:
+ * redirecting stdout (`> file`, `| jq`) makes it a non-TTY, which suppresses
+ * prompts, and the interactive prompt chrome renders to the TTY and is cleared
+ * before the final payload is written.
  */
 export const isInteractive = (): boolean =>
-  Boolean(process.stdin.isTTY && process.stdout.isTTY) && !cliConfig.json;
+  Boolean(process.stdin.isTTY && process.stdout.isTTY);
 
 /** Longest description rendered inline in a prompt message. */
 const MESSAGE_MAX = 70;
