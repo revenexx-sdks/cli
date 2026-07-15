@@ -1,3 +1,6 @@
+## v0.1.1
+- add --global flag to skills
+
 ## v0.1.0
 - skills; scaffolding; interactive REPL mode; cli is fully searchable now; 
 

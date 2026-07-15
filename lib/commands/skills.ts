@@ -4,6 +4,7 @@ import { unzipSync } from "fflate";
 import inquirer from "inquirer";
 import * as fs from "fs";
 import * as path from "path";
+import os from "os";
 import {
   actionRunner,
   commandDescriptions,
@@ -35,8 +36,20 @@ const DEFAULT_AGENT = "claude";
 /** Agent -> project-relative directory the skill bundle is unpacked into. */
 const AGENT_TARGETS: Record<string, string> = {
   "claude": ".claude/skills",
-  "opencode": ".opencode/skill",
+  "opencode": ".opencode/skills",
   "copilot": ".github/skills",
+};
+
+/**
+ * Agent -> home-relative directory for a global (cross-project) install.
+ * Joined onto os.homedir() when --global is set. Note these need not match the
+ * project-relative AGENT_TARGETS bases (e.g. opencode's global config lives
+ * under ~/.config/opencode, not ~/.opencode).
+ */
+const AGENT_GLOBAL_TARGETS: Record<string, string> = {
+  "claude": ".claude/skills",
+  "opencode": ".config/opencode/skills",
+  "copilot": ".copilot/skills",
 };
 
 /**
@@ -166,11 +179,36 @@ interface InstallStatus {
   outdated: boolean;
 }
 
-/** Resolve where an agent unpacks the given skill, or `null` for an unknown agent. */
-const skillTargetDir = (agent: string, name: string): string | null => {
-  const targetBase = AGENT_TARGETS[agent];
+/**
+ * Pick the target-directory base for an agent — the global (home-relative) map
+ * when `global`, else the project-relative one — throwing if the agent is
+ * unknown for that scope.
+ */
+const resolveTargetBase = (agent: string, global: boolean): string => {
+  const targets = global ? AGENT_GLOBAL_TARGETS : AGENT_TARGETS;
+  const targetBase = targets[agent];
+  if (!targetBase) {
+    throw new Error(
+      `Unknown agent '${agent}'. Supported: ${Object.keys(targets).join(", ")}.`,
+    );
+  }
+  return targetBase;
+};
+
+/**
+ * Resolve where an agent unpacks the given skill, or `null` for an unknown
+ * agent. With `global`, the path is rooted at the user's home directory
+ * (cross-project); otherwise it is relative to the current project.
+ */
+const skillTargetDir = (
+  agent: string,
+  name: string,
+  global = false,
+): string | null => {
+  const targetBase = (global ? AGENT_GLOBAL_TARGETS : AGENT_TARGETS)[agent];
   if (!targetBase) return null;
-  return path.join(process.cwd(), targetBase, name);
+  const root = global ? os.homedir() : process.cwd();
+  return path.join(root, targetBase, name);
 };
 
 /**
@@ -196,8 +234,12 @@ const readSkillVersion = (skillFilePath: string): string | undefined => {
  * `agent` and, comparing the SKILL.md frontmatter version against the
  * registry's latest, whether the installed copy is outdated.
  */
-const readInstallStatus = (agent: string, skill: SkillListItem): InstallStatus => {
-  const targetDir = skillTargetDir(agent, skill.name);
+const readInstallStatus = (
+  agent: string,
+  skill: SkillListItem,
+  global = false,
+): InstallStatus => {
+  const targetDir = skillTargetDir(agent, skill.name, global);
   if (!targetDir || !fs.existsSync(targetDir)) {
     return { installed: false, outdated: false };
   }
@@ -291,6 +333,10 @@ skills
     `Agent whose install directory the 'Installed' column reflects: ${Object.keys(AGENT_TARGETS).join(", ")}`,
     DEFAULT_AGENT,
   )
+  .option(
+    "--global",
+    "Reflect the agent's global (~/) skill directory instead of the project one",
+  )
   .option("--skills-endpoint <url>", "Override the Skill Registry base URL")
   .action(
     actionRunner(
@@ -299,19 +345,17 @@ skills
         category,
         tag,
         agent,
+        global,
         skillsEndpoint,
       }: {
         search?: string;
         category?: string;
         tag?: string[];
         agent: string;
+        global?: boolean;
         skillsEndpoint?: string;
       }) => {
-        if (!AGENT_TARGETS[agent]) {
-          throw new Error(
-            `Unknown agent '${agent}'. Supported: ${Object.keys(AGENT_TARGETS).join(", ")}.`,
-          );
-        }
+        resolveTargetBase(agent, !!global);
 
         const endpoint = resolveSkillsEndpoint(skillsEndpoint);
         // The registry filters server-side: `q` searches
@@ -326,7 +370,7 @@ skills
         if (cliConfig.json) {
           drawJSON(
             items.map((skill) => {
-              const status = readInstallStatus(agent, skill);
+              const status = readInstallStatus(agent, skill, !!global);
               return {
                 ...skill,
                 installed: status.installed,
@@ -352,7 +396,7 @@ skills
             Category: skill.category,
             Latest: skill.latest_version,
             Installed: formatInstallStatus(
-              readInstallStatus(agent, skill),
+              readInstallStatus(agent, skill, !!global),
               skill.latest_version,
             ),
           })),
@@ -374,6 +418,10 @@ skills
     `Agent whose install directory the 'Installed' line reflects: ${Object.keys(AGENT_TARGETS).join(", ")}`,
     DEFAULT_AGENT,
   )
+  .option(
+    "--global",
+    "Reflect the agent's global (~/) skill directory instead of the project one",
+  )
   .option("--skills-endpoint <url>", "Override the Skill Registry base URL")
   .action(
     actionRunner(
@@ -383,14 +431,16 @@ skills
         {
           readme,
           agent,
+          global,
           skillsEndpoint,
-        }: { readme?: boolean; agent: string; skillsEndpoint?: string },
+        }: {
+          readme?: boolean;
+          agent: string;
+          global?: boolean;
+          skillsEndpoint?: string;
+        },
       ) => {
-        if (!AGENT_TARGETS[agent]) {
-          throw new Error(
-            `Unknown agent '${agent}'. Supported: ${Object.keys(AGENT_TARGETS).join(", ")}.`,
-          );
-        }
+        resolveTargetBase(agent, !!global);
 
         const endpoint = resolveSkillsEndpoint(skillsEndpoint);
 
@@ -490,7 +540,7 @@ skills
           Authors: authors.join(", "),
           "Latest version": skill.latest_version,
           Installed: formatInstallStatus(
-            readInstallStatus(agent, skill),
+            readInstallStatus(agent, skill, !!global),
             skill.latest_version,
           ),
           Source: skill.source_url ?? "",
@@ -515,6 +565,10 @@ skills
     DEFAULT_AGENT,
   )
   .option("--version <version>", "Skill version to install (defaults to latest)")
+  .option(
+    "--global",
+    "Install into the agent's global (~/) skill directory instead of the project",
+  )
   .option("--skills-endpoint <url>", "Override the Skill Registry base URL")
   .action(
     actionRunner(
@@ -524,17 +578,18 @@ skills
         {
           agent,
           version,
+          global,
           skillsEndpoint,
-        }: { agent: string; version?: string; skillsEndpoint?: string },
+        }: {
+          agent: string;
+          version?: string;
+          global?: boolean;
+          skillsEndpoint?: string;
+        },
       ) => {
         const { vendor, repoName } = parseRepo(repo);
 
-        const targetBase = AGENT_TARGETS[agent];
-        if (!targetBase) {
-          throw new Error(
-            `Unknown agent '${agent}'. Supported: ${Object.keys(AGENT_TARGETS).join(", ")}.`,
-          );
-        }
+        const targetBase = resolveTargetBase(agent, !!global);
 
         const endpoint = resolveSkillsEndpoint(skillsEndpoint);
         const skillPath = `/api/v1/skills/${encodeURIComponent(vendor)}/${encodeURIComponent(repoName)}/${encodeURIComponent(name)}`;
@@ -583,8 +638,10 @@ skills
         const buffer = new Uint8Array(await downloadResponse.arrayBuffer());
         const entries = unzipSync(buffer);
 
-        // Target directory is project-relative and named after the skill.
-        const targetDir = path.join(process.cwd(), targetBase, name);
+        // Target directory is named after the skill — rooted at the user's home
+        // directory for a global install, else relative to the current project.
+        const root = global ? os.homedir() : process.cwd();
+        const targetDir = path.join(root, targetBase, name);
         const isUpdate = fs.existsSync(targetDir);
         if (isUpdate) {
           fs.rmSync(targetDir, { recursive: true, force: true });
@@ -598,7 +655,11 @@ skills
           fs.writeFileSync(destination, contents);
         }
 
-        const relDir = path.relative(process.cwd(), targetDir) || targetDir;
+        // For a global install show the absolute path; project installs stay
+        // relative to the cwd for a concise message.
+        const relDir = global
+          ? targetDir
+          : path.relative(process.cwd(), targetDir) || targetDir;
         if (isUpdate) {
           success(
             `Updated ${name}@${resolvedVersion} in ${relDir} (agent: ${agent})`,
