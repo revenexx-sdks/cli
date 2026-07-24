@@ -1,5 +1,5 @@
 ```bash
 revenexx messaging create-textmagic-provider \
-    --name '' \
-    --provider-id ''
+    --name Sample name \
+    --provider-id sample-id
 ```

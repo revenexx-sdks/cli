@@ -11,6 +11,8 @@ import {
 import {
   confirmDestructive,
   promptForMissing,
+  type PromptSpec,
+  registerPromptSpecs,
 } from "../../interactive.js";
 
 export const greetings = new Command("greetings")
@@ -44,15 +46,36 @@ greetings
       },
     ),
   );
+const listSpecs: PromptSpec[] = [
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 greetings
   .command(`list`)
   .description(`List greetings with filtering (locale, name, q) and pagination (limit, offset, order)`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async () => {
+      async (_options, _command) => {
+        const { filter } = await promptForMissing(
+          _options,
+          listSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/greetings`;
         const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -66,6 +89,11 @@ greetings
       },
     ),
   );
+registerPromptSpecs(greetings.commands.at(-1)!, listSpecs, { method: "get" });
+const createSpecs: PromptSpec[] = [
+  { key: "name", option: "--name <name>", name: "name", description: "Who to greet", type: "string", required: true },
+  { key: "locale", option: "--locale <locale>", name: "locale", description: "BCP-47 locale", type: "string", required: false, default: "en" },
+];
 greetings
   .command(`create`)
   .description(`Create a greeting and return the rendered message`)
@@ -76,9 +104,7 @@ greetings
       async (_options, _command) => {
         const { name, locale } = await promptForMissing(
           _options,
-          [
-            { key: "name", option: "--name <name>", name: "name", description: "Who to greet", type: "string", required: true },
-          ],
+          createSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -110,6 +136,10 @@ greetings
       },
     ),
   );
+registerPromptSpecs(greetings.commands.at(-1)!, createSpecs, { method: "post" });
+const deleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/greetings", hasLimit: false } },
+];
 greetings
   .command(`delete`)
   .description(`Delete a greeting by id`)
@@ -119,9 +149,7 @@ greetings
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/greetings", hasLimit: false } },
-          ],
+          deleteSpecs,
           _command,
         );
         await confirmDestructive(`greetings delete`);
@@ -141,6 +169,10 @@ greetings
       },
     ),
   );
+registerPromptSpecs(greetings.commands.at(-1)!, deleteSpecs, { method: "delete", destructive: true });
+const getSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/greetings", hasLimit: false } },
+];
 greetings
   .command(`get`)
   .description(`Read a single greeting by id`)
@@ -150,9 +182,7 @@ greetings
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/greetings", hasLimit: false } },
-          ],
+          getSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -171,6 +201,14 @@ greetings
       },
     ),
   );
+registerPromptSpecs(greetings.commands.at(-1)!, getSpecs, { method: "get" });
+const updateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/greetings", hasLimit: false } },
+  { key: "locale", option: "--locale <locale>", name: "locale", type: "string", required: false },
+  { key: "message", option: "--message <message>", name: "message", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", type: "object", required: false },
+  { key: "name", option: "--name <name>", name: "name", type: "string", required: false },
+];
 greetings
   .command(`update`)
   .description(`Update a greeting by id`)
@@ -184,9 +222,7 @@ greetings
       async (_options, _command) => {
         const { id, locale, message, metadata, name } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/greetings", hasLimit: false } },
-          ],
+          updateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -224,3 +260,4 @@ greetings
       },
     ),
   );
+registerPromptSpecs(greetings.commands.at(-1)!, updateSpecs, { method: "put" });

@@ -1,4 +1,4 @@
 ```bash
 revenexx messaging get-message \
-    --message-id ''
+    --message-id sample-id
 ```

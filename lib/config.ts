@@ -694,6 +694,7 @@ class Global extends Config<GlobalConfigData> {
   static PREFERENCE_AUTH_METHOD = "authMethod" as const;
   static PREFERENCE_ALIASES = "aliases" as const;
   static PREFERENCE_SENSITIVE_TENANTS = "sensitiveTenants" as const;
+  static PREFERENCE_THEME = "theme" as const;
 
   static IGNORE_ATTRIBUTES: readonly string[] = [
     Global.PREFERENCE_CURRENT,
@@ -710,6 +711,7 @@ class Global extends Config<GlobalConfigData> {
     Global.PREFERENCE_AUTH_METHOD,
     Global.PREFERENCE_ALIASES,
     Global.PREFERENCE_SENSITIVE_TENANTS,
+    Global.PREFERENCE_THEME,
   ];
 
   static MODE_ADMIN = "admin";

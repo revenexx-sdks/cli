@@ -1,4 +1,4 @@
 ```bash
 revenexx products categories-create \
-    --code ''
+    --code sample code
 ```

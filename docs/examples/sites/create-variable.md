@@ -1,6 +1,6 @@
 ```bash
 revenexx sites create-variable \
-    --site-id '' \
-    --key '' \
-    --value ''
+    --site-id sample-id \
+    --key sample key \
+    --value sample value
 ```

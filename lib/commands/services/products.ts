@@ -13,6 +13,8 @@ import {
 import {
   confirmDestructive,
   promptForMissing,
+  type PromptSpec,
+  registerPromptSpecs,
 } from "../../interactive.js";
 
 export const products = new Command("products")
@@ -24,15 +26,32 @@ export const products = new Command("products")
     helpWidth: process.stdout.columns || 80,
   });
 
+const listSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`list`)
   .description(`List products (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          listSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products`;
         const _payload: RequestParams = {};
@@ -44,6 +63,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -58,33 +84,45 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, listSpecs, { method: "get" });
+const createSpecs: PromptSpec[] = [
+  { key: "sku", option: "--sku <sku>", name: "sku", type: "string", required: true },
+  { key: "attributeValues", option: "--attribute-values <attribute-values>", name: "attribute_values", type: "object", required: false },
+  { key: "completeness", option: "--completeness <completeness>", name: "completeness", type: "object", required: false },
+  { key: "deletedAt", option: "--deleted-at <deleted-at>", name: "deleted_at", type: "string", required: false },
+  { key: "enabled", option: "--enabled <enabled>", name: "enabled", type: "boolean", required: false },
+  { key: "familyId", option: "--family-id <family-id>", name: "family_id", type: "string", required: false },
+  { key: "familyVariantId", option: "--family-variant-id <family-variant-id>", name: "family_variant_id", type: "string", required: false },
+  { key: "kind", option: "--kind <kind>", name: "kind", type: "string", required: false },
+  { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", type: "string", required: false },
+  { key: "quantifiedAssociations", option: "--quantified-associations <quantified-associations>", name: "quantified_associations", type: "object", required: false },
+  { key: "taxClass", option: "--tax-class <tax-class>", name: "tax_class", type: "string", required: false },
+];
 products
   .command(`create`)
   .description(`Create one of products`)
   .option(`--sku <sku>`, ``)
-  .option(`--attribute-_values <attribute-_values>`, ``)
+  .option(`--attribute-values <attribute-values>`, ``)
   .option(`--completeness <completeness>`, ``)
-  .option(`--deleted-_at <deleted-_at>`, ``)
+  .option(`--deleted-at <deleted-at>`, ``)
   .option(
     `--enabled [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
-  .option(`--family-_id <family-_id>`, ``)
-  .option(`--family-_variant-_id <family-_variant-_id>`, ``)
+  .option(`--family-id <family-id>`, ``)
+  .option(`--family-variant-id <family-variant-id>`, ``)
   .option(`--kind <kind>`, ``)
-  .option(`--parent-_id <parent-_id>`, ``)
-  .option(`--quantified-_associations <quantified-_associations>`, ``)
-  .option(`--tax-_class <tax-_class>`, ``)
+  .option(`--parent-id <parent-id>`, ``)
+  .option(`--quantified-associations <quantified-associations>`, ``)
+  .option(`--tax-class <tax-class>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { sku, attribute_values, completeness, deleted_at, enabled, family_id, family_variant_id, kind, parent_id, quantified_associations, tax_class } = await promptForMissing(
+        const { sku, attributeValues, completeness, deletedAt, enabled, familyId, familyVariantId, kind, parentId, quantifiedAssociations, taxClass } = await promptForMissing(
           _options,
-          [
-            { key: "sku", option: "--sku <sku>", name: "sku", type: "string", required: true },
-          ],
+          createSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -97,38 +135,38 @@ products
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (attribute_values !== undefined) {
-          _payload[`attribute_values`] = resolveBodyParam(attribute_values);
+        if (attributeValues !== undefined) {
+          _payload[`attribute_values`] = resolveBodyParam(attributeValues);
         }
         if (completeness !== undefined) {
           _payload[`completeness`] = resolveBodyParam(completeness);
         }
-        if (deleted_at !== undefined) {
-          _payload[`deleted_at`] = deleted_at;
+        if (deletedAt !== undefined) {
+          _payload[`deleted_at`] = deletedAt;
         }
         if (enabled !== undefined) {
           _payload[`enabled`] = enabled;
         }
-        if (family_id !== undefined) {
-          _payload[`family_id`] = family_id;
+        if (familyId !== undefined) {
+          _payload[`family_id`] = familyId;
         }
-        if (family_variant_id !== undefined) {
-          _payload[`family_variant_id`] = family_variant_id;
+        if (familyVariantId !== undefined) {
+          _payload[`family_variant_id`] = familyVariantId;
         }
         if (kind !== undefined) {
           _payload[`kind`] = kind;
         }
-        if (parent_id !== undefined) {
-          _payload[`parent_id`] = parent_id;
+        if (parentId !== undefined) {
+          _payload[`parent_id`] = parentId;
         }
-        if (quantified_associations !== undefined) {
-          _payload[`quantified_associations`] = resolveBodyParam(quantified_associations);
+        if (quantifiedAssociations !== undefined) {
+          _payload[`quantified_associations`] = resolveBodyParam(quantifiedAssociations);
         }
         if (sku !== undefined) {
           _payload[`sku`] = sku;
         }
-        if (tax_class !== undefined) {
-          _payload[`tax_class`] = tax_class;
+        if (taxClass !== undefined) {
+          _payload[`tax_class`] = taxClass;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -143,15 +181,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, createSpecs, { method: "post" });
+const assetFamiliesListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`asset-families-list`)
   .description(`List asset families (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          assetFamiliesListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/asset_families`;
         const _payload: RequestParams = {};
@@ -163,6 +219,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -177,20 +240,24 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, assetFamiliesListSpecs, { method: "get" });
+const assetFamiliesCreateSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+  { key: "namingConvention", option: "--naming-convention <naming-convention>", name: "naming_convention", type: "object", required: false },
+];
 products
   .command(`asset-families-create`)
   .description(`Create one of asset families`)
   .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
-  .option(`--naming-_convention <naming-_convention>`, ``)
+  .option(`--naming-convention <naming-convention>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, labels, naming_convention } = await promptForMissing(
+        const { code, labels, namingConvention } = await promptForMissing(
           _options,
-          [
-            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
-          ],
+          assetFamiliesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -209,8 +276,8 @@ products
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
         }
-        if (naming_convention !== undefined) {
-          _payload[`naming_convention`] = resolveBodyParam(naming_convention);
+        if (namingConvention !== undefined) {
+          _payload[`naming_convention`] = resolveBodyParam(namingConvention);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -225,6 +292,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, assetFamiliesCreateSpecs, { method: "post" });
+const assetFamiliesDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/asset_families", hasLimit: true } },
+];
 products
   .command(`asset-families-delete`)
   .description(`Delete one of asset families by id`)
@@ -234,9 +305,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/asset_families", hasLimit: true } },
-          ],
+          assetFamiliesDeleteSpecs,
           _command,
         );
         await confirmDestructive(`products asset-families-delete`);
@@ -256,6 +325,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, assetFamiliesDeleteSpecs, { method: "delete", destructive: true });
+const assetFamiliesGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/asset_families", hasLimit: true } },
+];
 products
   .command(`asset-families-get`)
   .description(`Read one of asset families by id`)
@@ -265,9 +338,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/asset_families", hasLimit: true } },
-          ],
+          assetFamiliesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -286,21 +357,26 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, assetFamiliesGetSpecs, { method: "get" });
+const assetFamiliesUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/asset_families", hasLimit: true } },
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+  { key: "namingConvention", option: "--naming-convention <naming-convention>", name: "naming_convention", type: "object", required: false },
+];
 products
   .command(`asset-families-update`)
   .description(`Update one of asset families by id`)
   .option(`--id <id>`, ``)
   .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
-  .option(`--naming-_convention <naming-_convention>`, ``)
+  .option(`--naming-convention <naming-convention>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, labels, naming_convention } = await promptForMissing(
+        const { id, code, labels, namingConvention } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/asset_families", hasLimit: true } },
-          ],
+          assetFamiliesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -319,8 +395,8 @@ products
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
         }
-        if (naming_convention !== undefined) {
-          _payload[`naming_convention`] = resolveBodyParam(naming_convention);
+        if (namingConvention !== undefined) {
+          _payload[`naming_convention`] = resolveBodyParam(namingConvention);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -335,15 +411,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, assetFamiliesUpdateSpecs, { method: "put" });
+const assetsListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`assets-list`)
   .description(`List assets (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          assetsListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/assets`;
         const _payload: RequestParams = {};
@@ -355,6 +449,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -369,22 +470,26 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, assetsListSpecs, { method: "get" });
+const assetsCreateSpecs: PromptSpec[] = [
+  { key: "assetFamilyId", option: "--asset-family-id <asset-family-id>", name: "asset_family_id", type: "string", required: true },
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+  { key: "attributeValues", option: "--attribute-values <attribute-values>", name: "attribute_values", type: "object", required: false },
+  { key: "mediaUuid", option: "--media-uuid <media-uuid>", name: "media_uuid", type: "string", required: false },
+];
 products
   .command(`assets-create`)
   .description(`Create one of assets`)
-  .option(`--asset-_family-_id <asset-_family-_id>`, ``)
+  .option(`--asset-family-id <asset-family-id>`, ``)
   .option(`--code <code>`, ``)
-  .option(`--attribute-_values <attribute-_values>`, ``)
-  .option(`--media-_uuid <media-_uuid>`, ``)
+  .option(`--attribute-values <attribute-values>`, ``)
+  .option(`--media-uuid <media-uuid>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { asset_family_id, code, attribute_values, media_uuid } = await promptForMissing(
+        const { assetFamilyId, code, attributeValues, mediaUuid } = await promptForMissing(
           _options,
-          [
-            { key: "asset_family_id", option: "--asset-_family-_id <asset-_family-_id>", name: "asset_family_id", type: "string", required: true },
-            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
-          ],
+          assetsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -397,17 +502,17 @@ products
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (asset_family_id !== undefined) {
-          _payload[`asset_family_id`] = asset_family_id;
+        if (assetFamilyId !== undefined) {
+          _payload[`asset_family_id`] = assetFamilyId;
         }
-        if (attribute_values !== undefined) {
-          _payload[`attribute_values`] = resolveBodyParam(attribute_values);
+        if (attributeValues !== undefined) {
+          _payload[`attribute_values`] = resolveBodyParam(attributeValues);
         }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
-        if (media_uuid !== undefined) {
-          _payload[`media_uuid`] = media_uuid;
+        if (mediaUuid !== undefined) {
+          _payload[`media_uuid`] = mediaUuid;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -422,6 +527,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, assetsCreateSpecs, { method: "post" });
+const assetsDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/assets", hasLimit: true } },
+];
 products
   .command(`assets-delete`)
   .description(`Delete one of assets by id`)
@@ -431,9 +540,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/assets", hasLimit: true } },
-          ],
+          assetsDeleteSpecs,
           _command,
         );
         await confirmDestructive(`products assets-delete`);
@@ -453,6 +560,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, assetsDeleteSpecs, { method: "delete", destructive: true });
+const assetsGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/assets", hasLimit: true } },
+];
 products
   .command(`assets-get`)
   .description(`Read one of assets by id`)
@@ -462,9 +573,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/assets", hasLimit: true } },
-          ],
+          assetsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -483,22 +592,28 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, assetsGetSpecs, { method: "get" });
+const assetsUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/assets", hasLimit: true } },
+  { key: "assetFamilyId", option: "--asset-family-id <asset-family-id>", name: "asset_family_id", type: "string", required: false },
+  { key: "attributeValues", option: "--attribute-values <attribute-values>", name: "attribute_values", type: "object", required: false },
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: false },
+  { key: "mediaUuid", option: "--media-uuid <media-uuid>", name: "media_uuid", type: "string", required: false },
+];
 products
   .command(`assets-update`)
   .description(`Update one of assets by id`)
   .option(`--id <id>`, ``)
-  .option(`--asset-_family-_id <asset-_family-_id>`, ``)
-  .option(`--attribute-_values <attribute-_values>`, ``)
+  .option(`--asset-family-id <asset-family-id>`, ``)
+  .option(`--attribute-values <attribute-values>`, ``)
   .option(`--code <code>`, ``)
-  .option(`--media-_uuid <media-_uuid>`, ``)
+  .option(`--media-uuid <media-uuid>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, asset_family_id, attribute_values, code, media_uuid } = await promptForMissing(
+        const { id, assetFamilyId, attributeValues, code, mediaUuid } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/assets", hasLimit: true } },
-          ],
+          assetsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -511,17 +626,17 @@ products
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (asset_family_id !== undefined) {
-          _payload[`asset_family_id`] = asset_family_id;
+        if (assetFamilyId !== undefined) {
+          _payload[`asset_family_id`] = assetFamilyId;
         }
-        if (attribute_values !== undefined) {
-          _payload[`attribute_values`] = resolveBodyParam(attribute_values);
+        if (attributeValues !== undefined) {
+          _payload[`attribute_values`] = resolveBodyParam(attributeValues);
         }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
-        if (media_uuid !== undefined) {
-          _payload[`media_uuid`] = media_uuid;
+        if (mediaUuid !== undefined) {
+          _payload[`media_uuid`] = mediaUuid;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -536,15 +651,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, assetsUpdateSpecs, { method: "put" });
+const associationTypesListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`association-types-list`)
   .description(`List association types (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          associationTypesListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/association_types`;
         const _payload: RequestParams = {};
@@ -556,6 +689,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -570,18 +710,25 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, associationTypesListSpecs, { method: "get" });
+const associationTypesCreateSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+  { key: "isQuantified", option: "--is-quantified <is-quantified>", name: "is_quantified", type: "boolean", required: false },
+  { key: "isTwoWay", option: "--is-two-way <is-two-way>", name: "is_two_way", type: "boolean", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+];
 products
   .command(`association-types-create`)
   .description(`Create one of association types`)
   .option(`--code <code>`, ``)
   .option(
-    `--is-_quantified [value]`,
+    `--is-quantified [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .option(
-    `--is-_two-_way [value]`,
+    `--is-two-way [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
@@ -590,11 +737,9 @@ products
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, is_quantified, is_two_way, labels } = await promptForMissing(
+        const { code, isQuantified, isTwoWay, labels } = await promptForMissing(
           _options,
-          [
-            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
-          ],
+          associationTypesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -610,11 +755,11 @@ products
         if (code !== undefined) {
           _payload[`code`] = code;
         }
-        if (is_quantified !== undefined) {
-          _payload[`is_quantified`] = is_quantified;
+        if (isQuantified !== undefined) {
+          _payload[`is_quantified`] = isQuantified;
         }
-        if (is_two_way !== undefined) {
-          _payload[`is_two_way`] = is_two_way;
+        if (isTwoWay !== undefined) {
+          _payload[`is_two_way`] = isTwoWay;
         }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
@@ -632,6 +777,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, associationTypesCreateSpecs, { method: "post" });
+const associationTypesDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/association_types", hasLimit: true } },
+];
 products
   .command(`association-types-delete`)
   .description(`Delete one of association types by id`)
@@ -641,9 +790,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/association_types", hasLimit: true } },
-          ],
+          associationTypesDeleteSpecs,
           _command,
         );
         await confirmDestructive(`products association-types-delete`);
@@ -663,6 +810,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, associationTypesDeleteSpecs, { method: "delete", destructive: true });
+const associationTypesGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/association_types", hasLimit: true } },
+];
 products
   .command(`association-types-get`)
   .description(`Read one of association types by id`)
@@ -672,9 +823,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/association_types", hasLimit: true } },
-          ],
+          associationTypesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -693,19 +842,27 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, associationTypesGetSpecs, { method: "get" });
+const associationTypesUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/association_types", hasLimit: true } },
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: false },
+  { key: "isQuantified", option: "--is-quantified <is-quantified>", name: "is_quantified", type: "boolean", required: false },
+  { key: "isTwoWay", option: "--is-two-way <is-two-way>", name: "is_two_way", type: "boolean", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+];
 products
   .command(`association-types-update`)
   .description(`Update one of association types by id`)
   .option(`--id <id>`, ``)
   .option(`--code <code>`, ``)
   .option(
-    `--is-_quantified [value]`,
+    `--is-quantified [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .option(
-    `--is-_two-_way [value]`,
+    `--is-two-way [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
@@ -714,11 +871,9 @@ products
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, is_quantified, is_two_way, labels } = await promptForMissing(
+        const { id, code, isQuantified, isTwoWay, labels } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/association_types", hasLimit: true } },
-          ],
+          associationTypesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -734,11 +889,11 @@ products
         if (code !== undefined) {
           _payload[`code`] = code;
         }
-        if (is_quantified !== undefined) {
-          _payload[`is_quantified`] = is_quantified;
+        if (isQuantified !== undefined) {
+          _payload[`is_quantified`] = isQuantified;
         }
-        if (is_two_way !== undefined) {
-          _payload[`is_two_way`] = is_two_way;
+        if (isTwoWay !== undefined) {
+          _payload[`is_two_way`] = isTwoWay;
         }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
@@ -756,15 +911,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, associationTypesUpdateSpecs, { method: "put" });
+const attributeGroupsListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`attribute-groups-list`)
   .description(`List attribute groups (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          attributeGroupsListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/attribute_groups`;
         const _payload: RequestParams = {};
@@ -776,6 +949,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -790,6 +970,12 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, attributeGroupsListSpecs, { method: "get" });
+const attributeGroupsCreateSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+  { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+];
 products
   .command(`attribute-groups-create`)
   .description(`Create one of attribute groups`)
@@ -801,9 +987,7 @@ products
       async (_options, _command) => {
         const { code, labels, position } = await promptForMissing(
           _options,
-          [
-            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
-          ],
+          attributeGroupsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -838,6 +1022,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, attributeGroupsCreateSpecs, { method: "post" });
+const attributeGroupsDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_groups", hasLimit: true } },
+];
 products
   .command(`attribute-groups-delete`)
   .description(`Delete one of attribute groups by id`)
@@ -847,9 +1035,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_groups", hasLimit: true } },
-          ],
+          attributeGroupsDeleteSpecs,
           _command,
         );
         await confirmDestructive(`products attribute-groups-delete`);
@@ -869,6 +1055,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, attributeGroupsDeleteSpecs, { method: "delete", destructive: true });
+const attributeGroupsGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_groups", hasLimit: true } },
+];
 products
   .command(`attribute-groups-get`)
   .description(`Read one of attribute groups by id`)
@@ -878,9 +1068,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_groups", hasLimit: true } },
-          ],
+          attributeGroupsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -899,6 +1087,13 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, attributeGroupsGetSpecs, { method: "get" });
+const attributeGroupsUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_groups", hasLimit: true } },
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+  { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+];
 products
   .command(`attribute-groups-update`)
   .description(`Update one of attribute groups by id`)
@@ -911,9 +1106,7 @@ products
       async (_options, _command) => {
         const { id, code, labels, position } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_groups", hasLimit: true } },
-          ],
+          attributeGroupsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -948,15 +1141,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, attributeGroupsUpdateSpecs, { method: "put" });
+const attributeOptionsListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`attribute-options-list`)
   .description(`List attribute options (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          attributeOptionsListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/attribute_options`;
         const _payload: RequestParams = {};
@@ -968,6 +1179,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -982,10 +1200,18 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, attributeOptionsListSpecs, { method: "get" });
+const attributeOptionsCreateSpecs: PromptSpec[] = [
+  { key: "attributeId", option: "--attribute-id <attribute-id>", name: "attribute_id", type: "string", required: true },
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+  { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+  { key: "swatch", option: "--swatch <swatch>", name: "swatch", type: "object", required: false },
+];
 products
   .command(`attribute-options-create`)
   .description(`Create one of attribute options`)
-  .option(`--attribute-_id <attribute-_id>`, ``)
+  .option(`--attribute-id <attribute-id>`, ``)
   .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
   .option(`--position <position>`, ``, parseInteger)
@@ -993,12 +1219,9 @@ products
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { attribute_id, code, labels, position, swatch } = await promptForMissing(
+        const { attributeId, code, labels, position, swatch } = await promptForMissing(
           _options,
-          [
-            { key: "attribute_id", option: "--attribute-_id <attribute-_id>", name: "attribute_id", type: "string", required: true },
-            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
-          ],
+          attributeOptionsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1011,8 +1234,8 @@ products
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (attribute_id !== undefined) {
-          _payload[`attribute_id`] = attribute_id;
+        if (attributeId !== undefined) {
+          _payload[`attribute_id`] = attributeId;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -1039,6 +1262,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, attributeOptionsCreateSpecs, { method: "post" });
+const attributeOptionsDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_options", hasLimit: true } },
+];
 products
   .command(`attribute-options-delete`)
   .description(`Delete one of attribute options by id`)
@@ -1048,9 +1275,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_options", hasLimit: true } },
-          ],
+          attributeOptionsDeleteSpecs,
           _command,
         );
         await confirmDestructive(`products attribute-options-delete`);
@@ -1070,6 +1295,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, attributeOptionsDeleteSpecs, { method: "delete", destructive: true });
+const attributeOptionsGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_options", hasLimit: true } },
+];
 products
   .command(`attribute-options-get`)
   .description(`Read one of attribute options by id`)
@@ -1079,9 +1308,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_options", hasLimit: true } },
-          ],
+          attributeOptionsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1100,11 +1327,20 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, attributeOptionsGetSpecs, { method: "get" });
+const attributeOptionsUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_options", hasLimit: true } },
+  { key: "attributeId", option: "--attribute-id <attribute-id>", name: "attribute_id", type: "string", required: false },
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+  { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+  { key: "swatch", option: "--swatch <swatch>", name: "swatch", type: "object", required: false },
+];
 products
   .command(`attribute-options-update`)
   .description(`Update one of attribute options by id`)
   .option(`--id <id>`, ``)
-  .option(`--attribute-_id <attribute-_id>`, ``)
+  .option(`--attribute-id <attribute-id>`, ``)
   .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
   .option(`--position <position>`, ``, parseInteger)
@@ -1112,11 +1348,9 @@ products
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, attribute_id, code, labels, position, swatch } = await promptForMissing(
+        const { id, attributeId, code, labels, position, swatch } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attribute_options", hasLimit: true } },
-          ],
+          attributeOptionsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1129,8 +1363,8 @@ products
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (attribute_id !== undefined) {
-          _payload[`attribute_id`] = attribute_id;
+        if (attributeId !== undefined) {
+          _payload[`attribute_id`] = attributeId;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -1157,15 +1391,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, attributeOptionsUpdateSpecs, { method: "put" });
+const attributesListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`attributes-list`)
   .description(`List attributes (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          attributesListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/attributes`;
         const _payload: RequestParams = {};
@@ -1177,6 +1429,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1191,23 +1450,40 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, attributesListSpecs, { method: "get" });
+const attributesCreateSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+  { key: "type", option: "--type <type>", name: "type", type: "string", required: true },
+  { key: "config", option: "--config <config>", name: "config", type: "object", required: false },
+  { key: "entityRef", option: "--entity-ref <entity-ref>", name: "entity_ref", type: "string", required: false },
+  { key: "entityType", option: "--entity-type <entity-type>", name: "entity_type", type: "string", required: false },
+  { key: "groupId", option: "--group-id <group-id>", name: "group_id", type: "string", required: false },
+  { key: "isFilterable", option: "--is-filterable <is-filterable>", name: "is_filterable", type: "boolean", required: false },
+  { key: "isUnique", option: "--is-unique <is-unique>", name: "is_unique", type: "boolean", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+  { key: "localizable", option: "--localizable <localizable>", name: "localizable", type: "boolean", required: false },
+  { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+  { key: "scopable", option: "--scopable <scopable>", name: "scopable", type: "boolean", required: false },
+  { key: "usableInGrid", option: "--usable-in-grid <usable-in-grid>", name: "usable_in_grid", type: "boolean", required: false },
+  { key: "validation", option: "--validation <validation>", name: "validation", type: "object", required: false },
+];
 products
   .command(`attributes-create`)
   .description(`Create one of attributes`)
   .option(`--code <code>`, ``)
   .option(`--type <type>`, ``)
   .option(`--config <config>`, ``)
-  .option(`--entity-_ref <entity-_ref>`, ``)
-  .option(`--entity-_type <entity-_type>`, ``)
-  .option(`--group-_id <group-_id>`, ``)
+  .option(`--entity-ref <entity-ref>`, ``)
+  .option(`--entity-type <entity-type>`, ``)
+  .option(`--group-id <group-id>`, ``)
   .option(
-    `--is-_filterable [value]`,
+    `--is-filterable [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .option(
-    `--is-_unique [value]`,
+    `--is-unique [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
@@ -1227,7 +1503,7 @@ products
       value === undefined ? true : parseBool(value),
   )
   .option(
-    `--usable-_in-_grid [value]`,
+    `--usable-in-grid [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
@@ -1236,12 +1512,9 @@ products
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, type, config, entity_ref, entity_type, group_id, is_filterable, is_unique, labels, localizable, position, scopable, usable_in_grid, validation } = await promptForMissing(
+        const { code, type, config, entityRef, entityType, groupId, isFilterable, isUnique, labels, localizable, position, scopable, usableInGrid, validation } = await promptForMissing(
           _options,
-          [
-            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
-            { key: "type", option: "--type <type>", name: "type", type: "string", required: true },
-          ],
+          attributesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1260,20 +1533,20 @@ products
         if (config !== undefined) {
           _payload[`config`] = resolveBodyParam(config);
         }
-        if (entity_ref !== undefined) {
-          _payload[`entity_ref`] = entity_ref;
+        if (entityRef !== undefined) {
+          _payload[`entity_ref`] = entityRef;
         }
-        if (entity_type !== undefined) {
-          _payload[`entity_type`] = entity_type;
+        if (entityType !== undefined) {
+          _payload[`entity_type`] = entityType;
         }
-        if (group_id !== undefined) {
-          _payload[`group_id`] = group_id;
+        if (groupId !== undefined) {
+          _payload[`group_id`] = groupId;
         }
-        if (is_filterable !== undefined) {
-          _payload[`is_filterable`] = is_filterable;
+        if (isFilterable !== undefined) {
+          _payload[`is_filterable`] = isFilterable;
         }
-        if (is_unique !== undefined) {
-          _payload[`is_unique`] = is_unique;
+        if (isUnique !== undefined) {
+          _payload[`is_unique`] = isUnique;
         }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
@@ -1290,8 +1563,8 @@ products
         if (type !== undefined) {
           _payload[`type`] = type;
         }
-        if (usable_in_grid !== undefined) {
-          _payload[`usable_in_grid`] = usable_in_grid;
+        if (usableInGrid !== undefined) {
+          _payload[`usable_in_grid`] = usableInGrid;
         }
         if (validation !== undefined) {
           _payload[`validation`] = resolveBodyParam(validation);
@@ -1309,6 +1582,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, attributesCreateSpecs, { method: "post" });
+const attributesDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attributes", hasLimit: true } },
+];
 products
   .command(`attributes-delete`)
   .description(`Delete one of attributes by id`)
@@ -1318,9 +1595,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attributes", hasLimit: true } },
-          ],
+          attributesDeleteSpecs,
           _command,
         );
         await confirmDestructive(`products attributes-delete`);
@@ -1340,6 +1615,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, attributesDeleteSpecs, { method: "delete", destructive: true });
+const attributesGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attributes", hasLimit: true } },
+];
 products
   .command(`attributes-get`)
   .description(`Read one of attributes by id`)
@@ -1349,9 +1628,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attributes", hasLimit: true } },
-          ],
+          attributesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1370,23 +1647,41 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, attributesGetSpecs, { method: "get" });
+const attributesUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attributes", hasLimit: true } },
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: false },
+  { key: "config", option: "--config <config>", name: "config", type: "object", required: false },
+  { key: "entityRef", option: "--entity-ref <entity-ref>", name: "entity_ref", type: "string", required: false },
+  { key: "entityType", option: "--entity-type <entity-type>", name: "entity_type", type: "string", required: false },
+  { key: "groupId", option: "--group-id <group-id>", name: "group_id", type: "string", required: false },
+  { key: "isFilterable", option: "--is-filterable <is-filterable>", name: "is_filterable", type: "boolean", required: false },
+  { key: "isUnique", option: "--is-unique <is-unique>", name: "is_unique", type: "boolean", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+  { key: "localizable", option: "--localizable <localizable>", name: "localizable", type: "boolean", required: false },
+  { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+  { key: "scopable", option: "--scopable <scopable>", name: "scopable", type: "boolean", required: false },
+  { key: "type", option: "--type <type>", name: "type", type: "string", required: false },
+  { key: "usableInGrid", option: "--usable-in-grid <usable-in-grid>", name: "usable_in_grid", type: "boolean", required: false },
+  { key: "validation", option: "--validation <validation>", name: "validation", type: "object", required: false },
+];
 products
   .command(`attributes-update`)
   .description(`Update one of attributes by id`)
   .option(`--id <id>`, ``)
   .option(`--code <code>`, ``)
   .option(`--config <config>`, ``)
-  .option(`--entity-_ref <entity-_ref>`, ``)
-  .option(`--entity-_type <entity-_type>`, ``)
-  .option(`--group-_id <group-_id>`, ``)
+  .option(`--entity-ref <entity-ref>`, ``)
+  .option(`--entity-type <entity-type>`, ``)
+  .option(`--group-id <group-id>`, ``)
   .option(
-    `--is-_filterable [value]`,
+    `--is-filterable [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .option(
-    `--is-_unique [value]`,
+    `--is-unique [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
@@ -1407,7 +1702,7 @@ products
   )
   .option(`--type <type>`, ``)
   .option(
-    `--usable-_in-_grid [value]`,
+    `--usable-in-grid [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
@@ -1416,11 +1711,9 @@ products
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, config, entity_ref, entity_type, group_id, is_filterable, is_unique, labels, localizable, position, scopable, type, usable_in_grid, validation } = await promptForMissing(
+        const { id, code, config, entityRef, entityType, groupId, isFilterable, isUnique, labels, localizable, position, scopable, type, usableInGrid, validation } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/attributes", hasLimit: true } },
-          ],
+          attributesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1439,20 +1732,20 @@ products
         if (config !== undefined) {
           _payload[`config`] = resolveBodyParam(config);
         }
-        if (entity_ref !== undefined) {
-          _payload[`entity_ref`] = entity_ref;
+        if (entityRef !== undefined) {
+          _payload[`entity_ref`] = entityRef;
         }
-        if (entity_type !== undefined) {
-          _payload[`entity_type`] = entity_type;
+        if (entityType !== undefined) {
+          _payload[`entity_type`] = entityType;
         }
-        if (group_id !== undefined) {
-          _payload[`group_id`] = group_id;
+        if (groupId !== undefined) {
+          _payload[`group_id`] = groupId;
         }
-        if (is_filterable !== undefined) {
-          _payload[`is_filterable`] = is_filterable;
+        if (isFilterable !== undefined) {
+          _payload[`is_filterable`] = isFilterable;
         }
-        if (is_unique !== undefined) {
-          _payload[`is_unique`] = is_unique;
+        if (isUnique !== undefined) {
+          _payload[`is_unique`] = isUnique;
         }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
@@ -1469,8 +1762,8 @@ products
         if (type !== undefined) {
           _payload[`type`] = type;
         }
-        if (usable_in_grid !== undefined) {
-          _payload[`usable_in_grid`] = usable_in_grid;
+        if (usableInGrid !== undefined) {
+          _payload[`usable_in_grid`] = usableInGrid;
         }
         if (validation !== undefined) {
           _payload[`validation`] = resolveBodyParam(validation);
@@ -1488,6 +1781,11 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, attributesUpdateSpecs, { method: "put" });
+const batchSpecs: PromptSpec[] = [
+  { key: "ids", option: "--ids [ids...]", name: "ids", type: "array", required: false },
+  { key: "skus", option: "--skus [skus...]", name: "skus", type: "array", required: false },
+];
 products
   .command(`batch`)
   .description(`Bulk-read products by ids and/or skus — minimal fields incl. tax_class, for cross-app resolution.`)
@@ -1495,7 +1793,12 @@ products
   .option(`--skus [skus...]`, ``)
   .action(
     actionRunner(
-      async ({ ids, skus }) => {
+      async (_options, _command) => {
+        const { ids, skus } = await promptForMissing(
+          _options,
+          batchSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/batch`;
         const _payload: RequestParams = {};
@@ -1525,15 +1828,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, batchSpecs, { method: "post" });
+const categoriesListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`categories-list`)
   .description(`List categories (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          categoriesListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/categories`;
         const _payload: RequestParams = {};
@@ -1545,6 +1866,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1559,23 +1887,30 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, categoriesListSpecs, { method: "get" });
+const categoriesCreateSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+  { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", type: "string", required: false },
+  { key: "path", option: "--path <path>", name: "path", type: "string", required: false },
+  { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+  { key: "values", option: "--values <values>", name: "values", type: "object", required: false },
+];
 products
   .command(`categories-create`)
   .description(`Create one of categories`)
   .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
-  .option(`--parent-_id <parent-_id>`, ``)
+  .option(`--parent-id <parent-id>`, ``)
   .option(`--path <path>`, ``)
   .option(`--position <position>`, ``, parseInteger)
   .option(`--values <values>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, labels, parent_id, path, position, values } = await promptForMissing(
+        const { code, labels, parentId, path, position, values } = await promptForMissing(
           _options,
-          [
-            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
-          ],
+          categoriesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1594,8 +1929,8 @@ products
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
         }
-        if (parent_id !== undefined) {
-          _payload[`parent_id`] = parent_id;
+        if (parentId !== undefined) {
+          _payload[`parent_id`] = parentId;
         }
         if (path !== undefined) {
           _payload[`path`] = path;
@@ -1619,6 +1954,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, categoriesCreateSpecs, { method: "post" });
+const categoriesDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/categories", hasLimit: true } },
+];
 products
   .command(`categories-delete`)
   .description(`Delete one of categories by id`)
@@ -1628,9 +1967,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/categories", hasLimit: true } },
-          ],
+          categoriesDeleteSpecs,
           _command,
         );
         await confirmDestructive(`products categories-delete`);
@@ -1650,6 +1987,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, categoriesDeleteSpecs, { method: "delete", destructive: true });
+const categoriesGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/categories", hasLimit: true } },
+];
 products
   .command(`categories-get`)
   .description(`Read one of categories by id`)
@@ -1659,9 +2000,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/categories", hasLimit: true } },
-          ],
+          categoriesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1680,24 +2019,32 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, categoriesGetSpecs, { method: "get" });
+const categoriesUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/categories", hasLimit: true } },
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+  { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", type: "string", required: false },
+  { key: "path", option: "--path <path>", name: "path", type: "string", required: false },
+  { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+  { key: "values", option: "--values <values>", name: "values", type: "object", required: false },
+];
 products
   .command(`categories-update`)
   .description(`Update one of categories by id`)
   .option(`--id <id>`, ``)
   .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
-  .option(`--parent-_id <parent-_id>`, ``)
+  .option(`--parent-id <parent-id>`, ``)
   .option(`--path <path>`, ``)
   .option(`--position <position>`, ``, parseInteger)
   .option(`--values <values>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, labels, parent_id, path, position, values } = await promptForMissing(
+        const { id, code, labels, parentId, path, position, values } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/categories", hasLimit: true } },
-          ],
+          categoriesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1716,8 +2063,8 @@ products
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
         }
-        if (parent_id !== undefined) {
-          _payload[`parent_id`] = parent_id;
+        if (parentId !== undefined) {
+          _payload[`parent_id`] = parentId;
         }
         if (path !== undefined) {
           _payload[`path`] = path;
@@ -1741,15 +2088,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, categoriesUpdateSpecs, { method: "put" });
+const familiesListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`families-list`)
   .description(`List families (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          familiesListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/families`;
         const _payload: RequestParams = {};
@@ -1761,6 +2126,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1775,21 +2147,26 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, familiesListSpecs, { method: "get" });
+const familiesCreateSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+  { key: "imageAttribute", option: "--image-attribute <image-attribute>", name: "image_attribute", type: "string", required: false },
+  { key: "labelAttribute", option: "--label-attribute <label-attribute>", name: "label_attribute", type: "string", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+];
 products
   .command(`families-create`)
   .description(`Create one of families`)
   .option(`--code <code>`, ``)
-  .option(`--image-_attribute <image-_attribute>`, ``)
-  .option(`--label-_attribute <label-_attribute>`, ``)
+  .option(`--image-attribute <image-attribute>`, ``)
+  .option(`--label-attribute <label-attribute>`, ``)
   .option(`--labels <labels>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, image_attribute, label_attribute, labels } = await promptForMissing(
+        const { code, imageAttribute, labelAttribute, labels } = await promptForMissing(
           _options,
-          [
-            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
-          ],
+          familiesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1805,11 +2182,11 @@ products
         if (code !== undefined) {
           _payload[`code`] = code;
         }
-        if (image_attribute !== undefined) {
-          _payload[`image_attribute`] = image_attribute;
+        if (imageAttribute !== undefined) {
+          _payload[`image_attribute`] = imageAttribute;
         }
-        if (label_attribute !== undefined) {
-          _payload[`label_attribute`] = label_attribute;
+        if (labelAttribute !== undefined) {
+          _payload[`label_attribute`] = labelAttribute;
         }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
@@ -1827,6 +2204,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, familiesCreateSpecs, { method: "post" });
+const familiesDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/families", hasLimit: true } },
+];
 products
   .command(`families-delete`)
   .description(`Delete one of families by id`)
@@ -1836,9 +2217,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/families", hasLimit: true } },
-          ],
+          familiesDeleteSpecs,
           _command,
         );
         await confirmDestructive(`products families-delete`);
@@ -1858,6 +2237,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, familiesDeleteSpecs, { method: "delete", destructive: true });
+const familiesGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/families", hasLimit: true } },
+];
 products
   .command(`families-get`)
   .description(`Read one of families by id`)
@@ -1867,9 +2250,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/families", hasLimit: true } },
-          ],
+          familiesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1888,22 +2269,28 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, familiesGetSpecs, { method: "get" });
+const familiesUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/families", hasLimit: true } },
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: false },
+  { key: "imageAttribute", option: "--image-attribute <image-attribute>", name: "image_attribute", type: "string", required: false },
+  { key: "labelAttribute", option: "--label-attribute <label-attribute>", name: "label_attribute", type: "string", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+];
 products
   .command(`families-update`)
   .description(`Update one of families by id`)
   .option(`--id <id>`, ``)
   .option(`--code <code>`, ``)
-  .option(`--image-_attribute <image-_attribute>`, ``)
-  .option(`--label-_attribute <label-_attribute>`, ``)
+  .option(`--image-attribute <image-attribute>`, ``)
+  .option(`--label-attribute <label-attribute>`, ``)
   .option(`--labels <labels>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, image_attribute, label_attribute, labels } = await promptForMissing(
+        const { id, code, imageAttribute, labelAttribute, labels } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/families", hasLimit: true } },
-          ],
+          familiesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1919,11 +2306,11 @@ products
         if (code !== undefined) {
           _payload[`code`] = code;
         }
-        if (image_attribute !== undefined) {
-          _payload[`image_attribute`] = image_attribute;
+        if (imageAttribute !== undefined) {
+          _payload[`image_attribute`] = imageAttribute;
         }
-        if (label_attribute !== undefined) {
-          _payload[`label_attribute`] = label_attribute;
+        if (labelAttribute !== undefined) {
+          _payload[`label_attribute`] = labelAttribute;
         }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
@@ -1941,15 +2328,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, familiesUpdateSpecs, { method: "put" });
+const familyAttributesListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`family-attributes-list`)
   .description(`List family attributes (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          familyAttributesListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/family_attributes`;
         const _payload: RequestParams = {};
@@ -1961,6 +2366,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1975,28 +2387,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, familyAttributesListSpecs, { method: "get" });
+const familyAttributesCreateSpecs: PromptSpec[] = [
+  { key: "attributeId", option: "--attribute-id <attribute-id>", name: "attribute_id", type: "string", required: true },
+  { key: "familyId", option: "--family-id <family-id>", name: "family_id", type: "string", required: true },
+  { key: "isRequired", option: "--is-required <is-required>", name: "is_required", type: "boolean", required: false },
+  { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+  { key: "requiredChannels", option: "--required-channels <required-channels>", name: "required_channels", type: "object", required: false },
+];
 products
   .command(`family-attributes-create`)
   .description(`Create one of family attributes`)
-  .option(`--attribute-_id <attribute-_id>`, ``)
-  .option(`--family-_id <family-_id>`, ``)
+  .option(`--attribute-id <attribute-id>`, ``)
+  .option(`--family-id <family-id>`, ``)
   .option(
-    `--is-_required [value]`,
+    `--is-required [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .option(`--position <position>`, ``, parseInteger)
-  .option(`--required-_channels <required-_channels>`, ``)
+  .option(`--required-channels <required-channels>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { attribute_id, family_id, is_required, position, required_channels } = await promptForMissing(
+        const { attributeId, familyId, isRequired, position, requiredChannels } = await promptForMissing(
           _options,
-          [
-            { key: "attribute_id", option: "--attribute-_id <attribute-_id>", name: "attribute_id", type: "string", required: true },
-            { key: "family_id", option: "--family-_id <family-_id>", name: "family_id", type: "string", required: true },
-          ],
+          familyAttributesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2009,20 +2426,20 @@ products
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (attribute_id !== undefined) {
-          _payload[`attribute_id`] = attribute_id;
+        if (attributeId !== undefined) {
+          _payload[`attribute_id`] = attributeId;
         }
-        if (family_id !== undefined) {
-          _payload[`family_id`] = family_id;
+        if (familyId !== undefined) {
+          _payload[`family_id`] = familyId;
         }
-        if (is_required !== undefined) {
-          _payload[`is_required`] = is_required;
+        if (isRequired !== undefined) {
+          _payload[`is_required`] = isRequired;
         }
         if (position !== undefined) {
           _payload[`position`] = position;
         }
-        if (required_channels !== undefined) {
-          _payload[`required_channels`] = resolveBodyParam(required_channels);
+        if (requiredChannels !== undefined) {
+          _payload[`required_channels`] = resolveBodyParam(requiredChannels);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2037,6 +2454,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, familyAttributesCreateSpecs, { method: "post" });
+const familyAttributesDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_attributes", hasLimit: true } },
+];
 products
   .command(`family-attributes-delete`)
   .description(`Delete one of family attributes by id`)
@@ -2046,9 +2467,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_attributes", hasLimit: true } },
-          ],
+          familyAttributesDeleteSpecs,
           _command,
         );
         await confirmDestructive(`products family-attributes-delete`);
@@ -2068,6 +2487,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, familyAttributesDeleteSpecs, { method: "delete", destructive: true });
+const familyAttributesGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_attributes", hasLimit: true } },
+];
 products
   .command(`family-attributes-get`)
   .description(`Read one of family attributes by id`)
@@ -2077,9 +2500,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_attributes", hasLimit: true } },
-          ],
+          familyAttributesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2098,28 +2519,35 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, familyAttributesGetSpecs, { method: "get" });
+const familyAttributesUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_attributes", hasLimit: true } },
+  { key: "attributeId", option: "--attribute-id <attribute-id>", name: "attribute_id", type: "string", required: false },
+  { key: "familyId", option: "--family-id <family-id>", name: "family_id", type: "string", required: false },
+  { key: "isRequired", option: "--is-required <is-required>", name: "is_required", type: "boolean", required: false },
+  { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+  { key: "requiredChannels", option: "--required-channels <required-channels>", name: "required_channels", type: "object", required: false },
+];
 products
   .command(`family-attributes-update`)
   .description(`Update one of family attributes by id`)
   .option(`--id <id>`, ``)
-  .option(`--attribute-_id <attribute-_id>`, ``)
-  .option(`--family-_id <family-_id>`, ``)
+  .option(`--attribute-id <attribute-id>`, ``)
+  .option(`--family-id <family-id>`, ``)
   .option(
-    `--is-_required [value]`,
+    `--is-required [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .option(`--position <position>`, ``, parseInteger)
-  .option(`--required-_channels <required-_channels>`, ``)
+  .option(`--required-channels <required-channels>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, attribute_id, family_id, is_required, position, required_channels } = await promptForMissing(
+        const { id, attributeId, familyId, isRequired, position, requiredChannels } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_attributes", hasLimit: true } },
-          ],
+          familyAttributesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2132,20 +2560,20 @@ products
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (attribute_id !== undefined) {
-          _payload[`attribute_id`] = attribute_id;
+        if (attributeId !== undefined) {
+          _payload[`attribute_id`] = attributeId;
         }
-        if (family_id !== undefined) {
-          _payload[`family_id`] = family_id;
+        if (familyId !== undefined) {
+          _payload[`family_id`] = familyId;
         }
-        if (is_required !== undefined) {
-          _payload[`is_required`] = is_required;
+        if (isRequired !== undefined) {
+          _payload[`is_required`] = isRequired;
         }
         if (position !== undefined) {
           _payload[`position`] = position;
         }
-        if (required_channels !== undefined) {
-          _payload[`required_channels`] = resolveBodyParam(required_channels);
+        if (requiredChannels !== undefined) {
+          _payload[`required_channels`] = resolveBodyParam(requiredChannels);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2160,15 +2588,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, familyAttributesUpdateSpecs, { method: "put" });
+const familyVariantsListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`family-variants-list`)
   .description(`List family variants (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          familyVariantsListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/family_variants`;
         const _payload: RequestParams = {};
@@ -2180,6 +2626,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2194,22 +2647,26 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, familyVariantsListSpecs, { method: "get" });
+const familyVariantsCreateSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+  { key: "familyId", option: "--family-id <family-id>", name: "family_id", type: "string", required: true },
+  { key: "axes", option: "--axes <axes>", name: "axes", type: "object", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+];
 products
   .command(`family-variants-create`)
   .description(`Create one of family variants`)
   .option(`--code <code>`, ``)
-  .option(`--family-_id <family-_id>`, ``)
+  .option(`--family-id <family-id>`, ``)
   .option(`--axes <axes>`, ``)
   .option(`--labels <labels>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, family_id, axes, labels } = await promptForMissing(
+        const { code, familyId, axes, labels } = await promptForMissing(
           _options,
-          [
-            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
-            { key: "family_id", option: "--family-_id <family-_id>", name: "family_id", type: "string", required: true },
-          ],
+          familyVariantsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2228,8 +2685,8 @@ products
         if (code !== undefined) {
           _payload[`code`] = code;
         }
-        if (family_id !== undefined) {
-          _payload[`family_id`] = family_id;
+        if (familyId !== undefined) {
+          _payload[`family_id`] = familyId;
         }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
@@ -2247,6 +2704,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, familyVariantsCreateSpecs, { method: "post" });
+const familyVariantsDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_variants", hasLimit: true } },
+];
 products
   .command(`family-variants-delete`)
   .description(`Delete one of family variants by id`)
@@ -2256,9 +2717,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_variants", hasLimit: true } },
-          ],
+          familyVariantsDeleteSpecs,
           _command,
         );
         await confirmDestructive(`products family-variants-delete`);
@@ -2278,6 +2737,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, familyVariantsDeleteSpecs, { method: "delete", destructive: true });
+const familyVariantsGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_variants", hasLimit: true } },
+];
 products
   .command(`family-variants-get`)
   .description(`Read one of family variants by id`)
@@ -2287,9 +2750,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_variants", hasLimit: true } },
-          ],
+          familyVariantsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2308,22 +2769,28 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, familyVariantsGetSpecs, { method: "get" });
+const familyVariantsUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_variants", hasLimit: true } },
+  { key: "axes", option: "--axes <axes>", name: "axes", type: "object", required: false },
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: false },
+  { key: "familyId", option: "--family-id <family-id>", name: "family_id", type: "string", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+];
 products
   .command(`family-variants-update`)
   .description(`Update one of family variants by id`)
   .option(`--id <id>`, ``)
   .option(`--axes <axes>`, ``)
   .option(`--code <code>`, ``)
-  .option(`--family-_id <family-_id>`, ``)
+  .option(`--family-id <family-id>`, ``)
   .option(`--labels <labels>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, axes, code, family_id, labels } = await promptForMissing(
+        const { id, axes, code, familyId, labels } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/family_variants", hasLimit: true } },
-          ],
+          familyVariantsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2342,8 +2809,8 @@ products
         if (code !== undefined) {
           _payload[`code`] = code;
         }
-        if (family_id !== undefined) {
-          _payload[`family_id`] = family_id;
+        if (familyId !== undefined) {
+          _payload[`family_id`] = familyId;
         }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
@@ -2361,15 +2828,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, familyVariantsUpdateSpecs, { method: "put" });
+const measurementFamiliesListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`measurement-families-list`)
   .description(`List measurement families (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          measurementFamiliesListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/measurement_families`;
         const _payload: RequestParams = {};
@@ -2381,6 +2866,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2395,22 +2887,26 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, measurementFamiliesListSpecs, { method: "get" });
+const measurementFamiliesCreateSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+  { key: "standardUnit", option: "--standard-unit <standard-unit>", name: "standard_unit", type: "string", required: true },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+  { key: "units", option: "--units <units>", name: "units", type: "object", required: false },
+];
 products
   .command(`measurement-families-create`)
   .description(`Create one of measurement families`)
   .option(`--code <code>`, ``)
-  .option(`--standard-_unit <standard-_unit>`, ``)
+  .option(`--standard-unit <standard-unit>`, ``)
   .option(`--labels <labels>`, ``)
   .option(`--units <units>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, standard_unit, labels, units } = await promptForMissing(
+        const { code, standardUnit, labels, units } = await promptForMissing(
           _options,
-          [
-            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
-            { key: "standard_unit", option: "--standard-_unit <standard-_unit>", name: "standard_unit", type: "string", required: true },
-          ],
+          measurementFamiliesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2429,8 +2925,8 @@ products
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
         }
-        if (standard_unit !== undefined) {
-          _payload[`standard_unit`] = standard_unit;
+        if (standardUnit !== undefined) {
+          _payload[`standard_unit`] = standardUnit;
         }
         if (units !== undefined) {
           _payload[`units`] = resolveBodyParam(units);
@@ -2448,6 +2944,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, measurementFamiliesCreateSpecs, { method: "post" });
+const measurementFamiliesDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/measurement_families", hasLimit: true } },
+];
 products
   .command(`measurement-families-delete`)
   .description(`Delete one of measurement families by id`)
@@ -2457,9 +2957,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/measurement_families", hasLimit: true } },
-          ],
+          measurementFamiliesDeleteSpecs,
           _command,
         );
         await confirmDestructive(`products measurement-families-delete`);
@@ -2479,6 +2977,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, measurementFamiliesDeleteSpecs, { method: "delete", destructive: true });
+const measurementFamiliesGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/measurement_families", hasLimit: true } },
+];
 products
   .command(`measurement-families-get`)
   .description(`Read one of measurement families by id`)
@@ -2488,9 +2990,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/measurement_families", hasLimit: true } },
-          ],
+          measurementFamiliesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2509,22 +3009,28 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, measurementFamiliesGetSpecs, { method: "get" });
+const measurementFamiliesUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/measurement_families", hasLimit: true } },
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+  { key: "standardUnit", option: "--standard-unit <standard-unit>", name: "standard_unit", type: "string", required: false },
+  { key: "units", option: "--units <units>", name: "units", type: "object", required: false },
+];
 products
   .command(`measurement-families-update`)
   .description(`Update one of measurement families by id`)
   .option(`--id <id>`, ``)
   .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
-  .option(`--standard-_unit <standard-_unit>`, ``)
+  .option(`--standard-unit <standard-unit>`, ``)
   .option(`--units <units>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, labels, standard_unit, units } = await promptForMissing(
+        const { id, code, labels, standardUnit, units } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/measurement_families", hasLimit: true } },
-          ],
+          measurementFamiliesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2543,8 +3049,8 @@ products
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
         }
-        if (standard_unit !== undefined) {
-          _payload[`standard_unit`] = standard_unit;
+        if (standardUnit !== undefined) {
+          _payload[`standard_unit`] = standardUnit;
         }
         if (units !== undefined) {
           _payload[`units`] = resolveBodyParam(units);
@@ -2562,15 +3068,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, measurementFamiliesUpdateSpecs, { method: "put" });
+const productAssociationsListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`product-associations-list`)
   .description(`List product associations (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          productAssociationsListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/product_associations`;
         const _payload: RequestParams = {};
@@ -2582,6 +3106,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2596,24 +3127,28 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, productAssociationsListSpecs, { method: "get" });
+const productAssociationsCreateSpecs: PromptSpec[] = [
+  { key: "associationTypeId", option: "--association-type-id <association-type-id>", name: "association_type_id", type: "string", required: true },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", type: "string", required: true },
+  { key: "targetProductId", option: "--target-product-id <target-product-id>", name: "target_product_id", type: "string", required: true },
+  { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+  { key: "quantity", option: "--quantity <quantity>", name: "quantity", type: "number", required: false },
+];
 products
   .command(`product-associations-create`)
   .description(`Create one of product associations`)
-  .option(`--association-_type-_id <association-_type-_id>`, ``)
-  .option(`--product-_id <product-_id>`, ``)
-  .option(`--target-_product-_id <target-_product-_id>`, ``)
+  .option(`--association-type-id <association-type-id>`, ``)
+  .option(`--product-id <product-id>`, ``)
+  .option(`--target-product-id <target-product-id>`, ``)
   .option(`--position <position>`, ``, parseInteger)
   .option(`--quantity <quantity>`, ``, parseInteger)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { association_type_id, product_id, target_product_id, position, quantity } = await promptForMissing(
+        const { associationTypeId, productId, targetProductId, position, quantity } = await promptForMissing(
           _options,
-          [
-            { key: "association_type_id", option: "--association-_type-_id <association-_type-_id>", name: "association_type_id", type: "string", required: true },
-            { key: "product_id", option: "--product-_id <product-_id>", name: "product_id", type: "string", required: true },
-            { key: "target_product_id", option: "--target-_product-_id <target-_product-_id>", name: "target_product_id", type: "string", required: true },
-          ],
+          productAssociationsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2626,20 +3161,20 @@ products
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (association_type_id !== undefined) {
-          _payload[`association_type_id`] = association_type_id;
+        if (associationTypeId !== undefined) {
+          _payload[`association_type_id`] = associationTypeId;
         }
         if (position !== undefined) {
           _payload[`position`] = position;
         }
-        if (product_id !== undefined) {
-          _payload[`product_id`] = product_id;
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
         }
         if (quantity !== undefined) {
           _payload[`quantity`] = quantity;
         }
-        if (target_product_id !== undefined) {
-          _payload[`target_product_id`] = target_product_id;
+        if (targetProductId !== undefined) {
+          _payload[`target_product_id`] = targetProductId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2654,6 +3189,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, productAssociationsCreateSpecs, { method: "post" });
+const productAssociationsDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_associations", hasLimit: true } },
+];
 products
   .command(`product-associations-delete`)
   .description(`Delete one of product associations by id`)
@@ -2663,9 +3202,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_associations", hasLimit: true } },
-          ],
+          productAssociationsDeleteSpecs,
           _command,
         );
         await confirmDestructive(`products product-associations-delete`);
@@ -2685,6 +3222,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, productAssociationsDeleteSpecs, { method: "delete", destructive: true });
+const productAssociationsGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_associations", hasLimit: true } },
+];
 products
   .command(`product-associations-get`)
   .description(`Read one of product associations by id`)
@@ -2694,9 +3235,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_associations", hasLimit: true } },
-          ],
+          productAssociationsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2715,23 +3254,30 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, productAssociationsGetSpecs, { method: "get" });
+const productAssociationsUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_associations", hasLimit: true } },
+  { key: "associationTypeId", option: "--association-type-id <association-type-id>", name: "association_type_id", type: "string", required: false },
+  { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", type: "string", required: false },
+  { key: "quantity", option: "--quantity <quantity>", name: "quantity", type: "number", required: false },
+  { key: "targetProductId", option: "--target-product-id <target-product-id>", name: "target_product_id", type: "string", required: false },
+];
 products
   .command(`product-associations-update`)
   .description(`Update one of product associations by id`)
   .option(`--id <id>`, ``)
-  .option(`--association-_type-_id <association-_type-_id>`, ``)
+  .option(`--association-type-id <association-type-id>`, ``)
   .option(`--position <position>`, ``, parseInteger)
-  .option(`--product-_id <product-_id>`, ``)
+  .option(`--product-id <product-id>`, ``)
   .option(`--quantity <quantity>`, ``, parseInteger)
-  .option(`--target-_product-_id <target-_product-_id>`, ``)
+  .option(`--target-product-id <target-product-id>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, association_type_id, position, product_id, quantity, target_product_id } = await promptForMissing(
+        const { id, associationTypeId, position, productId, quantity, targetProductId } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_associations", hasLimit: true } },
-          ],
+          productAssociationsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2744,20 +3290,20 @@ products
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (association_type_id !== undefined) {
-          _payload[`association_type_id`] = association_type_id;
+        if (associationTypeId !== undefined) {
+          _payload[`association_type_id`] = associationTypeId;
         }
         if (position !== undefined) {
           _payload[`position`] = position;
         }
-        if (product_id !== undefined) {
-          _payload[`product_id`] = product_id;
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
         }
         if (quantity !== undefined) {
           _payload[`quantity`] = quantity;
         }
-        if (target_product_id !== undefined) {
-          _payload[`target_product_id`] = target_product_id;
+        if (targetProductId !== undefined) {
+          _payload[`target_product_id`] = targetProductId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2772,15 +3318,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, productAssociationsUpdateSpecs, { method: "put" });
+const productCategoriesListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`product-categories-list`)
   .description(`List product categories (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          productCategoriesListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/product_categories`;
         const _payload: RequestParams = {};
@@ -2792,6 +3356,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2806,21 +3377,24 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, productCategoriesListSpecs, { method: "get" });
+const productCategoriesCreateSpecs: PromptSpec[] = [
+  { key: "categoryId", option: "--category-id <category-id>", name: "category_id", type: "string", required: true },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", type: "string", required: true },
+  { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+];
 products
   .command(`product-categories-create`)
   .description(`Create one of product categories`)
-  .option(`--category-_id <category-_id>`, ``)
-  .option(`--product-_id <product-_id>`, ``)
+  .option(`--category-id <category-id>`, ``)
+  .option(`--product-id <product-id>`, ``)
   .option(`--position <position>`, ``, parseInteger)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { category_id, product_id, position } = await promptForMissing(
+        const { categoryId, productId, position } = await promptForMissing(
           _options,
-          [
-            { key: "category_id", option: "--category-_id <category-_id>", name: "category_id", type: "string", required: true },
-            { key: "product_id", option: "--product-_id <product-_id>", name: "product_id", type: "string", required: true },
-          ],
+          productCategoriesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2833,14 +3407,14 @@ products
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (category_id !== undefined) {
-          _payload[`category_id`] = category_id;
+        if (categoryId !== undefined) {
+          _payload[`category_id`] = categoryId;
         }
         if (position !== undefined) {
           _payload[`position`] = position;
         }
-        if (product_id !== undefined) {
-          _payload[`product_id`] = product_id;
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2855,6 +3429,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, productCategoriesCreateSpecs, { method: "post" });
+const productCategoriesDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_categories", hasLimit: true } },
+];
 products
   .command(`product-categories-delete`)
   .description(`Delete one of product categories by id`)
@@ -2864,9 +3442,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_categories", hasLimit: true } },
-          ],
+          productCategoriesDeleteSpecs,
           _command,
         );
         await confirmDestructive(`products product-categories-delete`);
@@ -2886,6 +3462,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, productCategoriesDeleteSpecs, { method: "delete", destructive: true });
+const productCategoriesGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_categories", hasLimit: true } },
+];
 products
   .command(`product-categories-get`)
   .description(`Read one of product categories by id`)
@@ -2895,9 +3475,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_categories", hasLimit: true } },
-          ],
+          productCategoriesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2916,21 +3494,26 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, productCategoriesGetSpecs, { method: "get" });
+const productCategoriesUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_categories", hasLimit: true } },
+  { key: "categoryId", option: "--category-id <category-id>", name: "category_id", type: "string", required: false },
+  { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", type: "string", required: false },
+];
 products
   .command(`product-categories-update`)
   .description(`Update one of product categories by id`)
   .option(`--id <id>`, ``)
-  .option(`--category-_id <category-_id>`, ``)
+  .option(`--category-id <category-id>`, ``)
   .option(`--position <position>`, ``, parseInteger)
-  .option(`--product-_id <product-_id>`, ``)
+  .option(`--product-id <product-id>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, category_id, position, product_id } = await promptForMissing(
+        const { id, categoryId, position, productId } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/product_categories", hasLimit: true } },
-          ],
+          productCategoriesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2943,14 +3526,14 @@ products
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (category_id !== undefined) {
-          _payload[`category_id`] = category_id;
+        if (categoryId !== undefined) {
+          _payload[`category_id`] = categoryId;
         }
         if (position !== undefined) {
           _payload[`position`] = position;
         }
-        if (product_id !== undefined) {
-          _payload[`product_id`] = product_id;
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2965,15 +3548,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, productCategoriesUpdateSpecs, { method: "put" });
+const referenceEntitiesListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`reference-entities-list`)
   .description(`List reference entities (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          referenceEntitiesListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entities`;
         const _payload: RequestParams = {};
@@ -2985,6 +3586,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2999,6 +3607,12 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, referenceEntitiesListSpecs, { method: "get" });
+const referenceEntitiesCreateSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+  { key: "image", option: "--image <image>", name: "image", type: "string", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+];
 products
   .command(`reference-entities-create`)
   .description(`Create one of reference entities`)
@@ -3010,9 +3624,7 @@ products
       async (_options, _command) => {
         const { code, image, labels } = await promptForMissing(
           _options,
-          [
-            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
-          ],
+          referenceEntitiesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3047,6 +3659,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, referenceEntitiesCreateSpecs, { method: "post" });
+const referenceEntitiesDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entities", hasLimit: true } },
+];
 products
   .command(`reference-entities-delete`)
   .description(`Delete one of reference entities by id`)
@@ -3056,9 +3672,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entities", hasLimit: true } },
-          ],
+          referenceEntitiesDeleteSpecs,
           _command,
         );
         await confirmDestructive(`products reference-entities-delete`);
@@ -3078,6 +3692,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, referenceEntitiesDeleteSpecs, { method: "delete", destructive: true });
+const referenceEntitiesGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entities", hasLimit: true } },
+];
 products
   .command(`reference-entities-get`)
   .description(`Read one of reference entities by id`)
@@ -3087,9 +3705,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entities", hasLimit: true } },
-          ],
+          referenceEntitiesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3108,6 +3724,13 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, referenceEntitiesGetSpecs, { method: "get" });
+const referenceEntitiesUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entities", hasLimit: true } },
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: false },
+  { key: "image", option: "--image <image>", name: "image", type: "string", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+];
 products
   .command(`reference-entities-update`)
   .description(`Update one of reference entities by id`)
@@ -3120,9 +3743,7 @@ products
       async (_options, _command) => {
         const { id, code, image, labels } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entities", hasLimit: true } },
-          ],
+          referenceEntitiesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3157,15 +3778,33 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, referenceEntitiesUpdateSpecs, { method: "put" });
+const referenceEntityRecordsListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 products
   .command(`reference-entity-records-list`)
   .description(`List reference entity records (filter by column; paginate limit/offset/order)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          referenceEntityRecordsListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entity_records`;
         const _payload: RequestParams = {};
@@ -3177,6 +3816,13 @@ products
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -3191,22 +3837,26 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, referenceEntityRecordsListSpecs, { method: "get" });
+const referenceEntityRecordsCreateSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
+  { key: "referenceEntityId", option: "--reference-entity-id <reference-entity-id>", name: "reference_entity_id", type: "string", required: true },
+  { key: "attributeValues", option: "--attribute-values <attribute-values>", name: "attribute_values", type: "object", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+];
 products
   .command(`reference-entity-records-create`)
   .description(`Create one of reference entity records`)
   .option(`--code <code>`, ``)
-  .option(`--reference-_entity-_id <reference-_entity-_id>`, ``)
-  .option(`--attribute-_values <attribute-_values>`, ``)
+  .option(`--reference-entity-id <reference-entity-id>`, ``)
+  .option(`--attribute-values <attribute-values>`, ``)
   .option(`--labels <labels>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, reference_entity_id, attribute_values, labels } = await promptForMissing(
+        const { code, referenceEntityId, attributeValues, labels } = await promptForMissing(
           _options,
-          [
-            { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
-            { key: "reference_entity_id", option: "--reference-_entity-_id <reference-_entity-_id>", name: "reference_entity_id", type: "string", required: true },
-          ],
+          referenceEntityRecordsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3219,8 +3869,8 @@ products
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (attribute_values !== undefined) {
-          _payload[`attribute_values`] = resolveBodyParam(attribute_values);
+        if (attributeValues !== undefined) {
+          _payload[`attribute_values`] = resolveBodyParam(attributeValues);
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -3228,8 +3878,8 @@ products
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
         }
-        if (reference_entity_id !== undefined) {
-          _payload[`reference_entity_id`] = reference_entity_id;
+        if (referenceEntityId !== undefined) {
+          _payload[`reference_entity_id`] = referenceEntityId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -3244,6 +3894,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, referenceEntityRecordsCreateSpecs, { method: "post" });
+const referenceEntityRecordsDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entity_records", hasLimit: true } },
+];
 products
   .command(`reference-entity-records-delete`)
   .description(`Delete one of reference entity records by id`)
@@ -3253,9 +3907,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entity_records", hasLimit: true } },
-          ],
+          referenceEntityRecordsDeleteSpecs,
           _command,
         );
         await confirmDestructive(`products reference-entity-records-delete`);
@@ -3275,6 +3927,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, referenceEntityRecordsDeleteSpecs, { method: "delete", destructive: true });
+const referenceEntityRecordsGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entity_records", hasLimit: true } },
+];
 products
   .command(`reference-entity-records-get`)
   .description(`Read one of reference entity records by id`)
@@ -3284,9 +3940,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entity_records", hasLimit: true } },
-          ],
+          referenceEntityRecordsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3305,22 +3959,28 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, referenceEntityRecordsGetSpecs, { method: "get" });
+const referenceEntityRecordsUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entity_records", hasLimit: true } },
+  { key: "attributeValues", option: "--attribute-values <attribute-values>", name: "attribute_values", type: "object", required: false },
+  { key: "code", option: "--code <code>", name: "code", type: "string", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", type: "object", required: false },
+  { key: "referenceEntityId", option: "--reference-entity-id <reference-entity-id>", name: "reference_entity_id", type: "string", required: false },
+];
 products
   .command(`reference-entity-records-update`)
   .description(`Update one of reference entity records by id`)
   .option(`--id <id>`, ``)
-  .option(`--attribute-_values <attribute-_values>`, ``)
+  .option(`--attribute-values <attribute-values>`, ``)
   .option(`--code <code>`, ``)
   .option(`--labels <labels>`, ``)
-  .option(`--reference-_entity-_id <reference-_entity-_id>`, ``)
+  .option(`--reference-entity-id <reference-entity-id>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, attribute_values, code, labels, reference_entity_id } = await promptForMissing(
+        const { id, attributeValues, code, labels, referenceEntityId } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/reference_entity_records", hasLimit: true } },
-          ],
+          referenceEntityRecordsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3333,8 +3993,8 @@ products
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (attribute_values !== undefined) {
-          _payload[`attribute_values`] = resolveBodyParam(attribute_values);
+        if (attributeValues !== undefined) {
+          _payload[`attribute_values`] = resolveBodyParam(attributeValues);
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -3342,8 +4002,8 @@ products
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
         }
-        if (reference_entity_id !== undefined) {
-          _payload[`reference_entity_id`] = reference_entity_id;
+        if (referenceEntityId !== undefined) {
+          _payload[`reference_entity_id`] = referenceEntityId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -3358,6 +4018,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, referenceEntityRecordsUpdateSpecs, { method: "put" });
+const deleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products", hasLimit: true } },
+];
 products
   .command(`delete`)
   .description(`Delete one of products by id`)
@@ -3367,9 +4031,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products", hasLimit: true } },
-          ],
+          deleteSpecs,
           _command,
         );
         await confirmDestructive(`products delete`);
@@ -3389,6 +4051,10 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, deleteSpecs, { method: "delete", destructive: true });
+const getSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products", hasLimit: true } },
+];
 products
   .command(`get`)
   .description(`Read one of products by id`)
@@ -3398,9 +4064,7 @@ products
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products", hasLimit: true } },
-          ],
+          getSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3419,34 +4083,47 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, getSpecs, { method: "get" });
+const updateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products", hasLimit: true } },
+  { key: "attributeValues", option: "--attribute-values <attribute-values>", name: "attribute_values", type: "object", required: false },
+  { key: "completeness", option: "--completeness <completeness>", name: "completeness", type: "object", required: false },
+  { key: "deletedAt", option: "--deleted-at <deleted-at>", name: "deleted_at", type: "string", required: false },
+  { key: "enabled", option: "--enabled <enabled>", name: "enabled", type: "boolean", required: false },
+  { key: "familyId", option: "--family-id <family-id>", name: "family_id", type: "string", required: false },
+  { key: "familyVariantId", option: "--family-variant-id <family-variant-id>", name: "family_variant_id", type: "string", required: false },
+  { key: "kind", option: "--kind <kind>", name: "kind", type: "string", required: false },
+  { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", type: "string", required: false },
+  { key: "quantifiedAssociations", option: "--quantified-associations <quantified-associations>", name: "quantified_associations", type: "object", required: false },
+  { key: "sku", option: "--sku <sku>", name: "sku", type: "string", required: false },
+  { key: "taxClass", option: "--tax-class <tax-class>", name: "tax_class", type: "string", required: false },
+];
 products
   .command(`update`)
   .description(`Update one of products by id`)
   .option(`--id <id>`, ``)
-  .option(`--attribute-_values <attribute-_values>`, ``)
+  .option(`--attribute-values <attribute-values>`, ``)
   .option(`--completeness <completeness>`, ``)
-  .option(`--deleted-_at <deleted-_at>`, ``)
+  .option(`--deleted-at <deleted-at>`, ``)
   .option(
     `--enabled [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
-  .option(`--family-_id <family-_id>`, ``)
-  .option(`--family-_variant-_id <family-_variant-_id>`, ``)
+  .option(`--family-id <family-id>`, ``)
+  .option(`--family-variant-id <family-variant-id>`, ``)
   .option(`--kind <kind>`, ``)
-  .option(`--parent-_id <parent-_id>`, ``)
-  .option(`--quantified-_associations <quantified-_associations>`, ``)
+  .option(`--parent-id <parent-id>`, ``)
+  .option(`--quantified-associations <quantified-associations>`, ``)
   .option(`--sku <sku>`, ``)
-  .option(`--tax-_class <tax-_class>`, ``)
+  .option(`--tax-class <tax-class>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, attribute_values, completeness, deleted_at, enabled, family_id, family_variant_id, kind, parent_id, quantified_associations, sku, tax_class } = await promptForMissing(
+        const { id, attributeValues, completeness, deletedAt, enabled, familyId, familyVariantId, kind, parentId, quantifiedAssociations, sku, taxClass } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products", hasLimit: true } },
-          ],
+          updateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3459,38 +4136,38 @@ products
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (attribute_values !== undefined) {
-          _payload[`attribute_values`] = resolveBodyParam(attribute_values);
+        if (attributeValues !== undefined) {
+          _payload[`attribute_values`] = resolveBodyParam(attributeValues);
         }
         if (completeness !== undefined) {
           _payload[`completeness`] = resolveBodyParam(completeness);
         }
-        if (deleted_at !== undefined) {
-          _payload[`deleted_at`] = deleted_at;
+        if (deletedAt !== undefined) {
+          _payload[`deleted_at`] = deletedAt;
         }
         if (enabled !== undefined) {
           _payload[`enabled`] = enabled;
         }
-        if (family_id !== undefined) {
-          _payload[`family_id`] = family_id;
+        if (familyId !== undefined) {
+          _payload[`family_id`] = familyId;
         }
-        if (family_variant_id !== undefined) {
-          _payload[`family_variant_id`] = family_variant_id;
+        if (familyVariantId !== undefined) {
+          _payload[`family_variant_id`] = familyVariantId;
         }
         if (kind !== undefined) {
           _payload[`kind`] = kind;
         }
-        if (parent_id !== undefined) {
-          _payload[`parent_id`] = parent_id;
+        if (parentId !== undefined) {
+          _payload[`parent_id`] = parentId;
         }
-        if (quantified_associations !== undefined) {
-          _payload[`quantified_associations`] = resolveBodyParam(quantified_associations);
+        if (quantifiedAssociations !== undefined) {
+          _payload[`quantified_associations`] = resolveBodyParam(quantifiedAssociations);
         }
         if (sku !== undefined) {
           _payload[`sku`] = sku;
         }
-        if (tax_class !== undefined) {
-          _payload[`tax_class`] = tax_class;
+        if (taxClass !== undefined) {
+          _payload[`tax_class`] = taxClass;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -3505,3 +4182,4 @@ products
       },
     ),
   );
+registerPromptSpecs(products.commands.at(-1)!, updateSpecs, { method: "put" });

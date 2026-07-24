@@ -1,4 +1,4 @@
 ```bash
 revenexx sites list-deployments \
-    --site-id ''
+    --site-id sample-id
 ```

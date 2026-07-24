@@ -1,4 +1,4 @@
 ```bash
 revenexx products reference-entities-create \
-    --code ''
+    --code sample code
 ```

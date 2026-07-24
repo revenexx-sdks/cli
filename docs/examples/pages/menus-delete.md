@@ -1,4 +1,4 @@
 ```bash
 revenexx pages menus-delete \
-    --id ''
+    --id sample-id
 ```

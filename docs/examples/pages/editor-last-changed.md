@@ -1,4 +1,4 @@
 ```bash
 revenexx pages editor-last-changed \
-    --page-id ''
+    --page-id sample-id
 ```

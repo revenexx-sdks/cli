@@ -81,6 +81,33 @@ export const loadProjectConfig = (
   return cached;
 };
 
+/** Landing experience for a bare `revenexx` on an interactive TTY (DX-140). */
+export type DefaultMode = "tui" | "guided" | "help";
+
+/**
+ * Resolve what a bare `revenexx` opens on an interactive TTY:
+ *
+ * - `tui` (default) — launch the full-screen Ink app.
+ * - `guided` — the DX-98 searchable command picker.
+ * - `help` — print usage, like a non-TTY invocation.
+ *
+ * `REVENEXX_NO_TUI` (any value other than `0`/`false`) forces `guided`;
+ * otherwise a `defaultMode:` key in `.revenexx.yaml` wins; else `tui`.
+ * Only the empty invocation consults this — partial/named commands and
+ * explicit subcommands are unaffected.
+ */
+export const resolveDefaultMode = (): DefaultMode => {
+  const noTui = process.env.REVENEXX_NO_TUI?.toLowerCase();
+  if (noTui !== undefined && noTui !== "" && noTui !== "0" && noTui !== "false") {
+    return "guided";
+  }
+  const configured = loadProjectConfig().raw.defaultMode?.toLowerCase();
+  if (configured === "tui" || configured === "guided" || configured === "help") {
+    return configured;
+  }
+  return "tui";
+};
+
 /**
  * Resolve the tenant slug for API requests. The gateway requires an
  * `X-Revenexx-Tenant` header on every request.

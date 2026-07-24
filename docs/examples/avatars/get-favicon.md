@@ -1,4 +1,4 @@
 ```bash
 revenexx avatars get-favicon \
-    --url ''
+    --url https://example.com
 ```

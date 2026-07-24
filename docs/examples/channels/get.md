@@ -1,4 +1,4 @@
 ```bash
 revenexx channels get \
-    --id ''
+    --id sample-id
 ```

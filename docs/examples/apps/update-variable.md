@@ -1,6 +1,6 @@
 ```bash
 revenexx apps update-variable \
-    --function-id '' \
-    --variable-id '' \
-    --key ''
+    --function-id sample-id \
+    --variable-id sample-id \
+    --key sample key
 ```

@@ -1,5 +1,5 @@
 ```bash
 revenexx orders unhold \
-    --id '' \
+    --id sample-id \
     --data '{ "key": "value" }'
 ```

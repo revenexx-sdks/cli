@@ -1,4 +1,4 @@
 ```bash
 revenexx channels update \
-    --id ''
+    --id sample-id
 ```

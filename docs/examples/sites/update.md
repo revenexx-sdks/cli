@@ -1,6 +1,6 @@
 ```bash
 revenexx sites update \
-    --site-id '' \
-    --framework '' \
-    --name ''
+    --site-id sample-id \
+    --framework analog \
+    --name Sample name
 ```

@@ -1,5 +1,5 @@
 ```bash
 revenexx pages editor-history \
-    --page-id '' \
-    --index null
+    --page-id sample-id \
+    --index 1
 ```

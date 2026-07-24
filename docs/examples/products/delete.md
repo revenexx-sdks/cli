@@ -1,4 +1,4 @@
 ```bash
 revenexx products delete \
-    --id ''
+    --id sample-id
 ```

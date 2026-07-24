@@ -1,4 +1,4 @@
 ```bash
 revenexx pages editor-publish \
-    --page-id ''
+    --page-id sample-id
 ```

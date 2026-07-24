@@ -1,4 +1,4 @@
 ```bash
 revenexx products product-associations-get \
-    --id ''
+    --id sample-id
 ```

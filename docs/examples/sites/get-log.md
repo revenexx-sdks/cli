@@ -1,5 +1,5 @@
 ```bash
 revenexx sites get-log \
-    --site-id '' \
-    --log-id ''
+    --site-id sample-id \
+    --log-id sample-id
 ```

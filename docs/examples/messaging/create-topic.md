@@ -1,5 +1,5 @@
 ```bash
 revenexx messaging create-topic \
-    --name '' \
-    --topic-id ''
+    --name Sample name \
+    --topic-id sample-id
 ```

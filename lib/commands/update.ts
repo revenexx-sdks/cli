@@ -20,6 +20,20 @@ const { version } = packageJson;
 type ExecCommandOptions = Exclude<Parameters<typeof spawn>[2], undefined>;
 
 /**
+ * The GitHub release tag for a version. Release tags are `v`-prefixed
+ * (`v1.2.3`) while npm reports the bare version (`1.2.3`), so normalise to a
+ * single leading `v` — otherwise the releases page 404s.
+ */
+export const releaseTag = (version: string): string =>
+  `v${version.replace(/^v/, "")}`;
+
+/** The npm command update runs (and prints under --dry-run) — a single source
+ * so the shown command can never drift from the executed one. */
+export const NPM_UPDATE_ARGS = ["install", "-g", `${NPM_PACKAGE_NAME}@latest`];
+export const npmUpdateCommandLine = (): string =>
+  `npm ${NPM_UPDATE_ARGS.join(" ")}`;
+
+/**
  * Check if the CLI was installed via npm
  */
 const isInstalledViaNpm = (): boolean => {
@@ -65,15 +79,20 @@ const isInstalledViaHomebrew = (): boolean => {
 };
 
 /**
- * Execute command and return promise
+ * Run a shell command line and resolve on exit 0.
+ *
+ * The whole command is passed as a single string (not command + args array):
+ * with `shell: true`, passing a separate args array trips Node's DEP0190
+ * warning because the args would be concatenated into the shell line
+ * unescaped. Callers must therefore pass a complete, trusted command line —
+ * never interpolate untrusted input here.
  */
 const execCommand = (
-  command: string,
-  args: string[] = [],
+  commandLine: string,
   options: ExecCommandOptions = {},
 ): Promise<void> => {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const child = spawn(commandLine, {
       stdio: "inherit",
       shell: true,
       ...options,
@@ -96,9 +115,13 @@ const execCommand = (
 /**
  * Update via npm
  */
-const updateViaNpm = async (): Promise<void> => {
+const updateViaNpm = async (dryRun = false): Promise<void> => {
+  if (dryRun) {
+    log(`Dry run — would run: ${chalk.cyan(npmUpdateCommandLine())}`);
+    return;
+  }
   try {
-    await execCommand("npm", ["install", "-g", `${NPM_PACKAGE_NAME}@latest`]);
+    await execCommand(npmUpdateCommandLine());
     console.log("");
     success("Updated to latest version via npm!");
     hint(`Run '${EXECUTABLE_NAME} --version' to verify the new version.`);
@@ -142,7 +165,7 @@ const showManualInstructions = (latestVersion: string): void => {
   console.log("");
 
   log(`${chalk.bold("Option 3: Download Binary")}`);
-  console.log(`  Visit: ${GITHUB_RELEASES_URL}/tag/${latestVersion}`);
+  console.log(`  Visit: ${GITHUB_RELEASES_URL}/tag/${releaseTag(latestVersion)}`);
 };
 
 /**
@@ -180,12 +203,13 @@ const chooseUpdateMethod = async (latestVersion: string): Promise<void> => {
 
 interface UpdateOptions {
   manual?: boolean;
+  dryRun?: boolean;
 }
 
 /**
  * Main update function
  */
-const updateCli = async ({ manual }: UpdateOptions = {}): Promise<void> => {
+const updateCli = async ({ manual, dryRun }: UpdateOptions = {}): Promise<void> => {
   try {
     const latestVersion = await getLatestVersion();
 
@@ -215,9 +239,17 @@ const updateCli = async ({ manual }: UpdateOptions = {}): Promise<void> => {
     }
 
     if (isInstalledViaNpm()) {
-      await updateViaNpm();
+      if (dryRun) log(`Detected install method: ${chalk.bold("npm")}`);
+      await updateViaNpm(dryRun);
     } else if (isInstalledViaHomebrew()) {
+      if (dryRun) log(`Detected install method: ${chalk.bold("Homebrew")}`);
       await updateViaHomebrew();
+    } else if (dryRun) {
+      // Non-interactive by design: report what would happen instead of prompting.
+      warn("Could not detect the install method.");
+      hint(
+        `Without --dry-run you'd be asked to choose. NPM would run: ${chalk.cyan(npmUpdateCommandLine())}`,
+      );
     } else {
       await chooseUpdateMethod(latestVersion);
     }
@@ -234,5 +266,9 @@ export const update = new Command("update")
   .option(
     "--manual",
     "Show manual update instructions instead of auto-updating",
+  )
+  .option(
+    "--dry-run",
+    "Print what update would do (detected method + command) without changing anything",
   )
   .action(actionRunner(updateCli));

@@ -1,7 +1,7 @@
 // SDK
 export const SDK_TITLE = 'Revenexx';
 export const SDK_TITLE_LOWER = 'revenexx';
-export const SDK_VERSION = '0.1.1';
+export const SDK_VERSION = '0.2.0';
 export const SDK_NAME = 'Revenexx CLI';
 export const SDK_PLATFORM = '';
 export const SDK_LANGUAGE = 'cli';

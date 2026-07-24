@@ -1,6 +1,6 @@
 ```bash
 revenexx pages editor-mutation-status \
-    --page-id '' \
-    --enabled null \
-    --index null
+    --page-id sample-id \
+    --enabled true \
+    --index 1
 ```

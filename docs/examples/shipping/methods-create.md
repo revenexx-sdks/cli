@@ -1,5 +1,5 @@
 ```bash
 revenexx shipping methods-create \
-    --code '' \
-    --name ''
+    --code sample code \
+    --name Sample name
 ```

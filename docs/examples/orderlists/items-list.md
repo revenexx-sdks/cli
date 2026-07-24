@@ -1,4 +1,4 @@
 ```bash
 revenexx orderlists items-list \
-    --list-id ''
+    --list-id sample-id
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx apps list-executions \
-    --function-id ''
+    --function-id sample-id
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx carts io-profiles-update \
-    --id ''
+    --id sample-id
 ```

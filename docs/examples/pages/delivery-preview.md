@@ -1,4 +1,4 @@
 ```bash
 revenexx pages delivery-preview \
-    --token ''
+    --token sample token
 ```

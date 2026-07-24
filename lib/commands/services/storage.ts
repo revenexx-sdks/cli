@@ -14,6 +14,8 @@ import {
 import {
   confirmDestructive,
   promptForMissing,
+  type PromptSpec,
+  registerPromptSpecs,
 } from "../../interactive.js";
 
 export const storage = new Command("storage")
@@ -25,18 +27,40 @@ export const storage = new Command("storage")
     helpWidth: process.stdout.columns || 80,
   });
 
+const assetIndexSpecs: PromptSpec[] = [
+  { key: "search", option: "--search <search>", name: "search", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 storage
   .command(`asset-index`)
   .description(``)
   .option(`--search <search>`, ``)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ search }) => {
+      async (_options, _command) => {
+        const { search, filter } = await promptForMissing(
+          _options,
+          assetIndexSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets`;
         const _payload: RequestParams = {};
         if (search !== undefined) {
           _payload[`search`] = search;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -51,16 +75,28 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, assetIndexSpecs, { method: "get" });
+const assetStoreSpecs: PromptSpec[] = [
+  { key: "file", option: "--file <file>", name: "file", type: "file", required: true },
+  { key: "altText", option: "--alt-text <alt-text>", name: "alt_text", type: "string", required: false },
+  { key: "description", option: "--description <description>", name: "description", type: "string", required: false },
+  { key: "displayName", option: "--display-name <display-name>", name: "display_name", type: "string", required: false },
+  { key: "folderId", option: "--folder-id <folder-id>", name: "folder_id", type: "string", required: false },
+  { key: "keepArchive", option: "--keep-archive <keep-archive>", name: "keep_archive", type: "boolean", required: false },
+  { key: "tags", option: "--tags [tags...]", name: "tags", type: "array", required: false },
+  { key: "unpack", option: "--unpack <unpack>", name: "unpack", description: "Archives only: unpack the members after upload (see AssetController).", type: "boolean", required: false },
+  { key: "visibility", option: "--visibility <visibility>", name: "visibility", type: "string", required: false, enum: ["public","private"] },
+];
 storage
   .command(`asset-store`)
   .description(``)
   .option(`--file <file>`, ``)
-  .option(`--alt-_text <alt-_text>`, ``)
+  .option(`--alt-text <alt-text>`, ``)
   .option(`--description <description>`, ``)
-  .option(`--display-_name <display-_name>`, ``)
-  .option(`--folder-_id <folder-_id>`, ``)
+  .option(`--display-name <display-name>`, ``)
+  .option(`--folder-id <folder-id>`, ``)
   .option(
-    `--keep-_archive [value]`,
+    `--keep-archive [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
@@ -76,11 +112,9 @@ storage
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { file, alt_text, description, display_name, folder_id, keep_archive, tags, unpack, visibility } = await promptForMissing(
+        const { file, altText, description, displayName, folderId, keepArchive, tags, unpack, visibility } = await promptForMissing(
           _options,
-          [
-            { key: "file", option: "--file <file>", name: "file", type: "file", required: true },
-          ],
+          assetStoreSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -93,23 +127,23 @@ storage
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (alt_text !== undefined) {
-          _payload[`alt_text`] = alt_text;
+        if (altText !== undefined) {
+          _payload[`alt_text`] = altText;
         }
         if (description !== undefined) {
           _payload[`description`] = description;
         }
-        if (display_name !== undefined) {
-          _payload[`display_name`] = display_name;
+        if (displayName !== undefined) {
+          _payload[`display_name`] = displayName;
         }
         if (file !== undefined) {
           _payload[`file`] = file !== undefined ? await resolveFileParam(file) : undefined;
         }
-        if (folder_id !== undefined) {
-          _payload[`folder_id`] = folder_id;
+        if (folderId !== undefined) {
+          _payload[`folder_id`] = folderId;
         }
-        if (keep_archive !== undefined) {
-          _payload[`keep_archive`] = keep_archive;
+        if (keepArchive !== undefined) {
+          _payload[`keep_archive`] = keepArchive;
         }
         if (tags !== undefined) {
           _payload[`tags`] = tags;
@@ -133,14 +167,24 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, assetStoreSpecs, { method: "post" });
+const assetBulkSpecs: PromptSpec[] = [
+  { key: "folderId", option: "--folder-id <folder-id>", name: "folder_id", type: "string", required: false },
+  { key: "visibility", option: "--visibility <visibility>", name: "visibility", type: "string", required: false },
+];
 storage
   .command(`asset-bulk`)
   .description(``)
-  .option(`--folder-_id <folder-_id>`, ``)
+  .option(`--folder-id <folder-id>`, ``)
   .option(`--visibility <visibility>`, ``)
   .action(
     actionRunner(
-      async ({ folder_id, visibility }) => {
+      async (_options, _command) => {
+        const { folderId, visibility } = await promptForMissing(
+          _options,
+          assetBulkSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/assets/bulk`;
         const _payload: RequestParams = {};
@@ -151,8 +195,8 @@ storage
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (folder_id !== undefined) {
-          _payload[`folder_id`] = folder_id;
+        if (folderId !== undefined) {
+          _payload[`folder_id`] = folderId;
         }
         if (visibility !== undefined) {
           _payload[`visibility`] = visibility;
@@ -170,6 +214,10 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, assetBulkSpecs, { method: "post" });
+const assetDestroySpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false, search: true } },
+];
 storage
   .command(`asset-destroy`)
   .description(``)
@@ -179,9 +227,7 @@ storage
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
-          ],
+          assetDestroySpecs,
           _command,
         );
         await confirmDestructive(`storage asset-destroy`);
@@ -201,6 +247,10 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, assetDestroySpecs, { method: "delete", destructive: true });
+const assetShowSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false, search: true } },
+];
 storage
   .command(`asset-show`)
   .description(``)
@@ -210,9 +260,7 @@ storage
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
-          ],
+          assetShowSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -231,25 +279,34 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, assetShowSpecs, { method: "get" });
+const assetUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false, search: true } },
+  { key: "altText", option: "--alt-text <alt-text>", name: "alt_text", type: "string", required: false },
+  { key: "description", option: "--description <description>", name: "description", type: "string", required: false },
+  { key: "displayName", option: "--display-name <display-name>", name: "display_name", type: "string", required: false },
+  { key: "folderId", option: "--folder-id <folder-id>", name: "folder_id", type: "string", required: false },
+  { key: "name", option: "--name <name>", name: "name", type: "string", required: false },
+  { key: "tags", option: "--tags [tags...]", name: "tags", type: "array", required: false },
+  { key: "visibility", option: "--visibility <visibility>", name: "visibility", type: "string", required: false, enum: ["public","private"] },
+];
 storage
   .command(`asset-update`)
   .description(``)
   .option(`--id <id>`, ``)
-  .option(`--alt-_text <alt-_text>`, ``)
+  .option(`--alt-text <alt-text>`, ``)
   .option(`--description <description>`, ``)
-  .option(`--display-_name <display-_name>`, ``)
-  .option(`--folder-_id <folder-_id>`, ``)
+  .option(`--display-name <display-name>`, ``)
+  .option(`--folder-id <folder-id>`, ``)
   .option(`--name <name>`, ``)
   .option(`--tags [tags...]`, ``)
   .option(`--visibility <visibility>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, alt_text, description, display_name, folder_id, name, tags, visibility } = await promptForMissing(
+        const { id, altText, description, displayName, folderId, name, tags, visibility } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
-          ],
+          assetUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -262,17 +319,17 @@ storage
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (alt_text !== undefined) {
-          _payload[`alt_text`] = alt_text;
+        if (altText !== undefined) {
+          _payload[`alt_text`] = altText;
         }
         if (description !== undefined) {
           _payload[`description`] = description;
         }
-        if (display_name !== undefined) {
-          _payload[`display_name`] = display_name;
+        if (displayName !== undefined) {
+          _payload[`display_name`] = displayName;
         }
-        if (folder_id !== undefined) {
-          _payload[`folder_id`] = folder_id;
+        if (folderId !== undefined) {
+          _payload[`folder_id`] = folderId;
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -296,6 +353,10 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, assetUpdateSpecs, { method: "patch" });
+const assetDownloadSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false, search: true } },
+];
 storage
   .command(`asset-download`)
   .description(``)
@@ -305,9 +366,7 @@ storage
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
-          ],
+          assetDownloadSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -326,6 +385,10 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, assetDownloadSpecs, { method: "get" });
+const assetPermanentSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false, search: true } },
+];
 storage
   .command(`asset-permanent`)
   .description(``)
@@ -335,9 +398,7 @@ storage
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
-          ],
+          assetPermanentSpecs,
           _command,
         );
         await confirmDestructive(`storage asset-permanent`);
@@ -357,6 +418,10 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, assetPermanentSpecs, { method: "delete", destructive: true });
+const assetReprocessSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false, search: true } },
+];
 storage
   .command(`asset-reprocess`)
   .description(``)
@@ -366,9 +431,7 @@ storage
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
-          ],
+          assetReprocessSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -387,6 +450,10 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, assetReprocessSpecs, { method: "post" });
+const assetRestoreSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false, search: true } },
+];
 storage
   .command(`asset-restore`)
   .description(``)
@@ -396,9 +463,7 @@ storage
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
-          ],
+          assetRestoreSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -417,19 +482,22 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, assetRestoreSpecs, { method: "post" });
+const assetSignSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false, search: true } },
+  { key: "ttlSeconds", option: "--ttl-seconds <ttl-seconds>", name: "ttl_seconds", type: "integer", required: false },
+];
 storage
   .command(`asset-sign`)
   .description(``)
   .option(`--id <id>`, ``)
-  .option(`--ttl-_seconds <ttl-_seconds>`, ``, parseInteger)
+  .option(`--ttl-seconds <ttl-seconds>`, ``, parseInteger)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, ttl_seconds } = await promptForMissing(
+        const { id, ttlSeconds } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
-          ],
+          assetSignSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -442,8 +510,8 @@ storage
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (ttl_seconds !== undefined) {
-          _payload[`ttl_seconds`] = ttl_seconds;
+        if (ttlSeconds !== undefined) {
+          _payload[`ttl_seconds`] = ttlSeconds;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -458,6 +526,12 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, assetSignSpecs, { method: "post" });
+const assetUnpackSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false, search: true } },
+  { key: "keepArchive", option: "--keep-archive <keep-archive>", name: "keep_archive", type: "boolean", required: false },
+  { key: "targetFolderId", option: "--target-folder-id <target-folder-id>", name: "target_folder_id", type: "string", required: false },
+];
 storage
   .command(`asset-unpack`)
   .description(`Unpack an already-uploaded archive: its members are ingested into a folder
@@ -466,20 +540,18 @@ folder/asset list for the results. \`keep_archive\` (default true) controls
 whether the archive itself is kept`)
   .option(`--id <id>`, ``)
   .option(
-    `--keep-_archive [value]`,
+    `--keep-archive [value]`,
     ``,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
-  .option(`--target-_folder-_id <target-_folder-_id>`, ``)
+  .option(`--target-folder-id <target-folder-id>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, keep_archive, target_folder_id } = await promptForMissing(
+        const { id, keepArchive, targetFolderId } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/assets", hasLimit: false } },
-          ],
+          assetUnpackSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -492,11 +564,11 @@ whether the archive itself is kept`)
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (keep_archive !== undefined) {
-          _payload[`keep_archive`] = keep_archive;
+        if (keepArchive !== undefined) {
+          _payload[`keep_archive`] = keepArchive;
         }
-        if (target_folder_id !== undefined) {
-          _payload[`target_folder_id`] = target_folder_id;
+        if (targetFolderId !== undefined) {
+          _payload[`target_folder_id`] = targetFolderId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -511,15 +583,37 @@ whether the archive itself is kept`)
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, assetUnpackSpecs, { method: "post" });
+const folderIndexSpecs: PromptSpec[] = [
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 storage
   .command(`folder-index`)
   .description(``)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async () => {
+      async (_options, _command) => {
+        const { filter } = await promptForMissing(
+          _options,
+          folderIndexSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/folders`;
         const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -533,19 +627,22 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, folderIndexSpecs, { method: "get" });
+const folderStoreSpecs: PromptSpec[] = [
+  { key: "name", option: "--name <name>", name: "name", type: "string", required: true },
+  { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", type: "string", required: false },
+];
 storage
   .command(`folder-store`)
   .description(``)
   .option(`--name <name>`, ``)
-  .option(`--parent-_id <parent-_id>`, ``)
+  .option(`--parent-id <parent-id>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { name, parent_id } = await promptForMissing(
+        const { name, parentId } = await promptForMissing(
           _options,
-          [
-            { key: "name", option: "--name <name>", name: "name", type: "string", required: true },
-          ],
+          folderStoreSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -561,8 +658,8 @@ storage
         if (name !== undefined) {
           _payload[`name`] = name;
         }
-        if (parent_id !== undefined) {
-          _payload[`parent_id`] = parent_id;
+        if (parentId !== undefined) {
+          _payload[`parent_id`] = parentId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -577,6 +674,11 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, folderStoreSpecs, { method: "post" });
+const folderDestroySpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/folders", hasLimit: false } },
+  { key: "recursive", option: "--recursive <recursive>", name: "recursive", type: "boolean", required: false, default: "false" },
+];
 storage
   .command(`folder-destroy`)
   .description(``)
@@ -592,9 +694,7 @@ storage
       async (_options, _command) => {
         const { id, recursive } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/folders", hasLimit: false } },
-          ],
+          folderDestroySpecs,
           _command,
         );
         await confirmDestructive(`storage folder-destroy`);
@@ -617,6 +717,10 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, folderDestroySpecs, { method: "delete", destructive: true });
+const folderShowSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/folders", hasLimit: false } },
+];
 storage
   .command(`folder-show`)
   .description(``)
@@ -626,9 +730,7 @@ storage
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/folders", hasLimit: false } },
-          ],
+          folderShowSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -647,20 +749,24 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, folderShowSpecs, { method: "get" });
+const folderUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/folders", hasLimit: false } },
+  { key: "name", option: "--name <name>", name: "name", type: "string", required: false },
+  { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", type: "string", required: false },
+];
 storage
   .command(`folder-update`)
   .description(``)
   .option(`--id <id>`, ``)
   .option(`--name <name>`, ``)
-  .option(`--parent-_id <parent-_id>`, ``)
+  .option(`--parent-id <parent-id>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, name, parent_id } = await promptForMissing(
+        const { id, name, parentId } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/folders", hasLimit: false } },
-          ],
+          folderUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -676,8 +782,8 @@ storage
         if (name !== undefined) {
           _payload[`name`] = name;
         }
-        if (parent_id !== undefined) {
-          _payload[`parent_id`] = parent_id;
+        if (parentId !== undefined) {
+          _payload[`parent_id`] = parentId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -692,15 +798,37 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, folderUpdateSpecs, { method: "patch" });
+const syncRuleIndexSpecs: PromptSpec[] = [
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 storage
   .command(`sync-rule-index`)
   .description(``)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async () => {
+      async (_options, _command) => {
+        const { filter } = await promptForMissing(
+          _options,
+          syncRuleIndexSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/sftp/rules`;
         const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -714,6 +842,7 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, syncRuleIndexSpecs, { method: "get" });
 storage
   .command(`sync-rule-store`)
   .description(``)
@@ -736,6 +865,9 @@ storage
       },
     ),
   );
+const syncRuleDestroySpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/sftp/rules", hasLimit: false } },
+];
 storage
   .command(`sync-rule-destroy`)
   .description(``)
@@ -745,9 +877,7 @@ storage
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/sftp/rules", hasLimit: false } },
-          ],
+          syncRuleDestroySpecs,
           _command,
         );
         await confirmDestructive(`storage sync-rule-destroy`);
@@ -767,6 +897,10 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, syncRuleDestroySpecs, { method: "delete", destructive: true });
+const syncRuleShowSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/sftp/rules", hasLimit: false } },
+];
 storage
   .command(`sync-rule-show`)
   .description(``)
@@ -776,9 +910,7 @@ storage
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/sftp/rules", hasLimit: false } },
-          ],
+          syncRuleShowSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -797,6 +929,10 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, syncRuleShowSpecs, { method: "get" });
+const syncRuleUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/sftp/rules", hasLimit: false } },
+];
 storage
   .command(`sync-rule-update`)
   .description(``)
@@ -806,9 +942,7 @@ storage
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/sftp/rules", hasLimit: false } },
-          ],
+          syncRuleUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -827,6 +961,10 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, syncRuleUpdateSpecs, { method: "patch" });
+const syncRuleRunSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/sftp/rules", hasLimit: false } },
+];
 storage
   .command(`sync-rule-run`)
   .description(``)
@@ -836,9 +974,7 @@ storage
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/sftp/rules", hasLimit: false } },
-          ],
+          syncRuleRunSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -857,6 +993,11 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, syncRuleRunSpecs, { method: "post" });
+const syncRuleRunProtocolSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/sftp/rules", hasLimit: false } },
+  { key: "runId", option: "--run-id <run-id>", name: "runId", type: "string", required: true },
+];
 storage
   .command(`sync-rule-run-protocol`)
   .description(``)
@@ -867,10 +1008,7 @@ storage
       async (_options, _command) => {
         const { id, runId } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/storage/sftp/rules", hasLimit: false } },
-            { key: "runId", option: "--run-id <run-id>", name: "runId", type: "string", required: true },
-          ],
+          syncRuleRunProtocolSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -889,20 +1027,31 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, syncRuleRunProtocolSpecs, { method: "get" });
+const syncRuleHistorySpecs: PromptSpec[] = [
+  { key: "ruleId", option: "--rule-id <rule-id>", name: "rule_id", type: "string", required: false },
+  { key: "from", option: "--from <from>", name: "from", type: "string", required: false },
+  { key: "to", option: "--to <to>", name: "to", type: "string", required: false },
+];
 storage
   .command(`sync-rule-history`)
   .description(``)
-  .option(`--rule-_id <rule-_id>`, ``)
+  .option(`--rule-id <rule-id>`, ``)
   .option(`--from <from>`, ``)
   .option(`--to <to>`, ``)
   .action(
     actionRunner(
-      async ({ rule_id, from, to }) => {
+      async (_options, _command) => {
+        const { ruleId, from, to } = await promptForMissing(
+          _options,
+          syncRuleHistorySpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/storage/sftp/sync-history`;
         const _payload: RequestParams = {};
-        if (rule_id !== undefined) {
-          _payload[`rule_id`] = rule_id;
+        if (ruleId !== undefined) {
+          _payload[`rule_id`] = ruleId;
         }
         if (from !== undefined) {
           _payload[`from`] = from;
@@ -923,6 +1072,7 @@ storage
       },
     ),
   );
+registerPromptSpecs(storage.commands.at(-1)!, syncRuleHistorySpecs, { method: "get" });
 storage
   .command(`tenant-stats`)
   .description(``)

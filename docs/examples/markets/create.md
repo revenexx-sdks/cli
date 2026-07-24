@@ -1,5 +1,5 @@
 ```bash
 revenexx markets create \
-    --code '' \
-    --name ''
+    --code sample code \
+    --name Sample name
 ```

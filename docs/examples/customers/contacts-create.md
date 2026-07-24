@@ -1,4 +1,4 @@
 ```bash
 revenexx customers contacts-create \
-    --email ''
+    --email jane@example.com
 ```

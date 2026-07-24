@@ -1,4 +1,4 @@
 ```bash
 revenexx payments providers-delete \
-    --id ''
+    --id sample-id
 ```

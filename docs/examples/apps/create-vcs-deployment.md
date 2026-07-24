@@ -1,6 +1,6 @@
 ```bash
 revenexx apps create-vcs-deployment \
-    --function-id '' \
-    --reference '' \
-    --type ''
+    --function-id sample-id \
+    --reference sample reference \
+    --type branch
 ```

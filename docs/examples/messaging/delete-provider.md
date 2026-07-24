@@ -1,4 +1,4 @@
 ```bash
 revenexx messaging delete-provider \
-    --provider-id ''
+    --provider-id sample-id
 ```

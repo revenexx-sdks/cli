@@ -1,4 +1,4 @@
 ```bash
 revenexx customers organizations-update \
-    --id ''
+    --id sample-id
 ```

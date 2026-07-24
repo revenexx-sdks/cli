@@ -1,6 +1,6 @@
 ```bash
 revenexx customers auth-recovery-confirm \
-    --password '' \
-    --secret '' \
-    --user-id ''
+    --password sample password \
+    --secret sample secret \
+    --user-id sample-id
 ```

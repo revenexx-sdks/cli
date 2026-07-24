@@ -1,5 +1,5 @@
 ```bash
 revenexx markets currencies-delete \
-    --market-id '' \
-    --id ''
+    --market-id sample-id \
+    --id sample-id
 ```

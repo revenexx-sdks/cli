@@ -1,5 +1,5 @@
 ```bash
 revenexx markets currencies-create \
-    --market-id '' \
-    --code ''
+    --market-id sample-id \
+    --code sample code
 ```

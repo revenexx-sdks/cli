@@ -1,4 +1,4 @@
 ```bash
 revenexx apps get-marketplace-status \
-    --function-id ''
+    --function-id sample-id
 ```

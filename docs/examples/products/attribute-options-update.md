@@ -1,4 +1,4 @@
 ```bash
 revenexx products attribute-options-update \
-    --id ''
+    --id sample-id
 ```

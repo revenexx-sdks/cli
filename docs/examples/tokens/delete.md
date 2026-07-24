@@ -1,4 +1,4 @@
 ```bash
 revenexx tokens delete \
-    --token-id ''
+    --token-id sample-id
 ```

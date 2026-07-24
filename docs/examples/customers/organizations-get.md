@@ -1,4 +1,4 @@
 ```bash
 revenexx customers organizations-get \
-    --id ''
+    --id sample-id
 ```

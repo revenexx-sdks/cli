@@ -1,4 +1,4 @@
 ```bash
 revenexx avatars get-browser \
-    --code ''
+    --code aa
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx orders number-ranges-update \
-    --id ''
+    --id sample-id
 ```

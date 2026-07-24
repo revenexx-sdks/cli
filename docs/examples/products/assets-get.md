@@ -1,4 +1,4 @@
 ```bash
 revenexx products assets-get \
-    --id ''
+    --id sample-id
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx products families-get \
-    --id ''
+    --id sample-id
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx messaging update-sendgrid-provider \
-    --provider-id ''
+    --provider-id sample-id
 ```

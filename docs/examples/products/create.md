@@ -1,4 +1,4 @@
 ```bash
 revenexx products create \
-    --sku ''
+    --sku sample sku
 ```

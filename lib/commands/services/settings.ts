@@ -8,6 +8,8 @@ import {
 } from "../../parser.js";
 import {
   promptForMissing,
+  type PromptSpec,
+  registerPromptSpecs,
 } from "../../interactive.js";
 
 export const settings = new Command("settings")
@@ -19,6 +21,10 @@ export const settings = new Command("settings")
     helpWidth: process.stdout.columns || 80,
   });
 
+const getAppSettingsSpecs: PromptSpec[] = [
+  { key: "app", option: "--app <app>", name: "app", description: "App name, e.g. `pages`.", type: "string", required: true },
+  { key: "market", option: "--market <market>", name: "market", description: "Resolve market-scoped settings for this market code; falls back to the tenant value.", type: "string", required: false },
+];
 settings
   .command(`get-app-settings`)
   .description(`The tenant's effective settings for the app — the declared schema's defaults merged with stored tenant/market values. Sensitive settings are masked (listed in \`masked\`, omitted from \`settings\`).`)
@@ -29,9 +35,7 @@ settings
       async (_options, _command) => {
         const { app, market } = await promptForMissing(
           _options,
-          [
-            { key: "app", option: "--app <app>", name: "app", description: "App name, e.g. `pages`.", type: "string", required: true },
-          ],
+          getAppSettingsSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -53,3 +57,4 @@ settings
       },
     ),
   );
+registerPromptSpecs(settings.commands.at(-1)!, getAppSettingsSpecs, { method: "get" });

@@ -1,4 +1,4 @@
 ```bash
 revenexx orderlists delete \
-    --id ''
+    --id sample-id
 ```

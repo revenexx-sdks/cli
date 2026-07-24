@@ -1,5 +1,5 @@
 ```bash
 revenexx apps get-deployment-download \
-    --function-id '' \
-    --deployment-id ''
+    --function-id sample-id \
+    --deployment-id sample-id
 ```

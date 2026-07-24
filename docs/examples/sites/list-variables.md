@@ -1,4 +1,4 @@
 ```bash
 revenexx sites list-variables \
-    --site-id ''
+    --site-id sample-id
 ```

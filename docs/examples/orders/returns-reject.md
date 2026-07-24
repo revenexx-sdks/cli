@@ -1,5 +1,5 @@
 ```bash
 revenexx orders returns-reject \
-    --id '' \
-    --rid ''
+    --id sample-id \
+    --rid sample rid
 ```

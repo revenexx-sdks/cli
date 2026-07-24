@@ -1,3 +1,6 @@
+## v0.2.0
+- TUI
+
 ## v0.1.1
 - add --global flag to skills
 

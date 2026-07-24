@@ -10,6 +10,7 @@ import { globalConfig } from "../config.js";
 import { loadProjectConfig, resolveTenant } from "../project-config.js";
 import { DEFAULT_ENDPOINT, EXECUTABLE_NAME } from "../constants.js";
 import { decodeJwtClaims } from "../oauth.js";
+import { resolveSsoJwt } from "../sdks.js";
 import Client from "../client.js";
 
 /** How long to wait on the gateway health probe before giving up (offline). */
@@ -98,7 +99,7 @@ export const status = new Command("status")
         projectFile.token ||
         globalConfig.getKey() ||
         "";
-      const jwt = globalConfig.getJWT();
+      let jwt = globalConfig.getJWT();
 
       if (key === "" && jwt === "") {
         error(
@@ -116,6 +117,21 @@ export const status = new Command("status")
         "(none)";
       const usingKey = key !== "";
 
+      // Mirror what every real command does before hitting the gateway: refresh
+      // the SSO token via the stored refresh token when it has expired, so the
+      // reported expiry reflects the session the CLI will actually use. Without
+      // this, `status` prints a stale "expired" while every command silently
+      // refreshes and succeeds. A dead refresh token is the genuine re-login
+      // case, surfaced as such below.
+      let refreshFailed = false;
+      if (!usingKey && jwt) {
+        try {
+          jwt = (await resolveSsoJwt()) || jwt;
+        } catch {
+          refreshFailed = true;
+        }
+      }
+
       // The signed-in identity: an API key has no user, so name it by tenant;
       // SSO uses the stored email, falling back to the JWT's own claims.
       const claims = jwt ? decodeJwtClaims(jwt) : null;
@@ -129,13 +145,15 @@ export const status = new Command("status")
 
       let tokenExpiry = "n/a";
       if (!usingKey && jwt) {
-        const expiresAt = resolveTokenExpiry(jwt);
-        if (expiresAt > 0) {
-          const remaining = expiresAt - Date.now();
-          tokenExpiry =
-            remaining <= 0
-              ? "expired"
-              : `in ${formatDuration(remaining)}`;
+        if (refreshFailed) {
+          tokenExpiry = `expired — run \`${EXECUTABLE_NAME} login\``;
+        } else {
+          const expiresAt = resolveTokenExpiry(jwt);
+          if (expiresAt > 0) {
+            const remaining = expiresAt - Date.now();
+            tokenExpiry =
+              remaining <= 0 ? "expired" : `in ${formatDuration(remaining)}`;
+          }
         }
       }
 

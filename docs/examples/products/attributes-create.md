@@ -1,5 +1,5 @@
 ```bash
 revenexx products attributes-create \
-    --code '' \
-    --type ''
+    --code sample code \
+    --type sample type
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx avatars get-qr \
-    --text ''
+    --text sample text
 ```

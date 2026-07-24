@@ -1,4 +1,4 @@
 ```bash
 revenexx messaging get-topic \
-    --topic-id ''
+    --topic-id sample-id
 ```

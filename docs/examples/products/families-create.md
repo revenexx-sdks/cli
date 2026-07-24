@@ -1,4 +1,4 @@
 ```bash
 revenexx products families-create \
-    --code ''
+    --code sample code
 ```

@@ -1,6 +1,6 @@
 ```bash
 revenexx messaging create-email \
-    --content '' \
-    --message-id '' \
-    --subject ''
+    --content sample content \
+    --message-id sample-id \
+    --subject sample subject
 ```

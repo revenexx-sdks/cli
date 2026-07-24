@@ -1,4 +1,4 @@
 ```bash
 revenexx sites delete \
-    --site-id ''
+    --site-id sample-id
 ```

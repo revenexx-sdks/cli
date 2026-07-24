@@ -1,4 +1,4 @@
 ```bash
 revenexx greetings create \
-    --name ''
+    --name Sample name
 ```

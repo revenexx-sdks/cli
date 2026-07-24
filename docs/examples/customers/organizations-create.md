@@ -1,4 +1,4 @@
 ```bash
 revenexx customers organizations-create \
-    --name ''
+    --name Sample name
 ```

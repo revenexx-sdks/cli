@@ -1,4 +1,4 @@
 ```bash
 revenexx products categories-update \
-    --id ''
+    --id sample-id
 ```

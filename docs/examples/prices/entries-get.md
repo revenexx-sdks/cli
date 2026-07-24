@@ -1,5 +1,5 @@
 ```bash
 revenexx prices entries-get \
-    --list-id '' \
-    --id ''
+    --list-id sample-id \
+    --id sample-id
 ```

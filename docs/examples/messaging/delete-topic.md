@@ -1,4 +1,4 @@
 ```bash
 revenexx messaging delete-topic \
-    --topic-id ''
+    --topic-id sample-id
 ```

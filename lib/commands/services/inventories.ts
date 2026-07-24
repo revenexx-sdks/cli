@@ -13,6 +13,8 @@ import {
 import {
   confirmDestructive,
   promptForMissing,
+  type PromptSpec,
+  registerPromptSpecs,
 } from "../../interactive.js";
 
 export const inventories = new Command("inventories")
@@ -24,21 +26,23 @@ export const inventories = new Command("inventories")
     helpWidth: process.stdout.columns || 80,
   });
 
+const adjustSpecs: PromptSpec[] = [
+  { key: "items", option: "--items [items...]", name: "items", description: "The corrections — quantities are SIGNED deltas (at most 200).", type: "array", required: true },
+  { key: "reason", option: "--reason <reason>", name: "reason", description: "Mandatory audit reason — every adjustment is a ledger row.", type: "string", required: true },
+  { key: "locationCode", option: "--location-code <location-code>", name: "location_code", description: "Adjusted location (default 'main').", type: "string", required: false },
+];
 inventories
   .command(`adjust`)
   .description(`Manual correction: ±on_hand with mandatory reason`)
   .option(`--items [items...]`, `The corrections — quantities are SIGNED deltas (at most 200).`)
   .option(`--reason <reason>`, `Mandatory audit reason — every adjustment is a ledger row.`)
-  .option(`--location-_code <location-_code>`, `Adjusted location (default 'main').`)
+  .option(`--location-code <location-code>`, `Adjusted location (default 'main').`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { items, reason, location_code } = await promptForMissing(
+        const { items, reason, locationCode } = await promptForMissing(
           _options,
-          [
-            { key: "items", option: "--items [items...]", name: "items", description: "The corrections — quantities are SIGNED deltas (at most 200).", type: "array", required: true },
-            { key: "reason", option: "--reason <reason>", name: "reason", description: "Mandatory audit reason — every adjustment is a ledger row.", type: "string", required: true },
-          ],
+          adjustSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -54,8 +58,8 @@ inventories
         if (items !== undefined) {
           _payload[`items`] = items;
         }
-        if (location_code !== undefined) {
-          _payload[`location_code`] = location_code;
+        if (locationCode !== undefined) {
+          _payload[`location_code`] = locationCode;
         }
         if (reason !== undefined) {
           _payload[`reason`] = reason;
@@ -73,19 +77,22 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, adjustSpecs, { method: "post" });
+const availabilitySpecs: PromptSpec[] = [
+  { key: "items", option: "--items [items...]", name: "items", description: "The items to check (batch, at most 200).", type: "array", required: true },
+  { key: "locationCode", option: "--location-code <location-code>", name: "location_code", description: "Restrict the check to one location (default: all enabled locations).", type: "string", required: false },
+];
 inventories
   .command(`availability`)
   .description(`THE stock call (batch): on_hand/reserved/available + orderable per item across locations. Most-customised surface in the field — designed to be replaced 1:1 by a custom app via the gateway capability override (ERP/SAP live stock).`)
   .option(`--items [items...]`, `The items to check (batch, at most 200).`)
-  .option(`--location-_code <location-_code>`, `Restrict the check to one location (default: all enabled locations).`)
+  .option(`--location-code <location-code>`, `Restrict the check to one location (default: all enabled locations).`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { items, location_code } = await promptForMissing(
+        const { items, locationCode } = await promptForMissing(
           _options,
-          [
-            { key: "items", option: "--items [items...]", name: "items", description: "The items to check (batch, at most 200).", type: "array", required: true },
-          ],
+          availabilitySpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -101,8 +108,8 @@ inventories
         if (items !== undefined) {
           _payload[`items`] = items;
         }
-        if (location_code !== undefined) {
-          _payload[`location_code`] = location_code;
+        if (locationCode !== undefined) {
+          _payload[`location_code`] = locationCode;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -117,18 +124,20 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, availabilitySpecs, { method: "post" });
+const commitSpecs: PromptSpec[] = [
+  { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", description: "The order whose active reservations are committed (shipment).", type: "string", required: true },
+];
 inventories
   .command(`commit`)
   .description(`Commit an order_ref's reservations on shipment (−on_hand −reserved)`)
-  .option(`--order-_ref <order-_ref>`, `The order whose active reservations are committed (shipment).`)
+  .option(`--order-ref <order-ref>`, `The order whose active reservations are committed (shipment).`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { order_ref } = await promptForMissing(
+        const { orderRef } = await promptForMissing(
           _options,
-          [
-            { key: "order_ref", option: "--order-_ref <order-_ref>", name: "order_ref", description: "The order whose active reservations are committed (shipment).", type: "string", required: true },
-          ],
+          commitSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -141,8 +150,8 @@ inventories
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (order_ref !== undefined) {
-          _payload[`order_ref`] = order_ref;
+        if (orderRef !== undefined) {
+          _payload[`order_ref`] = orderRef;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -157,15 +166,33 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, commitSpecs, { method: "post" });
+const locationsListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 inventories
   .command(`locations-list`)
   .description(`List stock locations`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          locationsListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/locations`;
         const _payload: RequestParams = {};
@@ -177,6 +204,13 @@ inventories
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -191,6 +225,17 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, locationsListSpecs, { method: "get" });
+const locationsCreateSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", description: "Unique location code (per tenant).", type: "string", required: true },
+  { key: "name", option: "--name <name>", name: "name", type: "string", required: true },
+  { key: "address", option: "--address <address>", name: "address", type: "object", required: false },
+  { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Disabled locations are skipped by availability and reserve (default true).", type: "boolean", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", description: "Localised display names ({de, en, …}).", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form metadata.", type: "object", required: false },
+  { key: "priority", option: "--priority <priority>", name: "priority", description: "Sourcing order — lower wins (default 0).", type: "integer", required: false },
+  { key: "type", option: "--type <type>", name: "type", description: "Default 'warehouse'.", type: "string", required: false, enum: ["warehouse","store","dropship","virtual"] },
+];
 inventories
   .command(`locations-create`)
   .description(`Create a location (warehouse, store, dropship, virtual)`)
@@ -212,10 +257,7 @@ inventories
       async (_options, _command) => {
         const { code, name, address, enabled, labels, metadata, priority, type } = await promptForMissing(
           _options,
-          [
-            { key: "code", option: "--code <code>", name: "code", description: "Unique location code (per tenant).", type: "string", required: true },
-            { key: "name", option: "--name <name>", name: "name", type: "string", required: true },
-          ],
+          locationsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -265,6 +307,7 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, locationsCreateSpecs, { method: "post" });
 inventories
   .command(`locations-defaults`)
   .description(`Seed the main warehouse — idempotent, also runs on app.installed`)
@@ -287,6 +330,9 @@ inventories
       },
     ),
   );
+const locationsDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/locations", hasLimit: true } },
+];
 inventories
   .command(`locations-delete`)
   .description(`Delete a location including its stock`)
@@ -296,9 +342,7 @@ inventories
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/locations", hasLimit: true } },
-          ],
+          locationsDeleteSpecs,
           _command,
         );
         await confirmDestructive(`inventories locations-delete`);
@@ -318,6 +362,10 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, locationsDeleteSpecs, { method: "delete", destructive: true });
+const locationsGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/locations", hasLimit: true } },
+];
 inventories
   .command(`locations-get`)
   .description(`Read one location`)
@@ -327,9 +375,7 @@ inventories
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/locations", hasLimit: true } },
-          ],
+          locationsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -348,6 +394,18 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, locationsGetSpecs, { method: "get" });
+const locationsUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/locations", hasLimit: true } },
+  { key: "address", option: "--address <address>", name: "address", type: "object", required: false },
+  { key: "code", option: "--code <code>", name: "code", description: "Unique location code (per tenant).", type: "string", required: false },
+  { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Disabled locations are skipped by availability and reserve (default true).", type: "boolean", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", description: "Localised display names ({de, en, …}).", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form metadata.", type: "object", required: false },
+  { key: "name", option: "--name <name>", name: "name", type: "string", required: false },
+  { key: "priority", option: "--priority <priority>", name: "priority", description: "Sourcing order — lower wins (default 0).", type: "integer", required: false },
+  { key: "type", option: "--type <type>", name: "type", description: "Default 'warehouse'.", type: "string", required: false, enum: ["warehouse","store","dropship","virtual"] },
+];
 inventories
   .command(`locations-update`)
   .description(`Update a location`)
@@ -370,9 +428,7 @@ inventories
       async (_options, _command) => {
         const { id, address, code, enabled, labels, metadata, name, priority, type } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/locations", hasLimit: true } },
-          ],
+          locationsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -422,15 +478,33 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, locationsUpdateSpecs, { method: "put" });
+const movementsListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 inventories
   .command(`movements-list`)
   .description(`The movements ledger — every stock change as a booking row (audit trail + event feed)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          movementsListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/movements`;
         const _payload: RequestParams = {};
@@ -442,6 +516,13 @@ inventories
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -456,6 +537,10 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, movementsListSpecs, { method: "get" });
+const movementsGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/movements", hasLimit: true } },
+];
 inventories
   .command(`movements-get`)
   .description(`Read one movement`)
@@ -465,9 +550,7 @@ inventories
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/movements", hasLimit: true } },
-          ],
+          movementsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -486,20 +569,24 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, movementsGetSpecs, { method: "get" });
+const receiveSpecs: PromptSpec[] = [
+  { key: "items", option: "--items [items...]", name: "items", description: "The inbound items (at most 200).", type: "array", required: true },
+  { key: "locationCode", option: "--location-code <location-code>", name: "location_code", description: "Receiving location (default 'main').", type: "string", required: false },
+  { key: "reason", option: "--reason <reason>", name: "reason", description: "Ledger note (e.g. delivery note number).", type: "string", required: false },
+];
 inventories
   .command(`receive`)
   .description(`Goods inbound: +on_hand with a ledger row`)
   .option(`--items [items...]`, `The inbound items (at most 200).`)
-  .option(`--location-_code <location-_code>`, `Receiving location (default 'main').`)
+  .option(`--location-code <location-code>`, `Receiving location (default 'main').`)
   .option(`--reason <reason>`, `Ledger note (e.g. delivery note number).`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { items, location_code, reason } = await promptForMissing(
+        const { items, locationCode, reason } = await promptForMissing(
           _options,
-          [
-            { key: "items", option: "--items [items...]", name: "items", description: "The inbound items (at most 200).", type: "array", required: true },
-          ],
+          receiveSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -515,8 +602,8 @@ inventories
         if (items !== undefined) {
           _payload[`items`] = items;
         }
-        if (location_code !== undefined) {
-          _payload[`location_code`] = location_code;
+        if (locationCode !== undefined) {
+          _payload[`location_code`] = locationCode;
         }
         if (reason !== undefined) {
           _payload[`reason`] = reason;
@@ -534,18 +621,20 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, receiveSpecs, { method: "post" });
+const releaseSpecs: PromptSpec[] = [
+  { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", description: "The order whose active reservations are released.", type: "string", required: true },
+];
 inventories
   .command(`release`)
   .description(`Release an order_ref's active reservations (cancellation)`)
-  .option(`--order-_ref <order-_ref>`, `The order whose active reservations are released.`)
+  .option(`--order-ref <order-ref>`, `The order whose active reservations are released.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { order_ref } = await promptForMissing(
+        const { orderRef } = await promptForMissing(
           _options,
-          [
-            { key: "order_ref", option: "--order-_ref <order-_ref>", name: "order_ref", description: "The order whose active reservations are released.", type: "string", required: true },
-          ],
+          releaseSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -558,8 +647,8 @@ inventories
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (order_ref !== undefined) {
-          _payload[`order_ref`] = order_ref;
+        if (orderRef !== undefined) {
+          _payload[`order_ref`] = orderRef;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -574,15 +663,33 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, releaseSpecs, { method: "post" });
+const reservationsListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 inventories
   .command(`reservations-list`)
   .description(`List reservations (filter by order_ref/status)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          reservationsListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/reservations`;
         const _payload: RequestParams = {};
@@ -594,6 +701,13 @@ inventories
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -608,6 +722,10 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, reservationsListSpecs, { method: "get" });
+const reservationsGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/reservations", hasLimit: true } },
+];
 inventories
   .command(`reservations-get`)
   .description(`Read one reservation`)
@@ -617,9 +735,7 @@ inventories
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/reservations", hasLimit: true } },
-          ],
+          reservationsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -638,21 +754,24 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, reservationsGetSpecs, { method: "get" });
+const reserveSpecs: PromptSpec[] = [
+  { key: "items", option: "--items [items...]", name: "items", description: "The items to reserve — all-or-nothing (at most 200).", type: "array", required: true },
+  { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", description: "The order this reservation belongs to.", type: "string", required: true },
+  { key: "expiresAt", option: "--expires-at <expires-at>", name: "expires_at", description: "Optional reservation expiry.", type: "string", required: false },
+];
 inventories
   .command(`reserve`)
   .description(`Reserve stock for an order_ref (all-or-nothing, location by priority)`)
   .option(`--items [items...]`, `The items to reserve — all-or-nothing (at most 200).`)
-  .option(`--order-_ref <order-_ref>`, `The order this reservation belongs to.`)
-  .option(`--expires-_at <expires-_at>`, `Optional reservation expiry.`)
+  .option(`--order-ref <order-ref>`, `The order this reservation belongs to.`)
+  .option(`--expires-at <expires-at>`, `Optional reservation expiry.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { items, order_ref, expires_at } = await promptForMissing(
+        const { items, orderRef, expiresAt } = await promptForMissing(
           _options,
-          [
-            { key: "items", option: "--items [items...]", name: "items", description: "The items to reserve — all-or-nothing (at most 200).", type: "array", required: true },
-            { key: "order_ref", option: "--order-_ref <order-_ref>", name: "order_ref", description: "The order this reservation belongs to.", type: "string", required: true },
-          ],
+          reserveSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -665,14 +784,14 @@ inventories
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (expires_at !== undefined) {
-          _payload[`expires_at`] = expires_at;
+        if (expiresAt !== undefined) {
+          _payload[`expires_at`] = expiresAt;
         }
         if (items !== undefined) {
           _payload[`items`] = items;
         }
-        if (order_ref !== undefined) {
-          _payload[`order_ref`] = order_ref;
+        if (orderRef !== undefined) {
+          _payload[`order_ref`] = orderRef;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -687,21 +806,26 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, reserveSpecs, { method: "post" });
+const restockSpecs: PromptSpec[] = [
+  { key: "items", option: "--items [items...]", name: "items", description: "The returned items (at most 200).", type: "array", required: true },
+  { key: "locationCode", option: "--location-code <location-code>", name: "location_code", description: "Restocking location (default 'main').", type: "string", required: false },
+  { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", description: "Originating order (ledger reference).", type: "string", required: false },
+  { key: "reason", option: "--reason <reason>", name: "reason", description: "Ledger note (e.g. return reason).", type: "string", required: false },
+];
 inventories
   .command(`restock`)
   .description(`Returns back to stock: +on_hand with a ledger row`)
   .option(`--items [items...]`, `The returned items (at most 200).`)
-  .option(`--location-_code <location-_code>`, `Restocking location (default 'main').`)
-  .option(`--order-_ref <order-_ref>`, `Originating order (ledger reference).`)
+  .option(`--location-code <location-code>`, `Restocking location (default 'main').`)
+  .option(`--order-ref <order-ref>`, `Originating order (ledger reference).`)
   .option(`--reason <reason>`, `Ledger note (e.g. return reason).`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { items, location_code, order_ref, reason } = await promptForMissing(
+        const { items, locationCode, orderRef, reason } = await promptForMissing(
           _options,
-          [
-            { key: "items", option: "--items [items...]", name: "items", description: "The returned items (at most 200).", type: "array", required: true },
-          ],
+          restockSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -717,11 +841,11 @@ inventories
         if (items !== undefined) {
           _payload[`items`] = items;
         }
-        if (location_code !== undefined) {
-          _payload[`location_code`] = location_code;
+        if (locationCode !== undefined) {
+          _payload[`location_code`] = locationCode;
         }
-        if (order_ref !== undefined) {
-          _payload[`order_ref`] = order_ref;
+        if (orderRef !== undefined) {
+          _payload[`order_ref`] = orderRef;
         }
         if (reason !== undefined) {
           _payload[`reason`] = reason;
@@ -739,15 +863,33 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, restockSpecs, { method: "post" });
+const stockListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 inventories
   .command(`stock-list`)
   .description(`List stock levels (filter by location_id/product_id/sku)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          stockListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/inventories/stock`;
         const _payload: RequestParams = {};
@@ -759,6 +901,13 @@ inventories
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -773,24 +922,32 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, stockListSpecs, { method: "get" });
+const stockCreateSpecs: PromptSpec[] = [
+  { key: "locationId", option: "--location-id <location-id>", name: "location_id", description: "Owning location.", type: "string", required: true },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form metadata.", type: "object", required: false },
+  { key: "onHand", option: "--on-hand <on-hand>", name: "on_hand", description: "Physical stock (default 0).", type: "number", required: false },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "Tracked product.", type: "string", required: false },
+  { key: "reorderPoint", option: "--reorder-point <reorder-point>", name: "reorder_point", type: "number", required: false },
+  { key: "reserved", option: "--reserved <reserved>", name: "reserved", description: "Reserved stock (default 0) — normally managed by reserve/release/commit.", type: "number", required: false },
+  { key: "sku", option: "--sku <sku>", name: "sku", description: "Tracked SKU (alternative to product_id).", type: "string", required: false },
+];
 inventories
   .command(`stock-create`)
   .description(`Create a stock level row`)
-  .option(`--location-_id <location-_id>`, `Owning location.`)
+  .option(`--location-id <location-id>`, `Owning location.`)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
-  .option(`--on-_hand <on-_hand>`, `Physical stock (default 0).`, parseInteger)
-  .option(`--product-_id <product-_id>`, `Tracked product.`)
-  .option(`--reorder-_point <reorder-_point>`, ``, parseInteger)
+  .option(`--on-hand <on-hand>`, `Physical stock (default 0).`, parseInteger)
+  .option(`--product-id <product-id>`, `Tracked product.`)
+  .option(`--reorder-point <reorder-point>`, ``, parseInteger)
   .option(`--reserved <reserved>`, `Reserved stock (default 0) — normally managed by reserve/release/commit.`, parseInteger)
   .option(`--sku <sku>`, `Tracked SKU (alternative to product_id).`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { location_id, metadata, on_hand, product_id, reorder_point, reserved, sku } = await promptForMissing(
+        const { locationId, metadata, onHand, productId, reorderPoint, reserved, sku } = await promptForMissing(
           _options,
-          [
-            { key: "location_id", option: "--location-_id <location-_id>", name: "location_id", description: "Owning location.", type: "string", required: true },
-          ],
+          stockCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -803,20 +960,20 @@ inventories
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (location_id !== undefined) {
-          _payload[`location_id`] = location_id;
+        if (locationId !== undefined) {
+          _payload[`location_id`] = locationId;
         }
         if (metadata !== undefined) {
           _payload[`metadata`] = resolveBodyParam(metadata);
         }
-        if (on_hand !== undefined) {
-          _payload[`on_hand`] = on_hand;
+        if (onHand !== undefined) {
+          _payload[`on_hand`] = onHand;
         }
-        if (product_id !== undefined) {
-          _payload[`product_id`] = product_id;
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
         }
-        if (reorder_point !== undefined) {
-          _payload[`reorder_point`] = reorder_point;
+        if (reorderPoint !== undefined) {
+          _payload[`reorder_point`] = reorderPoint;
         }
         if (reserved !== undefined) {
           _payload[`reserved`] = reserved;
@@ -837,6 +994,10 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, stockCreateSpecs, { method: "post" });
+const stockDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/stock", hasLimit: true } },
+];
 inventories
   .command(`stock-delete`)
   .description(`Delete a stock level row`)
@@ -846,9 +1007,7 @@ inventories
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/stock", hasLimit: true } },
-          ],
+          stockDeleteSpecs,
           _command,
         );
         await confirmDestructive(`inventories stock-delete`);
@@ -868,6 +1027,10 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, stockDeleteSpecs, { method: "delete", destructive: true });
+const stockGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/stock", hasLimit: true } },
+];
 inventories
   .command(`stock-get`)
   .description(`Read one stock level`)
@@ -877,9 +1040,7 @@ inventories
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/stock", hasLimit: true } },
-          ],
+          stockGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -898,25 +1059,34 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, stockGetSpecs, { method: "get" });
+const stockUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/stock", hasLimit: true } },
+  { key: "locationId", option: "--location-id <location-id>", name: "location_id", description: "Owning location.", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form metadata.", type: "object", required: false },
+  { key: "onHand", option: "--on-hand <on-hand>", name: "on_hand", description: "Physical stock (default 0).", type: "number", required: false },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "Tracked product.", type: "string", required: false },
+  { key: "reorderPoint", option: "--reorder-point <reorder-point>", name: "reorder_point", type: "number", required: false },
+  { key: "reserved", option: "--reserved <reserved>", name: "reserved", description: "Reserved stock (default 0) — normally managed by reserve/release/commit.", type: "number", required: false },
+  { key: "sku", option: "--sku <sku>", name: "sku", description: "Tracked SKU (alternative to product_id).", type: "string", required: false },
+];
 inventories
   .command(`stock-update`)
   .description(`Update a stock level row`)
   .option(`--id <id>`, ``)
-  .option(`--location-_id <location-_id>`, `Owning location.`)
+  .option(`--location-id <location-id>`, `Owning location.`)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
-  .option(`--on-_hand <on-_hand>`, `Physical stock (default 0).`, parseInteger)
-  .option(`--product-_id <product-_id>`, `Tracked product.`)
-  .option(`--reorder-_point <reorder-_point>`, ``, parseInteger)
+  .option(`--on-hand <on-hand>`, `Physical stock (default 0).`, parseInteger)
+  .option(`--product-id <product-id>`, `Tracked product.`)
+  .option(`--reorder-point <reorder-point>`, ``, parseInteger)
   .option(`--reserved <reserved>`, `Reserved stock (default 0) — normally managed by reserve/release/commit.`, parseInteger)
   .option(`--sku <sku>`, `Tracked SKU (alternative to product_id).`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, location_id, metadata, on_hand, product_id, reorder_point, reserved, sku } = await promptForMissing(
+        const { id, locationId, metadata, onHand, productId, reorderPoint, reserved, sku } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/inventories/stock", hasLimit: true } },
-          ],
+          stockUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -929,20 +1099,20 @@ inventories
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (location_id !== undefined) {
-          _payload[`location_id`] = location_id;
+        if (locationId !== undefined) {
+          _payload[`location_id`] = locationId;
         }
         if (metadata !== undefined) {
           _payload[`metadata`] = resolveBodyParam(metadata);
         }
-        if (on_hand !== undefined) {
-          _payload[`on_hand`] = on_hand;
+        if (onHand !== undefined) {
+          _payload[`on_hand`] = onHand;
         }
-        if (product_id !== undefined) {
-          _payload[`product_id`] = product_id;
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
         }
-        if (reorder_point !== undefined) {
-          _payload[`reorder_point`] = reorder_point;
+        if (reorderPoint !== undefined) {
+          _payload[`reorder_point`] = reorderPoint;
         }
         if (reserved !== undefined) {
           _payload[`reserved`] = reserved;
@@ -963,3 +1133,4 @@ inventories
       },
     ),
   );
+registerPromptSpecs(inventories.commands.at(-1)!, stockUpdateSpecs, { method: "put" });

@@ -1,4 +1,4 @@
 ```bash
 revenexx messaging create-push \
-    --message-id ''
+    --message-id sample-id
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx apps get-template \
-    --template-id ''
+    --template-id sample-id
 ```

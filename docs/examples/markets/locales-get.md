@@ -1,5 +1,5 @@
 ```bash
 revenexx markets locales-get \
-    --market-id '' \
-    --id ''
+    --market-id sample-id \
+    --id sample-id
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx pages templates-delete \
-    --id ''
+    --id sample-id
 ```

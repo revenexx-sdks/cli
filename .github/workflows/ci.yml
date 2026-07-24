@@ -68,7 +68,12 @@ jobs:
         run: npm run build
 
       - name: Verify CLI runs with Node
-        run: node dist/cli.cjs -v
+        run: node dist/cli.mjs -v
+
+      # Drives the built bundle in a real pseudo-terminal: shell renders,
+      # palette opens, session quits. No gateway credentials involved.
+      - name: TUI pty smoke test
+        run: bash scripts/tui-smoke.sh
 
       - name: Verify npm package can be built
         run: npm pack

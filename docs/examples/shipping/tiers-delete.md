@@ -1,5 +1,5 @@
 ```bash
 revenexx shipping tiers-delete \
-    --method-id '' \
-    --id ''
+    --method-id sample-id \
+    --id sample-id
 ```

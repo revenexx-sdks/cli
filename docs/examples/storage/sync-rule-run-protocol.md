@@ -1,5 +1,5 @@
 ```bash
 revenexx storage sync-rule-run-protocol \
-    --id '' \
-    --run-id ''
+    --id sample-id \
+    --run-id sample-id
 ```

@@ -16,6 +16,9 @@ import type { CliConfig } from "../types.js";
 const EXIT_WORDS = new Set(["exit", "quit", ".exit", "q"]);
 const HELP_WORDS = new Set(["help", "?", ".help"]);
 
+/** How many lines of in-session command history the up-arrow can walk back. */
+const HISTORY_SIZE = 1000;
+
 /**
  * Sentinel thrown by the process.exit stub below. A command's error handler
  * (actionRunner → parseError) calls process.exit(1) after printing the error;
@@ -134,13 +137,24 @@ const runLine = async (
  * command's own inquirer prompt (the missing-arg search/select) take over the
  * terminal without fighting the shell's reader — the bug that used to tear the
  * session down. Resolves `null` on EOF (Ctrl-D).
+ *
+ * Seed each reader with the session `history` (newest-first — the order
+ * readline walks on ↑) so up-arrow recalls earlier commands even though the
+ * reader itself is short-lived. We hand readline a copy and keep the source of
+ * truth in `runRepl`; the reader only reads from it here.
  */
-const askLine = (program: Command, prompt: string): Promise<string | null> =>
+const askLine = (
+  program: Command,
+  prompt: string,
+  history: string[],
+): Promise<string | null> =>
   new Promise((resolve) => {
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
       completer: (line: string) => completer(program, line),
+      history: [...history],
+      historySize: HISTORY_SIZE,
     });
     let settled = false;
     const finish = (value: string | null): void => {
@@ -182,8 +196,11 @@ const runRepl = async (program: Command): Promise<void> => {
   );
 
   const prompt = chalk.cyan(`${EXECUTABLE_NAME}> `);
+  // Session command history, newest-first (readline's ↑ order). Seeds each
+  // per-line reader; lives only for the session (not persisted to disk).
+  const history: string[] = [];
   for (;;) {
-    const line = await askLine(program, prompt);
+    const line = await askLine(program, prompt, history);
     if (line === null) {
       // Ctrl-D / EOF.
       process.stdout.write("\n");
@@ -191,6 +208,12 @@ const runRepl = async (program: Command): Promise<void> => {
     }
     const trimmed = line.trim();
     if (trimmed === "") continue;
+    // Record for ↑ recall before acting on it: newest-first, collapsing an
+    // immediate repeat of the last command, capped at HISTORY_SIZE.
+    if (history[0] !== trimmed) {
+      history.unshift(trimmed);
+      if (history.length > HISTORY_SIZE) history.length = HISTORY_SIZE;
+    }
     if (EXIT_WORDS.has(trimmed)) break;
     if (HELP_WORDS.has(trimmed)) {
       program.outputHelp();

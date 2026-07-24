@@ -1,4 +1,4 @@
 ```bash
 revenexx markets context \
-    --id ''
+    --id sample-id
 ```

@@ -1,5 +1,5 @@
 ```bash
 revenexx markets tax-classes-delete \
-    --market-id '' \
-    --id ''
+    --market-id sample-id \
+    --id sample-id
 ```

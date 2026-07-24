@@ -1,4 +1,4 @@
 ```bash
 revenexx prices lists-delete \
-    --id ''
+    --id sample-id
 ```

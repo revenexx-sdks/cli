@@ -12,6 +12,8 @@ import {
 import {
   confirmDestructive,
   promptForMissing,
+  type PromptSpec,
+  registerPromptSpecs,
 } from "../../interactive.js";
 
 export const tokens = new Command("tokens")
@@ -23,6 +25,13 @@ export const tokens = new Command("tokens")
     helpWidth: process.stdout.columns || 80,
   });
 
+const listSpecs: PromptSpec[] = [
+  { key: "bucketId", option: "--bucket-id <bucket-id>", name: "bucketId", description: "Storage bucket unique ID. You can create a new storage bucket using the Storage service [server integration](https://appwrite.io/docs/server/storage#createBucket).", type: "string", required: true },
+  { key: "fileId", option: "--file-id <file-id>", name: "fileId", description: "File unique ID.", type: "string", required: true },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: expire", type: "array", required: false },
+  { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 tokens
   .command(`list`)
   .description(`List all the tokens created for a specific file or bucket. You can use the query params to filter your results.`)
@@ -35,15 +44,18 @@ tokens
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { bucketId, fileId, queries, total } = await promptForMissing(
+        const { bucketId, fileId, queries, total, filter } = await promptForMissing(
           _options,
-          [
-            { key: "bucketId", option: "--bucket-id <bucket-id>", name: "bucketId", description: "Storage bucket unique ID. You can create a new storage bucket using the Storage service [server integration](https://appwrite.io/docs/server/storage#createBucket).", type: "string", required: true },
-            { key: "fileId", option: "--file-id <file-id>", name: "fileId", description: "File unique ID.", type: "string", required: true },
-          ],
+          listSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -54,6 +66,13 @@ tokens
         }
         if (total !== undefined) {
           _payload[`total`] = total;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -68,6 +87,12 @@ tokens
       },
     ),
   );
+registerPromptSpecs(tokens.commands.at(-1)!, listSpecs, { method: "get" });
+const createFileTokenSpecs: PromptSpec[] = [
+  { key: "bucketId", option: "--bucket-id <bucket-id>", name: "bucketId", description: "Storage bucket unique ID. You can create a new storage bucket using the Storage service [server integration](https://appwrite.io/docs/server/storage#createBucket).", type: "string", required: true },
+  { key: "fileId", option: "--file-id <file-id>", name: "fileId", description: "File unique ID.", type: "string", required: true },
+  { key: "expire", option: "--expire <expire>", name: "expire", description: "Token expiry date", type: "string", required: false },
+];
 tokens
   .command(`create-file-token`)
   .description(`Create a new token. A token is linked to a file. Token can be passed as a request URL search parameter.`)
@@ -79,10 +104,7 @@ tokens
       async (_options, _command) => {
         const { bucketId, fileId, expire } = await promptForMissing(
           _options,
-          [
-            { key: "bucketId", option: "--bucket-id <bucket-id>", name: "bucketId", description: "Storage bucket unique ID. You can create a new storage bucket using the Storage service [server integration](https://appwrite.io/docs/server/storage#createBucket).", type: "string", required: true },
-            { key: "fileId", option: "--file-id <file-id>", name: "fileId", description: "File unique ID.", type: "string", required: true },
-          ],
+          createFileTokenSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -111,6 +133,10 @@ tokens
       },
     ),
   );
+registerPromptSpecs(tokens.commands.at(-1)!, createFileTokenSpecs, { method: "post" });
+const deleteSpecs: PromptSpec[] = [
+  { key: "tokenId", option: "--token-id <token-id>", name: "tokenId", description: "Token ID.", type: "string", required: true, secret: true },
+];
 tokens
   .command(`delete`)
   .description(`Delete a token by its unique ID.`)
@@ -120,9 +146,7 @@ tokens
       async (_options, _command) => {
         const { tokenId } = await promptForMissing(
           _options,
-          [
-            { key: "tokenId", option: "--token-id <token-id>", name: "tokenId", description: "Token ID.", type: "string", required: true, secret: true },
-          ],
+          deleteSpecs,
           _command,
         );
         await confirmDestructive(`tokens delete`);
@@ -142,6 +166,10 @@ tokens
       },
     ),
   );
+registerPromptSpecs(tokens.commands.at(-1)!, deleteSpecs, { method: "delete", destructive: true });
+const getSpecs: PromptSpec[] = [
+  { key: "tokenId", option: "--token-id <token-id>", name: "tokenId", description: "Token ID.", type: "string", required: true, secret: true },
+];
 tokens
   .command(`get`)
   .description(`Get a token by its unique ID.`)
@@ -151,9 +179,7 @@ tokens
       async (_options, _command) => {
         const { tokenId } = await promptForMissing(
           _options,
-          [
-            { key: "tokenId", option: "--token-id <token-id>", name: "tokenId", description: "Token ID.", type: "string", required: true, secret: true },
-          ],
+          getSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -172,6 +198,11 @@ tokens
       },
     ),
   );
+registerPromptSpecs(tokens.commands.at(-1)!, getSpecs, { method: "get" });
+const updateSpecs: PromptSpec[] = [
+  { key: "tokenId", option: "--token-id <token-id>", name: "tokenId", description: "Token unique ID.", type: "string", required: true, secret: true },
+  { key: "expire", option: "--expire <expire>", name: "expire", description: "File token expiry date", type: "string", required: false },
+];
 tokens
   .command(`update`)
   .description(`Update a token by its unique ID. Use this endpoint to update a token's expiry date.`)
@@ -182,9 +213,7 @@ tokens
       async (_options, _command) => {
         const { tokenId, expire } = await promptForMissing(
           _options,
-          [
-            { key: "tokenId", option: "--token-id <token-id>", name: "tokenId", description: "Token unique ID.", type: "string", required: true, secret: true },
-          ],
+          updateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -213,3 +242,4 @@ tokens
       },
     ),
   );
+registerPromptSpecs(tokens.commands.at(-1)!, updateSpecs, { method: "patch" });

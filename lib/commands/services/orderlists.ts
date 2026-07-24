@@ -13,6 +13,8 @@ import {
 import {
   confirmDestructive,
   promptForMissing,
+  type PromptSpec,
+  registerPromptSpecs,
 } from "../../interactive.js";
 
 export const orderlists = new Command("orderlists")
@@ -24,26 +26,46 @@ export const orderlists = new Command("orderlists")
     helpWidth: process.stdout.columns || 80,
   });
 
+const listSpecs: PromptSpec[] = [
+  { key: "ownerId", option: "--owner-id <owner-id>", name: "owner_id", description: "Filter to one owning contact.", type: "string", required: false },
+  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Filter to one organization.", type: "string", required: false },
+  { key: "kind", option: "--kind <kind>", name: "kind", description: "Filter by list kind (shopping | label).", type: "string", required: false },
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 orderlists
   .command(`list`)
   .description(`List the caller's own lists plus the organization's public lists (filters: owner_id, organization_id, kind)`)
-  .option(`--owner-_id <owner-_id>`, `Filter to one owning contact.`)
-  .option(`--organization-_id <organization-_id>`, `Filter to one organization.`)
+  .option(`--owner-id <owner-id>`, `Filter to one owning contact.`)
+  .option(`--organization-id <organization-id>`, `Filter to one organization.`)
   .option(`--kind <kind>`, `Filter by list kind (shopping | label).`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ owner_id, organization_id, kind, limit, offset, order }) => {
+      async (_options, _command) => {
+        const { ownerId, organizationId, kind, limit, offset, order, filter } = await promptForMissing(
+          _options,
+          listSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orderlists`;
         const _payload: RequestParams = {};
-        if (owner_id !== undefined) {
-          _payload[`owner_id`] = owner_id;
+        if (ownerId !== undefined) {
+          _payload[`owner_id`] = ownerId;
         }
-        if (organization_id !== undefined) {
-          _payload[`organization_id`] = organization_id;
+        if (organizationId !== undefined) {
+          _payload[`organization_id`] = organizationId;
         }
         if (kind !== undefined) {
           _payload[`kind`] = kind;
@@ -56,6 +78,13 @@ orderlists
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -70,16 +99,27 @@ orderlists
       },
     ),
   );
+registerPromptSpecs(orderlists.commands.at(-1)!, listSpecs, { method: "get" });
+const createSpecs: PromptSpec[] = [
+  { key: "name", option: "--name <name>", name: "name", type: "string", required: true },
+  { key: "ownerId", option: "--owner-id <owner-id>", name: "owner_id", description: "Owning contact.", type: "string", required: true },
+  { key: "ownerName", option: "--owner-name <owner-name>", name: "owner_name", description: "Owner display name (snapshot).", type: "string", required: true },
+  { key: "items", option: "--items [items...]", name: "items", description: "Optional initial positions.", type: "array", required: false },
+  { key: "kind", option: "--kind <kind>", name: "kind", description: "List kind (default 'shopping').", type: "string", required: false, enum: ["shopping","label"] },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", type: "object", required: false },
+  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Owning organization (scopes public sharing).", type: "string", required: false },
+  { key: "shared", option: "--shared <shared>", name: "shared", description: "Shared read-only across the organization (default false).", type: "boolean", required: false },
+];
 orderlists
   .command(`create`)
   .description(`Create an order list, optionally pre-filled with positions`)
   .option(`--name <name>`, ``)
-  .option(`--owner-_id <owner-_id>`, `Owning contact.`)
-  .option(`--owner-_name <owner-_name>`, `Owner display name (snapshot).`)
+  .option(`--owner-id <owner-id>`, `Owning contact.`)
+  .option(`--owner-name <owner-name>`, `Owner display name (snapshot).`)
   .option(`--items [items...]`, `Optional initial positions.`)
   .option(`--kind <kind>`, `List kind (default 'shopping').`)
   .option(`--metadata <metadata>`, ``)
-  .option(`--organization-_id <organization-_id>`, `Owning organization (scopes public sharing).`)
+  .option(`--organization-id <organization-id>`, `Owning organization (scopes public sharing).`)
   .option(
     `--shared [value]`,
     `Shared read-only across the organization (default false).`,
@@ -89,13 +129,9 @@ orderlists
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { name, owner_id, owner_name, items, kind, metadata, organization_id, shared } = await promptForMissing(
+        const { name, ownerId, ownerName, items, kind, metadata, organizationId, shared } = await promptForMissing(
           _options,
-          [
-            { key: "name", option: "--name <name>", name: "name", type: "string", required: true },
-            { key: "owner_id", option: "--owner-_id <owner-_id>", name: "owner_id", description: "Owning contact.", type: "string", required: true },
-            { key: "owner_name", option: "--owner-_name <owner-_name>", name: "owner_name", description: "Owner display name (snapshot).", type: "string", required: true },
-          ],
+          createSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -120,14 +156,14 @@ orderlists
         if (name !== undefined) {
           _payload[`name`] = name;
         }
-        if (organization_id !== undefined) {
-          _payload[`organization_id`] = organization_id;
+        if (organizationId !== undefined) {
+          _payload[`organization_id`] = organizationId;
         }
-        if (owner_id !== undefined) {
-          _payload[`owner_id`] = owner_id;
+        if (ownerId !== undefined) {
+          _payload[`owner_id`] = ownerId;
         }
-        if (owner_name !== undefined) {
-          _payload[`owner_name`] = owner_name;
+        if (ownerName !== undefined) {
+          _payload[`owner_name`] = ownerName;
         }
         if (shared !== undefined) {
           _payload[`shared`] = shared;
@@ -145,6 +181,7 @@ orderlists
       },
     ),
   );
+registerPromptSpecs(orderlists.commands.at(-1)!, createSpecs, { method: "post" });
 orderlists
   .command(`defaults`)
   .description(`No-op lifecycle seed (Order Lists has no seed data)`)
@@ -167,6 +204,9 @@ orderlists
       },
     ),
   );
+const deleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+];
 orderlists
   .command(`delete`)
   .description(`Delete an order list including its positions`)
@@ -176,9 +216,7 @@ orderlists
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
-          ],
+          deleteSpecs,
           _command,
         );
         await confirmDestructive(`orderlists delete`);
@@ -198,6 +236,10 @@ orderlists
       },
     ),
   );
+registerPromptSpecs(orderlists.commands.at(-1)!, deleteSpecs, { method: "delete", destructive: true });
+const getSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+];
 orderlists
   .command(`get`)
   .description(`Read one order list with its positions`)
@@ -207,9 +249,7 @@ orderlists
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
-          ],
+          getSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -228,6 +268,14 @@ orderlists
       },
     ),
   );
+registerPromptSpecs(orderlists.commands.at(-1)!, getSpecs, { method: "get" });
+const updateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+  { key: "kind", option: "--kind <kind>", name: "kind", description: "List kind (default 'shopping').", type: "string", required: false, enum: ["shopping","label"] },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", type: "object", required: false },
+  { key: "name", option: "--name <name>", name: "name", type: "string", required: false },
+  { key: "shared", option: "--shared <shared>", name: "shared", type: "boolean", required: false },
+];
 orderlists
   .command(`update`)
   .description(`Rename a list, change its visibility or kind`)
@@ -246,9 +294,7 @@ orderlists
       async (_options, _command) => {
         const { id, kind, metadata, name, shared } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
-          ],
+          updateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -286,23 +332,39 @@ orderlists
       },
     ),
   );
+registerPromptSpecs(orderlists.commands.at(-1)!, updateSpecs, { method: "put" });
+const itemsListSpecs: PromptSpec[] = [
+  { key: "listId", option: "--list-id <list-id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 orderlists
   .command(`items-list`)
   .description(`List the positions of an order list`)
-  .option(`--list-_id <list-_id>`, ``)
+  .option(`--list-id <list-id>`, ``)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { list_id } = await promptForMissing(
+        const { listId, filter } = await promptForMissing(
           _options,
-          [
-            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
-          ],
+          itemsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
-        const _apiPath = `/orderlists/{list_id}/items`.replace(`{list_id}`, list_id);
+        const _apiPath = `/orderlists/{list_id}/items`.replace(`{list_id}`, listId);
         const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -316,38 +378,54 @@ orderlists
       },
     ),
   );
+registerPromptSpecs(orderlists.commands.at(-1)!, itemsListSpecs, { method: "get" });
+const itemsCreateSpecs: PromptSpec[] = [
+  { key: "listId", option: "--list-id <list-id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+  { key: "name", option: "--name <name>", name: "name", description: "Display name (snapshot).", type: "string", required: true },
+  { key: "categorySlug", option: "--category-slug <category-slug>", name: "category_slug", type: "string", required: false },
+  { key: "costCenterId", option: "--cost-center-id <cost-center-id>", name: "cost_center_id", description: "Cost center reference (free-text).", type: "string", required: false },
+  { key: "customSku", option: "--custom-sku <custom-sku>", name: "custom_sku", description: "Customer's own article number.", type: "string", required: false },
+  { key: "image", option: "--image <image>", name: "image", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", type: "object", required: false },
+  { key: "position", option: "--position <position>", name: "position", description: "Sort order (assigned automatically when omitted).", type: "integer", required: false },
+  { key: "positionTexts", option: "--position-texts [position-texts...]", name: "position_texts", description: "Per-position notes.", type: "array", required: false },
+  { key: "price", option: "--price <price>", name: "price", description: "Unit price snapshot.", type: "number", required: false },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "Catalog product (alternative to sku).", type: "string", required: false },
+  { key: "quantity", option: "--quantity <quantity>", name: "quantity", description: "Default 1.", type: "number", required: false },
+  { key: "sku", option: "--sku <sku>", name: "sku", description: "Article SKU (alternative to product_id).", type: "string", required: false },
+  { key: "subcategorySlug", option: "--subcategory-slug <subcategory-slug>", name: "subcategory_slug", type: "string", required: false },
+  { key: "taxRate", option: "--tax-rate <tax-rate>", name: "tax_rate", type: "number", required: false },
+  { key: "unit", option: "--unit <unit>", name: "unit", type: "string", required: false },
+];
 orderlists
   .command(`items-create`)
   .description(`Add a position to an order list`)
-  .option(`--list-_id <list-_id>`, ``)
+  .option(`--list-id <list-id>`, ``)
   .option(`--name <name>`, `Display name (snapshot).`)
-  .option(`--category-_slug <category-_slug>`, ``)
-  .option(`--cost-_center-_id <cost-_center-_id>`, `Cost center reference (free-text).`)
-  .option(`--custom-_sku <custom-_sku>`, `Customer's own article number.`)
+  .option(`--category-slug <category-slug>`, ``)
+  .option(`--cost-center-id <cost-center-id>`, `Cost center reference (free-text).`)
+  .option(`--custom-sku <custom-sku>`, `Customer's own article number.`)
   .option(`--image <image>`, ``)
   .option(`--metadata <metadata>`, ``)
   .option(`--position <position>`, `Sort order (assigned automatically when omitted).`, parseInteger)
-  .option(`--position-_texts [position-_texts...]`, `Per-position notes.`)
+  .option(`--position-texts [position-texts...]`, `Per-position notes.`)
   .option(`--price <price>`, `Unit price snapshot.`, parseInteger)
-  .option(`--product-_id <product-_id>`, `Catalog product (alternative to sku).`)
+  .option(`--product-id <product-id>`, `Catalog product (alternative to sku).`)
   .option(`--quantity <quantity>`, `Default 1.`, parseInteger)
   .option(`--sku <sku>`, `Article SKU (alternative to product_id).`)
-  .option(`--subcategory-_slug <subcategory-_slug>`, ``)
-  .option(`--tax-_rate <tax-_rate>`, ``, parseInteger)
+  .option(`--subcategory-slug <subcategory-slug>`, ``)
+  .option(`--tax-rate <tax-rate>`, ``, parseInteger)
   .option(`--unit <unit>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { list_id, name, category_slug, cost_center_id, custom_sku, image, metadata, position, position_texts, price, product_id, quantity, sku, subcategory_slug, tax_rate, unit } = await promptForMissing(
+        const { listId, name, categorySlug, costCenterId, customSku, image, metadata, position, positionTexts, price, productId, quantity, sku, subcategorySlug, taxRate, unit } = await promptForMissing(
           _options,
-          [
-            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
-            { key: "name", option: "--name <name>", name: "name", description: "Display name (snapshot).", type: "string", required: true },
-          ],
+          itemsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
-        const _apiPath = `/orderlists/{list_id}/items`.replace(`{list_id}`, list_id);
+        const _apiPath = `/orderlists/{list_id}/items`.replace(`{list_id}`, listId);
         const _payload: RequestParams = {};
         if (cliConfig.data !== undefined) {
           const body = resolveBodyParam(cliConfig.data);
@@ -356,14 +434,14 @@ orderlists
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (category_slug !== undefined) {
-          _payload[`category_slug`] = category_slug;
+        if (categorySlug !== undefined) {
+          _payload[`category_slug`] = categorySlug;
         }
-        if (cost_center_id !== undefined) {
-          _payload[`cost_center_id`] = cost_center_id;
+        if (costCenterId !== undefined) {
+          _payload[`cost_center_id`] = costCenterId;
         }
-        if (custom_sku !== undefined) {
-          _payload[`custom_sku`] = custom_sku;
+        if (customSku !== undefined) {
+          _payload[`custom_sku`] = customSku;
         }
         if (image !== undefined) {
           _payload[`image`] = image;
@@ -377,14 +455,14 @@ orderlists
         if (position !== undefined) {
           _payload[`position`] = position;
         }
-        if (position_texts !== undefined) {
-          _payload[`position_texts`] = position_texts;
+        if (positionTexts !== undefined) {
+          _payload[`position_texts`] = positionTexts;
         }
         if (price !== undefined) {
           _payload[`price`] = price;
         }
-        if (product_id !== undefined) {
-          _payload[`product_id`] = product_id;
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
         }
         if (quantity !== undefined) {
           _payload[`quantity`] = quantity;
@@ -392,11 +470,11 @@ orderlists
         if (sku !== undefined) {
           _payload[`sku`] = sku;
         }
-        if (subcategory_slug !== undefined) {
-          _payload[`subcategory_slug`] = subcategory_slug;
+        if (subcategorySlug !== undefined) {
+          _payload[`subcategory_slug`] = subcategorySlug;
         }
-        if (tax_rate !== undefined) {
-          _payload[`tax_rate`] = tax_rate;
+        if (taxRate !== undefined) {
+          _payload[`tax_rate`] = taxRate;
         }
         if (unit !== undefined) {
           _payload[`unit`] = unit;
@@ -414,24 +492,26 @@ orderlists
       },
     ),
   );
+registerPromptSpecs(orderlists.commands.at(-1)!, itemsCreateSpecs, { method: "post" });
+const itemsReplaceSpecs: PromptSpec[] = [
+  { key: "listId", option: "--list-id <list-id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+  { key: "items", option: "--items [items...]", name: "items", description: "The new full set of positions.", type: "array", required: true },
+];
 orderlists
   .command(`items-replace`)
   .description(`Replace all positions of an order list (set semantics)`)
-  .option(`--list-_id <list-_id>`, ``)
+  .option(`--list-id <list-id>`, ``)
   .option(`--items [items...]`, `The new full set of positions.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { list_id, items } = await promptForMissing(
+        const { listId, items } = await promptForMissing(
           _options,
-          [
-            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
-            { key: "items", option: "--items [items...]", name: "items", description: "The new full set of positions.", type: "array", required: true },
-          ],
+          itemsReplaceSpecs,
           _command,
         );
         const _client = await sdkForProject();
-        const _apiPath = `/orderlists/{list_id}/items`.replace(`{list_id}`, list_id);
+        const _apiPath = `/orderlists/{list_id}/items`.replace(`{list_id}`, listId);
         const _payload: RequestParams = {};
         if (cliConfig.data !== undefined) {
           const body = resolveBodyParam(cliConfig.data);
@@ -456,25 +536,27 @@ orderlists
       },
     ),
   );
+registerPromptSpecs(orderlists.commands.at(-1)!, itemsReplaceSpecs, { method: "put" });
+const itemsDeleteSpecs: PromptSpec[] = [
+  { key: "listId", option: "--list-id <list-id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists/{list_id}/items", hasLimit: false } },
+];
 orderlists
   .command(`items-delete`)
   .description(`Remove a position from an order list`)
-  .option(`--list-_id <list-_id>`, ``)
+  .option(`--list-id <list-id>`, ``)
   .option(`--id <id>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { list_id, id } = await promptForMissing(
+        const { listId, id } = await promptForMissing(
           _options,
-          [
-            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists/{list_id}/items", hasLimit: false } },
-          ],
+          itemsDeleteSpecs,
           _command,
         );
         await confirmDestructive(`orderlists items-delete`);
         const _client = await sdkForProject();
-        const _apiPath = `/orderlists/{list_id}/items/{id}`.replace(`{list_id}`, list_id).replace(`{id}`, id);
+        const _apiPath = `/orderlists/{list_id}/items/{id}`.replace(`{list_id}`, listId).replace(`{id}`, id);
         const _payload: RequestParams = {};
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -489,24 +571,26 @@ orderlists
       },
     ),
   );
+registerPromptSpecs(orderlists.commands.at(-1)!, itemsDeleteSpecs, { method: "delete", destructive: true });
+const itemsGetSpecs: PromptSpec[] = [
+  { key: "listId", option: "--list-id <list-id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists/{list_id}/items", hasLimit: false } },
+];
 orderlists
   .command(`items-get`)
   .description(`Read one position`)
-  .option(`--list-_id <list-_id>`, ``)
+  .option(`--list-id <list-id>`, ``)
   .option(`--id <id>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { list_id, id } = await promptForMissing(
+        const { listId, id } = await promptForMissing(
           _options,
-          [
-            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists/{list_id}/items", hasLimit: false } },
-          ],
+          itemsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
-        const _apiPath = `/orderlists/{list_id}/items/{id}`.replace(`{list_id}`, list_id).replace(`{id}`, id);
+        const _apiPath = `/orderlists/{list_id}/items/{id}`.replace(`{list_id}`, listId).replace(`{id}`, id);
         const _payload: RequestParams = {};
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -521,39 +605,56 @@ orderlists
       },
     ),
   );
+registerPromptSpecs(orderlists.commands.at(-1)!, itemsGetSpecs, { method: "get" });
+const itemsUpdateSpecs: PromptSpec[] = [
+  { key: "listId", option: "--list-id <list-id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists/{list_id}/items", hasLimit: false } },
+  { key: "categorySlug", option: "--category-slug <category-slug>", name: "category_slug", type: "string", required: false },
+  { key: "costCenterId", option: "--cost-center-id <cost-center-id>", name: "cost_center_id", description: "Cost center reference (free-text).", type: "string", required: false },
+  { key: "customSku", option: "--custom-sku <custom-sku>", name: "custom_sku", description: "Customer's own article number.", type: "string", required: false },
+  { key: "image", option: "--image <image>", name: "image", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", type: "object", required: false },
+  { key: "name", option: "--name <name>", name: "name", description: "Display name (snapshot).", type: "string", required: false },
+  { key: "position", option: "--position <position>", name: "position", description: "Sort order (assigned automatically when omitted).", type: "integer", required: false },
+  { key: "positionTexts", option: "--position-texts [position-texts...]", name: "position_texts", description: "Per-position notes.", type: "array", required: false },
+  { key: "price", option: "--price <price>", name: "price", description: "Unit price snapshot.", type: "number", required: false },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "Catalog product (alternative to sku).", type: "string", required: false },
+  { key: "quantity", option: "--quantity <quantity>", name: "quantity", description: "Default 1.", type: "number", required: false },
+  { key: "sku", option: "--sku <sku>", name: "sku", description: "Article SKU (alternative to product_id).", type: "string", required: false },
+  { key: "subcategorySlug", option: "--subcategory-slug <subcategory-slug>", name: "subcategory_slug", type: "string", required: false },
+  { key: "taxRate", option: "--tax-rate <tax-rate>", name: "tax_rate", type: "number", required: false },
+  { key: "unit", option: "--unit <unit>", name: "unit", type: "string", required: false },
+];
 orderlists
   .command(`items-update`)
   .description(`Update a position`)
-  .option(`--list-_id <list-_id>`, ``)
+  .option(`--list-id <list-id>`, ``)
   .option(`--id <id>`, ``)
-  .option(`--category-_slug <category-_slug>`, ``)
-  .option(`--cost-_center-_id <cost-_center-_id>`, `Cost center reference (free-text).`)
-  .option(`--custom-_sku <custom-_sku>`, `Customer's own article number.`)
+  .option(`--category-slug <category-slug>`, ``)
+  .option(`--cost-center-id <cost-center-id>`, `Cost center reference (free-text).`)
+  .option(`--custom-sku <custom-sku>`, `Customer's own article number.`)
   .option(`--image <image>`, ``)
   .option(`--metadata <metadata>`, ``)
   .option(`--name <name>`, `Display name (snapshot).`)
   .option(`--position <position>`, `Sort order (assigned automatically when omitted).`, parseInteger)
-  .option(`--position-_texts [position-_texts...]`, `Per-position notes.`)
+  .option(`--position-texts [position-texts...]`, `Per-position notes.`)
   .option(`--price <price>`, `Unit price snapshot.`, parseInteger)
-  .option(`--product-_id <product-_id>`, `Catalog product (alternative to sku).`)
+  .option(`--product-id <product-id>`, `Catalog product (alternative to sku).`)
   .option(`--quantity <quantity>`, `Default 1.`, parseInteger)
   .option(`--sku <sku>`, `Article SKU (alternative to product_id).`)
-  .option(`--subcategory-_slug <subcategory-_slug>`, ``)
-  .option(`--tax-_rate <tax-_rate>`, ``, parseInteger)
+  .option(`--subcategory-slug <subcategory-slug>`, ``)
+  .option(`--tax-rate <tax-rate>`, ``, parseInteger)
   .option(`--unit <unit>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { list_id, id, category_slug, cost_center_id, custom_sku, image, metadata, name, position, position_texts, price, product_id, quantity, sku, subcategory_slug, tax_rate, unit } = await promptForMissing(
+        const { listId, id, categorySlug, costCenterId, customSku, image, metadata, name, position, positionTexts, price, productId, quantity, sku, subcategorySlug, taxRate, unit } = await promptForMissing(
           _options,
-          [
-            { key: "list_id", option: "--list-_id <list-_id>", name: "list_id", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orderlists/{list_id}/items", hasLimit: false } },
-          ],
+          itemsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
-        const _apiPath = `/orderlists/{list_id}/items/{id}`.replace(`{list_id}`, list_id).replace(`{id}`, id);
+        const _apiPath = `/orderlists/{list_id}/items/{id}`.replace(`{list_id}`, listId).replace(`{id}`, id);
         const _payload: RequestParams = {};
         if (cliConfig.data !== undefined) {
           const body = resolveBodyParam(cliConfig.data);
@@ -562,14 +663,14 @@ orderlists
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (category_slug !== undefined) {
-          _payload[`category_slug`] = category_slug;
+        if (categorySlug !== undefined) {
+          _payload[`category_slug`] = categorySlug;
         }
-        if (cost_center_id !== undefined) {
-          _payload[`cost_center_id`] = cost_center_id;
+        if (costCenterId !== undefined) {
+          _payload[`cost_center_id`] = costCenterId;
         }
-        if (custom_sku !== undefined) {
-          _payload[`custom_sku`] = custom_sku;
+        if (customSku !== undefined) {
+          _payload[`custom_sku`] = customSku;
         }
         if (image !== undefined) {
           _payload[`image`] = image;
@@ -583,14 +684,14 @@ orderlists
         if (position !== undefined) {
           _payload[`position`] = position;
         }
-        if (position_texts !== undefined) {
-          _payload[`position_texts`] = position_texts;
+        if (positionTexts !== undefined) {
+          _payload[`position_texts`] = positionTexts;
         }
         if (price !== undefined) {
           _payload[`price`] = price;
         }
-        if (product_id !== undefined) {
-          _payload[`product_id`] = product_id;
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
         }
         if (quantity !== undefined) {
           _payload[`quantity`] = quantity;
@@ -598,11 +699,11 @@ orderlists
         if (sku !== undefined) {
           _payload[`sku`] = sku;
         }
-        if (subcategory_slug !== undefined) {
-          _payload[`subcategory_slug`] = subcategory_slug;
+        if (subcategorySlug !== undefined) {
+          _payload[`subcategory_slug`] = subcategorySlug;
         }
-        if (tax_rate !== undefined) {
-          _payload[`tax_rate`] = tax_rate;
+        if (taxRate !== undefined) {
+          _payload[`tax_rate`] = taxRate;
         }
         if (unit !== undefined) {
           _payload[`unit`] = unit;
@@ -620,3 +721,4 @@ orderlists
       },
     ),
   );
+registerPromptSpecs(orderlists.commands.at(-1)!, itemsUpdateSpecs, { method: "put" });

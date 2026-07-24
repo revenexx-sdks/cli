@@ -12,6 +12,8 @@ import {
 import {
   confirmDestructive,
   promptForMissing,
+  type PromptSpec,
+  registerPromptSpecs,
 } from "../../interactive.js";
 
 export const orders = new Command("orders")
@@ -23,42 +25,66 @@ export const orders = new Command("orders")
     helpWidth: process.stdout.columns || 80,
   });
 
+const listSpecs: PromptSpec[] = [
+  { key: "status", option: "--status <status>", name: "status", description: "Filter by order status (exact match).", type: "string", required: false, enum: ["pending","placed","in_fulfillment","completed","cancelled"] },
+  { key: "paymentStatus", option: "--payment-status <payment-status>", name: "payment_status", description: "Filter by payment status (exact match).", type: "string", required: false, enum: ["open","pending","authorized","paid","partially_paid","refunded","failed"] },
+  { key: "fulfillmentStatus", option: "--fulfillment-status <fulfillment-status>", name: "fulfillment_status", description: "Filter by fulfillment status (exact match).", type: "string", required: false, enum: ["unfulfilled","partial","fulfilled"] },
+  { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Filter to one ordering contact.", type: "string", required: false },
+  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Filter to one B2B organization.", type: "string", required: false },
+  { key: "channelId", option: "--channel-id <channel-id>", name: "channel_id", description: "Filter to one sales channel.", type: "string", required: false },
+  { key: "number", option: "--number <number>", name: "number", description: "Filter by exact order number.", type: "string", required: false },
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 orders
   .command(`list`)
   .description(`List orders — filter by status/payment_status/fulfillment_status/contact_id/organization_id/channel_id/number, paginate via limit+offset, sort via order (e.g. created_at.desc)`)
   .option(`--status <status>`, `Filter by order status (exact match).`)
-  .option(`--payment-_status <payment-_status>`, `Filter by payment status (exact match).`)
-  .option(`--fulfillment-_status <fulfillment-_status>`, `Filter by fulfillment status (exact match).`)
-  .option(`--contact-_id <contact-_id>`, `Filter to one ordering contact.`)
-  .option(`--organization-_id <organization-_id>`, `Filter to one B2B organization.`)
-  .option(`--channel-_id <channel-_id>`, `Filter to one sales channel.`)
+  .option(`--payment-status <payment-status>`, `Filter by payment status (exact match).`)
+  .option(`--fulfillment-status <fulfillment-status>`, `Filter by fulfillment status (exact match).`)
+  .option(`--contact-id <contact-id>`, `Filter to one ordering contact.`)
+  .option(`--organization-id <organization-id>`, `Filter to one B2B organization.`)
+  .option(`--channel-id <channel-id>`, `Filter to one sales channel.`)
   .option(`--number <number>`, `Filter by exact order number.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ status, payment_status, fulfillment_status, contact_id, organization_id, channel_id, number, limit, offset, order }) => {
+      async (_options, _command) => {
+        const { status, paymentStatus, fulfillmentStatus, contactId, organizationId, channelId, number, limit, offset, order, filter } = await promptForMissing(
+          _options,
+          listSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders`;
         const _payload: RequestParams = {};
         if (status !== undefined) {
           _payload[`status`] = status;
         }
-        if (payment_status !== undefined) {
-          _payload[`payment_status`] = payment_status;
+        if (paymentStatus !== undefined) {
+          _payload[`payment_status`] = paymentStatus;
         }
-        if (fulfillment_status !== undefined) {
-          _payload[`fulfillment_status`] = fulfillment_status;
+        if (fulfillmentStatus !== undefined) {
+          _payload[`fulfillment_status`] = fulfillmentStatus;
         }
-        if (contact_id !== undefined) {
-          _payload[`contact_id`] = contact_id;
+        if (contactId !== undefined) {
+          _payload[`contact_id`] = contactId;
         }
-        if (organization_id !== undefined) {
-          _payload[`organization_id`] = organization_id;
+        if (organizationId !== undefined) {
+          _payload[`organization_id`] = organizationId;
         }
-        if (channel_id !== undefined) {
-          _payload[`channel_id`] = channel_id;
+        if (channelId !== undefined) {
+          _payload[`channel_id`] = channelId;
         }
         if (number !== undefined) {
           _payload[`number`] = number;
@@ -72,6 +98,13 @@ orders
         if (order !== undefined) {
           _payload[`order`] = order;
         }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -85,15 +118,33 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, listSpecs, { method: "get" });
+const numberRangesListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 orders
   .command(`number-ranges-list`)
   .description(`List number ranges (paginate via limit+offset, sort via order, e.g. created_at.desc)`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ limit, offset, order }) => {
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          numberRangesListSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/orders/number-ranges`;
         const _payload: RequestParams = {};
@@ -106,6 +157,13 @@ orders
         if (order !== undefined) {
           _payload[`order`] = order;
         }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -119,26 +177,36 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, numberRangesListSpecs, { method: "get" });
+const numberRangesCreateSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", description: "Range key drawn by the app ('order', 'delivery', 'return') — unique per tenant.", type: "string", required: true },
+  { key: "channelId", option: "--channel-id <channel-id>", name: "channel_id", type: "string", required: false },
+  { key: "counter", option: "--counter <counter>", name: "counter", description: "Current counter value (default 0) — the next number draws counter+step.", type: "integer", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form metadata.", type: "object", required: false },
+  { key: "padding", option: "--padding <padding>", name: "padding", description: "Zero-padding width of the counter (default 6).", type: "integer", required: false },
+  { key: "positionStep", option: "--position-step <position-step>", name: "position_step", description: "Position numbering increment for order items (default 10).", type: "integer", required: false },
+  { key: "prefix", option: "--prefix <prefix>", name: "prefix", description: "Default ''.", type: "string", required: false },
+  { key: "step", option: "--step <step>", name: "step", description: "Counter increment per drawn number (default 1).", type: "integer", required: false },
+  { key: "suffix", option: "--suffix <suffix>", name: "suffix", description: "Default ''.", type: "string", required: false },
+];
 orders
   .command(`number-ranges-create`)
   .description(`Create a number range ({prefix}{counter:padding}{suffix}, configurable position numbering)`)
   .option(`--code <code>`, `Range key drawn by the app ('order', 'delivery', 'return') — unique per tenant.`)
-  .option(`--channel-_id <channel-_id>`, ``)
+  .option(`--channel-id <channel-id>`, ``)
   .option(`--counter <counter>`, `Current counter value (default 0) — the next number draws counter+step.`, parseInteger)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
   .option(`--padding <padding>`, `Zero-padding width of the counter (default 6).`, parseInteger)
-  .option(`--position-_step <position-_step>`, `Position numbering increment for order items (default 10).`, parseInteger)
+  .option(`--position-step <position-step>`, `Position numbering increment for order items (default 10).`, parseInteger)
   .option(`--prefix <prefix>`, `Default ''.`)
   .option(`--step <step>`, `Counter increment per drawn number (default 1).`, parseInteger)
   .option(`--suffix <suffix>`, `Default ''.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, channel_id, counter, metadata, padding, position_step, prefix, step, suffix } = await promptForMissing(
+        const { code, channelId, counter, metadata, padding, positionStep, prefix, step, suffix } = await promptForMissing(
           _options,
-          [
-            { key: "code", option: "--code <code>", name: "code", description: "Range key drawn by the app ('order', 'delivery', 'return') — unique per tenant.", type: "string", required: true },
-          ],
+          numberRangesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -151,8 +219,8 @@ orders
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (channel_id !== undefined) {
-          _payload[`channel_id`] = channel_id;
+        if (channelId !== undefined) {
+          _payload[`channel_id`] = channelId;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -166,8 +234,8 @@ orders
         if (padding !== undefined) {
           _payload[`padding`] = padding;
         }
-        if (position_step !== undefined) {
-          _payload[`position_step`] = position_step;
+        if (positionStep !== undefined) {
+          _payload[`position_step`] = positionStep;
         }
         if (prefix !== undefined) {
           _payload[`prefix`] = prefix;
@@ -191,6 +259,7 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, numberRangesCreateSpecs, { method: "post" });
 orders
   .command(`number-ranges-defaults`)
   .description(`Seed the order/delivery/return ranges — idempotent, also runs on app.installed`)
@@ -213,6 +282,9 @@ orders
       },
     ),
   );
+const numberRangesDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders/number-ranges", hasLimit: true } },
+];
 orders
   .command(`number-ranges-delete`)
   .description(`Delete a number range`)
@@ -222,9 +294,7 @@ orders
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders/number-ranges", hasLimit: true } },
-          ],
+          numberRangesDeleteSpecs,
           _command,
         );
         await confirmDestructive(`orders number-ranges-delete`);
@@ -244,6 +314,10 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, numberRangesDeleteSpecs, { method: "delete", destructive: true });
+const numberRangesGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders/number-ranges", hasLimit: true } },
+];
 orders
   .command(`number-ranges-get`)
   .description(`Read one number range`)
@@ -253,9 +327,7 @@ orders
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders/number-ranges", hasLimit: true } },
-          ],
+          numberRangesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -274,27 +346,38 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, numberRangesGetSpecs, { method: "get" });
+const numberRangesUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders/number-ranges", hasLimit: true } },
+  { key: "channelId", option: "--channel-id <channel-id>", name: "channel_id", type: "string", required: false },
+  { key: "code", option: "--code <code>", name: "code", description: "Range key drawn by the app ('order', 'delivery', 'return') — unique per tenant.", type: "string", required: false },
+  { key: "counter", option: "--counter <counter>", name: "counter", description: "Current counter value (default 0) — the next number draws counter+step.", type: "integer", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form metadata.", type: "object", required: false },
+  { key: "padding", option: "--padding <padding>", name: "padding", description: "Zero-padding width of the counter (default 6).", type: "integer", required: false },
+  { key: "positionStep", option: "--position-step <position-step>", name: "position_step", description: "Position numbering increment for order items (default 10).", type: "integer", required: false },
+  { key: "prefix", option: "--prefix <prefix>", name: "prefix", description: "Default ''.", type: "string", required: false },
+  { key: "step", option: "--step <step>", name: "step", description: "Counter increment per drawn number (default 1).", type: "integer", required: false },
+  { key: "suffix", option: "--suffix <suffix>", name: "suffix", description: "Default ''.", type: "string", required: false },
+];
 orders
   .command(`number-ranges-update`)
   .description(`Update a number range`)
   .option(`--id <id>`, ``)
-  .option(`--channel-_id <channel-_id>`, ``)
+  .option(`--channel-id <channel-id>`, ``)
   .option(`--code <code>`, `Range key drawn by the app ('order', 'delivery', 'return') — unique per tenant.`)
   .option(`--counter <counter>`, `Current counter value (default 0) — the next number draws counter+step.`, parseInteger)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
   .option(`--padding <padding>`, `Zero-padding width of the counter (default 6).`, parseInteger)
-  .option(`--position-_step <position-_step>`, `Position numbering increment for order items (default 10).`, parseInteger)
+  .option(`--position-step <position-step>`, `Position numbering increment for order items (default 10).`, parseInteger)
   .option(`--prefix <prefix>`, `Default ''.`)
   .option(`--step <step>`, `Counter increment per drawn number (default 1).`, parseInteger)
   .option(`--suffix <suffix>`, `Default ''.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, channel_id, code, counter, metadata, padding, position_step, prefix, step, suffix } = await promptForMissing(
+        const { id, channelId, code, counter, metadata, padding, positionStep, prefix, step, suffix } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders/number-ranges", hasLimit: true } },
-          ],
+          numberRangesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -307,8 +390,8 @@ orders
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (channel_id !== undefined) {
-          _payload[`channel_id`] = channel_id;
+        if (channelId !== undefined) {
+          _payload[`channel_id`] = channelId;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -322,8 +405,8 @@ orders
         if (padding !== undefined) {
           _payload[`padding`] = padding;
         }
-        if (position_step !== undefined) {
-          _payload[`position_step`] = position_step;
+        if (positionStep !== undefined) {
+          _payload[`position_step`] = positionStep;
         }
         if (prefix !== undefined) {
           _payload[`prefix`] = prefix;
@@ -347,33 +430,50 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, numberRangesUpdateSpecs, { method: "put" });
+const placeSpecs: PromptSpec[] = [
+  { key: "items", option: "--items [items...]", name: "items", description: "The order positions (at most 500).", type: "array", required: true },
+  { key: "billingAddress", option: "--billing-address <billing-address>", name: "billing_address", description: "Frozen billing address.", type: "object", required: false },
+  { key: "buyer", option: "--buyer <buyer>", name: "buyer", description: "Frozen buyer snapshot (name, email, …).", type: "object", required: false },
+  { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "Source cart (the carts.order hand-over).", type: "string", required: false },
+  { key: "channelId", option: "--channel-id <channel-id>", name: "channel_id", type: "string", required: false },
+  { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Ordering customer contact.", type: "string", required: false },
+  { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code (default EUR).", type: "string", required: false },
+  { key: "customerOrderNumber", option: "--customer-order-number <customer-order-number>", name: "customer_order_number", description: "The buyer's own order/PO number.", type: "string", required: false },
+  { key: "grandTotal", option: "--grand-total <grand-total>", name: "grand_total", description: "Override — computed as subtotal + shipping + tax when omitted.", type: "number", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form metadata.", type: "object", required: false },
+  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "B2B organization.", type: "string", required: false },
+  { key: "payment", option: "--payment <payment>", name: "payment", description: "Frozen payment snapshot — a known 'payment.status' seeds payment_status (otherwise 'open').", type: "object", required: false },
+  { key: "shipping", option: "--shipping <shipping>", name: "shipping", description: "Frozen shipping snapshot — 'shipping.price' seeds shipping_total.", type: "object", required: false },
+  { key: "shippingAddress", option: "--shipping-address <shipping-address>", name: "shipping_address", description: "Frozen shipping address.", type: "object", required: false },
+  { key: "shippingTotal", option: "--shipping-total <shipping-total>", name: "shipping_total", description: "Shipping total (fallback when 'shipping.price' is absent).", type: "number", required: false },
+  { key: "userData", option: "--user-data <user-data>", name: "user_data", description: "Free-form user data.", type: "object", required: false },
+];
 orders
   .command(`place`)
   .description(`Place an order from a snapshot payload (items, buyer, addresses, payment, shipping) — draws the order number, computes totals, emits order.placed`)
   .option(`--items [items...]`, `The order positions (at most 500).`)
-  .option(`--billing-_address <billing-_address>`, `Frozen billing address.`)
+  .option(`--billing-address <billing-address>`, `Frozen billing address.`)
   .option(`--buyer <buyer>`, `Frozen buyer snapshot (name, email, …).`)
-  .option(`--cart-_id <cart-_id>`, `Source cart (the carts.order hand-over).`)
-  .option(`--channel-_id <channel-_id>`, ``)
-  .option(`--contact-_id <contact-_id>`, `Ordering customer contact.`)
+  .option(`--cart-id <cart-id>`, `Source cart (the carts.order hand-over).`)
+  .option(`--channel-id <channel-id>`, ``)
+  .option(`--contact-id <contact-id>`, `Ordering customer contact.`)
   .option(`--currency <currency>`, `ISO 4217 code (default EUR).`)
-  .option(`--customer-_order-_number <customer-_order-_number>`, `The buyer's own order/PO number.`)
-  .option(`--grand-_total <grand-_total>`, `Override — computed as subtotal + shipping + tax when omitted.`, parseInteger)
+  .option(`--customer-order-number <customer-order-number>`, `The buyer's own order/PO number.`)
+  .option(`--grand-total <grand-total>`, `Override — computed as subtotal + shipping + tax when omitted.`, parseInteger)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
-  .option(`--organization-_id <organization-_id>`, `B2B organization.`)
+  .option(`--organization-id <organization-id>`, `B2B organization.`)
   .option(`--payment <payment>`, `Frozen payment snapshot — a known 'payment.status' seeds payment_status (otherwise 'open').`)
   .option(`--shipping <shipping>`, `Frozen shipping snapshot — 'shipping.price' seeds shipping_total.`)
-  .option(`--shipping-_address <shipping-_address>`, `Frozen shipping address.`)
-  .option(`--shipping-_total <shipping-_total>`, `Shipping total (fallback when 'shipping.price' is absent).`, parseInteger)
-  .option(`--user-_data <user-_data>`, `Free-form user data.`)
+  .option(`--shipping-address <shipping-address>`, `Frozen shipping address.`)
+  .option(`--shipping-total <shipping-total>`, `Shipping total (fallback when 'shipping.price' is absent).`, parseInteger)
+  .option(`--user-data <user-data>`, `Free-form user data.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { items, billing_address, buyer, cart_id, channel_id, contact_id, currency, customer_order_number, grand_total, metadata, organization_id, payment, shipping, shipping_address, shipping_total, user_data } = await promptForMissing(
+        const { items, billingAddress, buyer, cartId, channelId, contactId, currency, customerOrderNumber, grandTotal, metadata, organizationId, payment, shipping, shippingAddress, shippingTotal, userData } = await promptForMissing(
           _options,
-          [
-            { key: "items", option: "--items [items...]", name: "items", description: "The order positions (at most 500).", type: "array", required: true },
-          ],
+          placeSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -386,29 +486,29 @@ orders
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (billing_address !== undefined) {
-          _payload[`billing_address`] = resolveBodyParam(billing_address);
+        if (billingAddress !== undefined) {
+          _payload[`billing_address`] = resolveBodyParam(billingAddress);
         }
         if (buyer !== undefined) {
           _payload[`buyer`] = resolveBodyParam(buyer);
         }
-        if (cart_id !== undefined) {
-          _payload[`cart_id`] = cart_id;
+        if (cartId !== undefined) {
+          _payload[`cart_id`] = cartId;
         }
-        if (channel_id !== undefined) {
-          _payload[`channel_id`] = channel_id;
+        if (channelId !== undefined) {
+          _payload[`channel_id`] = channelId;
         }
-        if (contact_id !== undefined) {
-          _payload[`contact_id`] = contact_id;
+        if (contactId !== undefined) {
+          _payload[`contact_id`] = contactId;
         }
         if (currency !== undefined) {
           _payload[`currency`] = currency;
         }
-        if (customer_order_number !== undefined) {
-          _payload[`customer_order_number`] = customer_order_number;
+        if (customerOrderNumber !== undefined) {
+          _payload[`customer_order_number`] = customerOrderNumber;
         }
-        if (grand_total !== undefined) {
-          _payload[`grand_total`] = grand_total;
+        if (grandTotal !== undefined) {
+          _payload[`grand_total`] = grandTotal;
         }
         if (items !== undefined) {
           _payload[`items`] = items;
@@ -416,8 +516,8 @@ orders
         if (metadata !== undefined) {
           _payload[`metadata`] = resolveBodyParam(metadata);
         }
-        if (organization_id !== undefined) {
-          _payload[`organization_id`] = organization_id;
+        if (organizationId !== undefined) {
+          _payload[`organization_id`] = organizationId;
         }
         if (payment !== undefined) {
           _payload[`payment`] = resolveBodyParam(payment);
@@ -425,14 +525,14 @@ orders
         if (shipping !== undefined) {
           _payload[`shipping`] = resolveBodyParam(shipping);
         }
-        if (shipping_address !== undefined) {
-          _payload[`shipping_address`] = resolveBodyParam(shipping_address);
+        if (shippingAddress !== undefined) {
+          _payload[`shipping_address`] = resolveBodyParam(shippingAddress);
         }
-        if (shipping_total !== undefined) {
-          _payload[`shipping_total`] = shipping_total;
+        if (shippingTotal !== undefined) {
+          _payload[`shipping_total`] = shippingTotal;
         }
-        if (user_data !== undefined) {
-          _payload[`user_data`] = resolveBodyParam(user_data);
+        if (userData !== undefined) {
+          _payload[`user_data`] = resolveBodyParam(userData);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -447,6 +547,10 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, placeSpecs, { method: "post" });
+const getSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+];
 orders
   .command(`get`)
   .description(`The order aggregate: order + items + shipments + returns + cancellations`)
@@ -456,9 +560,7 @@ orders
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-          ],
+          getSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -477,24 +579,32 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, getSpecs, { method: "get" });
+const updateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "billingAddress", option: "--billing-address <billing-address>", name: "billing_address", type: "object", required: false },
+  { key: "buyer", option: "--buyer <buyer>", name: "buyer", type: "object", required: false },
+  { key: "customerOrderNumber", option: "--customer-order-number <customer-order-number>", name: "customer_order_number", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form metadata.", type: "object", required: false },
+  { key: "shippingAddress", option: "--shipping-address <shipping-address>", name: "shipping_address", type: "object", required: false },
+  { key: "userData", option: "--user-data <user-data>", name: "user_data", description: "Free-form user data.", type: "object", required: false },
+];
 orders
   .command(`update`)
   .description(`Narrow modification (addresses, buyer, references, user_data) — blocked once acknowledged`)
   .option(`--id <id>`, ``)
-  .option(`--billing-_address <billing-_address>`, ``)
+  .option(`--billing-address <billing-address>`, ``)
   .option(`--buyer <buyer>`, ``)
-  .option(`--customer-_order-_number <customer-_order-_number>`, ``)
+  .option(`--customer-order-number <customer-order-number>`, ``)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
-  .option(`--shipping-_address <shipping-_address>`, ``)
-  .option(`--user-_data <user-_data>`, `Free-form user data.`)
+  .option(`--shipping-address <shipping-address>`, ``)
+  .option(`--user-data <user-data>`, `Free-form user data.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, billing_address, buyer, customer_order_number, metadata, shipping_address, user_data } = await promptForMissing(
+        const { id, billingAddress, buyer, customerOrderNumber, metadata, shippingAddress, userData } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-          ],
+          updateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -507,23 +617,23 @@ orders
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (billing_address !== undefined) {
-          _payload[`billing_address`] = resolveBodyParam(billing_address);
+        if (billingAddress !== undefined) {
+          _payload[`billing_address`] = resolveBodyParam(billingAddress);
         }
         if (buyer !== undefined) {
           _payload[`buyer`] = resolveBodyParam(buyer);
         }
-        if (customer_order_number !== undefined) {
-          _payload[`customer_order_number`] = customer_order_number;
+        if (customerOrderNumber !== undefined) {
+          _payload[`customer_order_number`] = customerOrderNumber;
         }
         if (metadata !== undefined) {
           _payload[`metadata`] = resolveBodyParam(metadata);
         }
-        if (shipping_address !== undefined) {
-          _payload[`shipping_address`] = resolveBodyParam(shipping_address);
+        if (shippingAddress !== undefined) {
+          _payload[`shipping_address`] = resolveBodyParam(shippingAddress);
         }
-        if (user_data !== undefined) {
-          _payload[`user_data`] = resolveBodyParam(user_data);
+        if (userData !== undefined) {
+          _payload[`user_data`] = resolveBodyParam(userData);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -538,19 +648,22 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, updateSpecs, { method: "put" });
+const acknowledgeSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "externalRef", option: "--external-ref <external-ref>", name: "external_ref", description: "The fulfilling system's order reference (e.g. the ERP order number).", type: "string", required: false },
+];
 orders
   .command(`acknowledge`)
   .description(`The fulfilling system took over (sets external_ref + acknowledged_at, once) — the return channel for Integration Studio`)
   .option(`--id <id>`, ``)
-  .option(`--external-_ref <external-_ref>`, `The fulfilling system's order reference (e.g. the ERP order number).`)
+  .option(`--external-ref <external-ref>`, `The fulfilling system's order reference (e.g. the ERP order number).`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, external_ref } = await promptForMissing(
+        const { id, externalRef } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-          ],
+          acknowledgeSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -563,8 +676,8 @@ orders
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (external_ref !== undefined) {
-          _payload[`external_ref`] = external_ref;
+        if (externalRef !== undefined) {
+          _payload[`external_ref`] = externalRef;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -579,20 +692,24 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, acknowledgeSpecs, { method: "post" });
+const cancelSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "cancelledBy", option: "--cancelled-by <cancelled-by>", name: "cancelled_by", description: "Acting user/system.", type: "string", required: false },
+  { key: "reason", option: "--reason <reason>", name: "reason", type: "string", required: false },
+];
 orders
   .command(`cancel`)
   .description(`Full cancel — only while nothing has shipped; shipped orders cancel open quantities via items/cancel`)
   .option(`--id <id>`, ``)
-  .option(`--cancelled-_by <cancelled-_by>`, `Acting user/system.`)
+  .option(`--cancelled-by <cancelled-by>`, `Acting user/system.`)
   .option(`--reason <reason>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, cancelled_by, reason } = await promptForMissing(
+        const { id, cancelledBy, reason } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-          ],
+          cancelSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -605,8 +722,8 @@ orders
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (cancelled_by !== undefined) {
-          _payload[`cancelled_by`] = cancelled_by;
+        if (cancelledBy !== undefined) {
+          _payload[`cancelled_by`] = cancelledBy;
         }
         if (reason !== undefined) {
           _payload[`reason`] = reason;
@@ -624,23 +741,39 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, cancelSpecs, { method: "post" });
+const commentsListSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 orders
   .command(`comments-list`)
   .description(`List comments (internal + customer-visible)`)
   .option(`--id <id>`, ``)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id } = await promptForMissing(
+        const { id, filter } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-          ],
+          commentsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/comments`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -654,6 +787,13 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, commentsListSpecs, { method: "get" });
+const commentsCreateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "body", option: "--body <body>", name: "body", type: "string", required: true },
+  { key: "author", option: "--author <author>", name: "author", type: "string", required: false },
+  { key: "visibility", option: "--visibility <visibility>", name: "visibility", description: "Default 'internal'.", type: "string", required: false, enum: ["internal","customer"] },
+];
 orders
   .command(`comments-create`)
   .description(`Add a comment (visibility internal|customer)`)
@@ -666,10 +806,7 @@ orders
       async (_options, _command) => {
         const { id, body, author, visibility } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-            { key: "body", option: "--body <body>", name: "body", type: "string", required: true },
-          ],
+          commentsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -704,23 +841,39 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, commentsCreateSpecs, { method: "post" });
+const eventsListSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 orders
   .command(`events-list`)
   .description(`The audit trail — every lifecycle action as an event row (also the domain event feed: manifest emits order_event.created on insert)`)
   .option(`--id <id>`, ``)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id } = await promptForMissing(
+        const { id, filter } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-          ],
+          eventsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/events`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -734,6 +887,11 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, eventsListSpecs, { method: "get" });
+const holdSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "reason", option: "--reason <reason>", name: "reason", description: "Why the order is blocked (shown on the shipping guard).", type: "string", required: false },
+];
 orders
   .command(`hold`)
   .description(`Put the order on hold — blocks shipping until unhold`)
@@ -744,9 +902,7 @@ orders
       async (_options, _command) => {
         const { id, reason } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-          ],
+          holdSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -775,22 +931,26 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, holdSpecs, { method: "post" });
+const itemsCancelSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "positions", option: "--positions [positions...]", name: "positions", type: "array", required: true },
+  { key: "cancelledBy", option: "--cancelled-by <cancelled-by>", name: "cancelled_by", description: "Acting user/system.", type: "string", required: false },
+  { key: "reason", option: "--reason <reason>", name: "reason", type: "string", required: false },
+];
 orders
   .command(`items-cancel`)
   .description(`Quantity-based position cancel (positions: [{order_item_id, quantity}]) — guarded against the open quantity`)
   .option(`--id <id>`, ``)
   .option(`--positions [positions...]`, ``)
-  .option(`--cancelled-_by <cancelled-_by>`, `Acting user/system.`)
+  .option(`--cancelled-by <cancelled-by>`, `Acting user/system.`)
   .option(`--reason <reason>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, positions, cancelled_by, reason } = await promptForMissing(
+        const { id, positions, cancelledBy, reason } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-            { key: "positions", option: "--positions [positions...]", name: "positions", type: "array", required: true },
-          ],
+          itemsCancelSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -803,8 +963,8 @@ orders
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (cancelled_by !== undefined) {
-          _payload[`cancelled_by`] = cancelled_by;
+        if (cancelledBy !== undefined) {
+          _payload[`cancelled_by`] = cancelledBy;
         }
         if (positions !== undefined) {
           _payload[`positions`] = positions;
@@ -825,21 +985,24 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, itemsCancelSpecs, { method: "post" });
+const paymentStatusUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "status", option: "--status <status>", name: "status", description: "The new payment dimension value.", type: "string", required: true, enum: ["open","pending","authorized","paid","partially_paid","refunded","failed"] },
+  { key: "paymentId", option: "--payment-id <payment-id>", name: "payment_id", description: "Reference into the payment system — merged into the order's payment snapshot.", type: "string", required: false },
+];
 orders
   .command(`payment-status-update`)
   .description(`Update the payment dimension (open/pending/authorized/paid/partially_paid/refunded/failed, optional payment_id)`)
   .option(`--id <id>`, ``)
   .option(`--status <status>`, `The new payment dimension value.`)
-  .option(`--payment-_id <payment-_id>`, `Reference into the payment system — merged into the order's payment snapshot.`)
+  .option(`--payment-id <payment-id>`, `Reference into the payment system — merged into the order's payment snapshot.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, status, payment_id } = await promptForMissing(
+        const { id, status, paymentId } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-            { key: "status", option: "--status <status>", name: "status", description: "The new payment dimension value.", type: "string", required: true, enum: ["open","pending","authorized","paid","partially_paid","refunded","failed"] },
-          ],
+          paymentStatusUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -852,8 +1015,8 @@ orders
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (payment_id !== undefined) {
-          _payload[`payment_id`] = payment_id;
+        if (paymentId !== undefined) {
+          _payload[`payment_id`] = paymentId;
         }
         if (status !== undefined) {
           _payload[`status`] = status;
@@ -871,6 +1034,13 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, paymentStatusUpdateSpecs, { method: "post" });
+const returnSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "positions", option: "--positions [positions...]", name: "positions", type: "array", required: true },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form metadata.", type: "object", required: false },
+  { key: "reason", option: "--reason <reason>", name: "reason", type: "string", required: false },
+];
 orders
   .command(`return`)
   .description(`Register a return (positions with per-position restock flags) against the shipped quantities`)
@@ -883,10 +1053,7 @@ orders
       async (_options, _command) => {
         const { id, positions, metadata, reason } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-            { key: "positions", option: "--positions [positions...]", name: "positions", type: "array", required: true },
-          ],
+          returnSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -921,6 +1088,12 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, returnSpecs, { method: "post" });
+const returnsCompleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "rid", option: "--rid <rid>", name: "rid", type: "string", required: true },
+  { key: "resolution", option: "--resolution <resolution>", name: "resolution", description: "How the return was settled (refund, replacement, …).", type: "string", required: false },
+];
 orders
   .command(`returns-complete`)
   .description(`Complete a return: books quantity_returned, reports restock positions for the explicit inventories.restock call`)
@@ -932,10 +1105,7 @@ orders
       async (_options, _command) => {
         const { id, rid, resolution } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-            { key: "rid", option: "--rid <rid>", name: "rid", type: "string", required: true },
-          ],
+          returnsCompleteSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -964,6 +1134,12 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, returnsCompleteSpecs, { method: "post" });
+const returnsReceiveSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "rid", option: "--rid <rid>", name: "rid", type: "string", required: true },
+  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+];
 orders
   .command(`returns-receive`)
   .description(`Goods arrived back (registered → received)`)
@@ -975,11 +1151,7 @@ orders
       async (_options, _command) => {
         const { id, rid, data } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-            { key: "rid", option: "--rid <rid>", name: "rid", type: "string", required: true },
-            { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
-          ],
+          returnsReceiveSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1001,6 +1173,13 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, returnsReceiveSpecs, { method: "post" });
+const returnsRejectSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "rid", option: "--rid <rid>", name: "rid", type: "string", required: true },
+  { key: "reason", option: "--reason <reason>", name: "reason", description: "Fallback for 'resolution'.", type: "string", required: false },
+  { key: "resolution", option: "--resolution <resolution>", name: "resolution", description: "Why the return was rejected.", type: "string", required: false },
+];
 orders
   .command(`returns-reject`)
   .description(`Reject a return (with resolution)`)
@@ -1013,10 +1192,7 @@ orders
       async (_options, _command) => {
         const { id, rid, reason, resolution } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-            { key: "rid", option: "--rid <rid>", name: "rid", type: "string", required: true },
-          ],
+          returnsRejectSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1048,6 +1224,17 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, returnsRejectSpecs, { method: "post" });
+const shipSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "carrier", option: "--carrier <carrier>", name: "carrier", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form metadata.", type: "object", required: false },
+  { key: "number", option: "--number <number>", name: "number", description: "Delivery note number — drawn from the 'delivery' range when omitted.", type: "string", required: false },
+  { key: "positions", option: "--positions [positions...]", name: "positions", description: "Omitted = every position with open quantity, in full.", type: "array", required: false },
+  { key: "shippedAt", option: "--shipped-at <shipped-at>", name: "shipped_at", description: "Defaults to now.", type: "string", required: false },
+  { key: "trackingCode", option: "--tracking-code <tracking-code>", name: "tracking_code", type: "string", required: false },
+  { key: "trackingUrl", option: "--tracking-url <tracking-url>", name: "tracking_url", type: "string", required: false },
+];
 orders
   .command(`ship`)
   .description(`Create a shipment (positions + quantities + carrier/tracking; positions omitted = ship everything open). Books quantity_shipped, derives fulfillment_status, completes the order when fulfilled`)
@@ -1056,17 +1243,15 @@ orders
   .option(`--metadata <metadata>`, `Free-form metadata.`)
   .option(`--number <number>`, `Delivery note number — drawn from the 'delivery' range when omitted.`)
   .option(`--positions [positions...]`, `Omitted = every position with open quantity, in full.`)
-  .option(`--shipped-_at <shipped-_at>`, `Defaults to now.`)
-  .option(`--tracking-_code <tracking-_code>`, ``)
-  .option(`--tracking-_url <tracking-_url>`, ``)
+  .option(`--shipped-at <shipped-at>`, `Defaults to now.`)
+  .option(`--tracking-code <tracking-code>`, ``)
+  .option(`--tracking-url <tracking-url>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, carrier, metadata, number, positions, shipped_at, tracking_code, tracking_url } = await promptForMissing(
+        const { id, carrier, metadata, number, positions, shippedAt, trackingCode, trackingUrl } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-          ],
+          shipSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1091,14 +1276,14 @@ orders
         if (positions !== undefined) {
           _payload[`positions`] = positions;
         }
-        if (shipped_at !== undefined) {
-          _payload[`shipped_at`] = shipped_at;
+        if (shippedAt !== undefined) {
+          _payload[`shipped_at`] = shippedAt;
         }
-        if (tracking_code !== undefined) {
-          _payload[`tracking_code`] = tracking_code;
+        if (trackingCode !== undefined) {
+          _payload[`tracking_code`] = trackingCode;
         }
-        if (tracking_url !== undefined) {
-          _payload[`tracking_url`] = tracking_url;
+        if (trackingUrl !== undefined) {
+          _payload[`tracking_url`] = trackingUrl;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1113,6 +1298,11 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, shipSpecs, { method: "post" });
+const unholdSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+];
 orders
   .command(`unhold`)
   .description(`Release the hold`)
@@ -1123,10 +1313,7 @@ orders
       async (_options, _command) => {
         const { id, data } = await promptForMissing(
           _options,
-          [
-            { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-            { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
-          ],
+          unholdSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1148,3 +1335,4 @@ orders
       },
     ),
   );
+registerPromptSpecs(orders.commands.at(-1)!, unholdSpecs, { method: "post" });

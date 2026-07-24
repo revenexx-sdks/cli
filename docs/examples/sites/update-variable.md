@@ -1,6 +1,6 @@
 ```bash
 revenexx sites update-variable \
-    --site-id '' \
-    --variable-id '' \
-    --key ''
+    --site-id sample-id \
+    --variable-id sample-id \
+    --key sample key
 ```

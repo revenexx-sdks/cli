@@ -3,7 +3,7 @@
   "type": "module",
   "homepage": "https://revenexx.com",
   "description": "Revenexx CLI.",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "license": "MIT",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
@@ -21,7 +21,7 @@
     }
   },
   "bin": {
-    "revenexx": "dist/cli.cjs"
+    "revenexx": "dist/cli.mjs"
   },
   "files": [
     "dist"
@@ -37,7 +37,7 @@
     "build:lib:runtime": "npm run build:lib:esm && npm run build:lib:cjs",
     "build:lib:esm": "esbuild index.ts --bundle --platform=node --target=node18 --format=esm --loader:.hbs=text --outfile=dist/index.js",
     "build:lib:cjs": "esbuild index.ts --bundle --platform=node --target=node18 --format=cjs --loader:.hbs=text --outfile=dist/index.cjs",
-    "build:cli": "esbuild cli.ts --bundle --platform=node --target=node18 --format=cjs --loader:.hbs=text --external:fsevents --outfile=dist/cli.cjs",
+    "build:cli": "esbuild cli.ts --bundle --platform=node --target=node18 --format=esm --loader:.hbs=text --external:fsevents --alias:react-devtools-core=./scripts/devtools-stub.mjs --define:process.env.NODE_ENV=\\\"production\\\" --banner:js=\"import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);\" --outfile=dist/cli.mjs",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{js,ts,json,md}\"",
     "generate": "tsx scripts/generate-commands.ts",
@@ -46,15 +46,16 @@
     "test:watch": "vitest",
     "verify:install": "./scripts/verify-install.sh",
     "verify:install:local": "./scripts/verify-install.sh --local",
+    "test:tui-smoke": "bash scripts/tui-smoke.sh",
     "changeset": "changeset",
     "changeset:status": "changeset status",
     "changeset:version": "changeset version",
-    "linux-x64": "bun build cli.ts --compile --sourcemap=inline --target=bun-linux-x64 --outfile build/revenexx-linux-x64",
-    "linux-arm64": "bun build cli.ts --compile --sourcemap=inline --target=bun-linux-arm64 --outfile build/revenexx-linux-arm64",
-    "mac-x64": "bun build cli.ts --compile --sourcemap=inline --target=bun-darwin-x64 --outfile build/revenexx-darwin-x64",
-    "mac-arm64": "bun build cli.ts --compile --sourcemap=inline --target=bun-darwin-arm64 --outfile build/revenexx-darwin-arm64",
-    "windows-x64": "bun build cli.ts --compile --sourcemap=inline --target=bun-windows-x64 --outfile build/revenexx-win-x64.exe",
-    "windows-arm64": "esbuild cli.ts --bundle --loader:.hbs=text --platform=node --target=node18 --format=esm --external:fsevents --outfile=dist/bundle-win-arm64.mjs && pkg dist/bundle-win-arm64.mjs -t node22-win-arm64 -o build/revenexx-win-arm64.exe"
+    "linux-x64": "npm run build:cli && bun build dist/cli.mjs --compile --sourcemap=inline --target=bun-linux-x64 --outfile build/revenexx-linux-x64",
+    "linux-arm64": "npm run build:cli && bun build dist/cli.mjs --compile --sourcemap=inline --target=bun-linux-arm64 --outfile build/revenexx-linux-arm64",
+    "mac-x64": "npm run build:cli && bun build dist/cli.mjs --compile --sourcemap=inline --target=bun-darwin-x64 --outfile build/revenexx-darwin-x64",
+    "mac-arm64": "npm run build:cli && bun build dist/cli.mjs --compile --sourcemap=inline --target=bun-darwin-arm64 --outfile build/revenexx-darwin-arm64",
+    "windows-x64": "npm run build:cli && bun build dist/cli.mjs --compile --sourcemap=inline --target=bun-windows-x64 --outfile build/revenexx-win-x64.exe",
+    "windows-arm64": "npm run build:cli && pkg dist/cli.mjs -t node22-win-arm64 -o build/revenexx-win-arm64.exe"
   },
   "dependencies": {
     "chalk": "4.1.2",
@@ -65,9 +66,11 @@
     "ejs": "^3.1.9",
     "fflate": "^0.8.2",
     "handlebars": "^4.7.7",
+    "ink": "^5.2.1",
     "inquirer": "^8.2.4",
     "inquirer-search-list": "^1.2.6",
     "json-bigint": "^1.0.0",
+    "react": "^18.3.1",
     "tar": "^7.4.3",
     "undici": "^5.28.2",
     "zod": "^4.3.5"
@@ -78,11 +81,13 @@
     "@types/bun": "^1.3.5",
     "eslint": "^9.0.0",
     "eslint-plugin-unused-imports": "^4.0.0",
+    "ink-testing-library": "^4.0.0",
     "typescript-eslint": "^8.0.0",
     "@types/cli-progress": "^3.11.5",
     "@types/inquirer": "^8.2.10",
     "@types/json-bigint": "^1.0.4",
     "@types/node": "^18.19.0",
+    "@types/react": "^18.3.12",
     "@types/tar": "^6.1.13",
     "@yao-pkg/pkg": "^6.11.0",
     "esbuild": "^0.27.2",

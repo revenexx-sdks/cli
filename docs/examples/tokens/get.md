@@ -1,4 +1,4 @@
 ```bash
 revenexx tokens get \
-    --token-id ''
+    --token-id sample-id
 ```

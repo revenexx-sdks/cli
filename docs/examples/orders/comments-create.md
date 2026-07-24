@@ -1,5 +1,5 @@
 ```bash
 revenexx orders comments-create \
-    --id '' \
-    --body ''
+    --id sample-id \
+    --body sample body
 ```

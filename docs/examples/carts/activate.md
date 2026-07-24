@@ -1,4 +1,4 @@
 ```bash
 revenexx carts activate \
-    --id ''
+    --id sample-id
 ```

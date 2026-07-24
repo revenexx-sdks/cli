@@ -1,5 +1,5 @@
 ```bash
 revenexx payments create \
-    --amount null \
-    --method-code ''
+    --amount 9.99 \
+    --method-code sample method code
 ```

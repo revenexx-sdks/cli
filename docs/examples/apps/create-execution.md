@@ -1,4 +1,4 @@
 ```bash
 revenexx apps create-execution \
-    --function-id ''
+    --function-id sample-id
 ```

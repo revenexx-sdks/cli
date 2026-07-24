@@ -1,5 +1,5 @@
 ```bash
 revenexx orderlists items-update \
-    --list-id '' \
-    --id ''
+    --list-id sample-id \
+    --id sample-id
 ```

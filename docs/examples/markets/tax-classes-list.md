@@ -1,4 +1,4 @@
 ```bash
 revenexx markets tax-classes-list \
-    --market-id ''
+    --market-id sample-id
 ```

@@ -1,5 +1,5 @@
 ```bash
 revenexx apps delete-deployment \
-    --function-id '' \
-    --deployment-id ''
+    --function-id sample-id \
+    --deployment-id sample-id
 ```

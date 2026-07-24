@@ -1,4 +1,4 @@
 ```bash
 revenexx products association-types-update \
-    --id ''
+    --id sample-id
 ```

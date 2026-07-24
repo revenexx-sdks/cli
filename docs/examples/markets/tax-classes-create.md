@@ -1,6 +1,6 @@
 ```bash
 revenexx markets tax-classes-create \
-    --market-id '' \
-    --code '' \
-    --name ''
+    --market-id sample-id \
+    --code sample code \
+    --name Sample name
 ```

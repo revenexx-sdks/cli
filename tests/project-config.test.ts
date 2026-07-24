@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { loadProjectConfig } from "../lib/project-config.js";
+import { loadProjectConfig, resolveDefaultMode } from "../lib/project-config.js";
 
 // loadProjectConfig caches keyed on `start` dir, so every test picks a unique
 // tmpdir and never collides with another test's cache entry.
@@ -73,8 +73,57 @@ describe("loadProjectConfig", () => {
       path.join(workdir, ".revenexx.yml"),
       "token: yml-token\n",
     );
-    
+
     const cfg = loadProjectConfig(workdir);
     expect(cfg.token).toBe("yml-token");
+  });
+});
+
+describe("resolveDefaultMode", () => {
+  const originalCwd = process.cwd();
+  const originalNoTui = process.env.REVENEXX_NO_TUI;
+
+  afterEach(() => {
+    process.chdir(originalCwd);
+    if (originalNoTui === undefined) delete process.env.REVENEXX_NO_TUI;
+    else process.env.REVENEXX_NO_TUI = originalNoTui;
+  });
+
+  it("defaults to tui with no env or config", () => {
+    delete process.env.REVENEXX_NO_TUI;
+    process.chdir(workdir);
+    expect(resolveDefaultMode()).toBe("tui");
+  });
+
+  it("REVENEXX_NO_TUI=1 forces guided", () => {
+    process.env.REVENEXX_NO_TUI = "1";
+    process.chdir(workdir);
+    expect(resolveDefaultMode()).toBe("guided");
+  });
+
+  it("ignores a falsy REVENEXX_NO_TUI value", () => {
+    process.env.REVENEXX_NO_TUI = "false";
+    process.chdir(workdir);
+    expect(resolveDefaultMode()).toBe("tui");
+  });
+
+  it("honours a defaultMode key from .revenexx.yaml", () => {
+    delete process.env.REVENEXX_NO_TUI;
+    fs.writeFileSync(
+      path.join(workdir, ".revenexx.yaml"),
+      "defaultMode: help\n",
+    );
+    process.chdir(workdir);
+    expect(resolveDefaultMode()).toBe("help");
+  });
+
+  it("lets REVENEXX_NO_TUI win over a config defaultMode", () => {
+    process.env.REVENEXX_NO_TUI = "1";
+    fs.writeFileSync(
+      path.join(workdir, ".revenexx.yaml"),
+      "defaultMode: tui\n",
+    );
+    process.chdir(workdir);
+    expect(resolveDefaultMode()).toBe("guided");
   });
 });

@@ -1,5 +1,5 @@
 ```bash
 revenexx sites delete-variable \
-    --site-id '' \
-    --variable-id ''
+    --site-id sample-id \
+    --variable-id sample-id
 ```

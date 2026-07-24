@@ -1,5 +1,5 @@
 ```bash
 revenexx products measurement-families-create \
-    --code '' \
-    --standard-unit ''
+    --code sample code \
+    --standard-unit sample standard unit
 ```

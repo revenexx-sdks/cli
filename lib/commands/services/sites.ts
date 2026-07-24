@@ -14,6 +14,8 @@ import {
 import {
   confirmDestructive,
   promptForMissing,
+  type PromptSpec,
+  registerPromptSpecs,
 } from "../../interactive.js";
 
 export const sites = new Command("sites")
@@ -25,6 +27,12 @@ export const sites = new Command("sites")
     helpWidth: process.stdout.columns || 80,
   });
 
+const listSpecs: PromptSpec[] = [
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, enabled, framework, deploymentId, buildCommand, installCommand, outputDirectory, installationId", type: "array", required: false },
+  { key: "search", option: "--search <search>", name: "search", description: "Search term to filter your list results. Max length: 256 chars.", type: "string", required: false },
+  { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 sites
   .command(`list`)
   .description(`Get a list of all the project's sites. You can use the query params to filter your results.`)
@@ -36,9 +44,20 @@ sites
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async ({ queries, search, total }) => {
+      async (_options, _command) => {
+        const { queries, search, total, filter } = await promptForMissing(
+          _options,
+          listSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites`;
         const _payload: RequestParams = {};
@@ -50,6 +69,13 @@ sites
         }
         if (total !== undefined) {
           _payload[`total`] = total;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -64,6 +90,27 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, listSpecs, { method: "get" });
+const createSpecs: PromptSpec[] = [
+  { key: "buildRuntime", option: "--build-runtime <build-runtime>", name: "buildRuntime", description: "Runtime to use during build step.", type: "string", required: true, enum: ["node-18.0","node-20.0","node-22","node-23","node-24","node-25","php-8.1","php-8.2","php-8.3","php-8.4","ruby-3.1","ruby-3.2","ruby-3.3","ruby-3.4","ruby-4.0","python-3.9","python-3.10","python-3.11","python-3.12","python-3.13","python-3.14","python-ml-3.11","python-ml-3.12","python-ml-3.13","deno-1.46","deno-2.0","deno-2.5","deno-2.6","dart-2.18","dart-2.19","dart-3.0","dart-3.1","dart-3.3","dart-3.5","dart-3.8","dart-3.9","dart-3.10","dotnet-8.0","dotnet-10","java-8.0","java-11.0","java-17.0","java-21.0","java-22","java-25","swift-5.8","swift-5.9","swift-5.10","swift-6.2","kotlin-1.8","kotlin-1.9","kotlin-2.0","kotlin-2.3","cpp-17","cpp-20","cpp-23","bun-1.0","bun-1.1","bun-1.2","bun-1.3","go-1.23","go-1.24","go-1.25","go-1.26","static-1","flutter-3.24","flutter-3.27","flutter-3.29","flutter-3.32","flutter-3.35","flutter-3.38"] },
+  { key: "framework", option: "--framework <framework>", name: "framework", description: "Sites framework.", type: "string", required: true, enum: ["analog","angular","nextjs","react","nuxt","vue","sveltekit","astro","tanstack-start","remix","lynx","flutter","react-native","vite","other"] },
+  { key: "name", option: "--name <name>", name: "name", description: "Site name. Max length: 128 chars.", type: "string", required: true },
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID. Choose a custom ID or generate a random ID with `ID.unique()`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.", type: "string", required: true },
+  { key: "adapter", option: "--adapter <adapter>", name: "adapter", description: "Framework adapter defining rendering strategy. Allowed values are: static, ssr", type: "string", required: false, enum: ["static","ssr"] },
+  { key: "buildCommand", option: "--build-command <build-command>", name: "buildCommand", description: "Build Command.", type: "string", required: false },
+  { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Is site enabled? When set to 'disabled', users cannot access the site but Server SDKs with and API key can still access the site. No data is lost when this is toggled.", type: "boolean", required: false },
+  { key: "fallbackFile", option: "--fallback-file <fallback-file>", name: "fallbackFile", description: "Fallback file for single page application sites.", type: "string", required: false },
+  { key: "installCommand", option: "--install-command <install-command>", name: "installCommand", description: "Install Command.", type: "string", required: false },
+  { key: "installationId", option: "--installation-id <installation-id>", name: "installationId", description: "Appwrite Installation ID for VCS (Version Control System) deployment.", type: "string", required: false },
+  { key: "logging", option: "--logging <logging>", name: "logging", description: "When disabled, request logs will exclude logs and errors, and site responses will be slightly faster.", type: "boolean", required: false },
+  { key: "outputDirectory", option: "--output-directory <output-directory>", name: "outputDirectory", description: "Output Directory for site.", type: "string", required: false },
+  { key: "providerBranch", option: "--provider-branch <provider-branch>", name: "providerBranch", description: "Production branch for the repo linked to the site.", type: "string", required: false },
+  { key: "providerRepositoryId", option: "--provider-repository-id <provider-repository-id>", name: "providerRepositoryId", description: "Repository ID of the repo linked to the site.", type: "string", required: false },
+  { key: "providerRootDirectory", option: "--provider-root-directory <provider-root-directory>", name: "providerRootDirectory", description: "Path to site code in the linked repo.", type: "string", required: false },
+  { key: "providerSilentMode", option: "--provider-silent-mode <provider-silent-mode>", name: "providerSilentMode", description: "Is the VCS (Version Control System) connection in silent mode for the repo linked to the site? In silent mode, comments will not be made on commits and pull requests.", type: "boolean", required: false },
+  { key: "specification", option: "--specification <specification>", name: "specification", description: "Framework specification for the site and builds.", type: "string", required: false },
+  { key: "timeout", option: "--timeout <timeout>", name: "timeout", description: "Maximum request time in seconds.", type: "integer", required: false },
+];
 sites
   .command(`create`)
   .description(`Create a new site.`)
@@ -105,12 +152,7 @@ sites
       async (_options, _command) => {
         const { buildRuntime, framework, name, siteId, adapter, buildCommand, enabled, fallbackFile, installCommand, installationId, logging, outputDirectory, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, specification, timeout } = await promptForMissing(
           _options,
-          [
-            { key: "buildRuntime", option: "--build-runtime <build-runtime>", name: "buildRuntime", description: "Runtime to use during build step.", type: "string", required: true, enum: ["node-18.0","node-20.0","node-22","node-23","node-24","node-25","php-8.1","php-8.2","php-8.3","php-8.4","ruby-3.1","ruby-3.2","ruby-3.3","ruby-3.4","ruby-4.0","python-3.9","python-3.10","python-3.11","python-3.12","python-3.13","python-3.14","python-ml-3.11","python-ml-3.12","python-ml-3.13","deno-1.46","deno-2.0","deno-2.5","deno-2.6","dart-2.18","dart-2.19","dart-3.0","dart-3.1","dart-3.3","dart-3.5","dart-3.8","dart-3.9","dart-3.10","dotnet-8.0","dotnet-10","java-8.0","java-11.0","java-17.0","java-21.0","java-22","java-25","swift-5.8","swift-5.9","swift-5.10","swift-6.2","kotlin-1.8","kotlin-1.9","kotlin-2.0","kotlin-2.3","cpp-17","cpp-20","cpp-23","bun-1.0","bun-1.1","bun-1.2","bun-1.3","go-1.23","go-1.24","go-1.25","go-1.26","static-1","flutter-3.24","flutter-3.27","flutter-3.29","flutter-3.32","flutter-3.35","flutter-3.38"] },
-            { key: "framework", option: "--framework <framework>", name: "framework", description: "Sites framework.", type: "string", required: true, enum: ["analog","angular","nextjs","react","nuxt","vue","sveltekit","astro","tanstack-start","remix","lynx","flutter","react-native","vite","other"] },
-            { key: "name", option: "--name <name>", name: "name", description: "Site name. Max length: 128 chars.", type: "string", required: true },
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID. Choose a custom ID or generate a random ID with `ID.unique()`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can't start with a special char. Max length is 36 chars.", type: "string", required: true },
-          ],
+          createSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -190,15 +232,37 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, createSpecs, { method: "post" });
+const listFrameworksSpecs: PromptSpec[] = [
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 sites
   .command(`list-frameworks`)
   .description(`Get a list of all frameworks that are currently available on the server instance.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async () => {
+      async (_options, _command) => {
+        const { filter } = await promptForMissing(
+          _options,
+          listFrameworksSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/frameworks`;
         const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -212,15 +276,37 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, listFrameworksSpecs, { method: "get" });
+const listSpecificationsSpecs: PromptSpec[] = [
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 sites
   .command(`list-specifications`)
   .description(`List allowed site specifications for this instance.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
-      async () => {
+      async (_options, _command) => {
+        const { filter } = await promptForMissing(
+          _options,
+          listSpecificationsSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/sites/specifications`;
         const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -234,6 +320,10 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, listSpecificationsSpecs, { method: "get" });
+const deleteSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+];
 sites
   .command(`delete`)
   .description(`Delete a site by its unique ID.`)
@@ -243,9 +333,7 @@ sites
       async (_options, _command) => {
         const { siteId } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-          ],
+          deleteSpecs,
           _command,
         );
         await confirmDestructive(`sites delete`);
@@ -265,6 +353,10 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, deleteSpecs, { method: "delete", destructive: true });
+const getSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+];
 sites
   .command(`get`)
   .description(`Get a site by its unique ID.`)
@@ -274,9 +366,7 @@ sites
       async (_options, _command) => {
         const { siteId } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-          ],
+          getSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -295,6 +385,27 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, getSpecs, { method: "get" });
+const updateSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "framework", option: "--framework <framework>", name: "framework", description: "Sites framework.", type: "string", required: true, enum: ["analog","angular","nextjs","react","nuxt","vue","sveltekit","astro","tanstack-start","remix","lynx","flutter","react-native","vite","other"] },
+  { key: "name", option: "--name <name>", name: "name", description: "Site name. Max length: 128 chars.", type: "string", required: true },
+  { key: "adapter", option: "--adapter <adapter>", name: "adapter", description: "Framework adapter defining rendering strategy. Allowed values are: static, ssr", type: "string", required: false, enum: ["static","ssr"] },
+  { key: "buildCommand", option: "--build-command <build-command>", name: "buildCommand", description: "Build Command.", type: "string", required: false },
+  { key: "buildRuntime", option: "--build-runtime <build-runtime>", name: "buildRuntime", description: "Runtime to use during build step.", type: "string", required: false, enum: ["node-18.0","node-20.0","node-22","node-23","node-24","node-25","php-8.1","php-8.2","php-8.3","php-8.4","ruby-3.1","ruby-3.2","ruby-3.3","ruby-3.4","ruby-4.0","python-3.9","python-3.10","python-3.11","python-3.12","python-3.13","python-3.14","python-ml-3.11","python-ml-3.12","python-ml-3.13","deno-1.46","deno-2.0","deno-2.5","deno-2.6","dart-2.18","dart-2.19","dart-3.0","dart-3.1","dart-3.3","dart-3.5","dart-3.8","dart-3.9","dart-3.10","dotnet-8.0","dotnet-10","java-8.0","java-11.0","java-17.0","java-21.0","java-22","java-25","swift-5.8","swift-5.9","swift-5.10","swift-6.2","kotlin-1.8","kotlin-1.9","kotlin-2.0","kotlin-2.3","cpp-17","cpp-20","cpp-23","bun-1.0","bun-1.1","bun-1.2","bun-1.3","go-1.23","go-1.24","go-1.25","go-1.26","static-1","flutter-3.24","flutter-3.27","flutter-3.29","flutter-3.32","flutter-3.35","flutter-3.38"] },
+  { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Is site enabled? When set to 'disabled', users cannot access the site but Server SDKs with and API key can still access the site. No data is lost when this is toggled.", type: "boolean", required: false },
+  { key: "fallbackFile", option: "--fallback-file <fallback-file>", name: "fallbackFile", description: "Fallback file for single page application sites.", type: "string", required: false },
+  { key: "installCommand", option: "--install-command <install-command>", name: "installCommand", description: "Install Command.", type: "string", required: false },
+  { key: "installationId", option: "--installation-id <installation-id>", name: "installationId", description: "Appwrite Installation ID for VCS (Version Control System) deployment.", type: "string", required: false },
+  { key: "logging", option: "--logging <logging>", name: "logging", description: "When disabled, request logs will exclude logs and errors, and site responses will be slightly faster.", type: "boolean", required: false },
+  { key: "outputDirectory", option: "--output-directory <output-directory>", name: "outputDirectory", description: "Output Directory for site.", type: "string", required: false },
+  { key: "providerBranch", option: "--provider-branch <provider-branch>", name: "providerBranch", description: "Production branch for the repo linked to the site.", type: "string", required: false },
+  { key: "providerRepositoryId", option: "--provider-repository-id <provider-repository-id>", name: "providerRepositoryId", description: "Repository ID of the repo linked to the site.", type: "string", required: false },
+  { key: "providerRootDirectory", option: "--provider-root-directory <provider-root-directory>", name: "providerRootDirectory", description: "Path to site code in the linked repo.", type: "string", required: false },
+  { key: "providerSilentMode", option: "--provider-silent-mode <provider-silent-mode>", name: "providerSilentMode", description: "Is the VCS (Version Control System) connection in silent mode for the repo linked to the site? In silent mode, comments will not be made on commits and pull requests.", type: "boolean", required: false },
+  { key: "specification", option: "--specification <specification>", name: "specification", description: "Framework specification for the site and builds.", type: "string", required: false },
+  { key: "timeout", option: "--timeout <timeout>", name: "timeout", description: "Maximum request time in seconds.", type: "integer", required: false },
+];
 sites
   .command(`update`)
   .description(`Update site by its unique ID.`)
@@ -336,11 +447,7 @@ sites
       async (_options, _command) => {
         const { siteId, framework, name, adapter, buildCommand, buildRuntime, enabled, fallbackFile, installCommand, installationId, logging, outputDirectory, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, specification, timeout } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "framework", option: "--framework <framework>", name: "framework", description: "Sites framework.", type: "string", required: true, enum: ["analog","angular","nextjs","react","nuxt","vue","sveltekit","astro","tanstack-start","remix","lynx","flutter","react-native","vite","other"] },
-            { key: "name", option: "--name <name>", name: "name", description: "Site name. Max length: 128 chars.", type: "string", required: true },
-          ],
+          updateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -417,6 +524,11 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, updateSpecs, { method: "put" });
+const updateSiteDeploymentSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true },
+];
 sites
   .command(`update-site-deployment`)
   .description(`Update the site active deployment. Use this endpoint to switch the code deployment that should be used when visitor opens your site.`)
@@ -427,10 +539,7 @@ sites
       async (_options, _command) => {
         const { siteId, deploymentId } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true },
-          ],
+          updateSiteDeploymentSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -459,6 +568,14 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, updateSiteDeploymentSpecs, { method: "patch" });
+const listDeploymentsSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: buildSize, sourceSize, totalSize, buildDuration, status, activate, type", type: "array", required: false },
+  { key: "search", option: "--search <search>", name: "search", description: "Search term to filter your list results. Max length: 256 chars.", type: "string", required: false },
+  { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 sites
   .command(`list-deployments`)
   .description(`Get a list of all the site's code deployments. You can use the query params to filter your results.`)
@@ -471,14 +588,18 @@ sites
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { siteId, queries, search, total } = await promptForMissing(
+        const { siteId, queries, search, total, filter } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-          ],
+          listDeploymentsSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -493,6 +614,13 @@ sites
         if (total !== undefined) {
           _payload[`total`] = total;
         }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -506,6 +634,15 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, listDeploymentsSpecs, { method: "get" });
+const createDeploymentSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "activate", option: "--activate <activate>", name: "activate", description: "Automatically activate the deployment when it is finished building.", type: "boolean", required: true },
+  { key: "code", option: "--code <code>", name: "code", description: "Gzip file with your code package. When used with the Appwrite CLI, pass the path to your code directory, and the CLI will automatically package your code. Use a path that is within the current directory.", type: "file", required: true },
+  { key: "buildCommand", option: "--build-command <build-command>", name: "buildCommand", description: "Build Commands.", type: "string", required: false },
+  { key: "installCommand", option: "--install-command <install-command>", name: "installCommand", description: "Install Commands.", type: "string", required: false },
+  { key: "outputDirectory", option: "--output-directory <output-directory>", name: "outputDirectory", description: "Output Directory.", type: "string", required: false },
+];
 sites
   .command(`create-deployment`)
   .description(`Create a new site code deployment. Use this endpoint to upload a new version of your site code. To activate your newly uploaded code, you'll need to update the site's deployment to use your new deployment ID.`)
@@ -520,11 +657,7 @@ sites
       async (_options, _command) => {
         const { siteId, activate, code, buildCommand, installCommand, outputDirectory } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "activate", option: "--activate <activate>", name: "activate", description: "Automatically activate the deployment when it is finished building.", type: "boolean", required: true },
-            { key: "code", option: "--code <code>", name: "code", description: "Gzip file with your code package. When used with the Appwrite CLI, pass the path to your code directory, and the CLI will automatically package your code. Use a path that is within the current directory.", type: "file", required: true },
-          ],
+          createDeploymentSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -565,6 +698,11 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, createDeploymentSpecs, { method: "post" });
+const createDuplicateDeploymentSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true },
+];
 sites
   .command(`create-duplicate-deployment`)
   .description(`Create a new build for an existing site deployment. This endpoint allows you to rebuild a deployment with the updated site configuration, including its commands and output directory if they have been modified. The build process will be queued and executed asynchronously. The original deployment's code will be preserved and used for the new build.`)
@@ -575,10 +713,7 @@ sites
       async (_options, _command) => {
         const { siteId, deploymentId } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true },
-          ],
+          createDuplicateDeploymentSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -607,6 +742,16 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, createDuplicateDeploymentSpecs, { method: "post" });
+const createTemplateDeploymentSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "owner", option: "--owner <owner>", name: "owner", description: "The name of the owner of the template.", type: "string", required: true },
+  { key: "reference", option: "--reference <reference>", name: "reference", description: "Reference value, can be a commit hash, branch name, or release tag", type: "string", required: true },
+  { key: "repository", option: "--repository <repository>", name: "repository", description: "Repository name of the template.", type: "string", required: true },
+  { key: "rootDirectory", option: "--root-directory <root-directory>", name: "rootDirectory", description: "Path to site code in the template repo.", type: "string", required: true },
+  { key: "type", option: "--type <type>", name: "type", description: "Type for the reference provided. Can be commit, branch, or tag", type: "string", required: true, enum: ["branch","commit","tag"] },
+  { key: "activate", option: "--activate <activate>", name: "activate", description: "Automatically activate the deployment when it is finished building.", type: "boolean", required: false },
+];
 sites
   .command(`create-template-deployment`)
   .description(`Create a deployment based on a template.
@@ -629,14 +774,7 @@ Use this endpoint with combination of [listTemplates](https://appwrite.io/docs/p
       async (_options, _command) => {
         const { siteId, owner, reference, repository, rootDirectory, type, activate } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "owner", option: "--owner <owner>", name: "owner", description: "The name of the owner of the template.", type: "string", required: true },
-            { key: "reference", option: "--reference <reference>", name: "reference", description: "Reference value, can be a commit hash, branch name, or release tag", type: "string", required: true },
-            { key: "repository", option: "--repository <repository>", name: "repository", description: "Repository name of the template.", type: "string", required: true },
-            { key: "rootDirectory", option: "--root-directory <root-directory>", name: "rootDirectory", description: "Path to site code in the template repo.", type: "string", required: true },
-            { key: "type", option: "--type <type>", name: "type", description: "Type for the reference provided. Can be commit, branch, or tag", type: "string", required: true, enum: ["branch","commit","tag"] },
-          ],
+          createTemplateDeploymentSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -680,6 +818,13 @@ Use this endpoint with combination of [listTemplates](https://appwrite.io/docs/p
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, createTemplateDeploymentSpecs, { method: "post" });
+const createVcsDeploymentSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "reference", option: "--reference <reference>", name: "reference", description: "VCS reference to create deployment from. Depending on type this can be: branch name, commit hash", type: "string", required: true },
+  { key: "type", option: "--type <type>", name: "type", description: "Type of reference passed. Allowed values are: branch, commit", type: "string", required: true, enum: ["branch","commit","tag"] },
+  { key: "activate", option: "--activate <activate>", name: "activate", description: "Automatically activate the deployment when it is finished building.", type: "boolean", required: false },
+];
 sites
   .command(`create-vcs-deployment`)
   .description(`Create a deployment when a site is connected to VCS.
@@ -699,11 +844,7 @@ This endpoint lets you create deployment from a branch, commit, or a tag.`)
       async (_options, _command) => {
         const { siteId, reference, type, activate } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "reference", option: "--reference <reference>", name: "reference", description: "VCS reference to create deployment from. Depending on type this can be: branch name, commit hash", type: "string", required: true },
-            { key: "type", option: "--type <type>", name: "type", description: "Type of reference passed. Allowed values are: branch, commit", type: "string", required: true, enum: ["branch","commit","tag"] },
-          ],
+          createVcsDeploymentSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -738,6 +879,11 @@ This endpoint lets you create deployment from a branch, commit, or a tag.`)
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, createVcsDeploymentSpecs, { method: "post" });
+const deleteDeploymentSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/deployments", hasLimit: false, search: true } },
+];
 sites
   .command(`delete-deployment`)
   .description(`Delete a site deployment by its unique ID.`)
@@ -748,10 +894,7 @@ sites
       async (_options, _command) => {
         const { siteId, deploymentId } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/deployments", hasLimit: false } },
-          ],
+          deleteDeploymentSpecs,
           _command,
         );
         await confirmDestructive(`sites delete-deployment`);
@@ -771,6 +914,11 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, deleteDeploymentSpecs, { method: "delete", destructive: true });
+const getDeploymentSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/deployments", hasLimit: false, search: true } },
+];
 sites
   .command(`get-deployment`)
   .description(`Get a site deployment by its unique ID.`)
@@ -781,10 +929,7 @@ sites
       async (_options, _command) => {
         const { siteId, deploymentId } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/deployments", hasLimit: false } },
-          ],
+          getDeploymentSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -803,6 +948,12 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, getDeploymentSpecs, { method: "get" });
+const getDeploymentDownloadSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/deployments", hasLimit: false, search: true } },
+  { key: "type", option: "--type <type>", name: "type", description: "Deployment file to download. Can be: \"source\", \"output\".", type: "string", required: false, enum: ["source","output"] },
+];
 sites
   .command(`get-deployment-download`)
   .description(`Get a site deployment content by its unique ID. The endpoint response return with a 'Content-Disposition: attachment' header that tells the browser to start downloading the file to user downloads directory.`)
@@ -814,10 +965,7 @@ sites
       async (_options, _command) => {
         const { siteId, deploymentId, type } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/deployments", hasLimit: false } },
-          ],
+          getDeploymentDownloadSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -839,6 +987,11 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, getDeploymentDownloadSpecs, { method: "get" });
+const updateDeploymentStatusSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/deployments", hasLimit: false, search: true } },
+];
 sites
   .command(`update-deployment-status`)
   .description(`Cancel an ongoing site deployment build. If the build is already in progress, it will be stopped and marked as canceled. If the build hasn't started yet, it will be marked as canceled without executing. You cannot cancel builds that have already completed (status 'ready') or failed. The response includes the final build status and details.`)
@@ -849,10 +1002,7 @@ sites
       async (_options, _command) => {
         const { siteId, deploymentId } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/deployments", hasLimit: false } },
-          ],
+          updateDeploymentStatusSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -871,6 +1021,13 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, updateDeploymentStatusSpecs, { method: "patch" });
+const listLogsSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: trigger, status, responseStatusCode, duration, requestMethod, requestPath, deploymentId", type: "array", required: false },
+  { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 sites
   .command(`list-logs`)
   .description(`Get a list of all site logs. You can use the query params to filter your results.`)
@@ -882,14 +1039,18 @@ sites
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { siteId, queries, total } = await promptForMissing(
+        const { siteId, queries, total, filter } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-          ],
+          listLogsSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -900,6 +1061,13 @@ sites
         }
         if (total !== undefined) {
           _payload[`total`] = total;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -914,6 +1082,11 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, listLogsSpecs, { method: "get" });
+const deleteLogSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "logId", option: "--log-id <log-id>", name: "logId", description: "Log ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/logs", hasLimit: false } },
+];
 sites
   .command(`delete-log`)
   .description(`Delete a site log by its unique ID.`)
@@ -924,10 +1097,7 @@ sites
       async (_options, _command) => {
         const { siteId, logId } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "logId", option: "--log-id <log-id>", name: "logId", description: "Log ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/logs", hasLimit: false } },
-          ],
+          deleteLogSpecs,
           _command,
         );
         await confirmDestructive(`sites delete-log`);
@@ -947,6 +1117,11 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, deleteLogSpecs, { method: "delete", destructive: true });
+const getLogSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "logId", option: "--log-id <log-id>", name: "logId", description: "Log ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/logs", hasLimit: false } },
+];
 sites
   .command(`get-log`)
   .description(`Get a site request log by its unique ID.`)
@@ -957,10 +1132,7 @@ sites
       async (_options, _command) => {
         const { siteId, logId } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "logId", option: "--log-id <log-id>", name: "logId", description: "Log ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/logs", hasLimit: false } },
-          ],
+          getLogSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -979,23 +1151,39 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, getLogSpecs, { method: "get" });
+const listVariablesSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site unique ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
 sites
   .command(`list-variables`)
   .description(`Get a list of all variables of a specific site.`)
   .option(`--site-id <site-id>`, `Site unique ID.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { siteId } = await promptForMissing(
+        const { siteId, filter } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site unique ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-          ],
+          listVariablesSpecs,
           _command,
         );
         const _client = await sdkForProject();
         const _apiPath = `/sites/{siteId}/variables`.replace(`{siteId}`, siteId);
         const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -1009,6 +1197,13 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, listVariablesSpecs, { method: "get" });
+const createVariableSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site unique ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "key", option: "--key <key>", name: "key", description: "Variable key. Max length: 255 chars.", type: "string", required: true },
+  { key: "value", option: "--value <value>", name: "value", description: "Variable value. Max length: 8192 chars.", type: "string", required: true },
+  { key: "secret", option: "--secret <secret>", name: "secret", description: "Secret variables can be updated or deleted, but only sites can read them during build and runtime.", type: "boolean", required: false },
+];
 sites
   .command(`create-variable`)
   .description(`Create a new site variable. These variables can be accessed during build and runtime (server-side rendering) as environment variables.`)
@@ -1026,11 +1221,7 @@ sites
       async (_options, _command) => {
         const { siteId, key, value, secret } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site unique ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "key", option: "--key <key>", name: "key", description: "Variable key. Max length: 255 chars.", type: "string", required: true },
-            { key: "value", option: "--value <value>", name: "value", description: "Variable value. Max length: 8192 chars.", type: "string", required: true },
-          ],
+          createVariableSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1065,6 +1256,11 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, createVariableSpecs, { method: "post" });
+const deleteVariableSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site unique ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "variableId", option: "--variable-id <variable-id>", name: "variableId", description: "Variable unique ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/variables", hasLimit: false } },
+];
 sites
   .command(`delete-variable`)
   .description(`Delete a variable by its unique ID.`)
@@ -1075,10 +1271,7 @@ sites
       async (_options, _command) => {
         const { siteId, variableId } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site unique ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "variableId", option: "--variable-id <variable-id>", name: "variableId", description: "Variable unique ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/variables", hasLimit: false } },
-          ],
+          deleteVariableSpecs,
           _command,
         );
         await confirmDestructive(`sites delete-variable`);
@@ -1098,6 +1291,11 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, deleteVariableSpecs, { method: "delete", destructive: true });
+const getVariableSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site unique ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "variableId", option: "--variable-id <variable-id>", name: "variableId", description: "Variable unique ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/variables", hasLimit: false } },
+];
 sites
   .command(`get-variable`)
   .description(`Get a variable by its unique ID.`)
@@ -1108,10 +1306,7 @@ sites
       async (_options, _command) => {
         const { siteId, variableId } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site unique ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "variableId", option: "--variable-id <variable-id>", name: "variableId", description: "Variable unique ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/variables", hasLimit: false } },
-          ],
+          getVariableSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1130,6 +1325,14 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, getVariableSpecs, { method: "get" });
+const updateVariableSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site unique ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
+  { key: "variableId", option: "--variable-id <variable-id>", name: "variableId", description: "Variable unique ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/variables", hasLimit: false } },
+  { key: "key", option: "--key <key>", name: "key", description: "Variable key. Max length: 255 chars.", type: "string", required: true },
+  { key: "secret", option: "--secret <secret>", name: "secret", description: "Secret variables can be updated or deleted, but only sites can read them during build and runtime.", type: "boolean", required: false },
+  { key: "value", option: "--value <value>", name: "value", description: "Variable value. Max length: 8192 chars.", type: "string", required: false },
+];
 sites
   .command(`update-variable`)
   .description(`Update variable by its unique ID.`)
@@ -1148,11 +1351,7 @@ sites
       async (_options, _command) => {
         const { siteId, variableId, key, secret, value } = await promptForMissing(
           _options,
-          [
-            { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site unique ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false } },
-            { key: "variableId", option: "--variable-id <variable-id>", name: "variableId", description: "Variable unique ID.", type: "string", required: true, resource: { listPath: "/sites/{siteId}/variables", hasLimit: false } },
-            { key: "key", option: "--key <key>", name: "key", description: "Variable key. Max length: 255 chars.", type: "string", required: true },
-          ],
+          updateVariableSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1187,3 +1386,4 @@ sites
       },
     ),
   );
+registerPromptSpecs(sites.commands.at(-1)!, updateVariableSpecs, { method: "put" });

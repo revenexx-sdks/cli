@@ -1,4 +1,4 @@
 ```bash
 revenexx markets locales-list \
-    --market-id ''
+    --market-id sample-id
 ```

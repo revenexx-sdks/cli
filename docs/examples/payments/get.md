@@ -1,4 +1,4 @@
 ```bash
 revenexx payments get \
-    --id ''
+    --id sample-id
 ```

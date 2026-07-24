@@ -1,4 +1,4 @@
 ```bash
 revenexx inventories commit \
-    --order-ref ''
+    --order-ref sample order ref
 ```

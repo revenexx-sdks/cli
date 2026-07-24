@@ -1,4 +1,4 @@
 ```bash
 revenexx customers organizations-delete \
-    --id ''
+    --id sample-id
 ```

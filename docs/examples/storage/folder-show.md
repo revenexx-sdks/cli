@@ -1,4 +1,4 @@
 ```bash
 revenexx storage folder-show \
-    --id ''
+    --id sample-id
 ```

@@ -1,5 +1,5 @@
 ```bash
 revenexx apps install-from-marketplace \
-    --name '' \
-    --owner ''
+    --name Sample name \
+    --owner sample owner
 ```

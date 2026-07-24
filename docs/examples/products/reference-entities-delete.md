@@ -1,4 +1,4 @@
 ```bash
 revenexx products reference-entities-delete \
-    --id ''
+    --id sample-id
 ```

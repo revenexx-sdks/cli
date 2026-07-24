@@ -1,5 +1,5 @@
 ```bash
 revenexx apps update-deployment \
-    --function-id '' \
-    --deployment-id ''
+    --function-id sample-id \
+    --deployment-id sample-id
 ```

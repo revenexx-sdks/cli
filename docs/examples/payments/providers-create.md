@@ -1,4 +1,4 @@
 ```bash
 revenexx payments providers-create \
-    --provider ''
+    --provider sample provider
 ```

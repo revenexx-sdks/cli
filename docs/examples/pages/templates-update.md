@@ -1,4 +1,4 @@
 ```bash
 revenexx pages templates-update \
-    --id ''
+    --id sample-id
 ```

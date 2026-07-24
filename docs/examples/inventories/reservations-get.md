@@ -1,4 +1,4 @@
 ```bash
 revenexx inventories reservations-get \
-    --id ''
+    --id sample-id
 ```

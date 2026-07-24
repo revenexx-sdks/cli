@@ -13,6 +13,9 @@ export interface ResourcePicker {
   listPath: string;
   /** Whether that endpoint accepts a `limit` query parameter. */
   hasLimit: boolean;
+  /** Whether that endpoint accepts a `search` query parameter — lets the
+   * TUI picker filter server-side instead of only over the first page. */
+  search?: boolean;
 }
 
 /**
@@ -34,8 +37,55 @@ export interface PromptSpec {
   /** Mask input while typing (passwords, tokens, API keys). */
   secret?: boolean;
   enum?: string[];
+  /** The schema default, as a display string — shown as a form placeholder so
+   * an empty field's effect is legible. Absent when the schema has none. */
+  default?: string;
   resource?: ResourcePicker;
+  /** A commander positional argument (e.g. `skills add <repo> <name>`) rather
+   * than a `--flag` option — emitted as a bare token before the options. */
+  positional?: boolean;
+  /** Positional that consumes the rest of the argv (e.g. `<files...>`). */
+  variadic?: boolean;
 }
+
+/**
+ * Prompt specs looked up by command object. The generated service modules
+ * register every command's full spec list (required and optional) here so
+ * surfaces that browse the live commander tree — the DX-118 TUI's generated
+ * forms — can read them without re-parsing anything. WeakMap keyed by the
+ * commander Command instance: no name collisions, garbage-collects with the
+ * program.
+ */
+const promptSpecRegistry = new WeakMap<object, PromptSpec[]>();
+
+/** Command traits the TUI needs beyond parameters. */
+export interface CommandMeta {
+  /** DELETE-backed command: the TUI gates it behind its own confirm modal
+   * (one-shot mode keeps confirmDestructive / `--force` semantics). */
+  destructive?: boolean;
+  /** Lower-case HTTP method behind the command — lets the TUI auto-run safe
+   * reads once their required parameters are picked. */
+  method?: string;
+}
+
+const commandMetaRegistry = new WeakMap<object, CommandMeta>();
+
+export const registerPromptSpecs = (
+  command: object,
+  specs: PromptSpec[],
+  meta?: CommandMeta,
+): void => {
+  promptSpecRegistry.set(command, specs);
+  if (meta !== undefined) {
+    commandMetaRegistry.set(command, meta);
+  }
+};
+
+export const getPromptSpecs = (command: object): PromptSpec[] =>
+  promptSpecRegistry.get(command) ?? [];
+
+export const getCommandMeta = (command: object): CommandMeta =>
+  commandMetaRegistry.get(command) ?? {};
 
 /**
  * Prompting is reserved for humans at a terminal: both stdin and stdout must be
@@ -92,7 +142,7 @@ const LABEL_FIELDS = ["name", "title", "label", "sku", "code", "email", "slug"];
 export const resourceChoice = (
   item: Record<string, unknown>,
   paramName: string,
-): { name: string; value: string } | null => {
+): { name: string; value: string; label: string } | null => {
   const value =
     item[paramName] ?? item.id ?? item.$id ?? item.code ?? item.key;
   if (value === undefined || value === null || value === "") return null;
@@ -101,9 +151,12 @@ export const resourceChoice = (
     (candidate): candidate is string =>
       typeof candidate === "string" && candidate !== "",
   );
+  const plain = label !== undefined && label !== id ? label : "";
   return {
-    name: label !== undefined && label !== id ? `${label} ${chalk.dim(id)}` : id,
+    // inquirer display string; the TUI renders value + label itself.
+    name: plain !== "" ? `${plain} ${chalk.dim(id)}` : id,
     value: id,
+    label: plain,
   };
 };
 
@@ -138,32 +191,94 @@ const validateJson = (value: string): boolean | string => {
   }
 };
 
+/** One pickable candidate for a resource-ID parameter. */
+export interface ResourceChoiceEntry {
+  /** inquirer display string (may carry ANSI dim styling around the id). */
+  name: string;
+  /** The identifier the API path expects. */
+  value: string;
+  /** Plain human label ("" when the item offers nothing beyond its id). */
+  label: string;
+}
+
+/** Page size for candidate listings — the gateway's documented maximum. */
+export const RESOURCE_CHOICE_LIMIT = 200;
+
+/**
+ * Fetch the candidate values for a resource-ID parameter from its paired
+ * list endpoint, optionally filtered server-side when the endpoint supports
+ * a `search` parameter. Returns [] whenever listing fails or comes back
+ * empty (no access, empty tenant, …) — callers fall back to free-text input.
+ * Shared by the inquirer picker below and the TUI form's search field.
+ */
+const fetchResourceItems = async (
+  spec: PromptSpec,
+  query: string,
+): Promise<Record<string, unknown>[]> => {
+  const resource = spec.resource;
+  if (resource === undefined) return [];
+  try {
+    // Lazy import: pulling in sdks.js eagerly would drag config/session
+    // side effects into every consumer of this module (notably unit tests).
+    const { sdkForProject } = await import("./sdks.js");
+    const client = await sdkForProject();
+    const params: Record<string, unknown> = {};
+    if (resource.hasLimit) params.limit = RESOURCE_CHOICE_LIMIT;
+    if (resource.search === true && query.trim() !== "") {
+      params.search = query.trim();
+    }
+    const response = await client.call(
+      "get",
+      resource.listPath,
+      { "content-type": "application/json" },
+      params,
+    );
+    return extractItems(response);
+  } catch {
+    return [];
+  }
+};
+
+export const listResourceChoices = async (
+  spec: PromptSpec,
+  query = "",
+): Promise<ResourceChoiceEntry[]> => {
+  const items = await fetchResourceItems(spec, query);
+  return items
+    .map((item) => resourceChoice(item, spec.name))
+    .filter((choice): choice is ResourceChoiceEntry => choice !== null);
+};
+
+/** One pickable record for a resource-ID parameter: the full row (so the TUI
+ * picker can show the real list table) plus the identifier the API path
+ * expects. Rows without a usable identifier are dropped. */
+export interface ResourceRecord {
+  row: Record<string, unknown>;
+  value: string;
+}
+
+/** Like {@link listResourceChoices} but keeps the whole record, so the TUI can
+ * render the paired list as a filterable table and pick a row's id. */
+export const listResourceRecords = async (
+  spec: PromptSpec,
+  query = "",
+): Promise<ResourceRecord[]> => {
+  const items = await fetchResourceItems(spec, query);
+  return items
+    .map((row) => {
+      const choice = resourceChoice(row, spec.name);
+      return choice === null ? null : { row, value: choice.value };
+    })
+    .filter((record): record is ResourceRecord => record !== null);
+};
+
 /**
  * Live searchable picker for a resource-ID parameter, backed by the paired
  * list endpoint. Falls back to a plain text prompt when the listing fails or
  * comes back empty (no access, empty tenant, …) so the user is never stuck.
  */
 const pickResource = async (spec: PromptSpec): Promise<unknown> => {
-  const resource = spec.resource!;
-  let items: Record<string, unknown>[] = [];
-  try {
-    // Lazy import: pulling in sdks.js eagerly would drag config/session
-    // side effects into every consumer of this module (notably unit tests).
-    const { sdkForProject } = await import("./sdks.js");
-    const client = await sdkForProject();
-    const response = await client.call(
-      "get",
-      resource.listPath,
-      { "content-type": "application/json" },
-      resource.hasLimit ? { limit: 100 } : {},
-    );
-    items = extractItems(response);
-  } catch {
-    items = [];
-  }
-  const choices = items
-    .map((item) => resourceChoice(item, spec.name))
-    .filter((choice): choice is { name: string; value: string } => choice !== null);
+  const choices = await listResourceChoices(spec);
   if (choices.length === 0) {
     return promptForValue({ ...spec, resource: undefined });
   }

@@ -1,4 +1,4 @@
 ```bash
 revenexx messaging get-provider \
-    --provider-id ''
+    --provider-id sample-id
 ```

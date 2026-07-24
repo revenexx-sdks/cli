@@ -1,4 +1,4 @@
 ```bash
 revenexx shipping tiers-list \
-    --method-id ''
+    --method-id sample-id
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx inventories movements-get \
-    --id ''
+    --id sample-id
 ```

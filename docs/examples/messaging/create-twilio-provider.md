@@ -1,5 +1,5 @@
 ```bash
 revenexx messaging create-twilio-provider \
-    --name '' \
-    --provider-id ''
+    --name Sample name \
+    --provider-id sample-id
 ```

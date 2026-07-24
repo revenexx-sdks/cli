@@ -1,5 +1,5 @@
 ```bash
 revenexx prices lists-create \
-    --code '' \
-    --name ''
+    --code sample code \
+    --name Sample name
 ```

@@ -229,7 +229,7 @@ describe("promptForMissing", () => {
       "get",
       "/products",
       { "content-type": "application/json" },
-      { limit: 100 },
+      { limit: 200 },
     );
     const question = promptMock.mock.calls[0][0][0];
     expect(question.type).toBe("search-list");

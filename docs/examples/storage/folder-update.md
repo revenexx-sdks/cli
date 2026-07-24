@@ -1,4 +1,4 @@
 ```bash
 revenexx storage folder-update \
-    --id ''
+    --id sample-id
 ```

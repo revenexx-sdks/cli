@@ -1,4 +1,4 @@
 ```bash
 revenexx products association-types-create \
-    --code ''
+    --code sample code
 ```

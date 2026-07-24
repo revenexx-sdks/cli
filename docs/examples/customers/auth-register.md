@@ -1,5 +1,5 @@
 ```bash
 revenexx customers auth-register \
-    --email '' \
-    --password ''
+    --email jane@example.com \
+    --password sample password
 ```

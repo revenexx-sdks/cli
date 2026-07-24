@@ -1,4 +1,4 @@
 ```bash
 revenexx orders get \
-    --id ''
+    --id sample-id
 ```

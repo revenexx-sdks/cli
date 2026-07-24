@@ -1,4 +1,4 @@
 ```bash
 revenexx avatars get-image \
-    --url ''
+    --url https://example.com
 ```

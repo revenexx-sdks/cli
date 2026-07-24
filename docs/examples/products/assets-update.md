@@ -1,4 +1,4 @@
 ```bash
 revenexx products assets-update \
-    --id ''
+    --id sample-id
 ```

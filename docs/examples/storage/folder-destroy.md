@@ -1,4 +1,4 @@
 ```bash
 revenexx storage folder-destroy \
-    --id ''
+    --id sample-id
 ```

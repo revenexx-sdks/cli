@@ -1,4 +1,4 @@
 ```bash
 revenexx sites list-logs \
-    --site-id ''
+    --site-id sample-id
 ```

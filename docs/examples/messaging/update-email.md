@@ -1,4 +1,4 @@
 ```bash
 revenexx messaging update-email \
-    --message-id ''
+    --message-id sample-id
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx prices entries-list \
-    --list-id ''
+    --list-id sample-id
 ```

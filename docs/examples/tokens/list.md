@@ -1,5 +1,5 @@
 ```bash
 revenexx tokens list \
-    --bucket-id '' \
-    --file-id ''
+    --bucket-id sample-id \
+    --file-id sample-id
 ```

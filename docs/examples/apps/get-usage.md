@@ -1,4 +1,4 @@
 ```bash
 revenexx apps get-usage \
-    --function-id ''
+    --function-id sample-id
 ```

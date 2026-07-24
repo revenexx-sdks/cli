@@ -29,6 +29,7 @@ import { tenants } from './lib/commands/tenants.js';
 import { alias } from './lib/alias.js';
 import { status } from './lib/commands/status.js';
 import { repl } from './lib/commands/repl.js';
+import { tui } from './lib/commands/tui.js';
 
 import { apps } from './lib/commands/services/apps.js';
 import { avatars } from './lib/commands/services/avatars.js';
@@ -38,6 +39,7 @@ import { customers } from './lib/commands/services/customers.js';
 import { greetings } from './lib/commands/services/greetings.js';
 import { forms } from './lib/commands/services/forms.js';
 import { inventories } from './lib/commands/services/inventories.js';
+import { io } from './lib/commands/services/io.js';
 import { locale } from './lib/commands/services/locale.js';
 import { markets } from './lib/commands/services/markets.js';
 import { messaging } from './lib/commands/services/messaging.js';
@@ -229,6 +231,7 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(alias)
         .addCommand(status)
         .addCommand(repl)
+        .addCommand(tui)
         .addCommand(apps)
         .addCommand(avatars)
         .addCommand(carts)
@@ -237,6 +240,7 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(greetings)
         .addCommand(forms)
         .addCommand(inventories)
+        .addCommand(io)
         .addCommand(locale)
         .addCommand(markets)
         .addCommand(messaging)
@@ -264,9 +268,11 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
     // default exit so the promptForMissing / interactive paths are untouched.
     program.exitOverride();
 
-    // Guided mode (DX-98): on a TTY, a bare or partial invocation resolves to
-    // a real command via a searchable picker before commander parses. In
-    // non-TTY / --json / help contexts this returns process.argv untouched.
+    // Default landing mode (DX-140) + guided mode (DX-98): on a TTY, a bare
+    // `revenexx` launches the full-screen TUI (opt out with REVENEXX_NO_TUI /
+    // defaultMode), and a partial invocation resolves to a real command via a
+    // searchable picker — both before commander parses. In non-TTY / --json /
+    // help contexts this returns process.argv untouched.
     void (async () => {
         try {
             program.parse(await resolveCommandArgv(program, resolveAliases(program, process.argv)));

@@ -1,5 +1,5 @@
 ```bash
 revenexx pages menus-upsert \
-    --label '' \
-    --menu-key ''
+    --label sample label \
+    --menu-key sample menu key
 ```

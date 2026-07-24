@@ -1,5 +1,5 @@
 ```bash
 revenexx sites create-duplicate-deployment \
-    --site-id '' \
-    --deployment-id ''
+    --site-id sample-id \
+    --deployment-id sample-id
 ```

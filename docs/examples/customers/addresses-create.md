@@ -1,7 +1,7 @@
 ```bash
 revenexx customers addresses-create \
-    --city '' \
-    --country '' \
-    --street '' \
-    --zip ''
+    --city sample city \
+    --country sample country \
+    --street sample street \
+    --zip sample zip
 ```

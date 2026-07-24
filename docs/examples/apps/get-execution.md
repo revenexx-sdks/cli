@@ -1,5 +1,5 @@
 ```bash
 revenexx apps get-execution \
-    --function-id '' \
-    --execution-id ''
+    --function-id sample-id \
+    --execution-id sample-id
 ```

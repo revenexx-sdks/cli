@@ -1,4 +1,4 @@
 ```bash
 revenexx inventories locations-delete \
-    --id ''
+    --id sample-id
 ```

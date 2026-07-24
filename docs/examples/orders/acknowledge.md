@@ -1,4 +1,4 @@
 ```bash
 revenexx orders acknowledge \
-    --id ''
+    --id sample-id
 ```

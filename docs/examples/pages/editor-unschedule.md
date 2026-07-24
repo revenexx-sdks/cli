@@ -1,4 +1,4 @@
 ```bash
 revenexx pages editor-unschedule \
-    --page-id ''
+    --page-id sample-id
 ```

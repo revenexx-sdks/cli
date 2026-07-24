@@ -6,6 +6,11 @@ vi.mock("inquirer", () => ({
 }));
 vi.mock("inquirer-search-list", () => ({ default: {} }));
 
+const defaultModeMock = vi.hoisted(() => vi.fn(() => "tui" as string));
+vi.mock("../lib/project-config.js", () => ({
+  resolveDefaultMode: defaultModeMock,
+}));
+
 import { Command } from "commander";
 import { resolveCommandArgv } from "../lib/command-picker.js";
 
@@ -30,6 +35,13 @@ const buildProgram = (): Command => {
   return program;
 };
 
+/** buildProgram plus the `tui` command, so DX-140's default routing engages. */
+const buildProgramWithTui = (): Command => {
+  const program = buildProgram();
+  program.addCommand(new Command("tui").description("Full-screen TUI."));
+  return program;
+};
+
 const HEAD = ["node", "cli"];
 
 /** Names offered by the last picker invocation. */
@@ -40,6 +52,8 @@ const offered = (call = 0): string[] =>
 
 beforeEach(() => {
   promptMock.mockReset();
+  defaultModeMock.mockReset();
+  defaultModeMock.mockReturnValue("tui");
   setTTY(true);
 });
 
@@ -143,6 +157,48 @@ describe("resolveCommandArgv guided mode", () => {
   it("resolves commands without subcommands directly", async () => {
     promptMock.mockResolvedValueOnce({ value: "whoami" });
     const result = await resolveCommandArgv(buildProgram(), [...HEAD, "who"]);
+    expect(result).toEqual([...HEAD, "whoami"]);
+    expect(promptMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("resolveCommandArgv default landing mode (DX-140)", () => {
+  it("routes a bare TTY invocation to the tui command by default", async () => {
+    const result = await resolveCommandArgv(buildProgramWithTui(), [...HEAD]);
+    expect(result).toEqual([...HEAD, "tui"]);
+    expect(promptMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps partial invocations on the guided picker even with tui default", async () => {
+    promptMock
+      .mockResolvedValueOnce({ value: "pages" })
+      .mockResolvedValueOnce({ value: "list" });
+    const result = await resolveCommandArgv(buildProgramWithTui(), [
+      ...HEAD,
+      "p",
+    ]);
+    expect(result).toEqual([...HEAD, "pages", "list"]);
+  });
+
+  it("falls back to the guided picker when the mode is guided", async () => {
+    defaultModeMock.mockReturnValue("guided");
+    promptMock
+      .mockResolvedValueOnce({ value: "products" })
+      .mockResolvedValueOnce({ value: "list" });
+    const result = await resolveCommandArgv(buildProgramWithTui(), [...HEAD]);
+    expect(result).toEqual([...HEAD, "products", "list"]);
+  });
+
+  it("prints help (argv untouched) when the mode is help", async () => {
+    defaultModeMock.mockReturnValue("help");
+    const argv = [...HEAD];
+    expect(await resolveCommandArgv(buildProgramWithTui(), argv)).toBe(argv);
+    expect(promptMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the guided picker when no tui command exists", async () => {
+    promptMock.mockResolvedValueOnce({ value: "whoami" });
+    const result = await resolveCommandArgv(buildProgram(), [...HEAD]);
     expect(result).toEqual([...HEAD, "whoami"]);
     expect(promptMock).toHaveBeenCalledTimes(1);
   });

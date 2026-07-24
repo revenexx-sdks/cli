@@ -1,4 +1,4 @@
 ```bash
 revenexx pages pages-revisions \
-    --id ''
+    --id sample-id
 ```

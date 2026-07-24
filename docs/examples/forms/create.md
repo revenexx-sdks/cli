@@ -1,5 +1,5 @@
 ```bash
 revenexx forms create \
-    --name '' \
+    --name Sample name \
     --slug ''
 ```

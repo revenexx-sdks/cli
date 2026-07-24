@@ -1,4 +1,4 @@
 ```bash
 revenexx products attribute-groups-delete \
-    --id ''
+    --id sample-id
 ```

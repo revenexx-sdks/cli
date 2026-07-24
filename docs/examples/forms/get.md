@@ -1,4 +1,4 @@
 ```bash
 revenexx forms get \
-    --id ''
+    --id sample-id
 ```

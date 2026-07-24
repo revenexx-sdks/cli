@@ -1,5 +1,5 @@
 ```bash
 revenexx apps get-variable \
-    --function-id '' \
-    --variable-id ''
+    --function-id sample-id \
+    --variable-id sample-id
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx pages pages-create \
-    --title ''
+    --title Sample title
 ```

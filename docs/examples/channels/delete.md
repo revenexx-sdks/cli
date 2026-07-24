@@ -1,4 +1,4 @@
 ```bash
 revenexx channels delete \
-    --id ''
+    --id sample-id
 ```

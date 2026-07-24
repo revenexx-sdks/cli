@@ -1,4 +1,4 @@
 ```bash
 revenexx products families-delete \
-    --id ''
+    --id sample-id
 ```

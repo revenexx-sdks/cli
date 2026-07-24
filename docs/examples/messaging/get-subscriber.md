@@ -1,5 +1,5 @@
 ```bash
 revenexx messaging get-subscriber \
-    --topic-id '' \
-    --subscriber-id ''
+    --topic-id sample-id \
+    --subscriber-id sample-id
 ```

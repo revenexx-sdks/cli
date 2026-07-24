@@ -28,7 +28,7 @@ Once the installation is complete, you can verify the install using
 
 ```sh
 $ revenexx -v
-0.1.1
+0.2.0
 ```
 
 ### Install using prebuilt binaries
@@ -62,7 +62,7 @@ $ scoop install https://raw.githubusercontent.com/revenexx-sdks/cli/master/scoop
 Once the installation completes, you can verify your install using
 ```
 $ revenexx -v
-0.1.1
+0.2.0
 ```
 
 ## Getting Started
@@ -123,15 +123,30 @@ $ revenexx status              # identity, tenant, endpoint, token expiry & gate
 $ revenexx p ls                # built-in aliases: same as `products list`
 $ revenexx alias set deploy "apps create-deployment --activate true"
 $ revenexx repl                # interactive shell — many commands, one session
+$ revenexx tui                 # full-screen app — browse commands, forms, results
 ```
 
-A **production safety banner** is printed before most commands showing which tenant/endpoint you're hitting (prominent and red for production). Silence it with `-q`/`--quiet`. See [Command aliases](../README.md#command-aliases), [Production safety banner](../README.md#production-safety-banner), [`status`](../README.md#status) and [Interactive shell (`repl`)](../README.md#interactive-shell-repl) in the README.
+A **production safety banner** is printed before most commands showing which tenant/endpoint you're hitting (prominent and red for production). Silence it with `-q`/`--quiet`. See [Command aliases](../README.md#command-aliases), [Production safety banner](../README.md#production-safety-banner), [`status`](../README.md#status), [Interactive shell (`repl`)](../README.md#interactive-shell-repl) and [Full-screen app (`tui`)](../README.md#full-screen-app-tui) in the README.
 
 > ### Note
 > By default, requests to domains with self-signed SSL certificates (or no certificates) are rejected. If you trust the host, you can bypass certificate validation using
 > ```sh
 > $ revenexx client --self-signed true
 > ```
+
+## Three ways to use it
+
+The CLI has one command tree reachable three ways — every service command, plugin, and alias behaves identically in all of them:
+
+| Mode | How to start it | When |
+|---|---|---|
+| **Full-screen app** ([`tui`](#full-screen-app-tui)) | bare `revenexx` on a terminal (**the default**), or `revenexx tui` | Browse and run interactively — the default landing experience. |
+| **Interactive shell** ([`repl`](#interactive-shell-repl)) | `revenexx repl` | Fire several commands in a row without re-typing `revenexx`. |
+| **Direct / one-shot** | `revenexx products list --json …` | Scripting, CI, pipes — flag-driven and non-interactive. |
+
+Running `revenexx` with no arguments on an interactive terminal launches the **full-screen app**. A partial or named invocation (`revenexx p`, `revenexx products`) still opens the guided command picker and resolves to a single one-shot command. Anything non-interactive — a pipe, CI, `--json`, or `--help` — prints help and never opens an interactive surface, so scripts stay byte-stable.
+
+**Opting out of the TUI default:** set `REVENEXX_NO_TUI=1` (any value other than `0`/`false`) to make a bare `revenexx` fall back to the guided picker. For a per-project default, add a `defaultMode:` key to `.revenexx.yaml` — `tui` (default), `guided` (the picker), or `help` (print usage). Explicit subcommands (`repl`, `tui`, any service command) always win regardless of this setting.
 
 ## Authentication
 
@@ -325,6 +340,26 @@ revenexx> exit
 - `help` (or `?`) prints the command list; `exit` (or `quit`, `q`, Ctrl-D) leaves the shell.
 - Missing required options **prompt interactively** just like they do outside the shell (search/select), so `p get` will ask for the product id. Ctrl-C cancels the current line without leaving the shell.
 - The [production safety banner](#production-safety-banner) is shown before **every** command in the session (prominent and red for production) — the safeguard matters most in a rapid-fire shell. Launch with `revenexx --quiet repl` to silence it for the session.
+
+## Full-screen app (`tui`)
+
+`revenexx tui` — or just a bare `revenexx` on a terminal, since this is the **default landing experience** — opens a full-screen terminal app for the whole CLI: browse the command tree in a sidebar, fill in a command's parameters with a guided form, and read the results in a scrollable table — all on one screen that always shows the tenant and endpoint you're hitting. It's built on the same command tree as the rest of the CLI, so every service command, plugin, and alias is reachable, and each action maps to a plain one-shot command you can copy out and script.
+
+```sh
+$ revenexx         # bare invocation on a TTY → launches the TUI
+$ revenexx tui     # explicit, always works
+```
+
+- Needs an interactive terminal (a TTY); in a pipe or CI it exits with a hint to use one-shot commands.
+- Launched by default from a bare `revenexx` on a TTY. Set `REVENEXX_NO_TUI=1` or `defaultMode: guided|help` in `.revenexx.yaml` to opt out (see [Three ways to use it](#three-ways-to-use-it)); `revenexx tui` always launches it explicitly.
+- **Browse:** `↑`/`↓` move, `Enter`/`→` open a group or run a command, `Esc`/`←` go back (`Esc` quits at the top level), `q` back/quit. Type or press `/` to filter.
+- **Themes:** press `^t` for a live theme picker — arrow through the list to preview the whole UI instantly, `Enter` keeps it, `Esc` reverts. The choice is saved to `prefs.json` and restored next launch. Start with a specific one via `revenexx tui --theme <name>` or the `REVENEXX_THEME` env var. Built-in: `revenexx` (default), `dark`, `light`, `dracula`, `nord`, `solarized-dark`, `solarized-light`, `gruvbox`, `monokai`, `one-dark`, `matrix`. On terminals that honour it (e.g. Ghostty) the theme also sets the terminal background.
+- **Run:** commands with required parameters open a form; destructive ones ask to confirm (`y`/`n`); the rest run immediately. The detail pane shows the equivalent one-shot command.
+- **Forms:** `Tab`/`Shift+Tab` move between fields, `←`/`→`/`Space` cycle toggles and choices, `Enter` advances or runs, `^r` runs from any field. Values are validated on submit; secrets (password/token/api-key) are masked. Resource-id fields open the matching list as a **filterable table** — type to narrow it (server-side when the endpoint supports `search`, otherwise across the loaded rows), `↑`/`↓` to move, `Enter` to pick the highlighted record's id.
+- **JSON body fields:** an `object` parameter (e.g. `--data`) opens a full-screen **key/value editor** — `Enter` adds a field (or appends an array item), `Tab` switches between the key and value cell, `^d` deletes the focused field, `^s` saves it back to the form. Values are entered as JSON (`"text"`, `42`, `true`) and validated live, so the request body round-trips exactly. **Nested JSON** is edited in place: a value that is an object or array shows as `{ n fields }` / `[ n items ]`, and `→` drills into it one level deeper (breadcrumb `data › meta › [0]`, any depth); `Esc` goes back up a level (and cancels at the top). Type `{}` or `[]` into a value to start a nested container.
+- **Results:** table with `↑`/`↓` rows, `Enter` for row detail, `/` to filter the loaded rows (type to narrow across all columns, `Esc` clears), `←`/`→` to scroll columns, `n`/`p` to page, `o` to cycle output format (`table`/`json`/`jsonl`/`csv`), `y` to copy (`Y` copies the whole output), `c` to open the matching `create` form, `u` to open the matching `update` pre-filled, `d` to `delete` the record (behind the confirm modal), `e` to edit parameters. `u`/`d` act on the row under the cursor in a list, or on the single record from a `get`; `c` needs no row, so it works from an empty list too.
+- The header carries a persistent, filled yellow `▲ PRODUCTION` chip (the same [production safety](#production-safety-banner) signal) for the whole session.
+- Not browsable in the TUI (still available as one-shot commands): `tui`, `repl`, `update`, `generate`, `types`, `completion`.
 
 ## Global Configuration
 

@@ -1,4 +1,4 @@
 ```bash
 revenexx payments providers-update \
-    --id ''
+    --id sample-id
 ```

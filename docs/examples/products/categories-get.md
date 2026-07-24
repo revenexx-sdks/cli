@@ -1,4 +1,4 @@
 ```bash
 revenexx products categories-get \
-    --id ''
+    --id sample-id
 ```

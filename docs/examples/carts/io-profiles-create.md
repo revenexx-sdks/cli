@@ -1,5 +1,5 @@
 ```bash
 revenexx carts io-profiles-create \
-    --direction '' \
-    --name ''
+    --direction import \
+    --name Sample name
 ```

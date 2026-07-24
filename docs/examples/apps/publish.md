@@ -1,4 +1,4 @@
 ```bash
 revenexx apps publish \
-    --function-id ''
+    --function-id sample-id
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx messaging update-vonage-provider \
-    --provider-id ''
+    --provider-id sample-id
 ```

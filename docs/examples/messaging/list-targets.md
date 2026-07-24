@@ -1,4 +1,4 @@
 ```bash
 revenexx messaging list-targets \
-    --message-id ''
+    --message-id sample-id
 ```

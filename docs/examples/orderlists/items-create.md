@@ -1,5 +1,5 @@
 ```bash
 revenexx orderlists items-create \
-    --list-id '' \
-    --name ''
+    --list-id sample-id \
+    --name Sample name
 ```

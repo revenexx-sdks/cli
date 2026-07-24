@@ -1,5 +1,5 @@
 ```bash
 revenexx apps delete-variable \
-    --function-id '' \
-    --variable-id ''
+    --function-id sample-id \
+    --variable-id sample-id
 ```

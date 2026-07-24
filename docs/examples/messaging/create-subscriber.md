@@ -1,6 +1,6 @@
 ```bash
 revenexx messaging create-subscriber \
-    --topic-id '' \
-    --subscriber-id '' \
-    --target-id ''
+    --topic-id sample-id \
+    --subscriber-id sample-id \
+    --target-id sample-id
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx carts items-list \
-    --cart-id ''
+    --cart-id sample-id
 ```

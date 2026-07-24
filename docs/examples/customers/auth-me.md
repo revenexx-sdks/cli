@@ -1,4 +1,4 @@
 ```bash
 revenexx customers auth-me \
-    --user-id ''
+    --user-id sample-id
 ```

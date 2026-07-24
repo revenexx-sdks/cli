@@ -1,5 +1,5 @@
 ```bash
 revenexx markets currencies-get \
-    --market-id '' \
-    --id ''
+    --market-id sample-id \
+    --id sample-id
 ```

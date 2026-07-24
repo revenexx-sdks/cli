@@ -44,7 +44,7 @@ case "$mode" in
     ;;
   local)
     echo "[verify-install] packing local checkout…"
-    if [ ! -f dist/cli.cjs ]; then
+    if [ ! -f dist/cli.mjs ]; then
       echo "[verify-install] dist/ missing — running npm run build first"
       npm install >/dev/null 2>&1 || true
       npm run build

@@ -1,9 +1,9 @@
 ```bash
 revenexx apps create-template-deployment \
-    --function-id '' \
-    --owner '' \
-    --reference '' \
-    --repository '' \
-    --root-directory '' \
-    --type ''
+    --function-id sample-id \
+    --owner sample owner \
+    --reference sample reference \
+    --repository sample repository \
+    --root-directory sample root directory \
+    --type commit
 ```

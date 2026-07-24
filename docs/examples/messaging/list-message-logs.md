@@ -1,4 +1,4 @@
 ```bash
 revenexx messaging list-message-logs \
-    --message-id ''
+    --message-id sample-id
 ```

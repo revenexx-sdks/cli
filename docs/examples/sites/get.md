@@ -1,4 +1,4 @@
 ```bash
 revenexx sites get \
-    --site-id ''
+    --site-id sample-id
 ```

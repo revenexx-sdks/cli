@@ -1,4 +1,4 @@
 ```bash
 revenexx orders comments-list \
-    --id ''
+    --id sample-id
 ```

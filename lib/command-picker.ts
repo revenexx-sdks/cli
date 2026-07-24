@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import inquirer from "inquirer";
 import inquirerSearchList from "inquirer-search-list";
 import chalk from "chalk";
+import { resolveDefaultMode } from "./project-config.js";
 
 // Also registered in cli.ts / interactive.ts; registering twice is harmless
 // and keeps this module usable on its own (tests).
@@ -85,8 +86,10 @@ const pickCommand = async (
  * Resolve the command line interactively before commander parses it (guided
  * mode, DX-98 stretch goal):
  *
- * - `revenexx` on a TTY picks a command, then a subcommand — the picked
- *   command's own prompting (lib/interactive.ts) walks through its options.
+ * - `revenexx` on a TTY launches the full-screen TUI by default (DX-140);
+ *   `REVENEXX_NO_TUI` / `defaultMode` opt back into the picker, which then
+ *   picks a command then a subcommand — the picked command's own prompting
+ *   (lib/interactive.ts) walks through its options.
  * - `revenexx p` with an unknown/partial name opens the picker filtered to
  *   matching commands; remaining argv passes through to the resolved command.
  *
@@ -106,6 +109,17 @@ export const resolveCommandArgv = async (
 
     let target: Command;
     if (rest.length === 0) {
+      // DX-140: a bare `revenexx` on a TTY lands in the full-screen TUI by
+      // default. `REVENEXX_NO_TUI` / `defaultMode: guided|help` opt out (see
+      // resolveDefaultMode). `help` returns argv untouched so commander prints
+      // usage like the non-TTY path; `tui` routes through the existing `tui`
+      // command so its runTui launch/exit plumbing is reused verbatim. The
+      // guard keeps test builds (no `tui` command) on the guided picker.
+      const mode = resolveDefaultMode();
+      if (mode === "help") return argv;
+      if (mode === "tui" && findCommand(program, "tui") !== undefined) {
+        return [...head, "tui"];
+      }
       const picked = await pickCommand(program.commands, "Select a command");
       target = findCommand(program, picked)!;
     } else if (rest[0].startsWith("-")) {

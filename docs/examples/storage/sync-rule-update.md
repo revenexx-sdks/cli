@@ -1,4 +1,4 @@
 ```bash
 revenexx storage sync-rule-update \
-    --id ''
+    --id sample-id
 ```

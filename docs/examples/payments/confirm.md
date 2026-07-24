@@ -1,4 +1,4 @@
 ```bash
 revenexx payments confirm \
-    --id ''
+    --id sample-id
 ```

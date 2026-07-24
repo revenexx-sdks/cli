@@ -1,4 +1,4 @@
 ```bash
 revenexx apps delete \
-    --function-id ''
+    --function-id sample-id
 ```

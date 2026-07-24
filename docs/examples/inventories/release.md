@@ -1,4 +1,4 @@
 ```bash
 revenexx inventories release \
-    --order-ref ''
+    --order-ref sample order ref
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx storage asset-unpack \
-    --id ''
+    --id sample-id
 ```

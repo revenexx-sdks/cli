@@ -1,4 +1,4 @@
 ```bash
 revenexx tokens update \
-    --token-id ''
+    --token-id sample-id
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx markets currencies-list \
-    --market-id ''
+    --market-id sample-id
 ```

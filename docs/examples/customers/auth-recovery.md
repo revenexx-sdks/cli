@@ -1,5 +1,5 @@
 ```bash
 revenexx customers auth-recovery \
-    --email '' \
-    --url ''
+    --email jane@example.com \
+    --url sample url
 ```

@@ -1,5 +1,5 @@
 ```bash
 revenexx pages editor-mutate \
-    --page-id '' \
-    --plugin ''
+    --page-id sample-id \
+    --plugin sample plugin
 ```

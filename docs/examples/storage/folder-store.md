@@ -1,4 +1,4 @@
 ```bash
 revenexx storage folder-store \
-    --name ''
+    --name Sample name
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx storage asset-reprocess \
-    --id ''
+    --id sample-id
 ```

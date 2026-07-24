@@ -1,4 +1,4 @@
 ```bash
 revenexx shipping methods-update \
-    --id ''
+    --id sample-id
 ```

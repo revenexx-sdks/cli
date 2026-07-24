@@ -1,7 +1,7 @@
 ```bash
 revenexx markets locales-create \
-    --market-id '' \
-    --code '' \
-    --country '' \
-    --language ''
+    --market-id sample-id \
+    --code sample code \
+    --country sample country \
+    --language sample language
 ```

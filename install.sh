@@ -99,7 +99,7 @@ printSuccess() {
 downloadBinary() {
     echo "[2/4] Downloading executable for $OS ($ARCH) ..."
 
-    GITHUB_LATEST_VERSION="0.1.1"
+    GITHUB_LATEST_VERSION="0.2.0"
     GITHUB_FILE="@revenexx/cli-${OS}-${ARCH}"
     GITHUB_URL="https://github.com/$GITHUB_REPOSITORY_NAME/releases/download/$GITHUB_LATEST_VERSION/$GITHUB_FILE"
 

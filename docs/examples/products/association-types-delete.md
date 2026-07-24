@@ -1,4 +1,4 @@
 ```bash
 revenexx products association-types-delete \
-    --id ''
+    --id sample-id
 ```

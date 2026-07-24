@@ -411,17 +411,22 @@ const toRecords = (data: unknown): unknown[] => {
   return [obj];
 };
 
+/** The NDJSON / JSON Lines text for a response: one compact, uncolored JSON
+ * value per line. Shared by drawJSONL and the TUI's format toggle. */
+export const formatJSONL = (data: unknown): string =>
+  toRecords(data)
+    .map((record) => JSON.stringify(record) ?? "null")
+    .join("\n");
+
 /**
  * Render a response as NDJSON / JSON Lines: one compact, uncolored JSON value
  * per line. Ideal for streaming large `list` results into `jq -c`, `xargs`, or
  * log pipelines without materializing the whole array.
  */
 export const drawJSONL = (data: unknown): void => {
-  const lines = toRecords(data).map(
-    (record) => JSON.stringify(record) ?? "null",
-  );
+  const lines = formatJSONL(data);
   // Suppress a trailing blank line for an empty stream while staying pipeable.
-  if (lines.length > 0) console.log(lines.join("\n"));
+  if (lines !== "") console.log(lines);
 };
 
 /**
@@ -477,21 +482,29 @@ const csvCell = (value: unknown): string => {
   return JSON.stringify(value);
 };
 
-/**
- * Render rows as RFC 4180 CSV: a header row (the union of row keys, in first-
- * seen order) followed by one line per row. Always plain text — never colored
- * — so the output pipes cleanly.
- */
-export const drawCSV = (data: unknown): void => {
+/** The RFC 4180 CSV text for a response ("" when there are no rows). Shared
+ * by drawCSV and the TUI's format toggle. */
+export const formatCSV = (data: unknown): string => {
   const rows = toRows(data);
-  if (rows.length === 0) return;
+  if (rows.length === 0) return "";
 
   const columns = columnUnion(rows);
   const lines = [columns.map(csvEscape).join(",")];
   for (const row of rows) {
     lines.push(columns.map((key) => csvEscape(csvCell(row[key]))).join(","));
   }
-  console.log(lines.join("\n"));
+  return lines.join("\n");
+};
+
+/**
+ * Render rows as RFC 4180 CSV: a header row (the union of row keys, in first-
+ * seen order) followed by one line per row. Always plain text — never colored
+ * — so the output pipes cleanly.
+ */
+export const drawCSV = (data: unknown): void => {
+  const text = formatCSV(data);
+  if (text === "") return;
+  console.log(text);
 };
 
 /** Escape a value for a GitHub-flavored Markdown table cell. */
@@ -979,6 +992,7 @@ export const logo = SDK_LOGO;
 /** Top-level commands the context banner stays quiet for (see below). */
 const BANNER_SKIP_COMMANDS = new Set([
   "repl",
+  "tui",
   "status",
   "alias",
   "register",
@@ -987,7 +1001,7 @@ const BANNER_SKIP_COMMANDS = new Set([
   "help",
 ]);
 
-const safeHostname = (endpoint: string): string => {
+export const safeHostname = (endpoint: string): string => {
   try {
     return new URL(endpoint).hostname;
   } catch {
@@ -1104,6 +1118,7 @@ export const commandDescriptions: Record<string, string> = {
   alias: `Manage command aliases — short forms for commands you run often.`,
   status: `Shows your identity, active tenant/endpoint, token expiry and gateway health at a glance.`,
   repl: `Starts an interactive shell so you can run several commands in one authenticated session.`,
+  tui: `Launches the full-screen interactive terminal app.`,
   main: `${chalk.redBright(logo)}${description}`,
 };
 

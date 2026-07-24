@@ -1,5 +1,5 @@
 ```bash
 revenexx orders return \
-    --id '' \
+    --id sample-id \
     --positions one two three
 ```

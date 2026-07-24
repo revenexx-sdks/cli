@@ -1,5 +1,5 @@
 ```bash
 revenexx channels create \
-    --code '' \
-    --name ''
+    --code sample code \
+    --name Sample name
 ```

@@ -1,5 +1,5 @@
 ```bash
 revenexx products family-attributes-create \
-    --attribute-id '' \
-    --family-id ''
+    --attribute-id 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
+    --family-id 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
 ```

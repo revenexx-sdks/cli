@@ -1,4 +1,4 @@
 ```bash
 revenexx inventories locations-get \
-    --id ''
+    --id sample-id
 ```

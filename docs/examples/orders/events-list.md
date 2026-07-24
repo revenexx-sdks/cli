@@ -1,4 +1,4 @@
 ```bash
 revenexx orders events-list \
-    --id ''
+    --id sample-id
 ```

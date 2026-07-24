@@ -1,4 +1,4 @@
 ```bash
 revenexx apps unpublish \
-    --function-id ''
+    --function-id sample-id
 ```

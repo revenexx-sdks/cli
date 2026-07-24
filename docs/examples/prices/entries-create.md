@@ -1,4 +1,4 @@
 ```bash
 revenexx prices entries-create \
-    --list-id ''
+    --list-id sample-id
 ```

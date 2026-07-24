@@ -1,4 +1,4 @@
 ```bash
 revenexx forms submissions-delete \
-    --id ''
+    --id sample-id
 ```

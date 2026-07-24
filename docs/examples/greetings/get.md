@@ -1,4 +1,4 @@
 ```bash
 revenexx greetings get \
-    --id ''
+    --id sample-id
 ```
