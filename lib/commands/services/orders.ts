@@ -7,6 +7,7 @@ import {
   commandDescriptions,
   cliConfig,
   parse,
+  parseBool,
   parseInteger,
 } from "../../parser.js";
 import {
@@ -451,7 +452,7 @@ const placeSpecs: PromptSpec[] = [
 ];
 orders
   .command(`place`)
-  .description(`Place an order from a snapshot payload (items, buyer, addresses, payment, shipping) — draws the order number, computes totals, emits order.placed`)
+  .description(`Two things can turn a placement into a REQUEST awaiting approval, and both answer 201 with status='pending' and no placed_at: a principal holding only orders.request, and an order worth more than the tenant's require_approval_above_value (a principal holding orders.approve is exempt from the threshold). The order.requested event says which, in 'approval_reason'. The currency defaults to the market's default_currency setting and the position cap is the tenant's max_items_per_order.`)
   .option(`--items [items...]`, `The order positions (at most 500).`)
   .option(`--billing-address <billing-address>`, `Frozen billing address.`)
   .option(`--buyer <buyer>`, `Frozen buyer snapshot (name, email, …).`)
@@ -548,6 +549,139 @@ orders
     ),
   );
 registerPromptSpecs(orders.commands.at(-1)!, placeSpecs, { method: "post" });
+const reportsCustomerRollupSpecs: PromptSpec[] = [
+  { key: "asOf", option: "--as-of <as-of>", name: "as_of", description: "Anchor for the rolling windows (default now). Pin it and send it back on every call of a loop, otherwise the windows drift by the duration of the loop.", type: "string", required: false },
+  { key: "cursor", option: "--cursor <cursor>", name: "cursor", description: "Continue an unfinished scan: the value a previous call returned. Ignored shape-wise when organization_ids is given, which always answers completely.", type: "string", required: false },
+  { key: "organizationIds", option: "--organization-ids [organization-ids...]", name: "organization_ids", description: "Roll up exactly these organizations (at most 200 — the ids travel as an in.() filter). Omitted = every organization that appears on an order.", type: "array", required: false },
+  { key: "statuses", option: "--statuses [statuses...]", name: "statuses", description: "Order statuses that count as revenue (default placed, in_fulfillment, completed — a pending order was never placed, a cancelled one is not revenue).", type: "array", required: false, enum: ["pending","placed","in_fulfillment","completed","cancelled"] },
+];
+orders
+  .command(`reports-customer-rollup`)
+  .description(`Revenue lives in orders, customer segments live in the customers app, and the two may not join (ADR-0055: no cross-app FK, grant or view). This capability is the hand-over. Every number is additive (count/sum/min/max) so partial answers merge; the average order value is deliberately not returned — it is revenue_total / order_count over the merged parts. Windows are anchored at as_of, which is echoed back so a loop measures one consistent picture.`)
+  .option(`--as-of <as-of>`, `Anchor for the rolling windows (default now). Pin it and send it back on every call of a loop, otherwise the windows drift by the duration of the loop.`)
+  .option(`--cursor <cursor>`, `Continue an unfinished scan: the value a previous call returned. Ignored shape-wise when organization_ids is given, which always answers completely.`)
+  .option(`--organization-ids [organization-ids...]`, `Roll up exactly these organizations (at most 200 — the ids travel as an in.() filter). Omitted = every organization that appears on an order.`)
+  .option(`--statuses [statuses...]`, `Order statuses that count as revenue (default placed, in_fulfillment, completed — a pending order was never placed, a cancelled one is not revenue).`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { asOf, cursor, organizationIds, statuses } = await promptForMissing(
+          _options,
+          reportsCustomerRollupSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/orders/reports/customer-rollup`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (asOf !== undefined) {
+          _payload[`as_of`] = asOf;
+        }
+        if (cursor !== undefined) {
+          _payload[`cursor`] = cursor;
+        }
+        if (organizationIds !== undefined) {
+          _payload[`organization_ids`] = organizationIds;
+        }
+        if (statuses !== undefined) {
+          _payload[`statuses`] = statuses;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(orders.commands.at(-1)!, reportsCustomerRollupSpecs, { method: "post" });
+const vocabulariesListSpecs: PromptSpec[] = [
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+orders
+  .command(`vocabularies-list`)
+  .description(`Discovery for the vocabulary routes. Names: cancellation-scopes, comment-visibilities, fulfillment-statuses, item-types, payment-statuses, return-resolutions, return-statuses, statuses. Fetch one with GET /orders/vocabularies/{name}; a client holding the qualified pair 'orders.<name>' builds that URL from the pair alone.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { filter } = await promptForMissing(
+          _options,
+          vocabulariesListSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/orders/vocabularies`;
+        const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(orders.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
+const vocabulariesGetSpecs: PromptSpec[] = [
+  { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id.", type: "string", required: true, enum: ["cancellation-scopes","comment-visibilities","fulfillment-statuses","item-types","payment-statuses","return-resolutions","return-statuses","statuses"], resource: { listPath: "/orders/vocabularies", hasLimit: false } },
+];
+orders
+  .command(`vocabularies-get`)
+  .description(`The values are read out of the column's CHECK constraint, so the served set IS the enforced set and the two cannot drift — a value added to the constraint appears here even before anyone labels it, titled from its own key. Values come back in constraint order, which is lifecycle order for a status, and 'final' marks the values that END the lifecycle (completed, cancelled) so a client can ask "is this order still open?" instead of matching names it guessed. 'closed' says the set is exhaustive; it is false for 'return-resolutions' alone, whose column is free text and whose values are therefore suggestions. Answers 404 for an unknown name. Names: cancellation-scopes, comment-visibilities, fulfillment-statuses, item-types, payment-statuses, return-resolutions, return-statuses, statuses.`)
+  .option(`--name <name>`, `The vocabulary name — the part after the dot in the qualified id.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { name } = await promptForMissing(
+          _options,
+          vocabulariesGetSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/orders/vocabularies/{name}`.replace(`{name}`, name);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(orders.commands.at(-1)!, vocabulariesGetSpecs, { method: "get" });
 const getSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
 ];
@@ -696,14 +830,14 @@ registerPromptSpecs(orders.commands.at(-1)!, acknowledgeSpecs, { method: "post" 
 const cancelSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
   { key: "cancelledBy", option: "--cancelled-by <cancelled-by>", name: "cancelled_by", description: "Acting user/system.", type: "string", required: false },
-  { key: "reason", option: "--reason <reason>", name: "reason", type: "string", required: false },
+  { key: "reason", option: "--reason <reason>", name: "reason", description: "Why. Mandatory when the tenant sets 'cancel_requires_reason'.", type: "string", required: false },
 ];
 orders
   .command(`cancel`)
   .description(`Full cancel — only while nothing has shipped; shipped orders cancel open quantities via items/cancel`)
   .option(`--id <id>`, ``)
   .option(`--cancelled-by <cancelled-by>`, `Acting user/system.`)
-  .option(`--reason <reason>`, ``)
+  .option(`--reason <reason>`, `Why. Mandatory when the tenant sets 'cancel_requires_reason'.`)
   .action(
     actionRunner(
       async (_options, _command) => {
@@ -744,12 +878,22 @@ orders
 registerPromptSpecs(orders.commands.at(-1)!, cancelSpecs, { method: "post" });
 const commentsListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "visibility", option: "--visibility <visibility>", name: "visibility", description: "Filter by visibility (exact match).", type: "string", required: false, enum: ["internal","customer"] },
+  { key: "author", option: "--author <author>", name: "author", description: "Filter by exact author.", type: "string", required: false },
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 orders
   .command(`comments-list`)
-  .description(`List comments (internal + customer-visible)`)
+  .description(`DEPRECATED KEY: the response also repeats 'items' under 'comments' for compatibility with the pre-envelope shape. It is the same array; read 'items'. The alias is removed in the next minor version.`)
   .option(`--id <id>`, ``)
+  .option(`--visibility <visibility>`, `Filter by visibility (exact match).`)
+  .option(`--author <author>`, `Filter by exact author.`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -759,7 +903,7 @@ orders
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, filter } = await promptForMissing(
+        const { id, visibility, author, limit, offset, order, filter } = await promptForMissing(
           _options,
           commentsListSpecs,
           _command,
@@ -767,6 +911,21 @@ orders
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/comments`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (visibility !== undefined) {
+          _payload[`visibility`] = visibility;
+        }
+        if (author !== undefined) {
+          _payload[`author`] = author;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
           if (_eq <= 0) {
@@ -842,14 +1001,68 @@ orders
     ),
   );
 registerPromptSpecs(orders.commands.at(-1)!, commentsCreateSpecs, { method: "post" });
+const completeSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "completedBy", option: "--completed-by <completed-by>", name: "completed_by", description: "Who closed the order — carried in the order.completed event.", type: "string", required: false },
+];
+orders
+  .command(`complete`)
+  .description(`The counterpart of auto_complete_on = 'payment' | 'manual': something has to close an order that shipping no longer closes by itself, and it is also the honest end for a service or digital order that never ships. Answers 422 for an order that is cancelled, already completed, or still pending approval (it was never placed). Writes an order_events row 'order.completed' with via='manual'.`)
+  .option(`--id <id>`, ``)
+  .option(`--completed-by <completed-by>`, `Who closed the order — carried in the order.completed event.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, completedBy } = await promptForMissing(
+          _options,
+          completeSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/orders/{id}/complete`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (completedBy !== undefined) {
+          _payload[`completed_by`] = completedBy;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(orders.commands.at(-1)!, completeSpecs, { method: "post" });
 const eventsListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "name", option: "--name <name>", name: "name", description: "Filter by exact event name (e.g. 'order.shipment.created').", type: "string", required: false },
+  { key: "actor", option: "--actor <actor>", name: "actor", description: "Filter by exact actor.", type: "string", required: false },
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 orders
   .command(`events-list`)
-  .description(`The audit trail — every lifecycle action as an event row (also the domain event feed: manifest emits order_event.created on insert)`)
+  .description(`An order's trail grows for as long as the order lives, so it is paginated like every other list — 'page.hasMore' says whether more of it exists. DEPRECATED KEY: the response also repeats 'items' under 'events' for compatibility with the pre-envelope shape. It is the same array; read 'items'. The alias is removed in the next minor version.`)
   .option(`--id <id>`, ``)
+  .option(`--name <name>`, `Filter by exact event name (e.g. 'order.shipment.created').`)
+  .option(`--actor <actor>`, `Filter by exact actor.`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -859,7 +1072,7 @@ orders
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, filter } = await promptForMissing(
+        const { id, name, actor, limit, offset, order, filter } = await promptForMissing(
           _options,
           eventsListSpecs,
           _command,
@@ -867,6 +1080,21 @@ orders
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/events`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (name !== undefined) {
+          _payload[`name`] = name;
+        }
+        if (actor !== undefined) {
+          _payload[`actor`] = actor;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
           if (_eq <= 0) {
@@ -936,7 +1164,7 @@ const itemsCancelSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
   { key: "positions", option: "--positions [positions...]", name: "positions", type: "array", required: true },
   { key: "cancelledBy", option: "--cancelled-by <cancelled-by>", name: "cancelled_by", description: "Acting user/system.", type: "string", required: false },
-  { key: "reason", option: "--reason <reason>", name: "reason", type: "string", required: false },
+  { key: "reason", option: "--reason <reason>", name: "reason", description: "Why. Mandatory when the tenant sets 'cancel_requires_reason'.", type: "string", required: false },
 ];
 orders
   .command(`items-cancel`)
@@ -944,7 +1172,7 @@ orders
   .option(`--id <id>`, ``)
   .option(`--positions [positions...]`, ``)
   .option(`--cancelled-by <cancelled-by>`, `Acting user/system.`)
-  .option(`--reason <reason>`, ``)
+  .option(`--reason <reason>`, `Why. Mandatory when the tenant sets 'cancel_requires_reason'.`)
   .action(
     actionRunner(
       async (_options, _command) => {
@@ -1037,21 +1265,28 @@ orders
 registerPromptSpecs(orders.commands.at(-1)!, paymentStatusUpdateSpecs, { method: "post" });
 const returnSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-  { key: "positions", option: "--positions [positions...]", name: "positions", type: "array", required: true },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form metadata.", type: "object", required: false },
+  { key: "positions", option: "--positions [positions...]", name: "positions", description: "Omitted = every position with a returnable quantity, in full.", type: "array", required: false },
   { key: "reason", option: "--reason <reason>", name: "reason", type: "string", required: false },
+  { key: "restock", option: "--restock <restock>", name: "restock", description: "Default restock flag for positions that carry none — the only way to say \"put it all back into stock\" when the positions are defaulted.", type: "boolean", required: false },
 ];
 orders
   .command(`return`)
-  .description(`Register a return (positions with per-position restock flags) against the shipped quantities`)
+  .description(`Register a return (positions with per-position restock flags; positions omitted = everything still returnable) against the shipped quantities`)
   .option(`--id <id>`, ``)
-  .option(`--positions [positions...]`, ``)
   .option(`--metadata <metadata>`, `Free-form metadata.`)
+  .option(`--positions [positions...]`, `Omitted = every position with a returnable quantity, in full.`)
   .option(`--reason <reason>`, ``)
+  .option(
+    `--restock [value]`,
+    `Default restock flag for positions that carry none — the only way to say "put it all back into stock" when the positions are defaulted.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, positions, metadata, reason } = await promptForMissing(
+        const { id, metadata, positions, reason, restock } = await promptForMissing(
           _options,
           returnSpecs,
           _command,
@@ -1074,6 +1309,9 @@ orders
         }
         if (reason !== undefined) {
           _payload[`reason`] = reason;
+        }
+        if (restock !== undefined) {
+          _payload[`restock`] = restock;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1237,7 +1475,7 @@ const shipSpecs: PromptSpec[] = [
 ];
 orders
   .command(`ship`)
-  .description(`Create a shipment (positions + quantities + carrier/tracking; positions omitted = ship everything open). Books quantity_shipped, derives fulfillment_status, completes the order when fulfilled`)
+  .description(`Whether a full shipment CLOSES the order is the tenant's call (setting auto_complete_on): 'shipment' completes it here, 'payment' leaves it in_fulfillment until payment_status becomes paid, 'manual' waits for orders.complete. The order.completed event follows the order, so it is only emitted when the order actually completed. A held order answers 422 unless the tenant set on_hold_blocks to 'nothing'.`)
   .option(`--id <id>`, ``)
   .option(`--carrier <carrier>`, ``)
   .option(`--metadata <metadata>`, `Free-form metadata.`)

@@ -36,7 +36,6 @@ import { avatars } from './lib/commands/services/avatars.js';
 import { carts } from './lib/commands/services/carts.js';
 import { channels } from './lib/commands/services/channels.js';
 import { customers } from './lib/commands/services/customers.js';
-import { greetings } from './lib/commands/services/greetings.js';
 import { forms } from './lib/commands/services/forms.js';
 import { inventories } from './lib/commands/services/inventories.js';
 import { io } from './lib/commands/services/io.js';
@@ -119,6 +118,11 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
     enableRequestSpinner();
 
     program
+        // Pin the program name: commander otherwise derives it from argv[1],
+        // which in the compiled single-file binary is the *build-time* path, so
+        // a Homebrew install (or a binary downloaded from a release) printed
+        // "Usage: revenexx-darwin-arm64 …" instead of the real command.
+        .name('revenexx')
         .description(commandDescriptions['main'])
         .configureHelp({
             helpWidth: process.stdout.columns || 80,
@@ -237,7 +241,6 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(carts)
         .addCommand(channels)
         .addCommand(customers)
-        .addCommand(greetings)
         .addCommand(forms)
         .addCommand(inventories)
         .addCommand(io)

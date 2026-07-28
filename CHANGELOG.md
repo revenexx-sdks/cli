@@ -1,3 +1,6 @@
+## v0.2.1
+- Regenerated from the latest API specification
+
 ## v0.2.0
 - TUI
 

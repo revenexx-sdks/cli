@@ -99,7 +99,8 @@ const listsCreateSpecs: PromptSpec[] = [
   { key: "priority", option: "--priority <priority>", name: "priority", description: "Tie-breaker within a specificity group (higher wins, default 0).", type: "integer", required: false },
   { key: "requiresAuth", option: "--requires-auth <requires-auth>", name: "requires_auth", description: "Gate: when true the list resolves only for an authenticated buyer (contact or organization context); anonymous resolve calls get on_request. Default false (open to everyone).", type: "boolean", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Default 'active' — only active lists resolve.", type: "string", required: false, enum: ["active","inactive"] },
-  { key: "taxIncluded", option: "--tax-included <tax-included>", name: "tax_included", description: "Gross (true) or net (false, default) prices.", type: "boolean", required: false },
+  { key: "taxBasis", option: "--tax-basis <tax-basis>", name: "tax_basis", description: "Whether the amounts in this list are net or gross. Omit (null) to inherit the tenant's tax_inclusive_default setting — the resolve answer names which of the two decided.", type: "string", required: false, enum: ["net","gross"] },
+  { key: "taxIncluded", option: "--tax-included <tax-included>", name: "tax_included", description: "LEGACY mirror of tax_basis. false is the column default and is NOT read as a statement of intent; true is read as gross. Prefer tax_basis.", type: "boolean", required: false },
   { key: "validFrom", option: "--valid-from <valid-from>", name: "valid_from", description: "Validity window start.", type: "string", required: false },
   { key: "validUntil", option: "--valid-until <valid-until>", name: "valid_until", description: "Validity window end.", type: "string", required: false },
 ];
@@ -129,9 +130,10 @@ prices
       value === undefined ? true : parseBool(value),
   )
   .option(`--status <status>`, `Default 'active' — only active lists resolve.`)
+  .option(`--tax-basis <tax-basis>`, `Whether the amounts in this list are net or gross. Omit (null) to inherit the tenant's tax_inclusive_default setting — the resolve answer names which of the two decided.`)
   .option(
     `--tax-included [value]`,
-    `Gross (true) or net (false, default) prices.`,
+    `LEGACY mirror of tax_basis. false is the column default and is NOT read as a statement of intent; true is read as gross. Prefer tax_basis.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -140,7 +142,7 @@ prices
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, name, channelId, contactId, currency, description, isDefault, labels, metadata, organizationId, priority, requiresAuth, status, taxIncluded, validFrom, validUntil } = await promptForMissing(
+        const { code, name, channelId, contactId, currency, description, isDefault, labels, metadata, organizationId, priority, requiresAuth, status, taxBasis, taxIncluded, validFrom, validUntil } = await promptForMissing(
           _options,
           listsCreateSpecs,
           _command,
@@ -193,6 +195,9 @@ prices
         }
         if (status !== undefined) {
           _payload[`status`] = status;
+        }
+        if (taxBasis !== undefined) {
+          _payload[`tax_basis`] = taxBasis;
         }
         if (taxIncluded !== undefined) {
           _payload[`tax_included`] = taxIncluded;
@@ -319,7 +324,8 @@ const listsUpdateSpecs: PromptSpec[] = [
   { key: "priority", option: "--priority <priority>", name: "priority", description: "Tie-breaker within a specificity group (higher wins, default 0).", type: "integer", required: false },
   { key: "requiresAuth", option: "--requires-auth <requires-auth>", name: "requires_auth", description: "Gate: when true the list resolves only for an authenticated buyer (contact or organization context); anonymous resolve calls get on_request. Default false (open to everyone).", type: "boolean", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Default 'active' — only active lists resolve.", type: "string", required: false, enum: ["active","inactive"] },
-  { key: "taxIncluded", option: "--tax-included <tax-included>", name: "tax_included", description: "Gross (true) or net (false, default) prices.", type: "boolean", required: false },
+  { key: "taxBasis", option: "--tax-basis <tax-basis>", name: "tax_basis", description: "Whether the amounts in this list are net or gross. Omit (null) to inherit the tenant's tax_inclusive_default setting — the resolve answer names which of the two decided.", type: "string", required: false, enum: ["net","gross"] },
+  { key: "taxIncluded", option: "--tax-included <tax-included>", name: "tax_included", description: "LEGACY mirror of tax_basis. false is the column default and is NOT read as a statement of intent; true is read as gross. Prefer tax_basis.", type: "boolean", required: false },
   { key: "validFrom", option: "--valid-from <valid-from>", name: "valid_from", description: "Validity window start.", type: "string", required: false },
   { key: "validUntil", option: "--valid-until <valid-until>", name: "valid_until", description: "Validity window end.", type: "string", required: false },
 ];
@@ -350,9 +356,10 @@ prices
       value === undefined ? true : parseBool(value),
   )
   .option(`--status <status>`, `Default 'active' — only active lists resolve.`)
+  .option(`--tax-basis <tax-basis>`, `Whether the amounts in this list are net or gross. Omit (null) to inherit the tenant's tax_inclusive_default setting — the resolve answer names which of the two decided.`)
   .option(
     `--tax-included [value]`,
-    `Gross (true) or net (false, default) prices.`,
+    `LEGACY mirror of tax_basis. false is the column default and is NOT read as a statement of intent; true is read as gross. Prefer tax_basis.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -361,7 +368,7 @@ prices
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, channelId, code, contactId, currency, description, isDefault, labels, metadata, name, organizationId, priority, requiresAuth, status, taxIncluded, validFrom, validUntil } = await promptForMissing(
+        const { id, channelId, code, contactId, currency, description, isDefault, labels, metadata, name, organizationId, priority, requiresAuth, status, taxBasis, taxIncluded, validFrom, validUntil } = await promptForMissing(
           _options,
           listsUpdateSpecs,
           _command,
@@ -414,6 +421,9 @@ prices
         }
         if (status !== undefined) {
           _payload[`status`] = status;
+        }
+        if (taxBasis !== undefined) {
+          _payload[`tax_basis`] = taxBasis;
         }
         if (taxIncluded !== undefined) {
           _payload[`tax_included`] = taxIncluded;
@@ -627,19 +637,90 @@ prices
     ),
   );
 registerPromptSpecs(prices.commands.at(-1)!, entriesReplaceSpecs, { method: "put" });
-const entriesBulkSpecs: PromptSpec[] = [
+const entriesAdjustSpecs: PromptSpec[] = [
   { key: "listId", option: "--list-id <list-id>", name: "list_id", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
-  { key: "entries", option: "--entries [entries...]", name: "entries", description: "The complete new entry set (set semantics).", type: "array", required: true },
+  { key: "amount", option: "--amount <amount>", name: "amount", description: "Absolute change added to every unit price, in the list's currency.", type: "number", required: false },
+  { key: "dryRun", option: "--dry-run <dry-run>", name: "dry_run", description: "true writes nothing and answers the same preview — what the Cockpit dialog shows before it commits.", type: "boolean", required: false },
+  { key: "percent", option: "--percent <percent>", name: "percent", description: "Relative change in percent: 5 raises by 5 %, -10 cuts by 10 %.", type: "number", required: false },
+  { key: "rounding", option: "--rounding <rounding>", name: "rounding", description: "Ending the computed prices snap to (nearest match). Omit to use the tenant's bulk_adjust_rounding setting.", type: "string", required: false, enum: ["exact","whole","ending_99","ending_95","ending_50"] },
+  { key: "skuPrefix", option: "--sku-prefix <sku-prefix>", name: "sku_prefix", description: "Restrict the change to entries whose SKU starts with this. Omit to change the whole list.", type: "string", required: false },
 ];
 prices
-  .command(`entries-bulk`)
-  .description(`Bulk-APPEND entries (large imports; call in chunks, at most 5000 each)`)
+  .command(`entries-adjust`)
+  .description(`The other half of a bulk change: a 7 % increase turns 19.90 into 21.293, which no merchant prints. Results are rounded to the tenant's price_precision/rounding_mode and then snapped to the declared price ending (x.99, x.95, whole, …). dry_run answers the same preview and writes nothing.`)
   .option(`--list-id <list-id>`, ``)
-  .option(`--entries [entries...]`, `The complete new entry set (set semantics).`)
+  .option(`--amount <amount>`, `Absolute change added to every unit price, in the list's currency.`, parseInteger)
+  .option(
+    `--dry-run [value]`,
+    `true writes nothing and answers the same preview — what the Cockpit dialog shows before it commits.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--percent <percent>`, `Relative change in percent: 5 raises by 5 %, -10 cuts by 10 %.`, parseInteger)
+  .option(`--rounding <rounding>`, `Ending the computed prices snap to (nearest match). Omit to use the tenant's bulk_adjust_rounding setting.`)
+  .option(`--sku-prefix <sku-prefix>`, `Restrict the change to entries whose SKU starts with this. Omit to change the whole list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { listId, entries } = await promptForMissing(
+        const { listId, amount, dryRun, percent, rounding, skuPrefix } = await promptForMissing(
+          _options,
+          entriesAdjustSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/prices/lists/{list_id}/entries/adjust`.replace(`{list_id}`, listId);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (amount !== undefined) {
+          _payload[`amount`] = amount;
+        }
+        if (dryRun !== undefined) {
+          _payload[`dry_run`] = dryRun;
+        }
+        if (percent !== undefined) {
+          _payload[`percent`] = percent;
+        }
+        if (rounding !== undefined) {
+          _payload[`rounding`] = rounding;
+        }
+        if (skuPrefix !== undefined) {
+          _payload[`sku_prefix`] = skuPrefix;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(prices.commands.at(-1)!, entriesAdjustSpecs, { method: "post" });
+const entriesBulkSpecs: PromptSpec[] = [
+  { key: "listId", option: "--list-id <list-id>", name: "list_id", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
+  { key: "entries", option: "--entries [entries...]", name: "entries", description: "At most 5000 rows per call — send a large book in chunks.", type: "array", required: true },
+  { key: "mode", option: "--mode <mode>", name: "mode", description: "Default 'upsert': a row naming a rung the list already has (same product/sku AND quantity_min) updates it. 'append' always inserts — a re-run then duplicates the ladder, which is what makes an ambiguous tier table.", type: "string", required: false, enum: ["upsert","append"] },
+];
+prices
+  .command(`entries-bulk`)
+  .description(`Adds entries to a list without wiping it. A row naming a rung the list already has (same product_id/sku AND quantity_min) updates that rung, so re-running an import corrects prices instead of duplicating the ladder; \`mode: 'append'\` keeps the old insert-everything behaviour. Inserts go out as one PostgREST bulk write per 1000 rows.`)
+  .option(`--list-id <list-id>`, ``)
+  .option(`--entries [entries...]`, `At most 5000 rows per call — send a large book in chunks.`)
+  .option(`--mode <mode>`, `Default 'upsert': a row naming a rung the list already has (same product/sku AND quantity_min) updates it. 'append' always inserts — a re-run then duplicates the ladder, which is what makes an ambiguous tier table.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { listId, entries, mode } = await promptForMissing(
           _options,
           entriesBulkSpecs,
           _command,
@@ -657,6 +738,9 @@ prices
         if (entries !== undefined) {
           _payload[`entries`] = entries;
         }
+        if (mode !== undefined) {
+          _payload[`mode`] = mode;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -671,6 +755,90 @@ prices
     ),
   );
 registerPromptSpecs(prices.commands.at(-1)!, entriesBulkSpecs, { method: "post" });
+const entriesLadderSpecs: PromptSpec[] = [
+  { key: "listId", option: "--list-id <list-id>", name: "list_id", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
+  { key: "basePrice", option: "--base-price <base-price>", name: "base_price", description: "Unit price at the first tier.", type: "number", required: true },
+  { key: "discountPercent", option: "--discount-percent <discount-percent>", name: "discount_percent", description: "Discount applied per tier, compounded: 5 gives 19.90 / 18.91 / 17.96. Default 0.", type: "number", required: false },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The item the ladder prices.", type: "string", required: false },
+  { key: "quantities", option: "--quantities [quantities...]", name: "quantities", description: "Tier thresholds, ascending — an array of numbers or a comma-separated string ('1, 10, 50'). Default [1, 10, 50], at most 50 tiers.", type: "array", required: false },
+  { key: "replace", option: "--replace <replace>", name: "replace", description: "Default true: the item's existing entries in this list are removed first, so the ladder IS the ladder. false appends.", type: "boolean", required: false },
+  { key: "rounding", option: "--rounding <rounding>", name: "rounding", description: "Ending the computed prices snap to (nearest match). Omit to use the tenant's bulk_adjust_rounding setting.", type: "string", required: false, enum: ["exact","whole","ending_99","ending_95","ending_50"] },
+  { key: "sku", option: "--sku <sku>", name: "sku", description: "The item the ladder prices (alternative to product_id).", type: "string", required: false },
+  { key: "unit", option: "--unit <unit>", name: "unit", description: "Unit of measure carried onto every generated tier (e.g. PCE).", type: "string", required: false },
+];
+prices
+  .command(`entries-ladder`)
+  .description(`Tiers are a flat quantity_min column on purpose — the ladder IS the set of entries sharing an identity, and resolve returns it sorted as one array. What was missing was the gesture: "19.90 from 1, 5 % off per tier at 10 and 50". Prices are rounded and snapped exactly as a bulk adjust is.`)
+  .option(`--list-id <list-id>`, ``)
+  .option(`--base-price <base-price>`, `Unit price at the first tier.`, parseInteger)
+  .option(`--discount-percent <discount-percent>`, `Discount applied per tier, compounded: 5 gives 19.90 / 18.91 / 17.96. Default 0.`, parseInteger)
+  .option(`--product-id <product-id>`, `The item the ladder prices.`)
+  .option(`--quantities [quantities...]`, `Tier thresholds, ascending — an array of numbers or a comma-separated string ('1, 10, 50'). Default [1, 10, 50], at most 50 tiers.`)
+  .option(
+    `--replace [value]`,
+    `Default true: the item's existing entries in this list are removed first, so the ladder IS the ladder. false appends.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--rounding <rounding>`, `Ending the computed prices snap to (nearest match). Omit to use the tenant's bulk_adjust_rounding setting.`)
+  .option(`--sku <sku>`, `The item the ladder prices (alternative to product_id).`)
+  .option(`--unit <unit>`, `Unit of measure carried onto every generated tier (e.g. PCE).`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { listId, basePrice, discountPercent, productId, quantities, replace, rounding, sku, unit } = await promptForMissing(
+          _options,
+          entriesLadderSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/prices/lists/{list_id}/entries/ladder`.replace(`{list_id}`, listId);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (basePrice !== undefined) {
+          _payload[`base_price`] = basePrice;
+        }
+        if (discountPercent !== undefined) {
+          _payload[`discount_percent`] = discountPercent;
+        }
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
+        }
+        if (quantities !== undefined) {
+          _payload[`quantities`] = quantities;
+        }
+        if (replace !== undefined) {
+          _payload[`replace`] = replace;
+        }
+        if (rounding !== undefined) {
+          _payload[`rounding`] = rounding;
+        }
+        if (sku !== undefined) {
+          _payload[`sku`] = sku;
+        }
+        if (unit !== undefined) {
+          _payload[`unit`] = unit;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(prices.commands.at(-1)!, entriesLadderSpecs, { method: "post" });
 const entriesDeleteSpecs: PromptSpec[] = [
   { key: "listId", option: "--list-id <list-id>", name: "list_id", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/prices/lists/{list_id}/entries", hasLimit: true } },
@@ -898,3 +1066,79 @@ prices
     ),
   );
 registerPromptSpecs(prices.commands.at(-1)!, resolveSpecs, { method: "post" });
+const vocabulariesListSpecs: PromptSpec[] = [
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+prices
+  .command(`vocabularies-list`)
+  .description(`Discovery for the vocabulary routes. Names: list-statuses, price-types, tax-bases. Fetch one with GET /prices/vocabularies/{name}; a client holding the qualified pair 'prices.<name>' builds that URL from the pair alone.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { filter } = await promptForMissing(
+          _options,
+          vocabulariesListSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/prices/vocabularies`;
+        const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(prices.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
+const vocabulariesGetSpecs: PromptSpec[] = [
+  { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id.", type: "string", required: true, enum: ["list-statuses","price-types","tax-bases"], resource: { listPath: "/prices/vocabularies", hasLimit: false } },
+];
+prices
+  .command(`vocabularies-get`)
+  .description(`The values are read out of the column's CHECK constraint, so the served set IS the enforced set and the two cannot drift — a value added to the constraint appears here even before anyone labels it, titled from its own key. Values come back in constraint order, which is the order a select should offer. 'closed' says the set is exhaustive, so a value outside it is stale data rather than a missing label. Answers 404 for an unknown name. Names: list-statuses, price-types, tax-bases.`)
+  .option(`--name <name>`, `The vocabulary name — the part after the dot in the qualified id.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { name } = await promptForMissing(
+          _options,
+          vocabulariesGetSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/prices/vocabularies/{name}`.replace(`{name}`, name);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(prices.commands.at(-1)!, vocabulariesGetSpecs, { method: "get" });

@@ -7,6 +7,7 @@
  * screen: stdout/stderr go to buffers, the request spinner is paused, and
  * `--output json` is forced so both payload and errors come back structured.
  */
+import { format } from "node:util";
 import type { Command } from "commander";
 import { cliConfig } from "../parser.js";
 import { disableRequestSpinner, enableRequestSpinner } from "../spinner.js";
@@ -64,6 +65,13 @@ export const createRunner = (program: Command): TuiRunner => {
     const originalExit = process.exit.bind(process);
     const originalStdoutWrite = process.stdout.write.bind(process.stdout);
     const originalStderrWrite = process.stderr.write.bind(process.stderr);
+    const originalConsole = {
+      log: console.log,
+      info: console.info,
+      debug: console.debug,
+      warn: console.warn,
+      error: console.error,
+    };
 
     let stdout = "";
     let stderr = "";
@@ -87,6 +95,21 @@ export const createRunner = (program: Command): TuiRunner => {
       stderr += typeof chunk === "string" ? chunk : Buffer.from(chunk).toString();
       return true;
     }) as typeof process.stderr.write;
+    // Patching the streams is not enough on Bun: its `console.log` writes to
+    // fd 1 directly instead of going through `process.stdout.write`, so in the
+    // compiled binary — what Homebrew installs, and what the release assets are
+    // — nothing was captured: every command rendered as "(empty response)"
+    // while its real output leaked over the ink frame. Every CLI output helper
+    // goes through console, so redirect it as well; Node keeps working through
+    // the same path.
+    console.log = console.info = console.debug = ((
+      ...args: unknown[]
+    ): void => {
+      stdout += `${format(...args)}\n`;
+    }) as typeof console.log;
+    console.warn = console.error = ((...args: unknown[]): void => {
+      stderr += `${format(...args)}\n`;
+    }) as typeof console.error;
 
     try {
       await program.parseAsync(tokens, { from: "user" });
@@ -109,6 +132,11 @@ export const createRunner = (program: Command): TuiRunner => {
       process.exit = originalExit;
       process.stdout.write = originalStdoutWrite;
       process.stderr.write = originalStderrWrite;
+      console.log = originalConsole.log;
+      console.info = originalConsole.info;
+      console.debug = originalConsole.debug;
+      console.warn = originalConsole.warn;
+      console.error = originalConsole.error;
       // cli.ts enables the spinner unconditionally at startup; restore that.
       enableRequestSpinner();
       cliConfig.output = saved.output;

@@ -13,7 +13,7 @@ Revenexx command-line interface for managing your platform.
 
 ## Installation
 
-The Revenexx CLI is a Node based command line tool to help you interact with the Revenexx API. The CLI is distributed both as an [`npm package`](https://www.npmjs.com/package/@revenexx/cli) as well as [pre built binaries](https://github.com/revenexx-sdks/cli/releases/latest) for specific operating systems and architectures.
+The Revenexx CLI is a command line tool to help you interact with the Revenexx API. Install it from [npm](https://www.npmjs.com/package/@revenexx/cli) or, on macOS and Linux, with [Homebrew](https://brew.sh) — the Homebrew formula installs a self-contained binary, so no Node.js is needed. Single-file binaries for every supported platform are also attached to each [GitHub release](https://github.com/revenexx-sdks/cli/releases/latest) for manual download.
 
 ### Install using NPM
 ---
@@ -28,41 +28,49 @@ Once the installation is complete, you can verify the install using
 
 ```sh
 $ revenexx -v
-0.2.0
+0.2.1
 ```
 
-### Install using prebuilt binaries
+### MacOS / Linux via [Homebrew](https://brew.sh)
 ---
 
-If you do not have `npm` installed, you can always install the prebuilt binaries for your architecture and OS using our convenient installation scripts.
+The CLI ships its own tap, [`revenexx-sdks/homebrew-cli`](https://github.com/revenexx-sdks/homebrew-cli) (Homebrew strips the `homebrew-` prefix, so it is addressed as `revenexx-sdks/cli`). No Node.js needed — the formula installs the prebuilt binary for your platform:
 
-### Linux / MacOS Terminal
 ```bash
-$ wget -q https://revenexx.com/cli/install.sh  -O - | /bin/bash
+$ brew install revenexx-sdks/cli/revenexx
 ```
 
-### MacOS via [Homebrew](https://brew.sh)
-
-> **Coming soon** — Homebrew support is not yet available.
+Or add the tap once and refer to the formula by name afterwards:
 
 ```bash
+$ brew tap revenexx-sdks/cli
 $ brew install revenexx
 ```
 
-### Windows
-Via Powershell
-```powershell
-$ iwr -useb https://revenexx.com/cli/install.ps1 | iex
+Upgrading to a newer release:
+
+```bash
+$ brew update && brew upgrade revenexx-sdks/cli/revenexx
 ```
-Via [Scoop](https://scoop.sh)
-```powershell
-$ scoop install https://raw.githubusercontent.com/revenexx-sdks/cli/master/scoop/revenexx.config.json
+
+`revenexx update` detects a Homebrew install and runs those two commands for you.
+
+### Manual download
+---
+
+Every release attaches a single-file binary per platform — `revenexx-darwin-arm64`, `revenexx-linux-x64`, `revenexx-win-x64.exe` and so on. Grab the one for your platform from the [latest release](https://github.com/revenexx-sdks/cli/releases/latest), make it executable, and put it on your `PATH`:
+
+```bash
+$ chmod +x revenexx-darwin-arm64
+$ mv revenexx-darwin-arm64 /usr/local/bin/revenexx
 ```
+
+On Windows, use `npm` — or download the `.exe` from the same release page.
 
 Once the installation completes, you can verify your install using
 ```
 $ revenexx -v
-0.2.0
+0.2.1
 ```
 
 ## Getting Started

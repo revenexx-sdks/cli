@@ -1,0 +1,45 @@
+name: Publish Homebrew Formula
+
+# On a normal release the formula is published by the last step of publish.yml,
+# right after the binaries are uploaded — the formula must not point at assets
+# that do not exist yet, which is why it lives there and not in this workflow.
+#
+# This workflow is the manual escape hatch:
+#   * verify the tap credential (HOMEBREW_TAP_SSH_KEY / HOMEBREW_TAP_TOKEN)
+#     without cutting a release,
+#   * backfill or repair the formula for an already-published tag.
+#
+# Run it with dry_run first: that renders the formula and prints it, touching
+# neither the tap nor any token.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Existing release tag to publish the formula for (e.g. v0.2.0)"
+        required: true
+      dry_run:
+        description: "Render and print the formula without pushing to the tap"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish-formula:
+    name: Render and publish the formula
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish Homebrew formula
+        env:
+          # Reads the release's per-asset sha256 digests.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pushes to the tap. Absent → the script warns and exits 0.
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          HOMEBREW_TAP_SSH_KEY: ${{ secrets.HOMEBREW_TAP_SSH_KEY }}
+        run: |
+          bash scripts/publish-homebrew-formula.sh \
+            --version "${{ inputs.version }}" \
+            ${{ inputs.dry_run && '--dry-run' || '' }}

@@ -1,4 +1,3 @@
 ```bash
-revenexx inventories restock \
-    --items one two three
+revenexx inventories restock
 ```

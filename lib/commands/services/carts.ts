@@ -180,18 +180,20 @@ registerPromptSpecs(carts.commands.at(-1)!, createSpecs, { method: "post" });
 const claimSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Contact taking ownership.", type: "string", required: true },
   { key: "sessionKey", option: "--session-key <session-key>", name: "session_key", description: "Guest session whose active carts are handed over.", type: "string", required: true },
+  { key: "strategy", option: "--strategy <strategy>", name: "strategy", description: "Override the tenant's cart_merge_strategy for this call: 'merge' keeps the target cart's own lines, 'replace' clears them first. Omit to use the setting.", type: "string", required: false, enum: ["merge","replace"] },
   { key: "targetCartId", option: "--target-cart-id <target-cart-id>", name: "target_cart_id", description: "Merge the session carts into this cart instead of adopting them.", type: "string", required: false },
 ];
 carts
   .command(`claim`)
-  .description(`Hand session carts to a contact on login — adopt as customer carts or merge into a target cart`)
+  .description(`With a target cart, cart_merge_strategy decides what happens to the target's OWN lines: 'merge' keeps them and folds the session lines in, 'replace' clears them first. 'strategy' overrides it for one call (merge | replace); the answer always echoes which one ran and how many lines a replace removed.`)
   .option(`--contact-id <contact-id>`, `Contact taking ownership.`)
   .option(`--session-key <session-key>`, `Guest session whose active carts are handed over.`)
+  .option(`--strategy <strategy>`, `Override the tenant's cart_merge_strategy for this call: 'merge' keeps the target cart's own lines, 'replace' clears them first. Omit to use the setting.`)
   .option(`--target-cart-id <target-cart-id>`, `Merge the session carts into this cart instead of adopting them.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { contactId, sessionKey, targetCartId } = await promptForMissing(
+        const { contactId, sessionKey, strategy, targetCartId } = await promptForMissing(
           _options,
           claimSpecs,
           _command,
@@ -211,6 +213,9 @@ carts
         }
         if (sessionKey !== undefined) {
           _payload[`session_key`] = sessionKey;
+        }
+        if (strategy !== undefined) {
+          _payload[`strategy`] = strategy;
         }
         if (targetCartId !== undefined) {
           _payload[`target_cart_id`] = targetCartId;
@@ -613,6 +618,53 @@ carts
     ),
   );
 registerPromptSpecs(carts.commands.at(-1)!, ioProfilesUpdateSpecs, { method: "put" });
+const maintenanceRunSpecs: PromptSpec[] = [
+  { key: "dryRun", option: "--dry-run <dry-run>", name: "dry_run", description: "Report what the sweep WOULD do and write nothing. Worth doing before a first retention run: cart_ttl_days deletes carts and their lines.", type: "boolean", required: false },
+];
+carts
+  .command(`maintenance-run`)
+  .description(`Two sweeps in one pass. abandon_after_minutes marks active carts that have sat untouched past the window as abandoned (stamping abandoned_at, which nothing else in the platform ever sets — without this the abandonment funnel is empty by construction, not empty because nobody abandons carts). cart_ttl_days / guest_cart_ttl_days then DELETE carts past their retention window, line items included; both default to 0 (never), and an 'ordered' cart is never touched at any setting because it is the source record of a sale. Send dry_run to get the same counts and cart ids while writing nothing. The platform runs this per installed tenant on the schedule; it is idempotent, so calling it by hand between ticks is safe.`)
+  .option(
+    `--dry-run [value]`,
+    `Report what the sweep WOULD do and write nothing. Worth doing before a first retention run: cart_ttl_days deletes carts and their lines.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { dryRun } = await promptForMissing(
+          _options,
+          maintenanceRunSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/carts/maintenance/run`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (dryRun !== undefined) {
+          _payload[`dry_run`] = dryRun;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(carts.commands.at(-1)!, maintenanceRunSpecs, { method: "post" });
 const mergeSpecs: PromptSpec[] = [
   { key: "sourceCartId", option: "--source-cart-id <source-cart-id>", name: "source_cart_id", description: "Cart whose lines move into the target (becomes status merged).", type: "string", required: true },
   { key: "targetCartId", option: "--target-cart-id <target-cart-id>", name: "target_cart_id", description: "Receiving cart (must be active).", type: "string", required: true },
@@ -660,14 +712,12 @@ carts
     ),
   );
 registerPromptSpecs(carts.commands.at(-1)!, mergeSpecs, { method: "post" });
-const itemsListSpecs: PromptSpec[] = [
-  { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", type: "string", required: true, resource: { listPath: "/carts", hasLimit: true } },
+const vocabulariesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 carts
-  .command(`items-list`)
-  .description(`List the items of a cart (position order)`)
-  .option(`--cart-id <cart-id>`, ``)
+  .command(`vocabularies-list`)
+  .description(`Discovery for the vocabulary routes. Names: io-apply-modes, io-directions, io-entities, io-formats, item-types, statuses. Fetch one with GET /carts/vocabularies/{name}; a client holding the qualified pair 'carts.<name>' builds that URL from the pair alone.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -677,7 +727,97 @@ carts
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { cartId, filter } = await promptForMissing(
+        const { filter } = await promptForMissing(
+          _options,
+          vocabulariesListSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/carts/vocabularies`;
+        const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(carts.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
+const vocabulariesGetSpecs: PromptSpec[] = [
+  { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id.", type: "string", required: true, enum: ["io-apply-modes","io-directions","io-entities","io-formats","item-types","statuses"], resource: { listPath: "/carts/vocabularies", hasLimit: false } },
+];
+carts
+  .command(`vocabularies-get`)
+  .description(`The values are read out of the column's CHECK constraint, so the served set IS the enforced set and the two cannot drift — a value added to the constraint appears here even before anyone labels it, titled from its own key. Values come back in constraint order, which is the order a select should offer. 'closed' says the set is exhaustive, so a value outside it is stale data rather than a missing label. Answers 404 for an unknown name. Names: io-apply-modes, io-directions, io-entities, io-formats, item-types, statuses.`)
+  .option(`--name <name>`, `The vocabulary name — the part after the dot in the qualified id.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { name } = await promptForMissing(
+          _options,
+          vocabulariesGetSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/carts/vocabularies/{name}`.replace(`{name}`, name);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(carts.commands.at(-1)!, vocabulariesGetSpecs, { method: "get" });
+const itemsListSpecs: PromptSpec[] = [
+  { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", type: "string", required: true, resource: { listPath: "/carts", hasLimit: true } },
+  { key: "sku", option: "--sku <sku>", name: "sku", description: "Filter by exact SKU.", type: "string", required: false },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "Filter to one product.", type: "string", required: false },
+  { key: "type", option: "--type <type>", name: "type", description: "Filter by line type (exact match).", type: "string", required: false, enum: ["product","configuration","custom"] },
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+carts
+  .command(`items-list`)
+  .description(`The array is still called 'items'; the response now also carries 'page' and 'filter' like every other list, and an unknown cart_id answers 404 instead of an empty page. A cart with more lines than the page size is no longer silently truncated — 'page.hasMore' says so.`)
+  .option(`--cart-id <cart-id>`, ``)
+  .option(`--sku <sku>`, `Filter by exact SKU.`)
+  .option(`--product-id <product-id>`, `Filter to one product.`)
+  .option(`--type <type>`, `Filter by line type (exact match).`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { cartId, sku, productId, type, limit, offset, order, filter } = await promptForMissing(
           _options,
           itemsListSpecs,
           _command,
@@ -685,6 +825,24 @@ carts
         const _client = await sdkForProject();
         const _apiPath = `/carts/{cart_id}/items`.replace(`{cart_id}`, cartId);
         const _payload: RequestParams = {};
+        if (sku !== undefined) {
+          _payload[`sku`] = sku;
+        }
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
+        }
+        if (type !== undefined) {
+          _payload[`type`] = type;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
           if (_eq <= 0) {
@@ -856,7 +1014,7 @@ carts
 registerPromptSpecs(carts.commands.at(-1)!, itemsReplaceSpecs, { method: "put" });
 const itemsDeleteSpecs: PromptSpec[] = [
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", type: "string", required: true, resource: { listPath: "/carts", hasLimit: true } },
-  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/carts/{cart_id}/items", hasLimit: false } },
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/carts/{cart_id}/items", hasLimit: true } },
 ];
 carts
   .command(`items-delete`)
@@ -891,7 +1049,7 @@ carts
 registerPromptSpecs(carts.commands.at(-1)!, itemsDeleteSpecs, { method: "delete", destructive: true });
 const itemsGetSpecs: PromptSpec[] = [
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", type: "string", required: true, resource: { listPath: "/carts", hasLimit: true } },
-  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/carts/{cart_id}/items", hasLimit: false } },
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/carts/{cart_id}/items", hasLimit: true } },
 ];
 carts
   .command(`items-get`)
@@ -925,7 +1083,7 @@ carts
 registerPromptSpecs(carts.commands.at(-1)!, itemsGetSpecs, { method: "get" });
 const itemsUpdateSpecs: PromptSpec[] = [
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", type: "string", required: true, resource: { listPath: "/carts", hasLimit: true } },
-  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/carts/{cart_id}/items", hasLimit: false } },
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/carts/{cart_id}/items", hasLimit: true } },
   { key: "configuration", option: "--configuration <configuration>", name: "configuration", description: "Free-form configuration — configured lines never merge.", type: "object", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "Defaults to the cart's currency.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form metadata.", type: "object", required: false },
@@ -1266,13 +1424,57 @@ carts
     ),
   );
 registerPromptSpecs(carts.commands.at(-1)!, exportSpecs, { method: "post" });
+const mergeIntoSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/carts", hasLimit: true } },
+  { key: "targetCartId", option: "--target-cart-id <target-cart-id>", name: "target_cart_id", description: "Receiving cart (must be active). The cart in the path is the source and becomes status merged.", type: "string", required: true },
+];
+carts
+  .command(`merge-into`)
+  .description(`Identical to carts.merge, with the source taken from the path. That is what makes the merge reachable from anything holding one cart and only one — a Cockpit row action, a detail page, a storefront session.`)
+  .option(`--id <id>`, ``)
+  .option(`--target-cart-id <target-cart-id>`, `Receiving cart (must be active). The cart in the path is the source and becomes status merged.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, targetCartId } = await promptForMissing(
+          _options,
+          mergeIntoSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/carts/{id}/merge-into`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (targetCartId !== undefined) {
+          _payload[`target_cart_id`] = targetCartId;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(carts.commands.at(-1)!, mergeIntoSpecs, { method: "post" });
 const orderSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/carts", hasLimit: true } },
   { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", description: "External order reference from order management.", type: "string", required: false },
 ];
 carts
   .command(`order`)
-  .description(`Mark an active cart as ordered (+order_ref) — the order-management hand-over`)
+  .description(`The conversion applies the two tenant decisions a cart cannot make for itself. price_snapshot_mode (snapshot | live) settles which of a line's two prices is charged — the snapshot the buyer was shown, or the current unit_price — and the cart's subtotal is rewritten to match, so cart and order can never disagree; 'pricing' reports the mode, the lines it rewrote and the subtotal on both sides. convert_reserves_stock (never | request | require) decides whether inventories is asked to hold the lines; at 'require' a refusal answers 409 and the cart stays active and unchanged. The reservation is attempted BEFORE anything is written.`)
   .option(`--id <id>`, ``)
   .option(`--order-ref <order-ref>`, `External order reference from order management.`)
   .action(

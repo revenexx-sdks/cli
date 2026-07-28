@@ -172,6 +172,112 @@ payments
     ),
   );
 registerPromptSpecs(payments.commands.at(-1)!, createSpecs, { method: "post" });
+payments
+  .command(`dunning-scan`)
+  .description(`Classifies every unpaid self-managed payment (invoice, prepayment) as on time / reminder due / overdue from payment_reminder_after_days and overdue_after_days, writes the stage and the next due date, and reports PSP payments still waiting on a callback longer than webhook_stale_after_minutes. Pure function of each payment's age, so it is idempotent — it also runs daily as the 'dunning-scan' schedule. It classifies and does not send: a stage change emits payment.updated, and what a reminder looks like is the merchant's workflow.`)
+  .action(
+    actionRunner(
+      async () => {
+        const _client = await sdkForProject();
+        const _apiPath = `/payments/dunning/scan`;
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+const errorsRedactSpecs: PromptSpec[] = [
+  { key: "apply", option: "--apply <apply>", name: "apply", description: "Write the reclassified values (default false = dry run).", type: "boolean", required: false },
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "How many payments to scan, oldest first (default 500, max 5000).", type: "integer", required: false },
+];
+payments
+  .command(`errors-redact`)
+  .description(`Rows written before the failure taxonomy still store the provider's/runtime's raw text in error_message. API responses never repeat it (the read path projects), but the column is also read directly through Baseline, so it needs rewriting once per tenant. Dry-run by default — reports what it would touch and changes nothing until apply:true. Idempotent: rows already carrying a taxonomy message are skipped.`)
+  .option(
+    `--apply [value]`,
+    `Write the reclassified values (default false = dry run).`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--limit <limit>`, `How many payments to scan, oldest first (default 500, max 5000).`, parseInteger)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { apply, limit } = await promptForMissing(
+          _options,
+          errorsRedactSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/payments/errors/redact`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (apply !== undefined) {
+          _payload[`apply`] = apply;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(payments.commands.at(-1)!, errorsRedactSpecs, { method: "post" });
+const logosGetSpecs: PromptSpec[] = [
+  { key: "slug", option: "--slug <slug>", name: "slug", type: "string", required: true },
+];
+payments
+  .command(`logos-get`)
+  .description(`Answers the SVG document for a catalog provider code (a shipped assets/logos/{code}.svg, otherwise a generated monogram tile), with content-type image/svg+xml and a one-day cache. Unknown slugs are a 404. Called directly on the app domain (https://revenexx-payments.apps.revenexx.io/payments/logos/stripe) the response carries its real content-type; through the gateway the body is passed through but labelled application/json, so use the app domain for <img> sources.`)
+  .option(`--slug <slug>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { slug } = await promptForMissing(
+          _options,
+          logosGetSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/payments/logos/{slug}`.replace(`{slug}`, slug);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(payments.commands.at(-1)!, logosGetSpecs, { method: "get" });
 const methodsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
@@ -355,7 +461,7 @@ payments
 registerPromptSpecs(payments.commands.at(-1)!, methodsCreateSpecs, { method: "post" });
 payments
   .command(`methods-defaults`)
-  .description(`Seed the standard methods (invoice, prepayment, card, PayPal) + mock provider — idempotent, also runs on app.installed`)
+  .description(`Providers are seeded disabled, in test mode, without credentials — the operator fills those in. Re-running never duplicates a row and never overwrites an existing one: only missing option keys (e.g. a logo added after the first install) are filled, reported as "updated".`)
   .action(
     actionRunner(
       async () => {
@@ -616,6 +722,38 @@ payments
     ),
   );
 registerPromptSpecs(payments.commands.at(-1)!, methodsUpdateSpecs, { method: "put" });
+const ordersCaptureSpecs: PromptSpec[] = [
+  { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", type: "string", required: true },
+];
+payments
+  .command(`orders-capture`)
+  .description(`Resolves payments by their order_ref (the same key the PSP webhooks fall back to), captures every authorized one and reports the rest instead of failing — an order whose payment was already captured is a successful no-op. Note that payments.order_ref is nullable with no foreign key: this route is exactly as good as the reference the checkout writes onto the payment.`)
+  .option(`--order-ref <order-ref>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { orderRef } = await promptForMissing(
+          _options,
+          ordersCaptureSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/payments/orders/{order_ref}/capture`.replace(`{order_ref}`, orderRef);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(payments.commands.at(-1)!, ordersCaptureSpecs, { method: "post" });
 const providersListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
@@ -624,7 +762,7 @@ const providersListSpecs: PromptSpec[] = [
 ];
 payments
   .command(`providers-list`)
-  .description(`List PSP configurations`)
+  .description(`PSP secrets are write-only: 'credentials' and 'webhook_secret' are accepted on create/update, stored for the drivers, and never returned by any route — the responses carry the public columns only (id, provider, name, enabled, test_mode, options, timestamps). To rotate a secret, write the new value; there is no way to read the current one back.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -686,7 +824,7 @@ const providersCreateSpecs: PromptSpec[] = [
 ];
 payments
   .command(`providers-create`)
-  .description(`Create a PSP configuration — provider must exist in the catalog`)
+  .description(`PSP secrets are write-only: 'credentials' and 'webhook_secret' are accepted on create/update, stored for the drivers, and never returned by any route — the responses carry the public columns only (id, provider, name, enabled, test_mode, options, timestamps). To rotate a secret, write the new value; there is no way to read the current one back.`)
   .option(`--provider <provider>`, `Provider code — must exist in the catalog (GET /payments/providers/catalog).`)
   .option(`--credentials <credentials>`, `PSP credentials — the catalog's credential_fields say which keys the auth scheme expects.`)
   .option(
@@ -817,7 +955,7 @@ const providersGetSpecs: PromptSpec[] = [
 ];
 payments
   .command(`providers-get`)
-  .description(`Read one PSP configuration`)
+  .description(`PSP secrets are write-only: 'credentials' and 'webhook_secret' are accepted on create/update, stored for the drivers, and never returned by any route — the responses carry the public columns only (id, provider, name, enabled, test_mode, options, timestamps). To rotate a secret, write the new value; there is no way to read the current one back.`)
   .option(`--id <id>`, ``)
   .action(
     actionRunner(
@@ -856,7 +994,7 @@ const providersUpdateSpecs: PromptSpec[] = [
 ];
 payments
   .command(`providers-update`)
-  .description(`Update a PSP configuration (credentials, test mode, enable/disable)`)
+  .description(`PSP secrets are write-only: 'credentials' and 'webhook_secret' are accepted on create/update, stored for the drivers, and never returned by any route — the responses carry the public columns only (id, provider, name, enabled, test_mode, options, timestamps). To rotate a secret, write the new value; there is no way to read the current one back.`)
   .option(`--id <id>`, ``)
   .option(`--credentials <credentials>`, `PSP credentials — the catalog's credential_fields say which keys the auth scheme expects.`)
   .option(
@@ -928,6 +1066,82 @@ payments
     ),
   );
 registerPromptSpecs(payments.commands.at(-1)!, providersUpdateSpecs, { method: "put" });
+const vocabulariesListSpecs: PromptSpec[] = [
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+payments
+  .command(`vocabularies-list`)
+  .description(`Statuses, method kinds, fee types and dunning stages. Values come out of the CHECK constraints, so what is served is what the database enforces — a client renders a status this app adds without a release of its own.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { filter } = await promptForMissing(
+          _options,
+          vocabulariesListSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/payments/vocabularies`;
+        const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(payments.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
+const vocabulariesGetSpecs: PromptSpec[] = [
+  { key: "name", option: "--name <name>", name: "name", description: "Vocabulary name.", type: "string", required: true, enum: ["dunning-stages","fee-types","method-kinds","statuses"], resource: { listPath: "/payments/vocabularies", hasLimit: false } },
+];
+payments
+  .command(`vocabularies-get`)
+  .description(`One vocabulary, with its values, labels and badge tones`)
+  .option(`--name <name>`, `Vocabulary name.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { name } = await promptForMissing(
+          _options,
+          vocabulariesGetSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/payments/vocabularies/{name}`.replace(`{name}`, name);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(payments.commands.at(-1)!, vocabulariesGetSpecs, { method: "get" });
 const webhooksIngestSpecs: PromptSpec[] = [
   { key: "provider", option: "--provider <provider>", name: "provider", type: "string", required: true },
   { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
@@ -999,15 +1213,17 @@ payments
 registerPromptSpecs(payments.commands.at(-1)!, getSpecs, { method: "get" });
 const cancelSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/payments", hasLimit: true } },
+  { key: "reason", option: "--reason <reason>", name: "reason", description: "The operator's own words, kept in metadata (cancel_reason / refund_reason) and passed to the provider.", type: "string", required: false },
 ];
 payments
   .command(`cancel`)
   .description(`Cancel a payment before capture`)
   .option(`--id <id>`, ``)
+  .option(`--reason <reason>`, `The operator's own words, kept in metadata (cancel_reason / refund_reason) and passed to the provider.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id } = await promptForMissing(
+        const { id, reason } = await promptForMissing(
           _options,
           cancelSpecs,
           _command,
@@ -1015,6 +1231,16 @@ payments
         const _client = await sdkForProject();
         const _apiPath = `/payments/{id}/cancel`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (reason !== undefined) {
+          _payload[`reason`] = reason;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -1034,7 +1260,7 @@ const captureSpecs: PromptSpec[] = [
 ];
 payments
   .command(`capture`)
-  .description(`Capture an authorized payment`)
+  .description(`Refused with 422 once the authorization is older than the tenant's capture_expiry_days — an expired authorization is declined by the provider anyway.`)
   .option(`--id <id>`, ``)
   .action(
     actionRunner(
@@ -1066,7 +1292,7 @@ const confirmSpecs: PromptSpec[] = [
 ];
 payments
   .command(`confirm`)
-  .description(`Finish a requires_action payment after the buyer returned from the PSP`)
+  .description(`Captures straight after the authorization when the tenant's auto_capture_policy is 'immediate'.`)
   .option(`--id <id>`, ``)
   .action(
     actionRunner(
@@ -1095,15 +1321,17 @@ payments
 registerPromptSpecs(payments.commands.at(-1)!, confirmSpecs, { method: "post" });
 const refundSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/payments", hasLimit: true } },
+  { key: "reason", option: "--reason <reason>", name: "reason", description: "The operator's own words, kept in metadata (cancel_reason / refund_reason) and passed to the provider.", type: "string", required: false },
 ];
 payments
   .command(`refund`)
-  .description(`Refund a captured payment`)
+  .description(`All or nothing: the ledger has one amount and one status, so there is no partial or repeat refund to express — a refunded payment is refunded in full. Refused with 422 past the tenant's refund_window_days.`)
   .option(`--id <id>`, ``)
+  .option(`--reason <reason>`, `The operator's own words, kept in metadata (cancel_reason / refund_reason) and passed to the provider.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id } = await promptForMissing(
+        const { id, reason } = await promptForMissing(
           _options,
           refundSpecs,
           _command,
@@ -1111,6 +1339,16 @@ payments
         const _client = await sdkForProject();
         const _apiPath = `/payments/{id}/refund`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (reason !== undefined) {
+          _payload[`reason`] = reason;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };

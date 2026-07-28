@@ -10,6 +10,7 @@ import {
 } from "../utils.js";
 import {
   GITHUB_RELEASES_URL,
+  HOMEBREW_FORMULA,
   NPM_PACKAGE_NAME,
   SDK_TITLE,
   EXECUTABLE_NAME,
@@ -32,6 +33,13 @@ export const releaseTag = (version: string): string =>
 export const NPM_UPDATE_ARGS = ["install", "-g", `${NPM_PACKAGE_NAME}@latest`];
 export const npmUpdateCommandLine = (): string =>
   `npm ${NPM_UPDATE_ARGS.join(" ")}`;
+
+/** The Homebrew counterpart — `brew update` first, otherwise the tap still
+ * carries the formula revision that was current at install time and the upgrade
+ * is a no-op. Single source for the shown and the executed command. */
+export const BREW_UPDATE_ARGS = ["upgrade", HOMEBREW_FORMULA];
+export const brewUpdateCommandLine = (): string =>
+  `brew update && brew ${BREW_UPDATE_ARGS.join(" ")}`;
 
 /**
  * Check if the CLI was installed via npm
@@ -66,13 +74,27 @@ const isInstalledViaNpm = (): boolean => {
 /**
  * Check if the CLI was installed via Homebrew
  */
+/**
+ * Whether any of the given runtime paths points inside a Homebrew installation.
+ *
+ * Matching `/Cellar/` covers both macOS prefixes (`/opt/homebrew` and
+ * `/usr/local`) while *not* mistaking a Homebrew-installed `node` — which lives
+ * in `/opt/homebrew/bin` — for a Homebrew-installed CLI; `/linuxbrew/` covers
+ * Homebrew on Linux.
+ *
+ * Both `process.execPath` and `process.argv[1]` are checked because the
+ * Homebrew build is the Bun-compiled single-file binary: there `argv[1]` is a
+ * path inside the binary's virtual filesystem rather than anything on disk, and
+ * only `execPath` names the installed file.
+ */
+export const isHomebrewPath = (paths: readonly string[]): boolean =>
+  paths.some(
+    (path) => path.includes("/Cellar/") || path.includes("/linuxbrew/"),
+  );
+
 const isInstalledViaHomebrew = (): boolean => {
   try {
-    const scriptPath = process.argv[1];
-    return (
-      scriptPath.includes("/opt/homebrew/") ||
-      scriptPath.includes("/usr/local/Cellar/")
-    );
+    return isHomebrewPath([process.execPath, process.argv[1] ?? ""]);
   } catch (_e) {
     return false;
   }
@@ -143,11 +165,21 @@ const updateViaNpm = async (dryRun = false): Promise<void> => {
 /**
  * Update via Homebrew
  */
-const updateViaHomebrew = async (): Promise<void> => {
-  // Homebrew distribution is not available yet for this CLI.
-  console.log("");
-  warn("Homebrew distribution is not available yet.");
-  hint(`Update via NPM instead: npm install -g ${NPM_PACKAGE_NAME}@latest`);
+const updateViaHomebrew = async (dryRun = false): Promise<void> => {
+  if (dryRun) {
+    log(`Dry run — would run: ${chalk.cyan(brewUpdateCommandLine())}`);
+    return;
+  }
+  try {
+    await execCommand(brewUpdateCommandLine());
+    console.log("");
+    success("Updated to latest version via Homebrew!");
+    hint(`Run '${EXECUTABLE_NAME} --version' to verify the new version.`);
+  } catch (e: unknown) {
+    console.log("");
+    error(`Failed to update via Homebrew: ${getErrorMessage(e)}`);
+    hint(`Try running: brew reinstall ${HOMEBREW_FORMULA}`);
+  }
 };
 
 /**
@@ -161,7 +193,9 @@ const showManualInstructions = (latestVersion: string): void => {
   console.log(`  npm install -g ${NPM_PACKAGE_NAME}@latest`);
   console.log("");
 
-  log(`${chalk.bold("Option 2: Homebrew")} (not available yet)`);
+  log(`${chalk.bold("Option 2: Homebrew")} (macOS / Linux)`);
+  console.log(`  ${brewUpdateCommandLine()}`);
+  console.log(`  # not installed via Homebrew yet? brew install ${HOMEBREW_FORMULA}`);
   console.log("");
 
   log(`${chalk.bold("Option 3: Download Binary")}`);
@@ -243,7 +277,7 @@ const updateCli = async ({ manual, dryRun }: UpdateOptions = {}): Promise<void> 
       await updateViaNpm(dryRun);
     } else if (isInstalledViaHomebrew()) {
       if (dryRun) log(`Detected install method: ${chalk.bold("Homebrew")}`);
-      await updateViaHomebrew();
+      await updateViaHomebrew(dryRun);
     } else if (dryRun) {
       // Non-interactive by design: report what would happen instead of prompting.
       warn("Could not detect the install method.");

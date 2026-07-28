@@ -1,4 +1,3 @@
 ```bash
-revenexx inventories receive \
-    --items one two three
+revenexx inventories receive
 ```

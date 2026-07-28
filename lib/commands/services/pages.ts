@@ -26,15 +26,37 @@ export const pages = new Command("pages")
     helpWidth: process.stdout.columns || 80,
   });
 
+const deliveryMenusSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+];
 pages
   .command(`delivery-menus`)
   .description(`List the tenant's navigation menus for the renderer (key → ordered items) — header/footer/account chrome`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .action(
     actionRunner(
-      async () => {
+      async (_options, _command) => {
+        const { limit, offset, order } = await promptForMissing(
+          _options,
+          deliveryMenusSpecs,
+          _command,
+        );
         const _client = await sdkForProject();
         const _apiPath = `/pages/delivery/menus`;
         const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -48,6 +70,7 @@ pages
       },
     ),
   );
+registerPromptSpecs(pages.commands.at(-1)!, deliveryMenusSpecs, { method: "get" });
 pages
   .command(`delivery-page`)
   .description(`Resolve a published page by slug or id for a language (i18n fallback, schedule filtering, library refs resolved)`)
@@ -262,7 +285,7 @@ const editorTranslateSpecs: PromptSpec[] = [
 ];
 pages
   .command(`editor-translate`)
-  .description(`Machine-translate text fields via the configured provider (501 when unconfigured)`)
+  .description(`The endpoint comes from the tenant setting \`translate_endpoint\` (PAGES_TRANSLATE_ENDPOINT remains a fallback). The bearer token does NOT: the gateway masks every setting flagged \`sensitive\`, so a key stored as one could never be read back — it stays the PAGES_TRANSLATE_KEY function secret.`)
   .option(`--items [items...]`, ``)
   .action(
     actionRunner(
@@ -1005,7 +1028,7 @@ const editorScheduleSpecs: PromptSpec[] = [
 ];
 pages
   .command(`editor-schedule`)
-  .description(`Schedule the edit state for automated publishing`)
+  .description(`Gated on the tenant setting \`enable_scheduled_publishing\`, which is off by default: nothing in the platform publishes a scheduled edit state yet, so a date accepted here would be a promise the app cannot keep. While it is off the answer is 409, and every editor state carries \`features.scheduledPublishing\` so the control can be hidden instead.`)
   .option(`--page-id <page-id>`, ``)
   .option(`--scheduled-at <scheduled-at>`, ``)
   .action(
@@ -1677,21 +1700,21 @@ pages
 registerPromptSpecs(pages.commands.at(-1)!, pagesListSpecs, { method: "get" });
 const pagesCreateSpecs: PromptSpec[] = [
   { key: "title", option: "--title <title>", name: "title", type: "string", required: true },
-  { key: "bundle", option: "--bundle <bundle>", name: "bundle", type: "string", required: false },
+  { key: "bundle", option: "--bundle <bundle>", name: "bundle", description: "Omit to take the default_page_bundle setting.", type: "string", required: false },
   { key: "hostOptions", option: "--host-options <host-options>", name: "hostOptions", type: "object", required: false },
   { key: "meta", option: "--meta <meta>", name: "meta", type: "object", required: false },
   { key: "slug", option: "--slug <slug>", name: "slug", type: "string", required: false },
-  { key: "sourceLanguage", option: "--source-language <source-language>", name: "sourceLanguage", type: "string", required: false },
+  { key: "sourceLanguage", option: "--source-language <source-language>", name: "sourceLanguage", description: "Omit to take the default_source_language setting for the request market.", type: "string", required: false },
 ];
 pages
   .command(`pages-create`)
-  .description(`Create a page (also creates its source-language translation row)`)
+  .description(`Everything the caller leaves out comes from the tenant's settings, not from a literal in this app: \`bundle\` from default_page_bundle, \`sourceLanguage\` from default_source_language (resolved for the request's market), and the status of both the page and its source translation from default_page_status (draft | published).`)
   .option(`--title <title>`, ``)
-  .option(`--bundle <bundle>`, ``)
+  .option(`--bundle <bundle>`, `Omit to take the default_page_bundle setting.`)
   .option(`--host-options <host-options>`, ``)
   .option(`--meta <meta>`, ``)
   .option(`--slug <slug>`, ``)
-  .option(`--source-language <source-language>`, ``)
+  .option(`--source-language <source-language>`, `Omit to take the default_source_language setting for the request market.`)
   .action(
     actionRunner(
       async (_options, _command) => {
@@ -2163,3 +2186,79 @@ pages
     ),
   );
 registerPromptSpecs(pages.commands.at(-1)!, templatesUpdateSpecs, { method: "put" });
+const vocabulariesListSpecs: PromptSpec[] = [
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+pages
+  .command(`vocabularies-list`)
+  .description(`Discovery for the vocabulary routes. Names: edit-state-statuses, page-statuses, translation-statuses. Fetch one with GET /pages/vocabularies/{name}; a client holding the qualified pair 'pages.<name>' builds that URL from the pair alone.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { filter } = await promptForMissing(
+          _options,
+          vocabulariesListSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/vocabularies`;
+        const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
+const vocabulariesGetSpecs: PromptSpec[] = [
+  { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id.", type: "string", required: true, enum: ["edit-state-statuses","page-statuses","translation-statuses"], resource: { listPath: "/pages/vocabularies", hasLimit: false } },
+];
+pages
+  .command(`vocabularies-get`)
+  .description(`The values are read out of the column's CHECK constraint, so the served set IS the enforced set and the two cannot drift — a value added to the constraint appears here even before anyone labels it, titled from its own key. Values come back in constraint order, which is the order a select should offer. 'closed' says the set is exhaustive, so a value outside it is stale data rather than a missing label. Answers 404 for an unknown name. Names: edit-state-statuses, page-statuses, translation-statuses.`)
+  .option(`--name <name>`, `The vocabulary name — the part after the dot in the qualified id.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { name } = await promptForMissing(
+          _options,
+          vocabulariesGetSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/vocabularies/{name}`.replace(`{name}`, name);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, vocabulariesGetSpecs, { method: "get" });

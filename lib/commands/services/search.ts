@@ -69,7 +69,7 @@ search
   );
 registerPromptSpecs(search.commands.at(-1)!, listCollectionsSpecs, { method: "get" });
 const searchDocumentsGetSpecs: PromptSpec[] = [
-  { key: "collection", option: "--collection <collection>", name: "collection", description: "Collection key (one the tenant has installed).", type: "string", required: true, enum: ["greetings","products"], resource: { listPath: "/search/collections", hasLimit: false } },
+  { key: "collection", option: "--collection <collection>", name: "collection", description: "Collection key (one the tenant has installed).", type: "string", required: true, enum: ["products"], resource: { listPath: "/search/collections", hasLimit: false } },
   { key: "q", option: "--q <q>", name: "q", description: "Query text. Use `*` to match all.", type: "string", required: false },
   { key: "queryBy", option: "--query-by <query-by>", name: "query_by", description: "Comma-separated fields to search.", type: "string", required: false },
   { key: "filterBy", option: "--filter-by <filter-by>", name: "filter_by", description: "Filter expression.", type: "string", required: false },
@@ -131,7 +131,7 @@ search
   );
 registerPromptSpecs(search.commands.at(-1)!, searchDocumentsGetSpecs, { method: "get" });
 const searchDocumentsSpecs: PromptSpec[] = [
-  { key: "collection", option: "--collection <collection>", name: "collection", description: "Collection key (one the tenant has installed).", type: "string", required: true, enum: ["greetings","products"], resource: { listPath: "/search/collections", hasLimit: false } },
+  { key: "collection", option: "--collection <collection>", name: "collection", description: "Collection key (one the tenant has installed).", type: "string", required: true, enum: ["products"], resource: { listPath: "/search/collections", hasLimit: false } },
   { key: "facetBy", option: "--facet-by <facet-by>", name: "facet_by", description: "Comma-separated fields to facet on.", type: "string", required: false },
   { key: "filterBy", option: "--filter-by <filter-by>", name: "filter_by", description: "Filter expression, e.g. `in_stock:=true`.", type: "string", required: false },
   { key: "page", option: "--page <page>", name: "page", type: "integer", required: false },
@@ -205,7 +205,7 @@ search
   );
 registerPromptSpecs(search.commands.at(-1)!, searchDocumentsSpecs, { method: "post" });
 const getDocumentSpecs: PromptSpec[] = [
-  { key: "collection", option: "--collection <collection>", name: "collection", description: "Collection key (one the tenant has installed).", type: "string", required: true, enum: ["greetings","products"], resource: { listPath: "/search/collections", hasLimit: false } },
+  { key: "collection", option: "--collection <collection>", name: "collection", description: "Collection key (one the tenant has installed).", type: "string", required: true, enum: ["products"], resource: { listPath: "/search/collections", hasLimit: false } },
   { key: "documentId", option: "--document-id <document-id>", name: "documentId", description: "Document id within the collection.", type: "string", required: true },
 ];
 search

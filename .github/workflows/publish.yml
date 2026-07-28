@@ -100,3 +100,18 @@ jobs:
           GHR_PATH: build/
           GHR_REPLACE: false
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Homebrew tap (DX-151): render Formula/revenexx.rb with this release's
+      # version + binary digests and push it to revenexx-sdks/homebrew-cli, so
+      # `brew install revenexx-sdks/cli/revenexx` and `brew upgrade` see the new
+      # version. Runs after the assets are uploaded — the formula points at them.
+      # Authenticates with the tap deploy key (HOMEBREW_TAP_SSH_KEY) or a token
+      # (HOMEBREW_TAP_TOKEN). With neither it no-ops with a warning, so a
+      # missing or unapproved tap credential can never fail a release.
+      - name: Publish Homebrew formula
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          HOMEBREW_TAP_SSH_KEY: ${{ secrets.HOMEBREW_TAP_SSH_KEY }}
+        run: bash scripts/publish-homebrew-formula.sh

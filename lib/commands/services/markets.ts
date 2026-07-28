@@ -162,6 +162,60 @@ markets
     ),
   );
 registerPromptSpecs(markets.commands.at(-1)!, createSpecs, { method: "post" });
+markets
+  .command(`vocabularies`)
+  .description(`The enums this app owns — names and titles, without the values.`)
+  .action(
+    actionRunner(
+      async () => {
+        const _client = await sdkForProject();
+        const _apiPath = `/markets/vocabularies`;
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+const vocabularySpecs: PromptSpec[] = [
+  { key: "name", option: "--name <name>", name: "name", description: "Vocabulary name.", type: "string", required: true, enum: ["market-statuses"], resource: { listPath: "/markets/vocabularies", hasLimit: false } },
+];
+markets
+  .command(`vocabulary`)
+  .description(`One vocabulary with its values, parsed out of schema.json's CHECK constraint so the served set is the enforced set.`)
+  .option(`--name <name>`, `Vocabulary name.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { name } = await promptForMissing(
+          _options,
+          vocabularySpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/markets/vocabularies/{name}`.replace(`{name}`, name);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(markets.commands.at(-1)!, vocabularySpecs, { method: "get" });
 const deleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
 ];
@@ -306,6 +360,169 @@ markets
     ),
   );
 registerPromptSpecs(markets.commands.at(-1)!, updateSpecs, { method: "put" });
+const backfillSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+  { key: "source", option: "--source <source>", name: "source", description: "Market to copy the missing pieces from — uuid or code.", type: "string", required: true },
+  { key: "currencies", option: "--currencies <currencies>", name: "currencies", description: "Default true.", type: "boolean", required: false },
+  { key: "locales", option: "--locales <locales>", name: "locales", description: "Default true.", type: "boolean", required: false },
+  { key: "taxClasses", option: "--tax-classes <tax-classes>", name: "tax_classes", description: "Default true.", type: "boolean", required: false },
+];
+markets
+  .command(`backfill`)
+  .description(`Fill this market's gaps from another market. Adds only what is missing by code — an existing locale, currency or tax class is never overwritten.`)
+  .option(`--id <id>`, ``)
+  .option(`--source <source>`, `Market to copy the missing pieces from — uuid or code.`)
+  .option(
+    `--currencies [value]`,
+    `Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
+    `--locales [value]`,
+    `Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
+    `--tax-classes [value]`,
+    `Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, source, currencies, locales, taxClasses } = await promptForMissing(
+          _options,
+          backfillSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/markets/{id}/backfill`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (currencies !== undefined) {
+          _payload[`currencies`] = currencies;
+        }
+        if (locales !== undefined) {
+          _payload[`locales`] = locales;
+        }
+        if (source !== undefined) {
+          _payload[`source`] = source;
+        }
+        if (taxClasses !== undefined) {
+          _payload[`tax_classes`] = taxClasses;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(markets.commands.at(-1)!, backfillSpecs, { method: "post" });
+const cloneSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+  { key: "code", option: "--code <code>", name: "code", description: "Code of the NEW market (unique per tenant).", type: "string", required: true },
+  { key: "copyCurrencies", option: "--copy-currencies <copy-currencies>", name: "copy_currencies", description: "Default true.", type: "boolean", required: false },
+  { key: "copyLocales", option: "--copy-locales <copy-locales>", name: "copy_locales", description: "Default true.", type: "boolean", required: false },
+  { key: "copyTaxClasses", option: "--copy-tax-classes <copy-tax-classes>", name: "copy_tax_classes", description: "Default true.", type: "boolean", required: false },
+  { key: "currency", option: "--currency <currency>", name: "currency", description: "Base currency of the new market (ISO 4217). Defaults to the source market's.", type: "string", required: false },
+  { key: "name", option: "--name <name>", name: "name", description: "Display name of the new market. Defaults to its code.", type: "string", required: false },
+  { key: "status", option: "--status <status>", name: "status", description: "Default 'active'.", type: "string", required: false, enum: ["active","inactive"] },
+];
+markets
+  .command(`clone`)
+  .description(`Create a new market by copying this one — its locales, traded currencies and tax classes — in a single call.`)
+  .option(`--id <id>`, ``)
+  .option(`--code <code>`, `Code of the NEW market (unique per tenant).`)
+  .option(
+    `--copy-currencies [value]`,
+    `Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
+    `--copy-locales [value]`,
+    `Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
+    `--copy-tax-classes [value]`,
+    `Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--currency <currency>`, `Base currency of the new market (ISO 4217). Defaults to the source market's.`)
+  .option(`--name <name>`, `Display name of the new market. Defaults to its code.`)
+  .option(`--status <status>`, `Default 'active'.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, code, copyCurrencies, copyLocales, copyTaxClasses, currency, name, status } = await promptForMissing(
+          _options,
+          cloneSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/markets/{id}/clone`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (code !== undefined) {
+          _payload[`code`] = code;
+        }
+        if (copyCurrencies !== undefined) {
+          _payload[`copy_currencies`] = copyCurrencies;
+        }
+        if (copyLocales !== undefined) {
+          _payload[`copy_locales`] = copyLocales;
+        }
+        if (copyTaxClasses !== undefined) {
+          _payload[`copy_tax_classes`] = copyTaxClasses;
+        }
+        if (currency !== undefined) {
+          _payload[`currency`] = currency;
+        }
+        if (name !== undefined) {
+          _payload[`name`] = name;
+        }
+        if (status !== undefined) {
+          _payload[`status`] = status;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(markets.commands.at(-1)!, cloneSpecs, { method: "post" });
 const contextSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
 ];
@@ -338,6 +555,38 @@ markets
     ),
   );
 registerPromptSpecs(markets.commands.at(-1)!, contextSpecs, { method: "get" });
+const readinessSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+];
+markets
+  .command(`readiness`)
+  .description(`Can this market actually trade? Reports every check with its severity — a market with no tax class cannot tax and a market with no currency cannot price.`)
+  .option(`--id <id>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          readinessSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/markets/{id}/readiness`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(markets.commands.at(-1)!, readinessSpecs, { method: "get" });
 const currenciesListSpecs: PromptSpec[] = [
   { key: "marketId", option: "--market-id <market-id>", name: "market_id", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },

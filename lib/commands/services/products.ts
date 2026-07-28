@@ -93,7 +93,7 @@ const createSpecs: PromptSpec[] = [
   { key: "enabled", option: "--enabled <enabled>", name: "enabled", type: "boolean", required: false },
   { key: "familyId", option: "--family-id <family-id>", name: "family_id", type: "string", required: false },
   { key: "familyVariantId", option: "--family-variant-id <family-variant-id>", name: "family_variant_id", type: "string", required: false },
-  { key: "kind", option: "--kind <kind>", name: "kind", type: "string", required: false },
+  { key: "kind", option: "--kind <kind>", name: "kind", type: "string", required: false, enum: ["simple","model","variant"] },
   { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", type: "string", required: false },
   { key: "quantifiedAssociations", option: "--quantified-associations <quantified-associations>", name: "quantified_associations", type: "object", required: false },
   { key: "taxClass", option: "--tax-class <tax-class>", name: "tax_class", type: "string", required: false },
@@ -475,7 +475,10 @@ const assetsCreateSpecs: PromptSpec[] = [
   { key: "assetFamilyId", option: "--asset-family-id <asset-family-id>", name: "asset_family_id", type: "string", required: true },
   { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
   { key: "attributeValues", option: "--attribute-values <attribute-values>", name: "attribute_values", type: "object", required: false },
-  { key: "mediaUuid", option: "--media-uuid <media-uuid>", name: "media_uuid", type: "string", required: false },
+  { key: "deliveryPath", option: "--delivery-path <delivery-path>", name: "delivery_path", type: "string", required: false },
+  { key: "externalUrl", option: "--external-url <external-url>", name: "external_url", type: "string", required: false },
+  { key: "source", option: "--source <source>", name: "source", type: "string", required: false, enum: ["storage","external"] },
+  { key: "storageAssetId", option: "--storage-asset-id <storage-asset-id>", name: "storage_asset_id", type: "string", required: false },
 ];
 products
   .command(`assets-create`)
@@ -483,11 +486,14 @@ products
   .option(`--asset-family-id <asset-family-id>`, ``)
   .option(`--code <code>`, ``)
   .option(`--attribute-values <attribute-values>`, ``)
-  .option(`--media-uuid <media-uuid>`, ``)
+  .option(`--delivery-path <delivery-path>`, ``)
+  .option(`--external-url <external-url>`, ``)
+  .option(`--source <source>`, ``)
+  .option(`--storage-asset-id <storage-asset-id>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { assetFamilyId, code, attributeValues, mediaUuid } = await promptForMissing(
+        const { assetFamilyId, code, attributeValues, deliveryPath, externalUrl, source, storageAssetId } = await promptForMissing(
           _options,
           assetsCreateSpecs,
           _command,
@@ -511,8 +517,17 @@ products
         if (code !== undefined) {
           _payload[`code`] = code;
         }
-        if (mediaUuid !== undefined) {
-          _payload[`media_uuid`] = mediaUuid;
+        if (deliveryPath !== undefined) {
+          _payload[`delivery_path`] = deliveryPath;
+        }
+        if (externalUrl !== undefined) {
+          _payload[`external_url`] = externalUrl;
+        }
+        if (source !== undefined) {
+          _payload[`source`] = source;
+        }
+        if (storageAssetId !== undefined) {
+          _payload[`storage_asset_id`] = storageAssetId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -598,7 +613,10 @@ const assetsUpdateSpecs: PromptSpec[] = [
   { key: "assetFamilyId", option: "--asset-family-id <asset-family-id>", name: "asset_family_id", type: "string", required: false },
   { key: "attributeValues", option: "--attribute-values <attribute-values>", name: "attribute_values", type: "object", required: false },
   { key: "code", option: "--code <code>", name: "code", type: "string", required: false },
-  { key: "mediaUuid", option: "--media-uuid <media-uuid>", name: "media_uuid", type: "string", required: false },
+  { key: "deliveryPath", option: "--delivery-path <delivery-path>", name: "delivery_path", type: "string", required: false },
+  { key: "externalUrl", option: "--external-url <external-url>", name: "external_url", type: "string", required: false },
+  { key: "source", option: "--source <source>", name: "source", type: "string", required: false, enum: ["storage","external"] },
+  { key: "storageAssetId", option: "--storage-asset-id <storage-asset-id>", name: "storage_asset_id", type: "string", required: false },
 ];
 products
   .command(`assets-update`)
@@ -607,11 +625,14 @@ products
   .option(`--asset-family-id <asset-family-id>`, ``)
   .option(`--attribute-values <attribute-values>`, ``)
   .option(`--code <code>`, ``)
-  .option(`--media-uuid <media-uuid>`, ``)
+  .option(`--delivery-path <delivery-path>`, ``)
+  .option(`--external-url <external-url>`, ``)
+  .option(`--source <source>`, ``)
+  .option(`--storage-asset-id <storage-asset-id>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, assetFamilyId, attributeValues, code, mediaUuid } = await promptForMissing(
+        const { id, assetFamilyId, attributeValues, code, deliveryPath, externalUrl, source, storageAssetId } = await promptForMissing(
           _options,
           assetsUpdateSpecs,
           _command,
@@ -635,8 +656,17 @@ products
         if (code !== undefined) {
           _payload[`code`] = code;
         }
-        if (mediaUuid !== undefined) {
-          _payload[`media_uuid`] = mediaUuid;
+        if (deliveryPath !== undefined) {
+          _payload[`delivery_path`] = deliveryPath;
+        }
+        if (externalUrl !== undefined) {
+          _payload[`external_url`] = externalUrl;
+        }
+        if (source !== undefined) {
+          _payload[`source`] = source;
+        }
+        if (storageAssetId !== undefined) {
+          _payload[`storage_asset_id`] = storageAssetId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1894,6 +1924,9 @@ const categoriesCreateSpecs: PromptSpec[] = [
   { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", type: "string", required: false },
   { key: "path", option: "--path <path>", name: "path", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+  { key: "ruleMatch", option: "--rule-match <rule-match>", name: "rule_match", type: "string", required: false, enum: ["all","any"] },
+  { key: "rules", option: "--rules <rules>", name: "rules", type: "object", required: false },
+  { key: "rulesComputedAt", option: "--rules-computed-at <rules-computed-at>", name: "rules_computed_at", type: "string", required: false },
   { key: "values", option: "--values <values>", name: "values", type: "object", required: false },
 ];
 products
@@ -1904,11 +1937,14 @@ products
   .option(`--parent-id <parent-id>`, ``)
   .option(`--path <path>`, ``)
   .option(`--position <position>`, ``, parseInteger)
+  .option(`--rule-match <rule-match>`, ``)
+  .option(`--rules <rules>`, ``)
+  .option(`--rules-computed-at <rules-computed-at>`, ``)
   .option(`--values <values>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, labels, parentId, path, position, values } = await promptForMissing(
+        const { code, labels, parentId, path, position, ruleMatch, rules, rulesComputedAt, values } = await promptForMissing(
           _options,
           categoriesCreateSpecs,
           _command,
@@ -1938,6 +1974,15 @@ products
         if (position !== undefined) {
           _payload[`position`] = position;
         }
+        if (ruleMatch !== undefined) {
+          _payload[`rule_match`] = ruleMatch;
+        }
+        if (rules !== undefined) {
+          _payload[`rules`] = resolveBodyParam(rules);
+        }
+        if (rulesComputedAt !== undefined) {
+          _payload[`rules_computed_at`] = rulesComputedAt;
+        }
         if (values !== undefined) {
           _payload[`values`] = resolveBodyParam(values);
         }
@@ -1955,6 +2000,127 @@ products
     ),
   );
 registerPromptSpecs(products.commands.at(-1)!, categoriesCreateSpecs, { method: "post" });
+const categoriesRulesRecomputeAllSpecs: PromptSpec[] = [
+  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+];
+products
+  .command(`categories-rules-recompute-all`)
+  .description(`Same sync as the single-category recompute, applied to every category with non-null rules. A failing category is reported in its result entry instead of aborting the run.`)
+  .option(`--data <data>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { data } = await promptForMissing(
+          _options,
+          categoriesRulesRecomputeAllSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/categories/rules/recompute-all`;
+        const _payload: RequestParams = {};
+        if (data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(products.commands.at(-1)!, categoriesRulesRecomputeAllSpecs, { method: "post" });
+const categoriesRulesPreviewSpecs: PromptSpec[] = [
+  { key: "categoryId", option: "--category-id <category-id>", name: "category_id", type: "string", required: true, resource: { listPath: "/products/categories", hasLimit: true } },
+  { key: "conditions", option: "--conditions [conditions...]", name: "conditions", description: "At most 25 conditions.", type: "array", required: true },
+  { key: "ruleMatch", option: "--rule-match <rule-match>", name: "rule_match", description: "'all' ANDs every condition (default), 'any' ORs them.", type: "string", required: false, enum: ["all","any"] },
+];
+products
+  .command(`categories-rules-preview`)
+  .description(`Evaluates the rule in the request body against the live catalog WITHOUT touching product_categories — this powers the cockpit's "matches N products" preview while an operator edits a rule. Soft-deleted products are excluded. Counting is delegated to the database, never enumerated: a rule that compiles to a single query is answered by one exact-count request whatever its match set. A rule that needs several queries (rule_match "any", or a repeated column such as a range) is combined in the app and stops at \`cap\` ids — check \`capped\` before showing \`count\` as a total.`)
+  .option(`--category-id <category-id>`, ``)
+  .option(`--conditions [conditions...]`, `At most 25 conditions.`)
+  .option(`--rule-match <rule-match>`, `'all' ANDs every condition (default), 'any' ORs them.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { categoryId, conditions, ruleMatch } = await promptForMissing(
+          _options,
+          categoriesRulesPreviewSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/categories/{category_id}/rules/preview`.replace(`{category_id}`, categoryId);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (conditions !== undefined) {
+          _payload[`conditions`] = conditions;
+        }
+        if (ruleMatch !== undefined) {
+          _payload[`rule_match`] = ruleMatch;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(products.commands.at(-1)!, categoriesRulesPreviewSpecs, { method: "post" });
+const categoriesRulesRecomputeSpecs: PromptSpec[] = [
+  { key: "categoryId", option: "--category-id <category-id>", name: "category_id", type: "string", required: true, resource: { listPath: "/products/categories", hasLimit: true } },
+  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+];
+products
+  .command(`categories-rules-recompute`)
+  .description(`Evaluates categories.rules (NOT the request body), then inserts the newly matching products as source='rule' rows and deletes the rule rows that no longer match. Manual (source='manual') memberships are never inserted, deleted or shadowed. Stamps categories.rules_computed_at. Answers 400 when the category carries no rules.`)
+  .option(`--category-id <category-id>`, ``)
+  .option(`--data <data>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { categoryId, data } = await promptForMissing(
+          _options,
+          categoriesRulesRecomputeSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/categories/{category_id}/rules/recompute`.replace(`{category_id}`, categoryId);
+        const _payload: RequestParams = {};
+        if (data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(products.commands.at(-1)!, categoriesRulesRecomputeSpecs, { method: "post" });
 const categoriesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products/categories", hasLimit: true } },
 ];
@@ -2027,6 +2193,9 @@ const categoriesUpdateSpecs: PromptSpec[] = [
   { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", type: "string", required: false },
   { key: "path", option: "--path <path>", name: "path", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+  { key: "ruleMatch", option: "--rule-match <rule-match>", name: "rule_match", type: "string", required: false, enum: ["all","any"] },
+  { key: "rules", option: "--rules <rules>", name: "rules", type: "object", required: false },
+  { key: "rulesComputedAt", option: "--rules-computed-at <rules-computed-at>", name: "rules_computed_at", type: "string", required: false },
   { key: "values", option: "--values <values>", name: "values", type: "object", required: false },
 ];
 products
@@ -2038,11 +2207,14 @@ products
   .option(`--parent-id <parent-id>`, ``)
   .option(`--path <path>`, ``)
   .option(`--position <position>`, ``, parseInteger)
+  .option(`--rule-match <rule-match>`, ``)
+  .option(`--rules <rules>`, ``)
+  .option(`--rules-computed-at <rules-computed-at>`, ``)
   .option(`--values <values>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, labels, parentId, path, position, values } = await promptForMissing(
+        const { id, code, labels, parentId, path, position, ruleMatch, rules, rulesComputedAt, values } = await promptForMissing(
           _options,
           categoriesUpdateSpecs,
           _command,
@@ -2071,6 +2243,15 @@ products
         }
         if (position !== undefined) {
           _payload[`position`] = position;
+        }
+        if (ruleMatch !== undefined) {
+          _payload[`rule_match`] = ruleMatch;
+        }
+        if (rules !== undefined) {
+          _payload[`rules`] = resolveBodyParam(rules);
+        }
+        if (rulesComputedAt !== undefined) {
+          _payload[`rules_computed_at`] = rulesComputedAt;
         }
         if (values !== undefined) {
           _payload[`values`] = resolveBodyParam(values);
@@ -2829,6 +3010,123 @@ products
     ),
   );
 registerPromptSpecs(products.commands.at(-1)!, familyVariantsUpdateSpecs, { method: "put" });
+const gridSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "q", option: "--q <q>", name: "q", description: "Case-insensitive substring of the display name (or the SKU, when there is no name).", type: "string", required: false },
+  { key: "kind", option: "--kind <kind>", name: "kind", description: "Restrict to one product kind.", type: "string", required: false, enum: ["simple","model","variant"] },
+  { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Restrict to enabled or disabled products.", type: "boolean", required: false },
+  { key: "familyId", option: "--family-id <family-id>", name: "family_id", description: "Restrict to one family.", type: "string", required: false },
+];
+products
+  .command(`grid`)
+  .description(`The list a merchant can actually scan. Every row carries its resolved label, its family code and its stored completeness, plus the value of every attribute the catalog marks \`usable_in_grid\`; \`filters\` reports the attributes marked \`is_filterable\`. Both flags are catalog metadata that nothing else reads. \`q\` matches the stored \`label\` column (a generated column that falls back to the SKU), so one filter finds a product by either name or SKU. Soft-deleted products are excluded.`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(`--q <q>`, `Case-insensitive substring of the display name (or the SKU, when there is no name).`)
+  .option(`--kind <kind>`, `Restrict to one product kind.`)
+  .option(
+    `--enabled [value]`,
+    `Restrict to enabled or disabled products.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--family-id <family-id>`, `Restrict to one family.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { limit, offset, order, q, kind, enabled, familyId } = await promptForMissing(
+          _options,
+          gridSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/grid`;
+        const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
+        if (q !== undefined) {
+          _payload[`q`] = q;
+        }
+        if (kind !== undefined) {
+          _payload[`kind`] = kind;
+        }
+        if (enabled !== undefined) {
+          _payload[`enabled`] = enabled;
+        }
+        if (familyId !== undefined) {
+          _payload[`family_id`] = familyId;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(products.commands.at(-1)!, gridSpecs, { method: "get" });
+const labelsSpecs: PromptSpec[] = [
+  { key: "ids", option: "--ids [ids...]", name: "ids", description: "At most 500.", type: "array", required: false },
+  { key: "skus", option: "--skus [skus...]", name: "skus", description: "At most 500.", type: "array", required: false },
+];
+products
+  .command(`labels`)
+  .description(`Reads families.label_attribute (falling back to the default_label_attribute setting) and resolves it through the scoped attribute_values JSONB: common, then locale_specific in the label_locales order, then the channel buckets. Reports WHERE the name was found so a caller can tell a real name from the SKU fallback. Writes nothing.`)
+  .option(`--ids [ids...]`, `At most 500.`)
+  .option(`--skus [skus...]`, `At most 500.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { ids, skus } = await promptForMissing(
+          _options,
+          labelsSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/labels`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (ids !== undefined) {
+          _payload[`ids`] = ids;
+        }
+        if (skus !== undefined) {
+          _payload[`skus`] = skus;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(products.commands.at(-1)!, labelsSpecs, { method: "post" });
 const measurementFamiliesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
@@ -3382,6 +3680,7 @@ const productCategoriesCreateSpecs: PromptSpec[] = [
   { key: "categoryId", option: "--category-id <category-id>", name: "category_id", type: "string", required: true },
   { key: "productId", option: "--product-id <product-id>", name: "product_id", type: "string", required: true },
   { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
+  { key: "source", option: "--source <source>", name: "source", type: "string", required: false, enum: ["manual","rule"] },
 ];
 products
   .command(`product-categories-create`)
@@ -3389,10 +3688,11 @@ products
   .option(`--category-id <category-id>`, ``)
   .option(`--product-id <product-id>`, ``)
   .option(`--position <position>`, ``, parseInteger)
+  .option(`--source <source>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { categoryId, productId, position } = await promptForMissing(
+        const { categoryId, productId, position, source } = await promptForMissing(
           _options,
           productCategoriesCreateSpecs,
           _command,
@@ -3415,6 +3715,9 @@ products
         }
         if (productId !== undefined) {
           _payload[`product_id`] = productId;
+        }
+        if (source !== undefined) {
+          _payload[`source`] = source;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -3500,6 +3803,7 @@ const productCategoriesUpdateSpecs: PromptSpec[] = [
   { key: "categoryId", option: "--category-id <category-id>", name: "category_id", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
   { key: "productId", option: "--product-id <product-id>", name: "product_id", type: "string", required: false },
+  { key: "source", option: "--source <source>", name: "source", type: "string", required: false, enum: ["manual","rule"] },
 ];
 products
   .command(`product-categories-update`)
@@ -3508,10 +3812,11 @@ products
   .option(`--category-id <category-id>`, ``)
   .option(`--position <position>`, ``, parseInteger)
   .option(`--product-id <product-id>`, ``)
+  .option(`--source <source>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, categoryId, position, productId } = await promptForMissing(
+        const { id, categoryId, position, productId, source } = await promptForMissing(
           _options,
           productCategoriesUpdateSpecs,
           _command,
@@ -3534,6 +3839,9 @@ products
         }
         if (productId !== undefined) {
           _payload[`product_id`] = productId;
+        }
+        if (source !== undefined) {
+          _payload[`source`] = source;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -4019,6 +4327,82 @@ products
     ),
   );
 registerPromptSpecs(products.commands.at(-1)!, referenceEntityRecordsUpdateSpecs, { method: "put" });
+const vocabulariesListSpecs: PromptSpec[] = [
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+products
+  .command(`vocabularies-list`)
+  .description(`Index of the vocabularies (enums) this app publishes — names and titles, no values.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { filter } = await promptForMissing(
+          _options,
+          vocabulariesListSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/vocabularies`;
+        const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(products.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
+const vocabulariesGetSpecs: PromptSpec[] = [
+  { key: "name", option: "--name <name>", name: "name", type: "string", required: true, resource: { listPath: "/products/vocabularies", hasLimit: false } },
+];
+products
+  .command(`vocabularies-get`)
+  .description(`The value set is parsed out of the CHECK constraint in schema.json, so what is served IS what is enforced. Labels are curated on top and can only add words and colour — a permitted value nobody labelled still appears, titled from its own key.`)
+  .option(`--name <name>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { name } = await promptForMissing(
+          _options,
+          vocabulariesGetSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/vocabularies/{name}`.replace(`{name}`, name);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(products.commands.at(-1)!, vocabulariesGetSpecs, { method: "get" });
 const deleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products", hasLimit: true } },
 ];
@@ -4092,7 +4476,7 @@ const updateSpecs: PromptSpec[] = [
   { key: "enabled", option: "--enabled <enabled>", name: "enabled", type: "boolean", required: false },
   { key: "familyId", option: "--family-id <family-id>", name: "family_id", type: "string", required: false },
   { key: "familyVariantId", option: "--family-variant-id <family-variant-id>", name: "family_variant_id", type: "string", required: false },
-  { key: "kind", option: "--kind <kind>", name: "kind", type: "string", required: false },
+  { key: "kind", option: "--kind <kind>", name: "kind", type: "string", required: false, enum: ["simple","model","variant"] },
   { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", type: "string", required: false },
   { key: "quantifiedAssociations", option: "--quantified-associations <quantified-associations>", name: "quantified_associations", type: "object", required: false },
   { key: "sku", option: "--sku <sku>", name: "sku", type: "string", required: false },
@@ -4183,3 +4567,138 @@ products
     ),
   );
 registerPromptSpecs(products.commands.at(-1)!, updateSpecs, { method: "put" });
+const categoriesAssignSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products", hasLimit: true } },
+  { key: "categoryId", option: "--category-id <category-id>", name: "category_id", type: "string", required: true },
+  { key: "position", option: "--position <position>", name: "position", description: "Sort order inside the category. Default 0.", type: "integer", required: false },
+];
+products
+  .command(`categories-assign`)
+  .description(`product_categories holds 28 758 rows and had no write surface that named the product it was filing. This takes the product from the route and the category from the body, which is what a bulk 'add the selected products to …' needs. The membership is always source='manual', so a rule recompute never deletes or shadows it. A pair that already exists answers 409 — the unique index on (product_id, category_id) is the guard.`)
+  .option(`--id <id>`, ``)
+  .option(`--category-id <category-id>`, ``)
+  .option(`--position <position>`, `Sort order inside the category. Default 0.`, parseInteger)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, categoryId, position } = await promptForMissing(
+          _options,
+          categoriesAssignSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/{id}/categories`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (categoryId !== undefined) {
+          _payload[`category_id`] = categoryId;
+        }
+        if (position !== undefined) {
+          _payload[`position`] = position;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(products.commands.at(-1)!, categoriesAssignSpecs, { method: "post" });
+const completenessSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products", hasLimit: true } },
+  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+];
+products
+  .command(`completeness`)
+  .description(`products.completeness is jsonb that nothing had ever written. This computes it from family_attributes (is_required) against the product's own scoped attribute_values and stores the result. A product with no family answers 400 rather than an invented 0 % — it has nothing to be measured against.`)
+  .option(`--id <id>`, ``)
+  .option(`--data <data>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, data } = await promptForMissing(
+          _options,
+          completenessSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/{id}/completeness`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(products.commands.at(-1)!, completenessSpecs, { method: "post" });
+const familyAssignSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/products", hasLimit: true } },
+  { key: "familyCode", option: "--family-code <family-code>", name: "family_code", description: "Alternative to family_id.", type: "string", required: false },
+  { key: "familyId", option: "--family-id <family-id>", name: "family_id", type: "string", required: false },
+];
+products
+  .command(`family-assign`)
+  .description(`The step every family-driven surface waits on: a product with no family has no required attributes, so its completeness cannot be computed and its family's label attribute never resolves. Assigning the family recomputes and STORES products.completeness immediately, so the metadata cannot go stale between the two operations.`)
+  .option(`--id <id>`, ``)
+  .option(`--family-code <family-code>`, `Alternative to family_id.`)
+  .option(`--family-id <family-id>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, familyCode, familyId } = await promptForMissing(
+          _options,
+          familyAssignSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/{id}/family`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (familyCode !== undefined) {
+          _payload[`family_code`] = familyCode;
+        }
+        if (familyId !== undefined) {
+          _payload[`family_id`] = familyId;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(products.commands.at(-1)!, familyAssignSpecs, { method: "post" });
