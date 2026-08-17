@@ -33,7 +33,7 @@ export interface GenerateOptions {
   /**
    * Override the Revenexx SDK import source used in generated files.
    * Auto-detected from package.json/deno.json if not provided.
-   * Examples: "node-appwrite", "appwrite"
+   * Examples: "@revenexx/node", "@revenexx/sdk"
    */
   sdkImportSource?: string;
   /**

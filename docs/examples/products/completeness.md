@@ -1,5 +1,5 @@
 ```bash
 revenexx products completeness \
-    --id sample-id \
+    --id '' \
     --data '{ "key": "value" }'
 ```

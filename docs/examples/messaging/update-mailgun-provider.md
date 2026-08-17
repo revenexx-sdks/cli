@@ -1,4 +1,4 @@
 ```bash
 revenexx messaging update-mailgun-provider \
-    --provider-id sample-id
+    --provider-id ''
 ```

@@ -1,6 +1,6 @@
 ```bash
 revenexx apps create \
-    --function-id sample-id \
-    --name Sample name \
+    --function-id '' \
+    --name '' \
     --runtime node-18.0
 ```

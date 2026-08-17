@@ -58,6 +58,13 @@ import { globalConfig } from "../config.js";
 import { resourceChoice, type PromptSpec } from "../interactive.js";
 import { copyToClipboard } from "./clipboard.js";
 import { matchEgg, EggPanel } from "./eggs.js";
+import { bindRunQueue, enqueueRun } from "../watch/run-queue.js";
+import { watchScheduler } from "../watch/scheduler.js";
+import { createTuiNotificationPort, watchPorts } from "../watch/notify.js";
+import { useWatchCounts } from "../watch/use-watchers.js";
+import { WatchPane, WATCH_PANE_HINTS } from "./watch-pane.js";
+import { WatchCreate, WATCH_CREATE_HINTS } from "./watch-create.js";
+import { matchInstantSlash, type SlashContext } from "./slash-commands.js";
 import type { TuiRunner } from "./executor.js";
 
 /** Konami code — completing it toggles the wordmark shimmer (see `useInput`). */
@@ -688,7 +695,7 @@ const DetailPane = ({
             {isGroup ? (
               <Text dimColor>enter to browse its commands</Text>
             ) : item.tuiAction !== undefined ? (
-              <Text dimColor>enter to open the theme picker</Text>
+              <Text dimColor>{TUI_ACTION_HINTS[item.tuiAction]}</Text>
             ) : (
               <>
                 <Text wrap="truncate">
@@ -777,6 +784,42 @@ type RunRecord = {
 /** Cap on retained history rows — a rolling window, newest last. */
 const MAX_HISTORY = 20;
 
+/** What the detail sheet promises for a synthetic (non-runnable) row. */
+const TUI_ACTION_HINTS: Record<
+  NonNullable<CommandLeaf["tuiAction"]>,
+  string
+> = {
+  "theme-picker": "enter to open the theme picker",
+  "watch-create": "enter to set up a background watcher",
+  "watch-list": "enter to open the watchlist",
+};
+
+/** A transient status-bar note. */
+type Notice = {
+  text: string;
+  tone: "success" | "danger" | "warn" | "info";
+  /** How long this one stays up; watcher outcomes earn longer than a copy. */
+  ms: number;
+};
+
+/** Default dwell time, and the shorter one the copy confirmation always had. */
+const NOTICE_MS = 4_000;
+const COPY_NOTICE_MS = 1_600;
+/** A watcher outcome is the only note the user may have walked away from. */
+const WATCH_NOTICE_MS = 8_000;
+
+/** Thunks, not values: the palette is a mutable singleton applyTheme rewrites
+ * in place, so a captured colour would freeze at the startup theme. */
+const NOTICE_COLOR: Record<Notice["tone"], () => string> = {
+  success: () => theme.success,
+  danger: () => theme.danger,
+  warn: () => theme.warn,
+  info: () => theme.accent,
+};
+/** Queue cap. Overflow drops the *newest*, never the head — the head is
+ * on screen with a timer running, and swapping it mid-dwell reads as a glitch. */
+const MAX_NOTICES = 6;
+
 /** Hidden `debug` mode's right-pane readout: live process/render stats plus a
  * scrollback of recent runs (method · command · ok/exit · duration). Replaces
  * the detail sheet while debug is on; toggled by typing `debug` (or `fps`). */
@@ -848,18 +891,26 @@ type KeyHint = [string, string];
 const StatusBar = ({
   hints,
   right,
+  rightColor,
   busy = false,
+  watch,
   debug,
 }: {
   hints: KeyHint[];
   right?: string;
+  /** Tone for a transient note; plain status text stays dim. */
+  rightColor?: string;
   /** Animate a spinner in the bar while a request is in flight. */
   busy?: boolean;
+  /** DX-141 watchlist badge. Its own slot rather than folded into `right`,
+   * which is already a note-over-request-line precedence and would clobber it. */
+  watch?: { active: number; done: number; failed: number };
   /** Hidden `debug` mode: when set, a live HUD (renders/sec, mean paint ms,
    * memory, terminal size) replaces the right label. */
   debug?: DebugStats & { cols: number; rows: number };
 }) => {
   const spinner = useSpinner(busy);
+  const watching = watch !== undefined && watch.active > 0;
   return (
     <Box paddingX={1} justifyContent="space-between" gap={2}>
       <Box gap={2} flexShrink={1} overflow="hidden">
@@ -871,6 +922,17 @@ const StatusBar = ({
           </Text>
         ))}
       </Box>
+      {watching && (
+        <Box flexShrink={0}>
+          <Text>
+            <Text color={theme.accent}>◉ {watch.active}</Text>
+            <Text dimColor> watching</Text>
+            {watch.failed > 0 && (
+              <Text color={theme.danger}> · {watch.failed} failed</Text>
+            )}
+          </Text>
+        </Box>
+      )}
       <Box flexShrink={0}>
         {debug !== undefined ? (
           <Text wrap="truncate">
@@ -883,6 +945,10 @@ const StatusBar = ({
             <Text color={theme.accent}>
               {debug.cols}×{debug.rows}
             </Text>
+          </Text>
+        ) : rightColor !== undefined ? (
+          <Text color={rightColor} wrap="truncate">
+            {right}
           </Text>
         ) : (
           <Text dimColor>{right ?? `${EXECUTABLE_NAME} tui`}</Text>
@@ -1023,17 +1089,79 @@ export const App = ({
    * outright, so a stray key can't drop the session. */
   const [quitting, setQuitting] = useState(false);
   const requestQuit = (): void => setQuitting(true);
-  /** Transient footer note (e.g. "✓ copied command"), auto-cleared. */
-  const [copyNote, setCopyNote] = useState<string | null>(null);
+  /**
+   * Transient footer notes (e.g. "✓ copied command", a watcher completing),
+   * shown one at a time and auto-cleared. A queue rather than a single slot:
+   * several watchers can finish within a second or two of each other, and the
+   * last one must not silently erase the others.
+   */
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const pushNotice = (
+    text: string,
+    tone: Notice["tone"] = "info",
+    ms = NOTICE_MS,
+  ): void =>
+    setNotices((queue) => [...queue, { text, tone, ms }].slice(0, MAX_NOTICES));
+  const notice = notices[0];
   useEffect(() => {
-    if (copyNote === null) return undefined;
-    const timer = setTimeout(() => setCopyNote(null), 1600);
+    if (notice === undefined) return undefined;
+    // Keyed on the head's identity, so queueing behind it doesn't restart the
+    // timer the visible note is already running.
+    const timer = setTimeout(
+      () => setNotices((queue) => queue.slice(1)),
+      notice.ms,
+    );
     return () => clearTimeout(timer);
-  }, [copyNote]);
+  }, [notice]);
   /** Last values a command was run with, keyed by its invocation path — so
    * reopening a command restores what you last typed (ids, filters, paging)
    * instead of a blank form. Session-scoped; never persisted. */
   const lastValues = useRef<Map<string, FormValues>>(new Map());
+
+  /** DX-141 watchlist: which watch surface, if any, owns the right pane. */
+  const [watchView, setWatchView] = useState<"none" | "list" | "create">("none");
+  const watchCounts = useWatchCounts();
+  const slashContext: SlashContext = {
+    requestQuit,
+    toggleDebug: () => setDebug((on) => !on),
+    openWatchCreate: () => setWatchView("create"),
+    openWatchList: () => setWatchView("list"),
+  };
+
+  /**
+   * Bind the run lock to this session's runner. Everything that drives the
+   * commander program — foreground runs and background watcher polls alike —
+   * goes through the queue, because the executor patches process globals and
+   * is not re-entrant (lib/watch/run-queue.ts). Binding here rather than in
+   * runTui keeps the contract with the runner prop, so a directly-rendered
+   * <App> in tests behaves the same as the real session.
+   */
+  useEffect(() => {
+    bindRunQueue(runner ?? null);
+    return () => {
+      // Cancel outstanding watchers and let the in-flight poll land before the
+      // tree goes away — nothing else cleans them up, not even Ctrl-C.
+      void watchScheduler.cancelAll();
+      bindRunQueue(null);
+    };
+  }, [runner]);
+
+  /**
+   * The scheduler holds its ports for the process lifetime, so the port must
+   * not close over a render-scoped setter. Route through a ref that each render
+   * refreshes instead.
+   */
+  const noticeRef = useRef(pushNotice);
+  noticeRef.current = pushNotice;
+  useEffect(
+    () =>
+      watchPorts.attach(
+        createTuiNotificationPort((text, tone) =>
+          noticeRef.current(text, tone, WATCH_NOTICE_MS),
+        ),
+      ),
+    [],
+  );
 
   /** The node the browser is currently inside, walking the drill path
    * (`undefined` at the root). */
@@ -1365,6 +1493,15 @@ export const App = ({
     }
   };
 
+  /** Open the panel behind a synthetic (non-runnable) nav row. */
+  const openTuiAction = (
+    action: NonNullable<CommandLeaf["tuiAction"]>,
+  ): void => {
+    if (action === "theme-picker") openThemePicker();
+    else if (action === "watch-create") setWatchView("create");
+    else setWatchView("list");
+  };
+
   const openThemePicker = (): void => {
     committedTheme.current = theme.name;
     setShowThemePicker(true);
@@ -1409,6 +1546,12 @@ export const App = ({
     }
     if (showThemePicker) {
       // The theme picker owns the keyboard while open (its own useInput).
+      return;
+    }
+    if (watchView !== "none") {
+      // The watchlist pane and the create flow own the keyboard while open
+      // (their own useInput) — without this the browser would also consume
+      // their keys and drill into commands underneath them.
       return;
     }
     if (showHelp) {
@@ -1517,21 +1660,15 @@ export const App = ({
       }
       if (input !== "" && !key.ctrl && !key.meta && !key.tab) {
         const next = currentFilter + input;
-        const word = next.trim().toLowerCase();
-        // Typing "exit" closes the TUI (through the same quit confirmation as
-        // q/esc). `q` can't be typed as a word — it's the back/quit key — so
-        // "exit" is the typed escape hatch.
-        if (word === "exit") {
+        // `/` enters the filter with an empty query, so a slash command is just
+        // a word typed here: `/` + "watch" is `/watch`. The hidden legacy words
+        // (exit, debug, fps) fire the instant they complete and drop back out
+        // of the filter; the visible ones appear as rows and open on Enter.
+        // See lib/tui/slash-commands.ts.
+        const instant = matchInstantSlash(next);
+        if (instant !== undefined) {
           clearFilter();
-          requestQuit();
-          return;
-        }
-        // Hidden `debug` easter egg: typing the word (or the `fps` alias)
-        // toggles the diagnostics HUD + history pane and drops back out of the
-        // filter, so it never lingers as a (missing) search. Undocumented.
-        if (word === "debug" || word === "fps") {
-          setDebug((on) => !on);
-          clearFilter();
+          instant.run(slashContext);
           return;
         }
         applyFilter(next);
@@ -1561,7 +1698,10 @@ export const App = ({
       if (!isGroup && selected.tuiAction === undefined) {
         const runPath = selected.runPath ?? [...navPath, selected.name];
         void copyToClipboard(`${EXECUTABLE_NAME} ${runPath.join(" ")}`).then(
-          (ok) => setCopyNote(ok ? "✓ copied command" : "copy failed"),
+          (ok) =>
+            ok
+              ? pushNotice("✓ copied command", "success", COPY_NOTICE_MS)
+              : pushNotice("copy failed", "danger", COPY_NOTICE_MS),
         );
       }
       return;
@@ -1574,9 +1714,9 @@ export const App = ({
         pushNav(selected.name);
         return;
       }
-      // A synthetic settings action opens its panel instead of running.
-      if (selected.tuiAction === "theme-picker") {
-        openThemePicker();
+      // A synthetic action opens its in-app panel instead of running.
+      if (selected.tuiAction !== undefined) {
+        openTuiAction(selected.tuiAction);
         return;
       }
       openLeaf({
@@ -1613,12 +1753,14 @@ export const App = ({
       0,
     );
     const node = context.commands.find((candidate) => candidate.name === head);
-    // A synthetic action (themes) opens its panel — it isn't a runnable
-    // command, so it never goes through openLeaf.
-    if (entry.leaf.tuiAction === "theme-picker") {
+    // A synthetic action (themes, the watch surfaces) opens its panel — it
+    // isn't a runnable command, so it never goes through openLeaf.
+    if (entry.leaf.tuiAction !== undefined) {
+      // Land the browser on the row first, so closing the panel leaves the
+      // cursor where the search put it.
       setNavPath([]);
       setCursor(rootIndex);
-      openThemePicker();
+      openTuiAction(entry.leaf.tuiAction);
       return;
     }
     if (sub === undefined) {
@@ -1706,7 +1848,11 @@ export const App = ({
     setConfirming(false);
     setFocusPane("results");
     setRun({ status: "running", commandLine });
-    void runner(tokens, { force }).then((result) => {
+    // Through the run lock, not straight at the runner: background watcher
+    // polls drive the same non-re-entrant executor, and two overlapping calls
+    // corrupt each other's output capture (see lib/watch/run-queue.ts).
+    // "foreground" jumps the queue ahead of any pending polls.
+    void enqueueRun(tokens, { force, priority: "foreground" }).then((result) => {
       // Log every completed run for the debug pane (before the stale-run guard:
       // a superseded run still executed and its timing is real).
       setHistory((log) =>
@@ -1769,6 +1915,10 @@ export const App = ({
         ["y", "quit"],
         ["n", "stay"],
       ]
+    : watchView === "list"
+    ? WATCH_PANE_HINTS
+    : watchView === "create"
+    ? WATCH_CREATE_HINTS
     : showHelp
     ? [["any key", "close"]]
     : showThemePicker
@@ -1939,6 +2089,21 @@ export const App = ({
             onPreview={previewTheme}
             onKeep={keepTheme}
             onCancel={cancelTheme}
+          />
+        ) : watchView === "list" ? (
+          <WatchPane
+            width={detailWidth}
+            onClose={() => setWatchView("none")}
+          />
+        ) : watchView === "create" ? (
+          <WatchCreate
+            commands={context.commands}
+            width={detailWidth}
+            onClose={() => setWatchView("none")}
+            onNotice={(text, tone) => pushNotice(text, tone, WATCH_NOTICE_MS)}
+            {...(loadResourceRecords === undefined
+              ? {}
+              : { loadResourceRecords })}
           />
         ) : showHelp ? (
           <HelpPanel width={detailWidth} />
@@ -2151,8 +2316,12 @@ export const App = ({
                 ["", "· or any key to begin"],
               ]
         }
-        right={copyNote ?? statusRight}
+        right={notice?.text ?? statusRight}
+        {...(notice === undefined
+          ? {}
+          : { rightColor: NOTICE_COLOR[notice.tone]() })}
         busy={run?.status === "running"}
+        watch={watchCounts}
         debug={
           debug ? { ...debugStats, cols: columns, rows } : undefined
         }

@@ -11,6 +11,11 @@ import {
 import { EXECUTABLE_NAME } from "../constants.js";
 import { tokenize, resolveAliases } from "../alias.js";
 import { getErrorMessage } from "../utils.js";
+import { createRunner } from "../tui/executor.js";
+import { bindRunQueue, withRunLock } from "../watch/run-queue.js";
+import { createReplNotificationPort, watchPorts } from "../watch/notify.js";
+import { watchScheduler } from "../watch/scheduler.js";
+import { beginWatchSession, endWatchSession } from "../watch/session.js";
 import type { CliConfig } from "../types.js";
 
 const EXIT_WORDS = new Set(["exit", "quit", ".exit", "q"]);
@@ -18,6 +23,20 @@ const HELP_WORDS = new Set(["help", "?", ".help"]);
 
 /** How many lines of in-session command history the up-arrow can walk back. */
 const HISTORY_SIZE = 1000;
+
+/**
+ * The reader currently parked on a prompt, if any. Only one is ever alive (see
+ * askLine), and a background watcher completing (DX-141) needs it: it prints
+ * its notice over the prompt row and then has to repaint the prompt, or the
+ * user is left apparently prompt-less until the next keystroke.
+ */
+let activeReader: readline.Interface | null = null;
+
+/** Clear the prompt row, then let readline repaint prompt + buffer. Node's
+ * `question()` sets the prompt to the query, so prompt(true) restores it. */
+const redrawPrompt = (): void => {
+  activeReader?.prompt(true);
+};
 
 /**
  * Sentinel thrown by the process.exit stub below. A command's error handler
@@ -111,24 +130,31 @@ const runLine = async (
   const tokens = argv.slice(2);
   if (tokens.length === 0) return;
 
-  const originalExit = process.exit.bind(process);
-  process.exit = ((code?: number): never => {
-    throw new ReplExit(String(code ?? 0));
-  }) as typeof process.exit;
+  // Under the shared run lock: a background watcher poll (DX-141) drives the
+  // same program through lib/tui/executor.ts, which patches process.exit, both
+  // stream writes and every console method. Interleaving that with the patch
+  // below would leave each side restoring the other's globals. "foreground"
+  // puts the typed line ahead of any queued polls.
+  await withRunLock(async () => {
+    const originalExit = process.exit.bind(process);
+    process.exit = ((code?: number): never => {
+      throw new ReplExit(String(code ?? 0));
+    }) as typeof process.exit;
 
-  try {
-    await program.parseAsync(tokens, { from: "user" });
-  } catch (err) {
-    if (err instanceof ReplExit) {
-      // A command already reported its own failure before "exiting".
-    } else if (isCommanderNotice(err)) {
-      // Help/version/unknown-command notices are already on screen.
-    } else {
-      error(getErrorMessage(err));
+    try {
+      await program.parseAsync(tokens, { from: "user" });
+    } catch (err) {
+      if (err instanceof ReplExit) {
+        // A command already reported its own failure before "exiting".
+      } else if (isCommanderNotice(err)) {
+        // Help/version/unknown-command notices are already on screen.
+      } else {
+        error(getErrorMessage(err));
+      }
+    } finally {
+      process.exit = originalExit;
     }
-  } finally {
-    process.exit = originalExit;
-  }
+  }, "foreground");
 };
 
 /**
@@ -156,10 +182,12 @@ const askLine = (
       history: [...history],
       historySize: HISTORY_SIZE,
     });
+    activeReader = rl;
     let settled = false;
     const finish = (value: string | null): void => {
       if (settled) return;
       settled = true;
+      activeReader = null;
       rl.close();
       resolve(value);
     };
@@ -195,32 +223,49 @@ const runRepl = async (program: Command): Promise<void> => {
     `Interactive shell — type a command, ${chalk.cyan("help")}, or ${chalk.cyan("exit")}. Tab completes command names.`,
   );
 
-  const prompt = chalk.cyan(`${EXECUTABLE_NAME}> `);
-  // Session command history, newest-first (readline's ↑ order). Seeds each
-  // per-line reader; lives only for the session (not persisted to disk).
-  const history: string[] = [];
-  for (;;) {
-    const line = await askLine(program, prompt, history);
-    if (line === null) {
-      // Ctrl-D / EOF.
-      process.stdout.write("\n");
-      break;
+  // DX-141: watchers registered with `watch add` live for this session and poll
+  // through the same program, so the queue needs its runner and completions
+  // need somewhere to print. Both are torn down in the finally below.
+  bindRunQueue(createRunner(program));
+  const detachPort = watchPorts.attach(
+    createReplNotificationPort(redrawPrompt),
+  );
+  beginWatchSession();
+  try {
+    const prompt = chalk.cyan(`${EXECUTABLE_NAME}> `);
+    // Session command history, newest-first (readline's ↑ order). Seeds each
+    // per-line reader; lives only for the session (not persisted to disk).
+    const history: string[] = [];
+    for (;;) {
+      const line = await askLine(program, prompt, history);
+      if (line === null) {
+        // Ctrl-D / EOF.
+        process.stdout.write("\n");
+        break;
+      }
+      const trimmed = line.trim();
+      if (trimmed === "") continue;
+      // Record for ↑ recall before acting on it: newest-first, collapsing an
+      // immediate repeat of the last command, capped at HISTORY_SIZE.
+      if (history[0] !== trimmed) {
+        history.unshift(trimmed);
+        if (history.length > HISTORY_SIZE) history.length = HISTORY_SIZE;
+      }
+      if (EXIT_WORDS.has(trimmed)) break;
+      if (HELP_WORDS.has(trimmed)) {
+        program.outputHelp();
+        continue;
+      }
+      // The reader is now closed, so the command may prompt for missing args.
+      await runLine(program, trimmed, baseline);
     }
-    const trimmed = line.trim();
-    if (trimmed === "") continue;
-    // Record for ↑ recall before acting on it: newest-first, collapsing an
-    // immediate repeat of the last command, capped at HISTORY_SIZE.
-    if (history[0] !== trimmed) {
-      history.unshift(trimmed);
-      if (history.length > HISTORY_SIZE) history.length = HISTORY_SIZE;
-    }
-    if (EXIT_WORDS.has(trimmed)) break;
-    if (HELP_WORDS.has(trimmed)) {
-      program.outputHelp();
-      continue;
-    }
-    // The reader is now closed, so the command may prompt for missing args.
-    await runLine(program, trimmed, baseline);
+  } finally {
+    // Watchers are session-scoped: leaving the shell stops them, and the
+    // in-flight poll is awaited so nothing prints after the prompt is gone.
+    endWatchSession();
+    await watchScheduler.cancelAll();
+    detachPort();
+    bindRunQueue(null);
   }
 
   // Leave stdin in a clean, non-blocking state so the process can exit.

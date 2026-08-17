@@ -1,5 +1,5 @@
 ```bash
 revenexx prices entries-replace \
-    --list-id sample-id \
+    --list-id '' \
     --entries one two three
 ```

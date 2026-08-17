@@ -28,7 +28,7 @@ export const apps = new Command("apps")
   });
 
 const listSpecs: PromptSpec[] = [
-  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, enabled, runtime, deploymentId, schedule, scheduleNext, schedulePrevious, timeout, entrypoint, commands, installationId", type: "array", required: false },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Result filters, paging and ordering. Repeat the parameter once per query — `?queries=…&queries=…` — and make each value a JSON object, e.g. `{\"method\":\"limit\",\"values\":[25]}`. The bracketed spellings `queries[]=` and `queries[0]=` are accepted too; the `limit(25)` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides `$id`, `$createdAt`, `$updatedAt` and `$sequence`: name, enabled, runtime, deploymentId, schedule, scheduleNext, schedulePrevious, timeout, entrypoint, commands, installationId", type: "array", required: false },
   { key: "search", option: "--search <search>", name: "search", description: "Search term to filter your list results. Max length: 256 chars.", type: "string", required: false },
   { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -36,7 +36,7 @@ const listSpecs: PromptSpec[] = [
 apps
   .command(`list`)
   .description(`List all Apps in the active project. Pass \`search\` to filter by name.`)
-  .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, enabled, runtime, deploymentId, schedule, scheduleNext, schedulePrevious, timeout, entrypoint, commands, installationId`)
+  .option(`--queries [queries...]`, `Result filters, paging and ordering. Repeat the parameter once per query — \`?queries=…&queries=…\` — and make each value a JSON object, e.g. \`{"method":"limit","values":[25]}\`. The bracketed spellings \`queries[]=\` and \`queries[0]=\` are accepted too; the \`limit(25)\` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides \`\$id\`, \`\$createdAt\`, \`\$updatedAt\` and \`\$sequence\`: name, enabled, runtime, deploymentId, schedule, scheduleNext, schedulePrevious, timeout, entrypoint, commands, installationId`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
   .option(
     `--total [value]`,
@@ -99,8 +99,8 @@ const createSpecs: PromptSpec[] = [
   { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Is function enabled? When set to 'disabled', users cannot access the function but Server SDKs with and API key can still access the function. No data is lost when this is toggled.", type: "boolean", required: false },
   { key: "entrypoint", option: "--entrypoint <entrypoint>", name: "entrypoint", description: "Entrypoint File. This path is relative to the \"providerRootDirectory\".", type: "string", required: false },
   { key: "events", option: "--events [events...]", name: "events", description: "Events list. Maximum of 100 events are allowed.", type: "array", required: false },
-  { key: "execute", option: "--execute [execute...]", name: "execute", description: "An array of role strings with execution permissions. By default no user is granted with any execute permissions. [learn more about roles](https://appwrite.io/docs/permissions#permission-roles). Maximum of 100 roles are allowed, each 64 characters long.", type: "array", required: false },
-  { key: "installationId", option: "--installation-id <installation-id>", name: "installationId", description: "Appwrite Installation ID for VCS (Version Control System) deployment.", type: "string", required: false },
+  { key: "execute", option: "--execute [execute...]", name: "execute", description: "An array of role strings with execution permissions. By default no user is granted with any execute permissions. Roles take the form `any`, `guests`, `users`, `user:<id>`, `team:<id>`, `member:<id>` or `label:<name>`, some of them with a `/<dimension>` suffix such as `users/verified` or `team:<id>/owner`. At most 100 entries. See “Role strings” in this document's introduction.", type: "array", required: false },
+  { key: "installationId", option: "--installation-id <installation-id>", name: "installationId", description: "Installation ID of the platform's VCS (Version Control System) integration to deploy from.", type: "string", required: false },
   { key: "logging", option: "--logging <logging>", name: "logging", description: "When disabled, executions will exclude logs and errors, and will be slightly faster.", type: "boolean", required: false },
   { key: "providerBranch", option: "--provider-branch <provider-branch>", name: "providerBranch", description: "Production branch for the repo linked to the function.", type: "string", required: false },
   { key: "providerRepositoryId", option: "--provider-repository-id <provider-repository-id>", name: "providerRepositoryId", description: "Repository ID of the repo linked to the function.", type: "string", required: false },
@@ -128,8 +128,8 @@ Phase 1 mirrors the underlying Functions runtime 1:1; future phases will add man
   )
   .option(`--entrypoint <entrypoint>`, `Entrypoint File. This path is relative to the "providerRootDirectory".`)
   .option(`--events [events...]`, `Events list. Maximum of 100 events are allowed.`)
-  .option(`--execute [execute...]`, `An array of role strings with execution permissions. By default no user is granted with any execute permissions. [learn more about roles](https://appwrite.io/docs/permissions#permission-roles). Maximum of 100 roles are allowed, each 64 characters long.`)
-  .option(`--installation-id <installation-id>`, `Appwrite Installation ID for VCS (Version Control System) deployment.`)
+  .option(`--execute [execute...]`, `An array of role strings with execution permissions. By default no user is granted with any execute permissions. Roles take the form \`any\`, \`guests\`, \`users\`, \`user:<id>\`, \`team:<id>\`, \`member:<id>\` or \`label:<name>\`, some of them with a \`/<dimension>\` suffix such as \`users/verified\` or \`team:<id>/owner\`. At most 100 entries. See “Role strings” in this document's introduction.`)
+  .option(`--installation-id <installation-id>`, `Installation ID of the platform's VCS (Version Control System) integration to deploy from.`)
   .option(
     `--logging [value]`,
     `When disabled, executions will exclude logs and errors, and will be slightly faster.`,
@@ -656,8 +656,8 @@ const updateSpecs: PromptSpec[] = [
   { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Is function enabled? When set to 'disabled', users cannot access the function but Server SDKs with and API key can still access the function. No data is lost when this is toggled.", type: "boolean", required: false },
   { key: "entrypoint", option: "--entrypoint <entrypoint>", name: "entrypoint", description: "Entrypoint File. This path is relative to the \"providerRootDirectory\".", type: "string", required: false },
   { key: "events", option: "--events [events...]", name: "events", description: "Events list. Maximum of 100 events are allowed.", type: "array", required: false },
-  { key: "execute", option: "--execute [execute...]", name: "execute", description: "An array of role strings with execution permissions. By default no user is granted with any execute permissions. [learn more about roles](https://appwrite.io/docs/permissions#permission-roles). Maximum of 100 roles are allowed, each 64 characters long.", type: "array", required: false },
-  { key: "installationId", option: "--installation-id <installation-id>", name: "installationId", description: "Appwrite Installation ID for VCS (Version Controle System) deployment.", type: "string", required: false },
+  { key: "execute", option: "--execute [execute...]", name: "execute", description: "An array of role strings with execution permissions. By default no user is granted with any execute permissions. Roles take the form `any`, `guests`, `users`, `user:<id>`, `team:<id>`, `member:<id>` or `label:<name>`, some of them with a `/<dimension>` suffix such as `users/verified` or `team:<id>/owner`. At most 100 entries. See “Role strings” in this document's introduction.", type: "array", required: false },
+  { key: "installationId", option: "--installation-id <installation-id>", name: "installationId", description: "Installation ID of the platform's VCS (Version Control System) integration to deploy from.", type: "string", required: false },
   { key: "logging", option: "--logging <logging>", name: "logging", description: "When disabled, executions will exclude logs and errors, and will be slightly faster.", type: "boolean", required: false },
   { key: "providerBranch", option: "--provider-branch <provider-branch>", name: "providerBranch", description: "Production branch for the repo linked to the function", type: "string", required: false },
   { key: "providerRepositoryId", option: "--provider-repository-id <provider-repository-id>", name: "providerRepositoryId", description: "Repository ID of the repo linked to the function", type: "string", required: false },
@@ -683,8 +683,8 @@ apps
   )
   .option(`--entrypoint <entrypoint>`, `Entrypoint File. This path is relative to the "providerRootDirectory".`)
   .option(`--events [events...]`, `Events list. Maximum of 100 events are allowed.`)
-  .option(`--execute [execute...]`, `An array of role strings with execution permissions. By default no user is granted with any execute permissions. [learn more about roles](https://appwrite.io/docs/permissions#permission-roles). Maximum of 100 roles are allowed, each 64 characters long.`)
-  .option(`--installation-id <installation-id>`, `Appwrite Installation ID for VCS (Version Controle System) deployment.`)
+  .option(`--execute [execute...]`, `An array of role strings with execution permissions. By default no user is granted with any execute permissions. Roles take the form \`any\`, \`guests\`, \`users\`, \`user:<id>\`, \`team:<id>\`, \`member:<id>\` or \`label:<name>\`, some of them with a \`/<dimension>\` suffix such as \`users/verified\` or \`team:<id>/owner\`. At most 100 entries. See “Role strings” in this document's introduction.`)
+  .option(`--installation-id <installation-id>`, `Installation ID of the platform's VCS (Version Control System) integration to deploy from.`)
   .option(
     `--logging [value]`,
     `When disabled, executions will exclude logs and errors, and will be slightly faster.`,
@@ -834,7 +834,7 @@ apps
 registerPromptSpecs(apps.commands.at(-1)!, updateDeploymentSpecs, { method: "patch" });
 const listDeploymentsSpecs: PromptSpec[] = [
   { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false, search: true } },
-  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: buildSize, sourceSize, totalSize, buildDuration, status, activate, type", type: "array", required: false },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Result filters, paging and ordering. Repeat the parameter once per query — `?queries=…&queries=…` — and make each value a JSON object, e.g. `{\"method\":\"limit\",\"values\":[25]}`. The bracketed spellings `queries[]=` and `queries[0]=` are accepted too; the `limit(25)` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides `$id`, `$createdAt`, `$updatedAt` and `$sequence`: buildSize, sourceSize, totalSize, buildDuration, status, activate, type", type: "array", required: false },
   { key: "search", option: "--search <search>", name: "search", description: "Search term to filter your list results. Max length: 256 chars.", type: "string", required: false },
   { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -843,7 +843,7 @@ apps
   .command(`list-deployments`)
   .description(`List the deployment history of an App.`)
   .option(`--function-id <function-id>`, `Function ID.`)
-  .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: buildSize, sourceSize, totalSize, buildDuration, status, activate, type`)
+  .option(`--queries [queries...]`, `Result filters, paging and ordering. Repeat the parameter once per query — \`?queries=…&queries=…\` — and make each value a JSON object, e.g. \`{"method":"limit","values":[25]}\`. The bracketed spellings \`queries[]=\` and \`queries[0]=\` are accepted too; the \`limit(25)\` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides \`\$id\`, \`\$createdAt\`, \`\$updatedAt\` and \`\$sequence\`: buildSize, sourceSize, totalSize, buildDuration, status, activate, type`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
   .option(
     `--total [value]`,
@@ -901,7 +901,7 @@ registerPromptSpecs(apps.commands.at(-1)!, listDeploymentsSpecs, { method: "get"
 const createDeploymentSpecs: PromptSpec[] = [
   { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false, search: true } },
   { key: "activate", option: "--activate <activate>", name: "activate", description: "Automatically activate the deployment when it is finished building.", type: "boolean", required: true },
-  { key: "code", option: "--code <code>", name: "code", description: "Gzip file with your code package. When used with the Appwrite CLI, pass the path to your code directory, and the CLI will automatically package your code. Use a path that is within the current directory.", type: "file", required: true },
+  { key: "code", option: "--code <code>", name: "code", description: "Your source directory packaged as a gzipped tar archive (`.tar.gz`), sent as the file part of the multipart request.", type: "file", required: true },
   { key: "commands", option: "--commands <commands>", name: "commands", description: "Build Commands.", type: "string", required: false },
   { key: "entrypoint", option: "--entrypoint <entrypoint>", name: "entrypoint", description: "Entrypoint File.", type: "string", required: false },
 ];
@@ -913,7 +913,7 @@ manifest from this archive and validate it against the App
 Registry before kicking off the build.`)
   .option(`--function-id <function-id>`, `Function ID.`)
   .option(`--activate <activate>`, `Automatically activate the deployment when it is finished building.`, parseBool)
-  .option(`--code <code>`, `Gzip file with your code package. When used with the Appwrite CLI, pass the path to your code directory, and the CLI will automatically package your code. Use a path that is within the current directory.`)
+  .option(`--code <code>`, `Your source directory packaged as a gzipped tar archive (\`.tar.gz\`), sent as the file part of the multipart request.`)
   .option(`--commands <commands>`, `Build Commands.`)
   .option(`--entrypoint <entrypoint>`, `Entrypoint File.`)
   .action(
@@ -1286,7 +1286,7 @@ apps
 registerPromptSpecs(apps.commands.at(-1)!, updateDeploymentStatusSpecs, { method: "patch" });
 const listExecutionsSpecs: PromptSpec[] = [
   { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false, search: true } },
-  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: trigger, status, responseStatusCode, duration, requestMethod, requestPath, deploymentId", type: "array", required: false },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Result filters, paging and ordering. Repeat the parameter once per query — `?queries=…&queries=…` — and make each value a JSON object, e.g. `{\"method\":\"limit\",\"values\":[25]}`. The bracketed spellings `queries[]=` and `queries[0]=` are accepted too; the `limit(25)` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides `$id`, `$createdAt`, `$updatedAt` and `$sequence`: trigger, status, responseStatusCode, duration, requestMethod, requestPath, deploymentId", type: "array", required: false },
   { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
@@ -1294,7 +1294,7 @@ apps
   .command(`list-executions`)
   .description(`List the execution history of an App.`)
   .option(`--function-id <function-id>`, `Function ID.`)
-  .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: trigger, status, responseStatusCode, duration, requestMethod, requestPath, deploymentId`)
+  .option(`--queries [queries...]`, `Result filters, paging and ordering. Repeat the parameter once per query — \`?queries=…&queries=…\` — and make each value a JSON object, e.g. \`{"method":"limit","values":[25]}\`. The bracketed spellings \`queries[]=\` and \`queries[0]=\` are accepted too; the \`limit(25)\` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides \`\$id\`, \`\$createdAt\`, \`\$updatedAt\` and \`\$sequence\`: trigger, status, responseStatusCode, duration, requestMethod, requestPath, deploymentId`)
   .option(
     `--total [value]`,
     `When set to false, the total count returned will be 0 and will not be calculated.`,

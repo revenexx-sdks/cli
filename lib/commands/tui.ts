@@ -7,6 +7,8 @@ import {
 } from "../interactive.js";
 import { EXECUTABLE_NAME } from "../constants.js";
 import { listResource, owningList } from "../tui/command-tree.js";
+import { slashNavEntries } from "../tui/slash-commands.js";
+import { beginWatchSession, endWatchSession } from "../watch/session.js";
 
 const SECRET_RE = /password|secret|token|api[-_]?key/i;
 
@@ -18,6 +20,10 @@ const SECRET_RE = /password|secret|token|api[-_]?key/i;
 const TUI_HIDDEN_COMMANDS = new Set([
   "tui",
   "repl",
+  // Reachable in-app as `/watch` and `/watchlist`, which is a far better path
+  // than browsing to `watch › add` and filling a generated form — and
+  // `watch list` has nothing a results table can render.
+  "watch",
   "update",
   "generate",
   "types",
@@ -218,6 +224,13 @@ export const tui = new Command("tui")
       ];
       const browseCommands = [
         ...commands.filter((node) => node.name !== "alias"),
+        // The watchlist surfaces (DX-141). Synthetic nav rows derived from the
+        // slash-command registry, so `watch` and `watchlist` are browsable and
+        // searchable rather than only reachable by typing the word. The real
+        // `watch` command stays hidden (TUI_HIDDEN_COMMANDS): browsing to
+        // `watch › add` and filling a generated form is a worse path than the
+        // guided flow these open.
+        ...slashNavEntries(),
         ...configMembers,
       ];
 
@@ -230,10 +243,17 @@ export const tui = new Command("tui")
           import("../tui/executor.js"),
         ]);
       const program = tui.parent;
-      await runTui(
-        buildTuiContext(browseCommands),
-        program === null ? undefined : createRunner(program),
-        options.theme,
-      );
+      // The TUI is a session, so `watch add` typed into it (or driven by the
+      // `/watch` flow) registers a background watcher instead of blocking.
+      beginWatchSession();
+      try {
+        await runTui(
+          buildTuiContext(browseCommands),
+          program === null ? undefined : createRunner(program),
+          options.theme,
+        );
+      } finally {
+        endWatchSession();
+      }
     }),
   );

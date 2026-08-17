@@ -1,5 +1,5 @@
 ```bash
 revenexx orderlists items-replace \
-    --list-id sample-id \
+    --list-id '' \
     --items one two three
 ```

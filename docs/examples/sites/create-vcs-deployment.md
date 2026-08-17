@@ -1,6 +1,6 @@
 ```bash
 revenexx sites create-vcs-deployment \
-    --site-id sample-id \
-    --reference sample reference \
+    --site-id '' \
+    --reference main \
     --type branch
 ```

@@ -28,7 +28,7 @@ export const sites = new Command("sites")
   });
 
 const listSpecs: PromptSpec[] = [
-  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, enabled, framework, deploymentId, buildCommand, installCommand, outputDirectory, installationId", type: "array", required: false },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Result filters, paging and ordering. Repeat the parameter once per query — `?queries=…&queries=…` — and make each value a JSON object, e.g. `{\"method\":\"limit\",\"values\":[25]}`. The bracketed spellings `queries[]=` and `queries[0]=` are accepted too; the `limit(25)` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides `$id`, `$createdAt`, `$updatedAt` and `$sequence`: name, enabled, framework, deploymentId, buildCommand, installCommand, outputDirectory, installationId", type: "array", required: false },
   { key: "search", option: "--search <search>", name: "search", description: "Search term to filter your list results. Max length: 256 chars.", type: "string", required: false },
   { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -36,7 +36,7 @@ const listSpecs: PromptSpec[] = [
 sites
   .command(`list`)
   .description(`Get a list of all the project's sites. You can use the query params to filter your results.`)
-  .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, enabled, framework, deploymentId, buildCommand, installCommand, outputDirectory, installationId`)
+  .option(`--queries [queries...]`, `Result filters, paging and ordering. Repeat the parameter once per query — \`?queries=…&queries=…\` — and make each value a JSON object, e.g. \`{"method":"limit","values":[25]}\`. The bracketed spellings \`queries[]=\` and \`queries[0]=\` are accepted too; the \`limit(25)\` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides \`\$id\`, \`\$createdAt\`, \`\$updatedAt\` and \`\$sequence\`: name, enabled, framework, deploymentId, buildCommand, installCommand, outputDirectory, installationId`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
   .option(
     `--total [value]`,
@@ -101,7 +101,7 @@ const createSpecs: PromptSpec[] = [
   { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Is site enabled? When set to 'disabled', users cannot access the site but Server SDKs with and API key can still access the site. No data is lost when this is toggled.", type: "boolean", required: false },
   { key: "fallbackFile", option: "--fallback-file <fallback-file>", name: "fallbackFile", description: "Fallback file for single page application sites.", type: "string", required: false },
   { key: "installCommand", option: "--install-command <install-command>", name: "installCommand", description: "Install Command.", type: "string", required: false },
-  { key: "installationId", option: "--installation-id <installation-id>", name: "installationId", description: "Appwrite Installation ID for VCS (Version Control System) deployment.", type: "string", required: false },
+  { key: "installationId", option: "--installation-id <installation-id>", name: "installationId", description: "Installation ID of the platform's VCS (Version Control System) integration to deploy from.", type: "string", required: false },
   { key: "logging", option: "--logging <logging>", name: "logging", description: "When disabled, request logs will exclude logs and errors, and site responses will be slightly faster.", type: "boolean", required: false },
   { key: "outputDirectory", option: "--output-directory <output-directory>", name: "outputDirectory", description: "Output Directory for site.", type: "string", required: false },
   { key: "providerBranch", option: "--provider-branch <provider-branch>", name: "providerBranch", description: "Production branch for the repo linked to the site.", type: "string", required: false },
@@ -128,7 +128,7 @@ sites
   )
   .option(`--fallback-file <fallback-file>`, `Fallback file for single page application sites.`)
   .option(`--install-command <install-command>`, `Install Command.`)
-  .option(`--installation-id <installation-id>`, `Appwrite Installation ID for VCS (Version Control System) deployment.`)
+  .option(`--installation-id <installation-id>`, `Installation ID of the platform's VCS (Version Control System) integration to deploy from.`)
   .option(
     `--logging [value]`,
     `When disabled, request logs will exclude logs and errors, and site responses will be slightly faster.`,
@@ -396,7 +396,7 @@ const updateSpecs: PromptSpec[] = [
   { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Is site enabled? When set to 'disabled', users cannot access the site but Server SDKs with and API key can still access the site. No data is lost when this is toggled.", type: "boolean", required: false },
   { key: "fallbackFile", option: "--fallback-file <fallback-file>", name: "fallbackFile", description: "Fallback file for single page application sites.", type: "string", required: false },
   { key: "installCommand", option: "--install-command <install-command>", name: "installCommand", description: "Install Command.", type: "string", required: false },
-  { key: "installationId", option: "--installation-id <installation-id>", name: "installationId", description: "Appwrite Installation ID for VCS (Version Control System) deployment.", type: "string", required: false },
+  { key: "installationId", option: "--installation-id <installation-id>", name: "installationId", description: "Installation ID of the platform's VCS (Version Control System) integration to deploy from.", type: "string", required: false },
   { key: "logging", option: "--logging <logging>", name: "logging", description: "When disabled, request logs will exclude logs and errors, and site responses will be slightly faster.", type: "boolean", required: false },
   { key: "outputDirectory", option: "--output-directory <output-directory>", name: "outputDirectory", description: "Output Directory for site.", type: "string", required: false },
   { key: "providerBranch", option: "--provider-branch <provider-branch>", name: "providerBranch", description: "Production branch for the repo linked to the site.", type: "string", required: false },
@@ -423,7 +423,7 @@ sites
   )
   .option(`--fallback-file <fallback-file>`, `Fallback file for single page application sites.`)
   .option(`--install-command <install-command>`, `Install Command.`)
-  .option(`--installation-id <installation-id>`, `Appwrite Installation ID for VCS (Version Control System) deployment.`)
+  .option(`--installation-id <installation-id>`, `Installation ID of the platform's VCS (Version Control System) integration to deploy from.`)
   .option(
     `--logging [value]`,
     `When disabled, request logs will exclude logs and errors, and site responses will be slightly faster.`,
@@ -571,7 +571,7 @@ sites
 registerPromptSpecs(sites.commands.at(-1)!, updateSiteDeploymentSpecs, { method: "patch" });
 const listDeploymentsSpecs: PromptSpec[] = [
   { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
-  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: buildSize, sourceSize, totalSize, buildDuration, status, activate, type", type: "array", required: false },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Result filters, paging and ordering. Repeat the parameter once per query — `?queries=…&queries=…` — and make each value a JSON object, e.g. `{\"method\":\"limit\",\"values\":[25]}`. The bracketed spellings `queries[]=` and `queries[0]=` are accepted too; the `limit(25)` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides `$id`, `$createdAt`, `$updatedAt` and `$sequence`: buildSize, sourceSize, totalSize, buildDuration, status, activate, type", type: "array", required: false },
   { key: "search", option: "--search <search>", name: "search", description: "Search term to filter your list results. Max length: 256 chars.", type: "string", required: false },
   { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -580,7 +580,7 @@ sites
   .command(`list-deployments`)
   .description(`Get a list of all the site's code deployments. You can use the query params to filter your results.`)
   .option(`--site-id <site-id>`, `Site ID.`)
-  .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: buildSize, sourceSize, totalSize, buildDuration, status, activate, type`)
+  .option(`--queries [queries...]`, `Result filters, paging and ordering. Repeat the parameter once per query — \`?queries=…&queries=…\` — and make each value a JSON object, e.g. \`{"method":"limit","values":[25]}\`. The bracketed spellings \`queries[]=\` and \`queries[0]=\` are accepted too; the \`limit(25)\` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides \`\$id\`, \`\$createdAt\`, \`\$updatedAt\` and \`\$sequence\`: buildSize, sourceSize, totalSize, buildDuration, status, activate, type`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
   .option(
     `--total [value]`,
@@ -638,7 +638,7 @@ registerPromptSpecs(sites.commands.at(-1)!, listDeploymentsSpecs, { method: "get
 const createDeploymentSpecs: PromptSpec[] = [
   { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
   { key: "activate", option: "--activate <activate>", name: "activate", description: "Automatically activate the deployment when it is finished building.", type: "boolean", required: true },
-  { key: "code", option: "--code <code>", name: "code", description: "Gzip file with your code package. When used with the Appwrite CLI, pass the path to your code directory, and the CLI will automatically package your code. Use a path that is within the current directory.", type: "file", required: true },
+  { key: "code", option: "--code <code>", name: "code", description: "Your source directory packaged as a gzipped tar archive (`.tar.gz`), sent as the file part of the multipart request.", type: "file", required: true },
   { key: "buildCommand", option: "--build-command <build-command>", name: "buildCommand", description: "Build Commands.", type: "string", required: false },
   { key: "installCommand", option: "--install-command <install-command>", name: "installCommand", description: "Install Commands.", type: "string", required: false },
   { key: "outputDirectory", option: "--output-directory <output-directory>", name: "outputDirectory", description: "Output Directory.", type: "string", required: false },
@@ -648,7 +648,7 @@ sites
   .description(`Create a new site code deployment. Use this endpoint to upload a new version of your site code. To activate your newly uploaded code, you'll need to update the site's deployment to use your new deployment ID.`)
   .option(`--site-id <site-id>`, `Site ID.`)
   .option(`--activate <activate>`, `Automatically activate the deployment when it is finished building.`, parseBool)
-  .option(`--code <code>`, `Gzip file with your code package. When used with the Appwrite CLI, pass the path to your code directory, and the CLI will automatically package your code. Use a path that is within the current directory.`)
+  .option(`--code <code>`, `Your source directory packaged as a gzipped tar archive (\`.tar.gz\`), sent as the file part of the multipart request.`)
   .option(`--build-command <build-command>`, `Build Commands.`)
   .option(`--install-command <install-command>`, `Install Commands.`)
   .option(`--output-directory <output-directory>`, `Output Directory.`)
@@ -756,7 +756,7 @@ sites
   .command(`create-template-deployment`)
   .description(`Create a deployment based on a template.
 
-Use this endpoint with combination of [listTemplates](https://appwrite.io/docs/products/sites/templates) to find the template details.`)
+Unlike app templates, site templates have no listing on this API — that catalogue is the vendor's and is not reproduced here. Take \`repository\`, \`owner\`, \`rootDirectory\` and \`reference\` from wherever the template is published.`)
   .option(`--site-id <site-id>`, `Site ID.`)
   .option(`--owner <owner>`, `The name of the owner of the template.`)
   .option(`--reference <reference>`, `Reference value, can be a commit hash, branch name, or release tag`)
@@ -1024,7 +1024,7 @@ sites
 registerPromptSpecs(sites.commands.at(-1)!, updateDeploymentStatusSpecs, { method: "patch" });
 const listLogsSpecs: PromptSpec[] = [
   { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true, resource: { listPath: "/sites", hasLimit: false, search: true } },
-  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: trigger, status, responseStatusCode, duration, requestMethod, requestPath, deploymentId", type: "array", required: false },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Result filters, paging and ordering. Repeat the parameter once per query — `?queries=…&queries=…` — and make each value a JSON object, e.g. `{\"method\":\"limit\",\"values\":[25]}`. The bracketed spellings `queries[]=` and `queries[0]=` are accepted too; the `limit(25)` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides `$id`, `$createdAt`, `$updatedAt` and `$sequence`: trigger, status, responseStatusCode, duration, requestMethod, requestPath, deploymentId", type: "array", required: false },
   { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
@@ -1032,7 +1032,7 @@ sites
   .command(`list-logs`)
   .description(`Get a list of all site logs. You can use the query params to filter your results.`)
   .option(`--site-id <site-id>`, `Site ID.`)
-  .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: trigger, status, responseStatusCode, duration, requestMethod, requestPath, deploymentId`)
+  .option(`--queries [queries...]`, `Result filters, paging and ordering. Repeat the parameter once per query — \`?queries=…&queries=…\` — and make each value a JSON object, e.g. \`{"method":"limit","values":[25]}\`. The bracketed spellings \`queries[]=\` and \`queries[0]=\` are accepted too; the \`limit(25)\` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides \`\$id\`, \`\$createdAt\`, \`\$updatedAt\` and \`\$sequence\`: trigger, status, responseStatusCode, duration, requestMethod, requestPath, deploymentId`)
   .option(
     `--total [value]`,
     `When set to false, the total count returned will be 0 and will not be calculated.`,

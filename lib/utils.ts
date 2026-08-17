@@ -157,7 +157,7 @@ export function systemHasCommand(command: string): boolean {
 export function isCloud(): boolean {
   const endpoint = globalConfig.getEndpoint() || DEFAULT_ENDPOINT;
   const hostname = new URL(endpoint).hostname;
-  return hostname.endsWith("appwrite.io");
+  return hostname.endsWith("revenexx.com");
 }
 
 export function arrayEqualsUnordered(left: unknown, right: unknown): boolean {

@@ -1,3 +1,6 @@
+## v0.3.0
+- add watchers and watchlist
+
 ## v0.2.1
 - Regenerated from the latest API specification
 

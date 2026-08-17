@@ -1,5 +1,5 @@
 ```bash
 revenexx channels types-create \
-    --code '' \
-    --title Sample title
+    --code feed \
+    --title Product feed
 ```

@@ -993,6 +993,10 @@ export const logo = SDK_LOGO;
 const BANNER_SKIP_COMMANDS = new Set([
   "repl",
   "tui",
+  // Watch bookkeeping (add/list/rm) is process-local, like alias and status —
+  // the polls themselves go through the executor, which suppresses the banner
+  // anyway by forcing --output json before parseAsync.
+  "watch",
   "status",
   "alias",
   "register",
@@ -1119,6 +1123,7 @@ export const commandDescriptions: Record<string, string> = {
   status: `Shows your identity, active tenant/endpoint, token expiry and gateway health at a glance.`,
   repl: `Starts an interactive shell so you can run several commands in one authenticated session.`,
   tui: `Launches the full-screen interactive terminal app.`,
+  watch: `Poll a resource field in the background until it changes or settles.`,
   main: `${chalk.redBright(logo)}${description}`,
 };
 

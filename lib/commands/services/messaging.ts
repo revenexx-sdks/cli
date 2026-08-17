@@ -27,7 +27,7 @@ export const messaging = new Command("messaging")
   });
 
 const listMessagesSpecs: PromptSpec[] = [
-  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: scheduledAt, deliveredAt, deliveredTotal, status, description, providerType", type: "array", required: false },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Result filters, paging and ordering. Repeat the parameter once per query — `?queries=…&queries=…` — and make each value a JSON object, e.g. `{\"method\":\"limit\",\"values\":[25]}`. The bracketed spellings `queries[]=` and `queries[0]=` are accepted too; the `limit(25)` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides `$id`, `$createdAt`, `$updatedAt` and `$sequence`: scheduledAt, deliveredAt, deliveredTotal, status, description, providerType", type: "array", required: false },
   { key: "search", option: "--search <search>", name: "search", description: "Search term to filter your list results. Max length: 256 chars.", type: "string", required: false },
   { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -35,7 +35,7 @@ const listMessagesSpecs: PromptSpec[] = [
 messaging
   .command(`list-messages`)
   .description(`Get a list of all messages from the current Revenexx project.`)
-  .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: scheduledAt, deliveredAt, deliveredTotal, status, description, providerType`)
+  .option(`--queries [queries...]`, `Result filters, paging and ordering. Repeat the parameter once per query — \`?queries=…&queries=…\` — and make each value a JSON object, e.g. \`{"method":"limit","values":[25]}\`. The bracketed spellings \`queries[]=\` and \`queries[0]=\` are accepted too; the \`limit(25)\` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides \`\$id\`, \`\$createdAt\`, \`\$updatedAt\` and \`\$sequence\`: scheduledAt, deliveredAt, deliveredTotal, status, description, providerType`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
   .option(
     `--total [value]`,
@@ -312,7 +312,7 @@ const createPushSpecs: PromptSpec[] = [
   { key: "data", option: "--data <data>", name: "data", description: "Additional key-value pair data for push notification.", type: "object", required: false },
   { key: "draft", option: "--draft <draft>", name: "draft", description: "Is message a draft", type: "boolean", required: false },
   { key: "icon", option: "--icon <icon>", name: "icon", description: "Icon for push notification. Available only for Android and Web Platform.", type: "string", required: false },
-  { key: "image", option: "--image <image>", name: "image", description: "Image for push notification. Must be a compound bucket ID to file ID of a jpeg, png, or bmp image in Appwrite Storage. It should be formatted as <BUCKET_ID>:<FILE_ID>.", type: "string", required: false },
+  { key: "image", option: "--image <image>", name: "image", description: "Image for the push notification, as `<BUCKET_ID>:<FILE_ID>` of a jpeg, png or bmp file in the core file store behind messaging. That store is not `/v1/storage` — `/v1/storage` is the Revenexx media service and its asset ids do not resolve here.", type: "string", required: false },
   { key: "priority", option: "--priority <priority>", name: "priority", description: "Set the notification priority. \"normal\" will consider device state and may not deliver notifications immediately. \"high\" will always attempt to immediately deliver the notification.", type: "string", required: false, enum: ["normal","high"] },
   { key: "scheduledAt", option: "--scheduled-at <scheduled-at>", name: "scheduledAt", description: "Scheduled delivery time for message in [ISO 8601](https://www.iso.org/iso-8601-date-and-time-format.html) format. DateTime value must be in future.", type: "string", required: false },
   { key: "sound", option: "--sound <sound>", name: "sound", description: "Sound for push notification. Available only for Android and iOS Platform.", type: "string", required: false },
@@ -350,7 +350,7 @@ messaging
       value === undefined ? true : parseBool(value),
   )
   .option(`--icon <icon>`, `Icon for push notification. Available only for Android and Web Platform.`)
-  .option(`--image <image>`, `Image for push notification. Must be a compound bucket ID to file ID of a jpeg, png, or bmp image in Appwrite Storage. It should be formatted as <BUCKET_ID>:<FILE_ID>.`)
+  .option(`--image <image>`, `Image for the push notification, as \`<BUCKET_ID>:<FILE_ID>\` of a jpeg, png or bmp file in the core file store behind messaging. That store is not \`/v1/storage\` — \`/v1/storage\` is the Revenexx media service and its asset ids do not resolve here.`)
   .option(`--priority <priority>`, `Set the notification priority. "normal" will consider device state and may not deliver notifications immediately. "high" will always attempt to immediately deliver the notification.`)
   .option(`--scheduled-at <scheduled-at>`, `Scheduled delivery time for message in [ISO 8601](https://www.iso.org/iso-8601-date-and-time-format.html) format. DateTime value must be in future.`)
   .option(`--sound <sound>`, `Sound for push notification. Available only for Android and iOS Platform.`)
@@ -459,7 +459,7 @@ const updatePushSpecs: PromptSpec[] = [
   { key: "data", option: "--data <data>", name: "data", description: "Additional Data for push notification.", type: "object", required: false },
   { key: "draft", option: "--draft <draft>", name: "draft", description: "Is message a draft", type: "boolean", required: false },
   { key: "icon", option: "--icon <icon>", name: "icon", description: "Icon for push notification. Available only for Android and Web platforms.", type: "string", required: false },
-  { key: "image", option: "--image <image>", name: "image", description: "Image for push notification. Must be a compound bucket ID to file ID of a jpeg, png, or bmp image in Appwrite Storage. It should be formatted as <BUCKET_ID>:<FILE_ID>.", type: "string", required: false },
+  { key: "image", option: "--image <image>", name: "image", description: "Image for the push notification, as `<BUCKET_ID>:<FILE_ID>` of a jpeg, png or bmp file in the core file store behind messaging. That store is not `/v1/storage` — `/v1/storage` is the Revenexx media service and its asset ids do not resolve here.", type: "string", required: false },
   { key: "priority", option: "--priority <priority>", name: "priority", description: "Set the notification priority. \"normal\" will consider device battery state and may send notifications later. \"high\" will always attempt to immediately deliver the notification.", type: "string", required: false, enum: ["normal","high"] },
   { key: "scheduledAt", option: "--scheduled-at <scheduled-at>", name: "scheduledAt", description: "Scheduled delivery time for message in [ISO 8601](https://www.iso.org/iso-8601-date-and-time-format.html) format. DateTime value must be in future.", type: "string", required: false },
   { key: "sound", option: "--sound <sound>", name: "sound", description: "Sound for push notification. Available only for Android and iOS platforms.", type: "string", required: false },
@@ -497,7 +497,7 @@ messaging
       value === undefined ? true : parseBool(value),
   )
   .option(`--icon <icon>`, `Icon for push notification. Available only for Android and Web platforms.`)
-  .option(`--image <image>`, `Image for push notification. Must be a compound bucket ID to file ID of a jpeg, png, or bmp image in Appwrite Storage. It should be formatted as <BUCKET_ID>:<FILE_ID>.`)
+  .option(`--image <image>`, `Image for the push notification, as \`<BUCKET_ID>:<FILE_ID>\` of a jpeg, png or bmp file in the core file store behind messaging. That store is not \`/v1/storage\` — \`/v1/storage\` is the Revenexx media service and its asset ids do not resolve here.`)
   .option(`--priority <priority>`, `Set the notification priority. "normal" will consider device battery state and may send notifications later. "high" will always attempt to immediately deliver the notification.`)
   .option(`--scheduled-at <scheduled-at>`, `Scheduled delivery time for message in [ISO 8601](https://www.iso.org/iso-8601-date-and-time-format.html) format. DateTime value must be in future.`)
   .option(`--sound <sound>`, `Sound for push notification. Available only for Android and iOS platforms.`)
@@ -659,7 +659,7 @@ messaging
 registerPromptSpecs(messaging.commands.at(-1)!, getMessageSpecs, { method: "get" });
 const listMessageLogsSpecs: PromptSpec[] = [
   { key: "messageId", option: "--message-id <message-id>", name: "messageId", description: "Message ID.", type: "string", required: true, resource: { listPath: "/messaging/messages", hasLimit: false, search: true } },
-  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Only supported methods are limit and offset", type: "array", required: false },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Paging only. Repeat the parameter once per query — `?queries=…&queries=…` — and make each value a JSON object, e.g. `{\"method\":\"limit\",\"values\":[25]}`. The bracketed spellings `queries[]=` and `queries[0]=` are accepted too; the `limit(25)` call syntax is not. This operation accepts `limit` and `offset` and rejects every other method, ordering and filters included. See “Query parameters” in this document's introduction.", type: "array", required: false },
   { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
@@ -667,7 +667,7 @@ messaging
   .command(`list-message-logs`)
   .description(`Get the message activity logs listed by its unique ID.`)
   .option(`--message-id <message-id>`, `Message ID.`)
-  .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Only supported methods are limit and offset`)
+  .option(`--queries [queries...]`, `Paging only. Repeat the parameter once per query — \`?queries=…&queries=…\` — and make each value a JSON object, e.g. \`{"method":"limit","values":[25]}\`. The bracketed spellings \`queries[]=\` and \`queries[0]=\` are accepted too; the \`limit(25)\` call syntax is not. This operation accepts \`limit\` and \`offset\` and rejects every other method, ordering and filters included. See “Query parameters” in this document's introduction.`)
   .option(
     `--total [value]`,
     `When set to false, the total count returned will be 0 and will not be calculated.`,
@@ -720,7 +720,7 @@ messaging
 registerPromptSpecs(messaging.commands.at(-1)!, listMessageLogsSpecs, { method: "get" });
 const listTargetsSpecs: PromptSpec[] = [
   { key: "messageId", option: "--message-id <message-id>", name: "messageId", description: "Message ID.", type: "string", required: true, resource: { listPath: "/messaging/messages", hasLimit: false, search: true } },
-  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: userId, providerId, identifier, providerType", type: "array", required: false },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Result filters, paging and ordering. Repeat the parameter once per query — `?queries=…&queries=…` — and make each value a JSON object, e.g. `{\"method\":\"limit\",\"values\":[25]}`. The bracketed spellings `queries[]=` and `queries[0]=` are accepted too; the `limit(25)` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides `$id`, `$createdAt`, `$updatedAt` and `$sequence`: userId, providerId, identifier, providerType", type: "array", required: false },
   { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
@@ -728,7 +728,7 @@ messaging
   .command(`list-targets`)
   .description(`Get a list of the targets associated with a message.`)
   .option(`--message-id <message-id>`, `Message ID.`)
-  .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: userId, providerId, identifier, providerType`)
+  .option(`--queries [queries...]`, `Result filters, paging and ordering. Repeat the parameter once per query — \`?queries=…&queries=…\` — and make each value a JSON object, e.g. \`{"method":"limit","values":[25]}\`. The bracketed spellings \`queries[]=\` and \`queries[0]=\` are accepted too; the \`limit(25)\` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides \`\$id\`, \`\$createdAt\`, \`\$updatedAt\` and \`\$sequence\`: userId, providerId, identifier, providerType`)
   .option(
     `--total [value]`,
     `When set to false, the total count returned will be 0 and will not be calculated.`,
@@ -780,7 +780,7 @@ messaging
   );
 registerPromptSpecs(messaging.commands.at(-1)!, listTargetsSpecs, { method: "get" });
 const listProvidersSpecs: PromptSpec[] = [
-  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, provider, type, enabled", type: "array", required: false },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Result filters, paging and ordering. Repeat the parameter once per query — `?queries=…&queries=…` — and make each value a JSON object, e.g. `{\"method\":\"limit\",\"values\":[25]}`. The bracketed spellings `queries[]=` and `queries[0]=` are accepted too; the `limit(25)` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides `$id`, `$createdAt`, `$updatedAt` and `$sequence`: name, provider, type, enabled", type: "array", required: false },
   { key: "search", option: "--search <search>", name: "search", description: "Search term to filter your list results. Max length: 256 chars.", type: "string", required: false },
   { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -788,7 +788,7 @@ const listProvidersSpecs: PromptSpec[] = [
 messaging
   .command(`list-providers`)
   .description(`Get a list of all providers from the current Revenexx project.`)
-  .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, provider, type, enabled`)
+  .option(`--queries [queries...]`, `Result filters, paging and ordering. Repeat the parameter once per query — \`?queries=…&queries=…\` — and make each value a JSON object, e.g. \`{"method":"limit","values":[25]}\`. The bracketed spellings \`queries[]=\` and \`queries[0]=\` are accepted too; the \`limit(25)\` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides \`\$id\`, \`\$createdAt\`, \`\$updatedAt\` and \`\$sequence\`: name, provider, type, enabled`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
   .option(
     `--total [value]`,
@@ -2128,7 +2128,7 @@ messaging
 registerPromptSpecs(messaging.commands.at(-1)!, getProviderSpecs, { method: "get" });
 const listProviderLogsSpecs: PromptSpec[] = [
   { key: "providerId", option: "--provider-id <provider-id>", name: "providerId", description: "Provider ID.", type: "string", required: true, resource: { listPath: "/messaging/providers", hasLimit: false, search: true } },
-  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Only supported methods are limit and offset", type: "array", required: false },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Paging only. Repeat the parameter once per query — `?queries=…&queries=…` — and make each value a JSON object, e.g. `{\"method\":\"limit\",\"values\":[25]}`. The bracketed spellings `queries[]=` and `queries[0]=` are accepted too; the `limit(25)` call syntax is not. This operation accepts `limit` and `offset` and rejects every other method, ordering and filters included. See “Query parameters” in this document's introduction.", type: "array", required: false },
   { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
@@ -2136,7 +2136,7 @@ messaging
   .command(`list-provider-logs`)
   .description(`Get the provider activity logs listed by its unique ID.`)
   .option(`--provider-id <provider-id>`, `Provider ID.`)
-  .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Only supported methods are limit and offset`)
+  .option(`--queries [queries...]`, `Paging only. Repeat the parameter once per query — \`?queries=…&queries=…\` — and make each value a JSON object, e.g. \`{"method":"limit","values":[25]}\`. The bracketed spellings \`queries[]=\` and \`queries[0]=\` are accepted too; the \`limit(25)\` call syntax is not. This operation accepts \`limit\` and \`offset\` and rejects every other method, ordering and filters included. See “Query parameters” in this document's introduction.`)
   .option(
     `--total [value]`,
     `When set to false, the total count returned will be 0 and will not be calculated.`,
@@ -2189,7 +2189,7 @@ messaging
 registerPromptSpecs(messaging.commands.at(-1)!, listProviderLogsSpecs, { method: "get" });
 const listSubscriberLogsSpecs: PromptSpec[] = [
   { key: "subscriberId", option: "--subscriber-id <subscriber-id>", name: "subscriberId", description: "Subscriber ID.", type: "string", required: true },
-  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Only supported methods are limit and offset", type: "array", required: false },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Paging only. Repeat the parameter once per query — `?queries=…&queries=…` — and make each value a JSON object, e.g. `{\"method\":\"limit\",\"values\":[25]}`. The bracketed spellings `queries[]=` and `queries[0]=` are accepted too; the `limit(25)` call syntax is not. This operation accepts `limit` and `offset` and rejects every other method, ordering and filters included. See “Query parameters” in this document's introduction.", type: "array", required: false },
   { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
@@ -2197,7 +2197,7 @@ messaging
   .command(`list-subscriber-logs`)
   .description(`Get the subscriber activity logs listed by its unique ID.`)
   .option(`--subscriber-id <subscriber-id>`, `Subscriber ID.`)
-  .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Only supported methods are limit and offset`)
+  .option(`--queries [queries...]`, `Paging only. Repeat the parameter once per query — \`?queries=…&queries=…\` — and make each value a JSON object, e.g. \`{"method":"limit","values":[25]}\`. The bracketed spellings \`queries[]=\` and \`queries[0]=\` are accepted too; the \`limit(25)\` call syntax is not. This operation accepts \`limit\` and \`offset\` and rejects every other method, ordering and filters included. See “Query parameters” in this document's introduction.`)
   .option(
     `--total [value]`,
     `When set to false, the total count returned will be 0 and will not be calculated.`,
@@ -2249,7 +2249,7 @@ messaging
   );
 registerPromptSpecs(messaging.commands.at(-1)!, listSubscriberLogsSpecs, { method: "get" });
 const listTopicsSpecs: PromptSpec[] = [
-  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, description, emailTotal, smsTotal, pushTotal", type: "array", required: false },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Result filters, paging and ordering. Repeat the parameter once per query — `?queries=…&queries=…` — and make each value a JSON object, e.g. `{\"method\":\"limit\",\"values\":[25]}`. The bracketed spellings `queries[]=` and `queries[0]=` are accepted too; the `limit(25)` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides `$id`, `$createdAt`, `$updatedAt` and `$sequence`: name, description, emailTotal, smsTotal, pushTotal", type: "array", required: false },
   { key: "search", option: "--search <search>", name: "search", description: "Search term to filter your list results. Max length: 256 chars.", type: "string", required: false },
   { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -2257,7 +2257,7 @@ const listTopicsSpecs: PromptSpec[] = [
 messaging
   .command(`list-topics`)
   .description(`Get a list of all topics from the current Revenexx project.`)
-  .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, description, emailTotal, smsTotal, pushTotal`)
+  .option(`--queries [queries...]`, `Result filters, paging and ordering. Repeat the parameter once per query — \`?queries=…&queries=…\` — and make each value a JSON object, e.g. \`{"method":"limit","values":[25]}\`. The bracketed spellings \`queries[]=\` and \`queries[0]=\` are accepted too; the \`limit(25)\` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides \`\$id\`, \`\$createdAt\`, \`\$updatedAt\` and \`\$sequence\`: name, description, emailTotal, smsTotal, pushTotal`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
   .option(
     `--total [value]`,
@@ -2315,14 +2315,14 @@ registerPromptSpecs(messaging.commands.at(-1)!, listTopicsSpecs, { method: "get"
 const createTopicSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "Topic Name.", type: "string", required: true },
   { key: "topicId", option: "--topic-id <topic-id>", name: "topicId", description: "Topic ID. Choose a custom Topic ID or a new Topic ID.", type: "string", required: true },
-  { key: "subscribe", option: "--subscribe [subscribe...]", name: "subscribe", description: "An array of role strings with subscribe permission. By default all users are granted with any subscribe permission. [learn more about roles](https://appwrite.io/docs/permissions#permission-roles). Maximum of 100 roles are allowed, each 64 characters long.", type: "array", required: false },
+  { key: "subscribe", option: "--subscribe [subscribe...]", name: "subscribe", description: "An array of role strings with subscribe permission. By default all users are granted with any subscribe permission. Roles take the form `any`, `guests`, `users`, `user:<id>`, `team:<id>`, `member:<id>` or `label:<name>`, some of them with a `/<dimension>` suffix such as `users/verified` or `team:<id>/owner`. At most 100 entries. See “Role strings” in this document's introduction.", type: "array", required: false },
 ];
 messaging
   .command(`create-topic`)
   .description(`Create a new topic.`)
   .option(`--name <name>`, `Topic Name.`)
   .option(`--topic-id <topic-id>`, `Topic ID. Choose a custom Topic ID or a new Topic ID.`)
-  .option(`--subscribe [subscribe...]`, `An array of role strings with subscribe permission. By default all users are granted with any subscribe permission. [learn more about roles](https://appwrite.io/docs/permissions#permission-roles). Maximum of 100 roles are allowed, each 64 characters long.`)
+  .option(`--subscribe [subscribe...]`, `An array of role strings with subscribe permission. By default all users are granted with any subscribe permission. Roles take the form \`any\`, \`guests\`, \`users\`, \`user:<id>\`, \`team:<id>\`, \`member:<id>\` or \`label:<name>\`, some of them with a \`/<dimension>\` suffix such as \`users/verified\` or \`team:<id>/owner\`. At most 100 entries. See “Role strings” in this document's introduction.`)
   .action(
     actionRunner(
       async (_options, _command) => {
@@ -2432,14 +2432,14 @@ registerPromptSpecs(messaging.commands.at(-1)!, getTopicSpecs, { method: "get" }
 const updateTopicSpecs: PromptSpec[] = [
   { key: "topicId", option: "--topic-id <topic-id>", name: "topicId", description: "Topic ID.", type: "string", required: true, resource: { listPath: "/messaging/topics", hasLimit: false, search: true } },
   { key: "name", option: "--name <name>", name: "name", description: "Topic Name.", type: "string", required: false },
-  { key: "subscribe", option: "--subscribe [subscribe...]", name: "subscribe", description: "An array of role strings with subscribe permission. By default all users are granted with any subscribe permission. [learn more about roles](https://appwrite.io/docs/permissions#permission-roles). Maximum of 100 roles are allowed, each 64 characters long.", type: "array", required: false },
+  { key: "subscribe", option: "--subscribe [subscribe...]", name: "subscribe", description: "An array of role strings with subscribe permission. By default all users are granted with any subscribe permission. Roles take the form `any`, `guests`, `users`, `user:<id>`, `team:<id>`, `member:<id>` or `label:<name>`, some of them with a `/<dimension>` suffix such as `users/verified` or `team:<id>/owner`. At most 100 entries. See “Role strings” in this document's introduction.", type: "array", required: false },
 ];
 messaging
   .command(`update-topic`)
   .description(`Update a topic by its unique ID.`)
   .option(`--topic-id <topic-id>`, `Topic ID.`)
   .option(`--name <name>`, `Topic Name.`)
-  .option(`--subscribe [subscribe...]`, `An array of role strings with subscribe permission. By default all users are granted with any subscribe permission. [learn more about roles](https://appwrite.io/docs/permissions#permission-roles). Maximum of 100 roles are allowed, each 64 characters long.`)
+  .option(`--subscribe [subscribe...]`, `An array of role strings with subscribe permission. By default all users are granted with any subscribe permission. Roles take the form \`any\`, \`guests\`, \`users\`, \`user:<id>\`, \`team:<id>\`, \`member:<id>\` or \`label:<name>\`, some of them with a \`/<dimension>\` suffix such as \`users/verified\` or \`team:<id>/owner\`. At most 100 entries. See “Role strings” in this document's introduction.`)
   .action(
     actionRunner(
       async (_options, _command) => {
@@ -2480,7 +2480,7 @@ messaging
 registerPromptSpecs(messaging.commands.at(-1)!, updateTopicSpecs, { method: "patch" });
 const listTopicLogsSpecs: PromptSpec[] = [
   { key: "topicId", option: "--topic-id <topic-id>", name: "topicId", description: "Topic ID.", type: "string", required: true, resource: { listPath: "/messaging/topics", hasLimit: false, search: true } },
-  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Only supported methods are limit and offset", type: "array", required: false },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Paging only. Repeat the parameter once per query — `?queries=…&queries=…` — and make each value a JSON object, e.g. `{\"method\":\"limit\",\"values\":[25]}`. The bracketed spellings `queries[]=` and `queries[0]=` are accepted too; the `limit(25)` call syntax is not. This operation accepts `limit` and `offset` and rejects every other method, ordering and filters included. See “Query parameters” in this document's introduction.", type: "array", required: false },
   { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
@@ -2488,7 +2488,7 @@ messaging
   .command(`list-topic-logs`)
   .description(`Get the topic activity logs listed by its unique ID.`)
   .option(`--topic-id <topic-id>`, `Topic ID.`)
-  .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Only supported methods are limit and offset`)
+  .option(`--queries [queries...]`, `Paging only. Repeat the parameter once per query — \`?queries=…&queries=…\` — and make each value a JSON object, e.g. \`{"method":"limit","values":[25]}\`. The bracketed spellings \`queries[]=\` and \`queries[0]=\` are accepted too; the \`limit(25)\` call syntax is not. This operation accepts \`limit\` and \`offset\` and rejects every other method, ordering and filters included. See “Query parameters” in this document's introduction.`)
   .option(
     `--total [value]`,
     `When set to false, the total count returned will be 0 and will not be calculated.`,
@@ -2541,7 +2541,7 @@ messaging
 registerPromptSpecs(messaging.commands.at(-1)!, listTopicLogsSpecs, { method: "get" });
 const listSubscribersSpecs: PromptSpec[] = [
   { key: "topicId", option: "--topic-id <topic-id>", name: "topicId", description: "Topic ID. The topic ID subscribed to.", type: "string", required: true, resource: { listPath: "/messaging/topics", hasLimit: false, search: true } },
-  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, provider, type, enabled", type: "array", required: false },
+  { key: "queries", option: "--queries [queries...]", name: "queries", description: "Result filters, paging and ordering. Repeat the parameter once per query — `?queries=…&queries=…` — and make each value a JSON object, e.g. `{\"method\":\"limit\",\"values\":[25]}`. The bracketed spellings `queries[]=` and `queries[0]=` are accepted too; the `limit(25)` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides `$id`, `$createdAt`, `$updatedAt` and `$sequence`: name, provider, type, enabled", type: "array", required: false },
   { key: "search", option: "--search <search>", name: "search", description: "Search term to filter your list results. Max length: 256 chars.", type: "string", required: false },
   { key: "total", option: "--total <total>", name: "total", description: "When set to false, the total count returned will be 0 and will not be calculated.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -2550,7 +2550,7 @@ messaging
   .command(`list-subscribers`)
   .description(`Get a list of all subscribers from the current Revenexx project.`)
   .option(`--topic-id <topic-id>`, `Topic ID. The topic ID subscribed to.`)
-  .option(`--queries [queries...]`, `Array of query strings generated using the Query class provided by the SDK. [Learn more about queries](https://appwrite.io/docs/queries). Maximum of 100 queries are allowed, each 4096 characters long. You may filter on the following attributes: name, provider, type, enabled`)
+  .option(`--queries [queries...]`, `Result filters, paging and ordering. Repeat the parameter once per query — \`?queries=…&queries=…\` — and make each value a JSON object, e.g. \`{"method":"limit","values":[25]}\`. The bracketed spellings \`queries[]=\` and \`queries[0]=\` are accepted too; the \`limit(25)\` call syntax is not. See “Query parameters” in this document's introduction. Filterable attributes, besides \`\$id\`, \`\$createdAt\`, \`\$updatedAt\` and \`\$sequence\`: name, provider, type, enabled`)
   .option(`--search <search>`, `Search term to filter your list results. Max length: 256 chars.`)
   .option(
     `--total [value]`,

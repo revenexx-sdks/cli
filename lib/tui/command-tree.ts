@@ -27,8 +27,9 @@ export type CommandLeaf = {
    * browsing: a get/update/delete whose actions are reached from its list. */
   hidden?: boolean;
   /** TUI-only synthetic action — open an in-app panel instead of running a
-   * command (settings → themes opens the theme picker). */
-  tuiAction?: "theme-picker";
+   * command (settings → themes opens the theme picker, and the `/watch` and
+   * `/watchlist` slash commands open the watchlist surfaces). */
+  tuiAction?: "theme-picker" | "watch-create" | "watch-list";
   /** Real invocation path when the nav path differs from the command path:
    * the settings subtree relocates `alias`, so its actions browse under
    * `settings › alias` but still run as `alias set|list|remove`. */

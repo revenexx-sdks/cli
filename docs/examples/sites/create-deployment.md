@@ -1,6 +1,6 @@
 ```bash
 revenexx sites create-deployment \
-    --site-id sample-id \
+    --site-id '' \
     --activate true \
     --code 'path/to/file.png'
 ```

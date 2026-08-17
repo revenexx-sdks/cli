@@ -1,4 +1,4 @@
 ```bash
 revenexx search search-documents-get \
-    --collection ''
+    --collection products
 ```

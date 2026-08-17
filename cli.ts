@@ -30,30 +30,51 @@ import { alias } from './lib/alias.js';
 import { status } from './lib/commands/status.js';
 import { repl } from './lib/commands/repl.js';
 import { tui } from './lib/commands/tui.js';
+import { watch } from './lib/commands/watch.js';
 
+import { health } from './lib/commands/services/health.js';
 import { apps } from './lib/commands/services/apps.js';
 import { avatars } from './lib/commands/services/avatars.js';
 import { carts } from './lib/commands/services/carts.js';
+import { cartsIo } from './lib/commands/services/carts-io.js';
+import { cartsItems } from './lib/commands/services/carts-items.js';
 import { channels } from './lib/commands/services/channels.js';
+import { customersValueLists } from './lib/commands/services/customers-value-lists.js';
+import { customersOrganizations } from './lib/commands/services/customers-organizations.js';
 import { customers } from './lib/commands/services/customers.js';
+import { customersContacts } from './lib/commands/services/customers-contacts.js';
+import { customersRoles } from './lib/commands/services/customers-roles.js';
+import { customersSegments } from './lib/commands/services/customers-segments.js';
 import { forms } from './lib/commands/services/forms.js';
-import { inventories } from './lib/commands/services/inventories.js';
+import { inventoriesStock } from './lib/commands/services/inventories-stock.js';
+import { inventoriesReservations } from './lib/commands/services/inventories-reservations.js';
+import { inventoriesLocations } from './lib/commands/services/inventories-locations.js';
 import { io } from './lib/commands/services/io.js';
 import { locale } from './lib/commands/services/locale.js';
 import { markets } from './lib/commands/services/markets.js';
 import { messaging } from './lib/commands/services/messaging.js';
 import { orderlists } from './lib/commands/services/orderlists.js';
 import { orders } from './lib/commands/services/orders.js';
+import { pagesDelivery } from './lib/commands/services/pages-delivery.js';
+import { pagesEditor } from './lib/commands/services/pages-editor.js';
+import { pagesCollaboration } from './lib/commands/services/pages-collaboration.js';
 import { pages } from './lib/commands/services/pages.js';
-import { payments } from './lib/commands/services/payments.js';
+import { paymentsLedger } from './lib/commands/services/payments-ledger.js';
+import { paymentsProviders } from './lib/commands/services/payments-providers.js';
+import { paymentsMethods } from './lib/commands/services/payments-methods.js';
 import { prices } from './lib/commands/services/prices.js';
 import { products } from './lib/commands/services/products.js';
+import { productsDataModel } from './lib/commands/services/products-data-model.js';
+import { productsAssets } from './lib/commands/services/products-assets.js';
+import { productsCategories } from './lib/commands/services/products-categories.js';
+import { productsReferences } from './lib/commands/services/products-references.js';
 import { search } from './lib/commands/services/search.js';
 import { settings } from './lib/commands/services/settings.js';
-import { shipping } from './lib/commands/services/shipping.js';
+import { shippingCarriers } from './lib/commands/services/shipping-carriers.js';
+import { shippingMethods } from './lib/commands/services/shipping-methods.js';
+import { shippingValueLists } from './lib/commands/services/shipping-value-lists.js';
 import { sites } from './lib/commands/services/sites.js';
 import { storage } from './lib/commands/services/storage.js';
-import { tokens } from './lib/commands/services/tokens.js';
 import { about } from './lib/commands/about.js';
 import { create } from "./lib/commands/create.js";
 import { deploy } from "./lib/commands/deploy.js";
@@ -236,29 +257,50 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(status)
         .addCommand(repl)
         .addCommand(tui)
+        .addCommand(watch)
+        .addCommand(health)
         .addCommand(apps)
         .addCommand(avatars)
         .addCommand(carts)
+        .addCommand(cartsIo)
+        .addCommand(cartsItems)
         .addCommand(channels)
+        .addCommand(customersValueLists)
+        .addCommand(customersOrganizations)
         .addCommand(customers)
+        .addCommand(customersContacts)
+        .addCommand(customersRoles)
+        .addCommand(customersSegments)
         .addCommand(forms)
-        .addCommand(inventories)
+        .addCommand(inventoriesStock)
+        .addCommand(inventoriesReservations)
+        .addCommand(inventoriesLocations)
         .addCommand(io)
         .addCommand(locale)
         .addCommand(markets)
         .addCommand(messaging)
         .addCommand(orderlists)
         .addCommand(orders)
+        .addCommand(pagesDelivery)
+        .addCommand(pagesEditor)
+        .addCommand(pagesCollaboration)
         .addCommand(pages)
-        .addCommand(payments)
+        .addCommand(paymentsLedger)
+        .addCommand(paymentsProviders)
+        .addCommand(paymentsMethods)
         .addCommand(prices)
         .addCommand(products)
+        .addCommand(productsDataModel)
+        .addCommand(productsAssets)
+        .addCommand(productsCategories)
+        .addCommand(productsReferences)
         .addCommand(search)
         .addCommand(settings)
-        .addCommand(shipping)
+        .addCommand(shippingCarriers)
+        .addCommand(shippingMethods)
+        .addCommand(shippingValueLists)
         .addCommand(sites)
         .addCommand(storage)
-        .addCommand(tokens)
         .addCommand(about)
         .addCommand(create)
         .addCommand(deploy)

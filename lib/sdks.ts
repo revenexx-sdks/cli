@@ -123,9 +123,7 @@ export const sdkForProject = async (): Promise<Client> => {
 
   client
     .setEndpoint(endpoint)
-    .setProject(project)
     .setSelfSigned(selfSigned)
-    .setLocale("en-US")
     // Transport resilience (DX-103): honor --timeout / --no-retry, and enable
     // redacted HTTP debug logging under --debug or --verbose.
     .setRetry(cliConfig.retry !== false)
@@ -143,7 +141,7 @@ export const sdkForProject = async (): Promise<Client> => {
   if (key) {
     // setKey targets the legacy header; the gateway reads x-revenexx-api-key.
     client.headers["x-revenexx-api-key"] = key;
-    return client.setKey(key).setMode("default");
+    return client.setKey(key);
   }
 
   // No API key — fall back to a stored SSO JWT. The gateway validates OIDC
@@ -152,7 +150,7 @@ export const sdkForProject = async (): Promise<Client> => {
   // Refreshed transparently when expired.
   const jwt = await resolveSsoJwt();
   if (jwt) {
-    return client.setBearer(jwt).setMode("default");
+    return client.setBearer(jwt);
   }
 
   throw new Error(

@@ -1,4 +1,4 @@
 ```bash
 revenexx markets readiness \
-    --id sample-id
+    --id northwind
 ```

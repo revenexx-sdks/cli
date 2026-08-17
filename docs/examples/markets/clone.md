@@ -1,5 +1,5 @@
 ```bash
 revenexx markets clone \
-    --id sample-id \
-    --code sample code
+    --id northwind \
+    --code northwind-b2b
 ```

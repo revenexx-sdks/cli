@@ -1,5 +1,5 @@
 ```bash
 revenexx carts claim \
-    --contact-id 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
-    --session-key sample session key
+    --contact-id '' \
+    --session-key a1b2c3d4e5f6
 ```

@@ -28,7 +28,7 @@ Once the installation is complete, you can verify the install using
 
 ```sh
 $ revenexx -v
-0.2.1
+0.3.0
 ```
 
 ### MacOS / Linux via [Homebrew](https://brew.sh)
@@ -70,7 +70,7 @@ On Windows, use `npm` — or download the `.exe` from the same release page.
 Once the installation completes, you can verify your install using
 ```
 $ revenexx -v
-0.2.1
+0.3.0
 ```
 
 ## Getting Started
@@ -132,9 +132,10 @@ $ revenexx p ls                # built-in aliases: same as `products list`
 $ revenexx alias set deploy "apps create-deployment --activate true"
 $ revenexx repl                # interactive shell — many commands, one session
 $ revenexx tui                 # full-screen app — browse commands, forms, results
+$ revenexx watch add --until 'status terminal' -- imports get --id imp_42
 ```
 
-A **production safety banner** is printed before most commands showing which tenant/endpoint you're hitting (prominent and red for production). Silence it with `-q`/`--quiet`. See [Command aliases](../README.md#command-aliases), [Production safety banner](../README.md#production-safety-banner), [`status`](../README.md#status), [Interactive shell (`repl`)](../README.md#interactive-shell-repl) and [Full-screen app (`tui`)](../README.md#full-screen-app-tui) in the README.
+A **production safety banner** is printed before most commands showing which tenant/endpoint you're hitting (prominent and red for production). Silence it with `-q`/`--quiet`. See [Command aliases](../README.md#command-aliases), [Production safety banner](../README.md#production-safety-banner), [`status`](../README.md#status), [Interactive shell (`repl`)](../README.md#interactive-shell-repl), [Full-screen app (`tui`)](../README.md#full-screen-app-tui) and [Background watchers (`watch`)](../README.md#background-watchers-watch) in the README.
 
 > ### Note
 > By default, requests to domains with self-signed SSL certificates (or no certificates) are rejected. If you trust the host, you can bypass certificate validation using
@@ -151,6 +152,8 @@ The CLI has one command tree reachable three ways — every service command, plu
 | **Full-screen app** ([`tui`](#full-screen-app-tui)) | bare `revenexx` on a terminal (**the default**), or `revenexx tui` | Browse and run interactively — the default landing experience. |
 | **Interactive shell** ([`repl`](#interactive-shell-repl)) | `revenexx repl` | Fire several commands in a row without re-typing `revenexx`. |
 | **Direct / one-shot** | `revenexx products list --json …` | Scripting, CI, pipes — flag-driven and non-interactive. |
+
+Any of the interactive modes can also leave a [background watcher](#background-watchers-watch) polling a resource while you carry on.
 
 Running `revenexx` with no arguments on an interactive terminal launches the **full-screen app**. A partial or named invocation (`revenexx p`, `revenexx products`) still opens the guided command picker and resolves to a single one-shot command. Anything non-interactive — a pipe, CI, `--json`, or `--help` — prints help and never opens an interactive surface, so scripts stay byte-stable.
 
@@ -346,6 +349,7 @@ revenexx> exit
 
 - **Tab** completes top-level command names, then a service's subcommands.
 - `help` (or `?`) prints the command list; `exit` (or `quit`, `q`, Ctrl-D) leaves the shell.
+- `watch add …` leaves a [background watcher](#background-watchers-watch) polling while you keep typing; it prints a line and rings the bell when it finishes.
 - Missing required options **prompt interactively** just like they do outside the shell (search/select), so `p get` will ask for the product id. Ctrl-C cancels the current line without leaving the shell.
 - The [production safety banner](#production-safety-banner) is shown before **every** command in the session (prominent and red for production) — the safeguard matters most in a rapid-fire shell. Launch with `revenexx --quiet repl` to silence it for the session.
 
@@ -366,8 +370,60 @@ $ revenexx tui     # explicit, always works
 - **Forms:** `Tab`/`Shift+Tab` move between fields, `←`/`→`/`Space` cycle toggles and choices, `Enter` advances or runs, `^r` runs from any field. Values are validated on submit; secrets (password/token/api-key) are masked. Resource-id fields open the matching list as a **filterable table** — type to narrow it (server-side when the endpoint supports `search`, otherwise across the loaded rows), `↑`/`↓` to move, `Enter` to pick the highlighted record's id.
 - **JSON body fields:** an `object` parameter (e.g. `--data`) opens a full-screen **key/value editor** — `Enter` adds a field (or appends an array item), `Tab` switches between the key and value cell, `^d` deletes the focused field, `^s` saves it back to the form. Values are entered as JSON (`"text"`, `42`, `true`) and validated live, so the request body round-trips exactly. **Nested JSON** is edited in place: a value that is an object or array shows as `{ n fields }` / `[ n items ]`, and `→` drills into it one level deeper (breadcrumb `data › meta › [0]`, any depth); `Esc` goes back up a level (and cancels at the top). Type `{}` or `[]` into a value to start a nested container.
 - **Results:** table with `↑`/`↓` rows, `Enter` for row detail, `/` to filter the loaded rows (type to narrow across all columns, `Esc` clears), `←`/`→` to scroll columns, `n`/`p` to page, `o` to cycle output format (`table`/`json`/`jsonl`/`csv`), `y` to copy (`Y` copies the whole output), `c` to open the matching `create` form, `u` to open the matching `update` pre-filled, `d` to `delete` the record (behind the confirm modal), `e` to edit parameters. `u`/`d` act on the row under the cursor in a list, or on the single record from a `get`; `c` needs no row, so it works from an empty list too.
+- **Watchlist:** type `/watch` to set up a background watcher and `/watchlist` to see them — see [Background watchers](#background-watchers-watch).
 - The header carries a persistent, filled yellow `▲ PRODUCTION` chip (the same [production safety](#production-safety-banner) signal) for the whole session.
-- Not browsable in the TUI (still available as one-shot commands): `tui`, `repl`, `update`, `generate`, `types`, `completion`.
+- Not browsable in the TUI (still available as one-shot commands): `tui`, `repl`, `watch`, `update`, `generate`, `types`, `completion`.
+
+## Background watchers (`watch`)
+
+A long-running operation — an import, a deployment, an order going through — usually ends with re-running the same `get` by hand until the status moves. A **watcher** does that for you: it polls one get-by-id command in the background and tells you when a field reaches the condition you named.
+
+```sh
+# Block until the import finishes, then carry on (exit code says how it ended)
+$ revenexx watch add --until 'status terminal' -- imports get --id imp_42 \
+    && revenexx products list
+```
+
+Inside `repl` or `tui` the same command registers a watcher and hands the prompt straight back, so you keep working while it polls:
+
+```sh
+revenexx> watch add --until 'status terminal' --every 5s -- imports get --id imp_42
+✓ watcher #1 · imports get imp_42 · status terminal · every 5s
+revenexx> products list          # keep working
+…
+⏱ watcher #1 satisfied · status: processing → done · 42s     ← prints itself, and rings the bell
+```
+
+**Sub-commands**
+
+| Command | Does |
+|---|---|
+| `watch add --until <expr> -- <get command>` | Start a watcher. Outside a session it blocks until the watcher settles. |
+| `watch list` | Show this session's watchers with live state (`--json` for the full records). |
+| `watch rm <id>` / `watch rm --all` | Cancel one, or every active one. |
+
+**Conditions** — `--until` takes an optional field path followed by one of:
+
+| Condition | Fires when the field… |
+|---|---|
+| `terminal` | stops moving — `done`, `ready`, `failed`, `cancelled`, … (both the wins **and** the failures, so a failed job stops the watcher instead of running out the clock) |
+| `changed` | differs from its value on the first poll |
+| `equals <value>` | matches exactly, case-insensitively (`equals 200` matches the number `200`) |
+| `matches <regex>` | matches a regular expression (`/pattern/flags` also accepted) |
+| `truthy` | becomes non-empty — `[]`, `{}`, `""`, `"false"` and `"0"` all count as empty |
+
+Override the terminal set per watcher with `terminal(ready,failed)`, or process-wide with `REVENEXX_WATCH_TERMINAL_STATES`.
+
+**Field paths** are dot paths into the response: `status`, `items.0.state`, `page.total`, `items.length`. There is no implicit descent into a list envelope — a page has as many statuses as it has rows, so say which one you mean. A field that isn't there yet is *not* an error; the watcher keeps polling until it appears or the budget runs out.
+
+**Flags:** `--every` (interval, default 5s, floor 2s), `--for` (give up after, default 5m), `--field` (if you'd rather keep the path out of `--until`), `--wait-for-create` (treat `404` as "not yet" rather than fatal).
+
+**Exit codes** for the blocking form, extending [the CLI's table](#machine-readable-errors--exit-codes): `0` satisfied, `7` timed out, `130` cancelled, otherwise the failing poll's own code (so `4` still means auth and `8` still means rate-limited).
+
+- Watchers are **session-scoped and in-memory**: they live for the length of the `repl`/`tui` session (or the blocking command) and are torn down on exit. Nothing survives the process.
+- Polling goes through the same transport as everything else, so the request timeout, retry/backoff and `429 Retry-After` handling all apply. The interval has a floor and ±15% jitter, and at most 8 watchers run at once.
+- A poll already in flight cannot be cut short (the gateway client has no cancellation), so a watcher can overrun `--for` by up to one poll.
+- Needs an interactive terminal. In a script, write the loop yourself around `<get command> --json` — that keeps piped output byte-identical.
 
 ## Global Configuration
 

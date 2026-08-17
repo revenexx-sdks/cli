@@ -125,14 +125,14 @@ export function getSdkDependency(): string {
       const packageJson = JSON.parse(packageJsonRaw);
       const deps = packageJson.dependencies ?? {};
 
-      if (deps["react-native-appwrite"]) {
-        return "react-native-appwrite";
+      if (deps["@revenexx/react-native"]) {
+        return "@revenexx/react-native";
       }
-      if (deps["appwrite"]) {
-        return "appwrite";
+      if (deps["@revenexx/sdk"]) {
+        return "@revenexx/sdk";
       }
-      if (deps["node-appwrite"]) {
-        return "node-appwrite";
+      if (deps["@revenexx/node"]) {
+        return "@revenexx/node";
       }
     } catch {
       // Fallback if package.json is invalid
@@ -140,10 +140,10 @@ export function getSdkDependency(): string {
   }
 
   if (fs.existsSync(path.resolve(cwd, "deno.json"))) {
-    return "npm:node-appwrite";
+    return "npm:@revenexx/node";
   }
 
-  return "appwrite";
+  return "@revenexx/sdk";
 }
 
 /**
@@ -185,5 +185,5 @@ export function supportsServerSideMethods(
 ): boolean {
   if (override === "true") return true;
   if (override === "false") return false;
-  return sdkDep === "node-appwrite" || sdkDep === "npm:node-appwrite";
+  return sdkDep === "@revenexx/node" || sdkDep === "npm:@revenexx/node";
 }

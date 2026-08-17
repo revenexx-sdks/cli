@@ -1,5 +1,5 @@
 ```bash
 revenexx orders items-cancel \
-    --id sample-id \
+    --id '' \
     --positions one two three
 ```

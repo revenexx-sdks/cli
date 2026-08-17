@@ -700,7 +700,6 @@ export const client = new Command("client")
             }
 
             const clientInstance = new ClientLegacy().setEndpoint(endpoint);
-            clientInstance.setProject("console");
             if (selfSigned || globalConfig.getSelfSigned()) {
               clientInstance.setSelfSigned(true);
             }

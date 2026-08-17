@@ -175,37 +175,10 @@ class Client {
       "x-sdk-language": SDK_LANGUAGE,
       "x-sdk-version": SDK_VERSION,
       "user-agent": `${SDK_TITLE}CLI/${SDK_VERSION} (${os.type()} ${os.version()}; ${os.arch()})`,
-      "X-Revenexx-Response-Format": "1.8.1",
     };
   }
 
-  /**
-   * Set Cookie
-   *
-   * Your cookie
-   *
-   * @param {string} cookie
-   *
-   * @return self
-   */
-  setCookie(cookie: string): this {
-    this.addHeader("cookie", cookie);
-    return this;
-  }
 
-  /**
-   * Set Project
-   *
-   * Your project ID
-   *
-   * @param {string} project
-   *
-   * @return self
-   */
-  setProject(project: string): this {
-    this.addHeader("X-Revenexx-Project", project);
-    return this;
-  }
 
   /**
    * Set Tenant
@@ -251,19 +224,6 @@ class Client {
     return this;
   }
 
-  /**
-   * Set JWT
-   *
-   * Your secret JSON Web Token
-   *
-   * @param {string} jwt
-   *
-   * @return self
-   */
-  setJWT(jwt: string): this {
-    this.addHeader("X-Revenexx-JWT", jwt);
-    return this;
-  }
 
   /**
    * Set Bearer token
@@ -285,29 +245,7 @@ class Client {
     return this;
   }
 
-  /**
-   * Set Locale
-   *
-   * @param {string} locale
-   *
-   * @return self
-   */
-  setLocale(locale: string): this {
-    this.addHeader("X-Revenexx-Locale", locale);
-    return this;
-  }
 
-  /**
-   * Set Mode
-   *
-   * @param {string} mode
-   *
-   * @return self
-   */
-  setMode(mode: string): this {
-    this.addHeader("X-Revenexx-Mode", mode);
-    return this;
-  }
 
   /**
    * Set self signed.

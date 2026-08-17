@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { useState } from "react";
 import { render } from "ink-testing-library";
 import { Command } from "commander";
@@ -30,6 +30,15 @@ import {
 } from "../lib/interactive.js";
 import { actionRunner } from "../lib/parser.js";
 import { specsFor } from "../lib/commands/tui.js";
+import {
+  matchInstantSlash,
+  slashNavEntries,
+} from "../lib/tui/slash-commands.js";
+import { getByIdEntries } from "../lib/tui/watch-create.js";
+import { parseCondition } from "../lib/watch/condition.js";
+import { watchRegistry } from "../lib/watch/registry.js";
+import { watchScheduler } from "../lib/watch/scheduler.js";
+import { bindRunQueue } from "../lib/watch/run-queue.js";
 
 vi.mock("../lib/tui/clipboard.js", () => ({
   copyToClipboard: vi.fn(async () => true),
@@ -3010,5 +3019,173 @@ describe("tui app shell", () => {
     expect(persist).toHaveBeenCalledWith("dark");
     // Reset the shared active palette for later tests.
     applyTheme("revenexx");
+  });
+});
+
+describe("slash commands", () => {
+  it("dispatches only the hidden legacy words on an exact match", () => {
+    // Instant-fire is what exit/debug/fps have always done. The visible ones
+    // must not: `watch` is a prefix of `watchlist`, so firing on the shorter
+    // word would make the longer one impossible to type.
+    expect(matchInstantSlash("exit")?.name).toBe("exit");
+    expect(matchInstantSlash("debug")?.name).toBe("debug");
+    expect(matchInstantSlash("fps")?.name).toBe("debug");
+    expect(matchInstantSlash("EXIT")?.name).toBe("exit");
+    expect(matchInstantSlash("watch")).toBeUndefined();
+    expect(matchInstantSlash("watchlist")).toBeUndefined();
+    expect(matchInstantSlash("exi")).toBeUndefined();
+    expect(matchInstantSlash("")).toBeUndefined();
+  });
+
+  it("exposes the visible words as browsable nav rows, and never the hidden ones", () => {
+    const rows = slashNavEntries();
+    expect(rows.map((row) => row.name)).toEqual(["watch", "watchlist"]);
+    expect(rows.map((row) => row.tuiAction)).toEqual([
+      "watch-create",
+      "watch-list",
+    ]);
+    // Standalone rows: they land in the root "commands" section, not a folder.
+    expect(rows.every((row) => row.subcommands.length === 0)).toBe(true);
+  });
+
+  it("makes those nav rows searchable through the ordinary palette", () => {
+    // One code path: because they are real nav entries, flattenTree picks them
+    // up and `/` search finds them with no separate injection.
+    const entries = flattenTree([...makeContext().commands, ...slashNavEntries()]);
+    expect(
+      filterEntries(entries, "watchl").map((entry) => entry.path),
+    ).toEqual(["watchlist"]);
+    expect(filterEntries(entries, "watch").map((entry) => entry.path)).toEqual([
+      "watch",
+      "watchlist",
+    ]);
+  });
+});
+
+describe("tui watchlist", () => {
+  const watcherSpec = (overrides: Record<string, unknown> = {}) => ({
+    path: ["products", "fetch"],
+    values: {},
+    tokens: ["products", "fetch", "--product-id", "p_1"],
+    commandLine: "revenexx products fetch --product-id p_1",
+    fieldPath: "status",
+    condition: parseCondition("equals ready").condition!,
+    ...overrides,
+  });
+
+  /** Always resolves with a value the condition never matches, so the watcher
+   * stays visibly polling without leaving a run in flight at teardown. */
+  const idleRunner: TuiRunner = async () => ({
+    ok: true,
+    exitCode: 0,
+    durationMs: 1,
+    data: { status: "processing" },
+    error: null,
+    stdout: "",
+    stderr: "",
+  });
+
+  /** The real session appends the watch rows to the browsable tree (see
+   * lib/commands/tui.ts); makeContext is the raw service tree. */
+  const watchContext = (): TuiContext =>
+    makeContext({ commands: [...makeContext().commands, ...slashNavEntries()] });
+
+  afterEach(async () => {
+    await watchScheduler.cancelAll();
+    watchRegistry.clear();
+    bindRunQueue(null);
+  });
+
+  it("lists watch and watchlist in the main navigation", async () => {
+    // The whole point of the nav rows: findable by looking, not only by
+    // already knowing the word.
+    const { lastFrame } = render(
+      <App context={watchContext()} runner={idleRunner} />,
+    );
+    await tick();
+    expect(lastFrame()).toContain("watch");
+    expect(lastFrame()).toContain("watchlist");
+  });
+
+  it("opens the pane by browsing to the nav row and pressing enter", async () => {
+    const { stdin, lastFrame } = render(
+      <App context={watchContext()} runner={idleRunner} />,
+    );
+    await tick();
+    stdin.write("/");
+    await tick();
+    stdin.write("watchlist");
+    await tick();
+    stdin.write(ENTER);
+    await tick();
+    expect(lastFrame()).toContain("watchlist");
+    expect(lastFrame()).toContain("Nothing is being watched");
+  });
+
+  it("lists a running watcher, counts it in the status bar, and cancels it", async () => {
+    const { stdin, lastFrame } = render(
+      <App context={watchContext()} runner={idleRunner} />,
+    );
+    await tick();
+    const started = watchScheduler.start(watcherSpec());
+    expect(started.ok).toBe(true);
+    await tick();
+
+    // The badge counts it without the pane being open.
+    expect(lastFrame()).toContain("watching");
+
+    stdin.write("/");
+    await tick();
+    stdin.write("watchlist");
+    await tick();
+    stdin.write(ENTER);
+    await tick();
+    expect(lastFrame()).toContain("products fetch");
+    expect(lastFrame()).toContain("= ready");
+    expect(lastFrame()).toContain("1 active");
+
+    stdin.write("x");
+    await tick();
+    expect(watchRegistry.get(started.watcher!.id)?.state).toBe("cancelled");
+    expect(lastFrame()).toContain("0 active");
+  });
+
+  it("toasts a completion into the status bar", async () => {
+    const { lastFrame } = render(
+      <App context={makeContext()} runner={idleRunner} />,
+    );
+    await tick();
+    const started = watchScheduler.start(watcherSpec());
+    await tick();
+    watchScheduler.cancel(started.watcher!.id);
+    await tick();
+    expect(lastFrame()).toContain("cancelled");
+  });
+
+  it("opens the create flow on /watch and lists get-by-id targets", async () => {
+    const { stdin, lastFrame } = render(
+      <App context={watchContext()} runner={idleRunner} />,
+    );
+    await tick();
+    stdin.write("/");
+    await tick();
+    stdin.write("watch");
+    await tick();
+    stdin.write(ENTER);
+    await tick();
+    expect(lastFrame()).toContain("watch · target");
+    // `fetch` is the only method:"get" leaf in the fixture tree.
+    expect(lastFrame()).toContain("products fetch");
+    expect(lastFrame()).not.toContain("delete-product");
+    stdin.write(ESC);
+    await tick();
+    expect(lastFrame()).not.toContain("watch · target");
+  });
+});
+
+describe("getByIdEntries", () => {
+  it("picks the get leaves a list would otherwise hide", () => {
+    const entries = getByIdEntries(makeContext().commands);
+    expect(entries.map((entry) => entry.path)).toEqual(["products fetch"]);
   });
 });

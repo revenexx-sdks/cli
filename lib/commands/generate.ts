@@ -181,8 +181,8 @@ export const generate = new Command("generate")
     "auto",
   )
   .option(
-    "--appwrite-import-source <source>",
-    "Override Revenexx SDK import source in generated files (e.g. node-appwrite, appwrite). Auto-detected from package.json/deno.json if not provided.",
+    "--sdk-import-source <source>",
+    "Override Revenexx SDK import source in generated files (e.g. @revenexx/node, @revenexx/sdk). Auto-detected from package.json/deno.json if not provided.",
   )
   .option(
     "--import-extension <ext>",
