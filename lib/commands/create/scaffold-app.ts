@@ -15,10 +15,12 @@ import {
   buildCapabilities,
   buildEntities,
   entitySchema,
+  buildEvents,
   jsEmitter,
   slug,
   type Capability,
   type ColumnDef,
+  type Manifest,
   type Schema,
 } from "./appsdk-core.js";
 
@@ -134,7 +136,8 @@ function buildBillingJson(opts: AppScaffoldOptions): Record<string, unknown> {
   return {
     $schema: "https://revenexx.com/schemas/billing.schema.json",
     type: "included",
-    support: { email: "support@revenexx.com", url: "https://revenexx.com/support" },
+    // Placeholders — replace with your own support contact before publishing.
+    support: { email: "support@example.com", url: "https://example.com/support" },
     categories: ["commerce"],
     available_countries: ["*"],
     listing: {
@@ -671,7 +674,11 @@ export function scaffoldApp(opts: AppScaffoldOptions): ScaffoldResult {
   // The typed data client, emitted in-process (what `revenexx apps generate`
   // would produce).
   const entities = buildEntities({ schema: schemaJson, permissions, vendor: opts.vendor, app: opts.name });
-  for (const emitted of jsEmitter.emit({ vendor: opts.vendor, app: opts.name, entities, options: {} })) {
+  // Read from the manifest we just wrote rather than passed in as `{}`: a
+  // scaffold declares only wired emits today, and the day it seeds an
+  // app-fired one the generated client picks it up without a second edit here.
+  const events = buildEvents({ manifest: manifest as Manifest, vendor: opts.vendor, app: opts.name });
+  for (const emitted of jsEmitter.emit({ vendor: opts.vendor, app: opts.name, entities, events, options: {} })) {
     writeFile(root, path.join("src", emitted.path), emitted.content, files);
   }
 

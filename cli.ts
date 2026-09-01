@@ -45,6 +45,7 @@ import { customers } from './lib/commands/services/customers.js';
 import { customersContacts } from './lib/commands/services/customers-contacts.js';
 import { customersRoles } from './lib/commands/services/customers-roles.js';
 import { customersSegments } from './lib/commands/services/customers-segments.js';
+import { events } from './lib/commands/services/events.js';
 import { forms } from './lib/commands/services/forms.js';
 import { inventoriesStock } from './lib/commands/services/inventories-stock.js';
 import { inventoriesReservations } from './lib/commands/services/inventories-reservations.js';
@@ -271,6 +272,7 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(customersContacts)
         .addCommand(customersRoles)
         .addCommand(customersSegments)
+        .addCommand(events)
         .addCommand(forms)
         .addCommand(inventoriesStock)
         .addCommand(inventoriesReservations)

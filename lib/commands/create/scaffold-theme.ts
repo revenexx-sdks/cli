@@ -106,7 +106,8 @@ function billingJson(opts: ThemeScaffoldOptions): Record<string, unknown> {
   return {
     $schema: `${opts.schemasBase}/billing.schema.json`,
     type: opts.billingType,
-    support: { email: "support@revenexx.com", url: "https://revenexx.com/support" },
+    // Placeholders — replace with your own support contact before publishing.
+    support: { email: "support@example.com", url: "https://example.com/support" },
     categories: ["theme", "storefront"],
     available_countries: ["*"],
   };

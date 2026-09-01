@@ -385,6 +385,41 @@ inventoriesStock
       },
     ),
   );
+const inventoriesReorderScanSpecs: PromptSpec[] = [
+  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+];
+inventoriesStock
+  .command(`inventories-reorder-scan`)
+  .description(`Publishes \`stock_level.low\` on the event bus for every row GET /inventories/reorder-alerts currently lists, so replenishment can be driven by a subscriber instead of by somebody refreshing that page. Also runs hourly as the \`reorder-scan\` schedule; this route is for driving it on demand. The event id is derived from the stock row and the day, so a re-run — a second click, a retried cron tick — publishes nothing new and returns the ids the first run produced. Nothing is written to the app's own data: this reads the same figures the alerts list computes and hands them to the bus. Answers enabled:false without publishing when reorder_alert_enabled is off.`)
+  .option(`--data <data>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { data } = await promptForMissing(
+          _options,
+          inventoriesReorderScanSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/inventories/reorder-alerts/scan`;
+        const _payload: RequestParams = {};
+        if (data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesReorderScanSpecs, { method: "post" });
 const inventoriesRestockSpecs: PromptSpec[] = [
   { key: "items", option: "--items [items...]", name: "items", description: "The goods that came back, at most 200 in one call. Whether they rejoin sellable stock is `restock`, not this list.", type: "array", required: false },
   { key: "locationCode", option: "--location-code <location-code>", name: "location_code", description: "Where the goods came back to — a returns warehouse is a location like any other. Omitted, the `default_location_code` setting decides.", type: "string", required: false },

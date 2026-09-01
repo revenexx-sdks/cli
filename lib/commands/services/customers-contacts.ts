@@ -487,6 +487,55 @@ customersContacts
     ),
   );
 registerPromptSpecs(customersContacts.commands.at(-1)!, eventsCreateSpecs, { method: "post" });
+const inviteSpecs: PromptSpec[] = [
+  { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person being told. They are already a member — this only sends the message.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
+  { key: "url", option: "--url <url>", name: "url", description: "Where the invitation points — the storefront sign-in, normally. There is no token in it: the person is already a member and only has to sign in.", type: "string", required: true },
+  { key: "invitedBy", option: "--invited-by <invited-by>", name: "invited_by", description: "Who did the inviting, as the recipient should read it. Absent, the company name is used — \"Beispiel GmbH invited you\" reads better than the name of somebody they have never heard of.", type: "string", required: false },
+];
+customersContacts
+  .command(`invite`)
+  .description(`Tell somebody they were added to a company. A deliberate act rather than a side effect of creating the contact: a merchant entering a colleague from a business card is not always ready to mail them, and "added" and "told" are different decisions. No secret travels — the platform team membership is confirmed as it is created, so there is nothing to accept; the message says "you are in, here is the way in". Unlike the auth mails, a failure here IS a failure: the identity service sends nothing for this occasion, so this is the only message the person gets.`)
+  .option(`--contact-id <contact-id>`, `The person being told. They are already a member — this only sends the message.`)
+  .option(`--url <url>`, `Where the invitation points — the storefront sign-in, normally. There is no token in it: the person is already a member and only has to sign in.`)
+  .option(`--invited-by <invited-by>`, `Who did the inviting, as the recipient should read it. Absent, the company name is used — "Beispiel GmbH invited you" reads better than the name of somebody they have never heard of.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { contactId, url, invitedBy } = await promptForMissing(
+          _options,
+          inviteSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/contacts/{contact_id}/invite`.replace(`{contact_id}`, contactId);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (invitedBy !== undefined) {
+          _payload[`invited_by`] = invitedBy;
+        }
+        if (url !== undefined) {
+          _payload[`url`] = url;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customersContacts.commands.at(-1)!, inviteSpecs, { method: "post" });
 const permissionsSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person whose grants are being read.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
 ];

@@ -53,6 +53,19 @@ export interface Manifest {
   name?: string;
   vendor?: string;
   permissions?: Array<Record<string, unknown>>;
+  events?: { emits?: Array<string | Record<string, unknown>> };
+}
+
+/**
+ * One event the App fires itself — a `manifest.events.emits[]` entry declared
+ * `trigger: "app"`. The other kind (`entity` + `on`) is a Baseline trigger and
+ * never reaches the client: the App does not fire it, a row change does.
+ */
+export interface BuiltEvent {
+  /** Vendor-scoped topic the platform publishes. */
+  topic: string;
+  sample?: Record<string, unknown>;
+  schema?: Record<string, unknown>;
 }
 
 export interface Schema {
@@ -104,6 +117,47 @@ export function buildEntities(args: {
       ops: [...opsFromAccess(access[name] ?? [])],
     };
   }
+  return out;
+}
+
+/** The routine Baseline generates for an App's own events. */
+export function emitFnName(vendor: string, app: string): string {
+  return `${slug(vendor)}__${slug(app)}__emit`;
+}
+
+/**
+ * Build the descriptors for the events the App fires itself.
+ *
+ * Only `trigger: "app"` entries are kept. A wired emit (`entity` + `on`) is
+ * fired by a Baseline trigger on a row change — putting it on the client would
+ * offer the App a call that publishes a second, duplicate event.
+ *
+ * The topic is assembled the way Baseline's EventTopic::build does it, over the
+ * same snake-normalised vendor/app `tableName()` uses. Two spellings of one
+ * topic is a subscriber that never fires and no error anywhere.
+ */
+export function buildEvents(args: {
+  manifest: Manifest;
+  vendor: string;
+  app: string;
+}): Record<string, BuiltEvent> {
+  const out: Record<string, BuiltEvent> = {};
+
+  for (const entry of args.manifest.events?.emits ?? []) {
+    if (typeof entry !== "object" || entry === null) continue;
+    if (entry.trigger !== "app") continue;
+
+    const name = entry.name;
+    if (typeof name !== "string" || name === "") continue;
+
+    const event: BuiltEvent = { topic: `${slug(args.vendor)}.${slug(args.app)}.${name}` };
+    if (entry.sample && typeof entry.sample === "object") event.sample = entry.sample as Record<string, unknown>;
+    if (entry.data_schema && typeof entry.data_schema === "object") {
+      event.schema = entry.data_schema as Record<string, unknown>;
+    }
+    out[name] = event;
+  }
+
   return out;
 }
 
@@ -333,6 +387,8 @@ export interface EmitInput {
   vendor: string;
   app: string;
   entities: Record<string, BuiltEntity>;
+  /** The App's own events, empty when its manifest declares none. */
+  events: Record<string, BuiltEvent>;
   options: {
     runtimeModule?: string;
     phpNamespace?: string;
@@ -372,11 +428,30 @@ export function getEmitter(target: string): Emitter {
   return e;
 }
 
-function emitJs(entities: Record<string, BuiltEntity>, runtimeModule: string): string {
+function emitJs(
+  entities: Record<string, BuiltEntity>,
+  events: Record<string, BuiltEvent>,
+  emitFn: string,
+  runtimeModule: string,
+): string {
   const descriptor: Record<string, Pick<BuiltEntity, "table" | "pk" | "ops" | "columns">> = {};
   for (const [name, e] of Object.entries(entities)) {
     descriptor[name] = { table: e.table, pk: e.pk, ops: e.ops, columns: e.columns };
   }
+
+  // An App that fires nothing generates exactly what it generated before: no
+  // EVENTS, no `events` key, no `db.events`. The feature stays invisible to
+  // every App that does not use it.
+  const hasEvents = Object.keys(events).length > 0;
+  const eventsBlock = hasEvents
+    ? `
+/** Events this app fires itself (manifest events.emits[] with trigger: "app"). */
+const EVENTS = ${JSON.stringify(events, null, 2)};
+
+/** The routine Baseline generated for them. */
+const EMIT_FN = ${JSON.stringify(emitFn)};
+`
+    : "";
   // CommonJS: revenexx App functions run on open-runtimes Node with a CJS
   // entrypoint (`module.exports = async (context) => …`), so the generated
   // client must be require()-able. @revenexx/app-sdk is a dual package, so the
@@ -389,7 +464,7 @@ const { createClient } = require(${JSON.stringify(runtimeModule)});
 
 /** Entity descriptors derived from schema.json + manifest.permissions. */
 const ENTITIES = ${JSON.stringify(descriptor, null, 2)};
-
+${eventsBlock}
 /**
  * Create the App's data client.
  *   local dev : createDb({ adapter: 'mock', seed: {...} })
@@ -397,14 +472,14 @@ const ENTITIES = ${JSON.stringify(descriptor, null, 2)};
  *   production: createDb({ adapter: 'runtime', context })   // in the function
  */
 function createDb(config = {}) {
-  return createClient({ entities: ENTITIES, ...config });
+  return createClient({ entities: ENTITIES,${hasEvents ? " events: { fn: EMIT_FN, declared: EVENTS }," : ""} ...config });
 }
 
-module.exports = { createDb, ENTITIES };
+module.exports = { createDb, ENTITIES${hasEvents ? ", EVENTS, EMIT_FN" : ""} };
 `;
 }
 
-function emitDts(entities: Record<string, BuiltEntity>): string {
+function emitDts(entities: Record<string, BuiltEntity>, events: Record<string, BuiltEvent>): string {
   const blocks: string[] = [];
   const dbFields: string[] = [];
 
@@ -441,13 +516,36 @@ function emitDts(entities: Record<string, BuiltEntity>): string {
     dbFields.push(`  ${name}: ${Type}Client;`);
   }
 
+  // Typing the event NAMES is the point: an undeclared one is then a compile
+  // error, not a runtime one three lines into a scheduled job.
+  const eventNames = Object.keys(events);
+  const hasEvents = eventNames.length > 0;
+  const eventsImport = hasEvents ? ", EmitOptions, EmitResult, EmittedEvent, EventDescriptor" : "";
+  const eventUnion = eventNames.map((n) => JSON.stringify(n)).join(" | ");
+  const eventsField = hasEvents ? "\n  events: AppEvents;" : "";
+  const eventsBlock = hasEvents
+    ? `
+export type AppEventName = ${eventUnion};
+
+export interface AppEvents {
+  emit(name: AppEventName, data?: Record<string, unknown>, options?: EmitOptions): Promise<EmitResult>;
+  /** What was emitted, for tests. Only the 'mock' adapter records. */
+  emitted(): EmittedEvent[];
+  readonly declared: Record<AppEventName, EventDescriptor>;
+}
+
+export declare const EVENTS: Record<AppEventName, EventDescriptor>;
+export declare const EMIT_FN: string;
+`
+    : "";
+
   return `// AUTO-GENERATED — do not edit by hand.
-import type { Query, Page } from '@revenexx/app-sdk';
+import type { Query, Page${eventsImport} } from '@revenexx/app-sdk';
 
 ${blocks.join("\n\n")}
-
+${eventsBlock}
 export interface Db {
-${dbFields.join("\n")}
+${dbFields.join("\n")}${eventsField}
 }
 
 export interface CreateDbConfig {
@@ -468,12 +566,35 @@ export const jsEmitter: Emitter = {
   target: "js",
   emit(input: EmitInput): EmittedFile[] {
     const runtimeModule = input.options.runtimeModule ?? "@revenexx/app-sdk";
+    const emitFn = emitFnName(input.vendor, input.app);
     return [
-      { path: "db.generated.js", content: emitJs(input.entities, runtimeModule) },
-      { path: "db.generated.d.ts", content: emitDts(input.entities) },
+      { path: "db.generated.js", content: emitJs(input.entities, input.events, emitFn, runtimeModule) },
+      { path: "db.generated.d.ts", content: emitDts(input.entities, input.events) },
     ];
   },
 };
+
+/** A single-quoted PHP string literal. */
+function phpString(value: string): string {
+  return `'${value.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
+}
+
+/**
+ * A JSON value as a PHP literal.
+ *
+ * Used for the declared `sample` and `data_schema`, which come out of the
+ * manifest verbatim and can be arbitrarily nested. Emitted as PHP arrays rather
+ * than a json_decode() at runtime, so a malformed value is a parse error in the
+ * generated file instead of a null discovered on the first call.
+ */
+function phpValue(value: unknown): string {
+  if (value === null || value === undefined) return "null";
+  if (typeof value === "string") return phpString(value);
+  if (typeof value === "number" || typeof value === "boolean") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(phpValue).join(", ")}]`;
+  const entries = Object.entries(value as Record<string, unknown>);
+  return `[${entries.map(([k, v]) => `${phpString(k)} => ${phpValue(v)}`).join(", ")}]`;
+}
 
 /** PHP literal for a column's default, or a zero-value when none applies. */
 function phpDefault(col: ColumnDef): { nullable: boolean; expr: string } {
@@ -605,6 +726,56 @@ export const phpEmitter: Emitter = {
     const dbWire = names.map((n) => `        $this->${n} = new ${pascal(n)}Repository($client, $client->entity('${n}'));`).join("\n");
     const factories = names.map((n) => entityFactory(n, input.entities[n]!)).join("\n");
 
+    // Same rule as the JS emitter: an App that fires nothing generates exactly
+    // what it generated before.
+    const eventNames = Object.keys(input.events);
+    const hasEvents = eventNames.length > 0;
+    const emitFn = emitFnName(input.vendor, input.app);
+    const eventUse = hasEvents ? "use Revenexx\\AppSdk\\EventDescriptor;\nuse Revenexx\\AppSdk\\Events;\n" : "";
+    const eventFactories = eventNames
+      .map((n) => {
+        const e = input.events[n]!;
+        const args = [`topic: ${phpString(e.topic)}`];
+        if (e.sample) args.push(`sample: ${phpValue(e.sample)}`);
+        if (e.schema) args.push(`schema: ${phpValue(e.schema)}`);
+        return `            ${phpString(n)} => new EventDescriptor(${args.join(", ")}),`;
+      })
+      .join("\n");
+    const eventsBlock = hasEvents
+      ? `
+    /**
+     * Fire one of this App's own declared events.
+     *
+     *   $db->events()->emit('stock.low', ['sku' => $sku], ['topicId' => $sku]);
+     */
+    public function events(): Events
+    {
+        return $this->client->events();
+    }
+
+    /** The routine Baseline generated for this App's own events. */
+    public const EMIT_FN = ${phpString(emitFn)};
+
+    /**
+     * Events this App fires itself (manifest events.emits[] with trigger: "app").
+     *
+     * Named apart from events() on purpose: this is the declaration, that is
+     * the client you fire through.
+     *
+     * @return array<string, EventDescriptor>
+     */
+    public static function declaredEvents(): array
+    {
+        return [
+${eventFactories}
+        ];
+    }
+`
+      : "";
+    const clientArgs = hasEvents
+      ? "AdapterRegistry::create($adapter, $config), self::entities(), self::EMIT_FN, self::declaredEvents()"
+      : "AdapterRegistry::create($adapter, $config), self::entities()";
+
     const content = `<?php
 
 // AUTO-GENERATED — do not edit by hand.
@@ -617,7 +788,7 @@ namespace ${ns};
 use Revenexx\\AppSdk\\AdapterRegistry;
 use Revenexx\\AppSdk\\Client;
 use Revenexx\\AppSdk\\Entity;
-
+${eventUse}
 ${dtos}
 
 ${repos}
@@ -629,17 +800,17 @@ ${repos}
  */
 final class Db
 {
-${dbProps}
+${dbProps}${hasEvents ? "\n\n    private readonly Client $client;" : ""}
 
     private function __construct(Client $client)
     {
-${dbWire}
+${dbWire}${hasEvents ? "\n        $this->client = $client;" : ""}
     }
 
     /** @param array<string, mixed> $config */
     public static function create(string $adapter, array $config = []): self
     {
-        return new self(new Client(AdapterRegistry::create($adapter, $config), self::entities()));
+        return new self(new Client(${clientArgs}));
     }
 
     /** @return array<string, Entity> */
@@ -649,7 +820,7 @@ ${dbWire}
 ${factories}
         ];
     }
-}
+${eventsBlock}}
 `;
     return [{ path: "Db.php", content }];
   },
@@ -678,6 +849,8 @@ export interface GenerateResult {
   outDir: string;
   files: string[];
   entities: string[];
+  /** The App's own events, so `generate` can report what it wired. */
+  events: string[];
 }
 
 /** Read schema.json + manifest.json and emit a client for the chosen target. */
@@ -696,12 +869,15 @@ export function generateClient(opts: GenerateOptions): GenerateResult {
     throw new Error("generate: schema.json declares no entities");
   }
 
+  const events = buildEvents({ manifest, vendor, app });
+
   const target = opts.target ?? "js";
   const emitter = getEmitter(target);
   const emitted = emitter.emit({
     vendor,
     app,
     entities,
+    events,
     options: { runtimeModule: opts.runtimeModule, phpNamespace: opts.phpNamespace },
   });
 
@@ -714,5 +890,5 @@ export function generateClient(opts: GenerateOptions): GenerateResult {
     files.push(p);
   }
 
-  return { target, outDir: opts.outDir, files, entities: Object.keys(entities) };
+  return { target, outDir: opts.outDir, files, entities: Object.keys(entities), events: Object.keys(events) };
 }

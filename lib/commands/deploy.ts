@@ -40,12 +40,19 @@ const readJsonIf = (file: string): Json | null => {
 /** Never ship local state: matches the scaffolds' .gitignore set. */
 const PACK_EXCLUDES = new Set(["node_modules", ".git", ".nuxt", ".output", ".data", ".env"]);
 
-/** Package a directory into a tar.gz File for the deployment upload. */
-async function packDirectory(dir: string): Promise<File> {
+/**
+ * Package a directory into a tar.gz File for the deployment upload.
+ * `portable: true` keeps atime/ctime out of the header region that POSIX
+ * reserves for the path prefix — the platform's manifest extractor reads that
+ * region, and node-tar's default old-GNU timestamps turn every entry name
+ * into garbage, silently degrading the app to a legacy Function (DX-231).
+ */
+export async function packDirectory(dir: string): Promise<File> {
   const tempFile = path.join(os.tmpdir(), `revenexx-deploy-${process.pid}-${Date.now()}.tar.gz`);
   await createTar(
     {
       gzip: true,
+      portable: true,
       file: tempFile,
       cwd: dir,
       filter: (entry) => {

@@ -1,3 +1,6 @@
+## v0.4.0
+- fix app deployment
+
 ## v0.3.0
 - add watchers and watchlist
 
