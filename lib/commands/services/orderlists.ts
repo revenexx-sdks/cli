@@ -486,17 +486,22 @@ orderlists
 registerPromptSpecs(orderlists.commands.at(-1)!, kindsUpdateSpecs, { method: "put" });
 const kindsMakeDefaultSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The list kind, by id.", type: "string", required: true, resource: { listPath: "/orderlists/kinds", hasLimit: true } },
-  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 orderlists
   .command(`kinds-make-default`)
   .description(`One call MOVES the flag: the kind in the path is promoted and whoever held the flag before is demoted in the same request, because the flag is a single answer and not a per-row opinion. It is what a list created without a kind falls back to, so two defaults leave the result to row order and none leaves it to whatever sorts first — which is exactly why promotion and demotion cannot be two calls a client makes in sequence. PUT with is_default already moved it, but only as a side effect of an edit, and a client promoting and then demoting by hand produces those two broken states whenever one of the pair does not land. Every kind the tenant keeps is walked, and only the rows whose flag is wrong are written — the new default if it was not already set, the old one if it was — so the call costs at most two writes and repeating it costs none, which makes it safe to retry. The kind's other fields are untouched and no existing list is rewritten: lists that already name a kind keep it, since the flag decides only what a FUTURE create with no \`kind\` resolves to. The market-scoped \`default_kind\` setting still wins where it is set; this flag is the tenant-wide answer underneath it.`)
   .option(`--id <id>`, `The list kind, by id.`)
-  .option(`--data <data>`, `Request body`)
+  .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, data } = await promptForMissing(
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { id, body } = await promptForMissing(
           _options,
           kindsMakeDefaultSpecs,
           _command,
@@ -504,8 +509,8 @@ orderlists
         const _client = await sdkForProject();
         const _apiPath = `/orderlists/kinds/{id}/make-default`.replace(`{id}`, id);
         const _payload: RequestParams = {};
-        if (data !== undefined) {
-          Object.assign(_payload, resolveBodyParam(data));
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

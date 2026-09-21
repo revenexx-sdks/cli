@@ -1204,7 +1204,7 @@ What this route cannot change is what the amount MEANS: currency and tax basis b
 registerPromptSpecs(prices.commands.at(-1)!, entriesUpdateSpecs, { method: "put" });
 const listsMakeDefaultSpecs: PromptSpec[] = [
   { key: "listId", option: "--list-id <list-id>", name: "list_id", description: "The price list the entries belong to. An id no list in this tenant has answers 404 rather than an empty page.", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
-  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 prices
   .command(`lists-make-default`)
@@ -1212,11 +1212,16 @@ prices
 
 The write is as small as the change: exactly one write per row whose flag was wrong, and none at all for the rows that were already right. A tenant already in this state is therefore not written to, which is what makes repeating the call free. The answer is this list as it now stands plus the codes it demoted — empty when it already held the flag.`)
   .option(`--list-id <list-id>`, `The price list the entries belong to. An id no list in this tenant has answers 404 rather than an empty page.`)
-  .option(`--data <data>`, `Request body`)
+  .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { listId, data } = await promptForMissing(
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { listId, body } = await promptForMissing(
           _options,
           listsMakeDefaultSpecs,
           _command,
@@ -1224,8 +1229,8 @@ The write is as small as the change: exactly one write per row whose flag was wr
         const _client = await sdkForProject();
         const _apiPath = `/prices/lists/{list_id}/make-default`.replace(`{list_id}`, listId);
         const _payload: RequestParams = {};
-        if (data !== undefined) {
-          Object.assign(_payload, resolveBodyParam(data));
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

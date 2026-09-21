@@ -39,6 +39,30 @@ describe("classifyApiKeyProbe", () => {
     if (!result.ok) expect(result.kind).toBe("missing-tenant");
   });
 
+  it("classifies the bearer 403 `not a member of this tenant` as an invalid tenant (DX-230)", () => {
+    const result = classifyApiKeyProbe(
+      { code: 403, message: "not a member of this tenant" },
+      "someone-elses-tenant",
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe("invalid-tenant");
+      expect(result.reason).toMatch(/not a member of tenant 'someone-elses-tenant'/);
+    }
+  });
+
+  it("classifies the bearer 401 `not authenticated` as a dead session, not a bad tenant", () => {
+    const result = classifyApiKeyProbe(
+      { code: 401, message: "not authenticated" },
+      "revenexx",
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe("invalid-session");
+      expect(result.reason).toMatch(/login/);
+    }
+  });
+
   it("treats `general_unauthorized_scope` as ok — the key was recognised", () => {
     const result = classifyApiKeyProbe(
       { code: 401, type: "general_unauthorized_scope", message: "missing scopes" },

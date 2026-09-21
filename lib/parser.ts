@@ -962,24 +962,50 @@ export const parseFields = (value: string): string[] =>
     .filter((field) => field.length > 0);
 
 /**
+ * Where a status line goes. `progress` is human chrome (what the command is
+ * doing right now) and disappears under `--quiet`; `diagnostic` is something
+ * the user needs to see either way, so it survives `--quiet` on stderr.
+ */
+type StatusKind = "progress" | "diagnostic";
+
+/**
+ * Route one status line to the stream it belongs on. stdout carries the result
+ * document alone in every machine-readable format, so a progress line would
+ * make `--json` unparseable as a whole (DX-241) — those go to stderr, where a
+ * long build wait is still visible in a CI log. Human `table` output keeps its
+ * status lines on stdout, unchanged.
+ */
+const writeStatus = (line: string, kind: StatusKind = "progress"): void => {
+  if (cliConfig.quiet) {
+    if (kind === "diagnostic") process.stderr.write(`${line}\n`);
+    return;
+  }
+  if (cliConfig.output !== "table") {
+    process.stderr.write(`${line}\n`);
+    return;
+  }
+  console.log(line);
+};
+
+/**
  * Status lines follow one gh-style system: a colored symbol, then the plain
  * message. Message text is left uncolored for readability; chalk drops the
  * ANSI codes automatically for non-TTY output and NO_COLOR.
  */
 export const log = (message?: string): void => {
-  console.log(`${chalk.cyan("ℹ")} ${message ?? ""}`);
+  writeStatus(`${chalk.cyan("ℹ")} ${message ?? ""}`);
 };
 
 export const warn = (message?: string): void => {
-  console.log(`${chalk.yellow("!")} ${message ?? ""}`);
+  writeStatus(`${chalk.yellow("!")} ${message ?? ""}`, "diagnostic");
 };
 
 export const hint = (message?: string): void => {
-  console.log(chalk.dim(`  Tip: ${message ?? ""}`));
+  writeStatus(chalk.dim(`  Tip: ${message ?? ""}`));
 };
 
 export const success = (message?: string): void => {
-  console.log(`${chalk.green("✓")} ${message ?? ""}`);
+  writeStatus(`${chalk.green("✓")} ${message ?? ""}`);
 };
 
 export const error = (message?: string): void => {
@@ -1124,6 +1150,11 @@ export const commandDescriptions: Record<string, string> = {
   repl: `Starts an interactive shell so you can run several commands in one authenticated session.`,
   tui: `Launches the full-screen interactive terminal app.`,
   watch: `Poll a resource field in the background until it changes or settles.`,
+  // Service descriptions normally come from the spec, but the `apps` tag text
+  // upstream describes the runtime in terms of the platform fork — an internal
+  // name partners must not see. An entry here wins over the spec text
+  // (services.ts.twig); tools/check-public-surface.mjs gates the rest.
+  apps: `The ${SDK_TITLE} app runtime and marketplace: build, deploy, install and manage apps.`,
   main: `${chalk.redBright(logo)}${description}`,
 };
 

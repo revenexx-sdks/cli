@@ -92,7 +92,7 @@ export interface CliConfig {
   endpoint?: string;
   token?: string;
   tenant?: string;
-  /** Per-request timeout in ms (--timeout). Undefined → client default. */
+  /** Per-request timeout in ms (--request-timeout). Undefined → client default. */
   timeout?: number;
   /** Auto-retry idempotent requests. False when --no-retry is passed. */
   retry: boolean;

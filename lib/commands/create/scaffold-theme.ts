@@ -2,7 +2,7 @@
  * `revenexx create theme` — stamp a complete, deployable Blokkli theme.
  *
  * The skeleton follows the theme contract of the canonical `sample-theme`
- * reference (ADR-0061/0062): theme.json + billing.json + a minimal Nuxt SSR
+ * reference: theme.json + billing.json + a minimal Nuxt SSR
  * storefront with the multi-tenant-safe context pattern, plus the pieces the
  * reference is missing but the contract needs (icon.svg — theme.json points
  * at it) and the hard-won build defaults (heap headroom for the platform
@@ -145,7 +145,7 @@ function packageJson(opts: ThemeScaffoldOptions): Record<string, unknown> {
   };
 }
 
-const NUXT_CONFIG = `// Minimal Nuxt SSR config for a Blokkli theme (ADR-0061).
+const NUXT_CONFIG = `// Minimal Nuxt SSR config for a Blokkli theme.
 // Deployed as a platform Site with adapter "ssr": the build worker runs
 // \`npm run build\` and serves the Nitro node-server output from \`.output\`.
 export default defineNuxtConfig({
@@ -160,7 +160,7 @@ export default defineNuxtConfig({
 
 function appVue(opts: ThemeScaffoldOptions): string {
   return `<script setup lang="ts">
-// Multi-tenant-safe SSR context (ADR-0057/0061):
+// Multi-tenant-safe SSR context:
 //   - the tenant is resolved from the request Host on the public Sites
 //     entrypoint — this frontend is served by DOMAIN, never the gateway;
 //   - x-revenexx-context carries the brokered per-tenant JWT the Blokkli
@@ -265,7 +265,7 @@ function readmeMd(opts: ThemeScaffoldOptions): string {
 
 ${opts.description}
 
-A Blokkli theme (ADR-0061/0062): a Nuxt SSR storefront plus a registry
+A Blokkli theme: a Nuxt SSR storefront plus a registry
 manifest pair, scaffolded with \`revenexx create theme\`.
 
 ## Layout

@@ -163,24 +163,24 @@ pagesDelivery
   );
 registerPromptSpecs(pagesDelivery.commands.at(-1)!, pagesSpecs, { method: "get" });
 const previewSpecs: PromptSpec[] = [
-  { key: "token", option: "--token <token>", name: "token", description: "The token handed out by POST /pages/editor/{page_id}/preview-grant.", type: "string", required: true, secret: true },
+  { key: "previewToken", option: "--preview-token <preview-token>", name: "token", description: "The token handed out by POST /pages/editor/{page_id}/preview-grant.", type: "string", required: true, secret: true },
   { key: "langcode", option: "--langcode <langcode>", name: "langcode", description: "Language to resolve the tree for. Falls back to the page's source language, per field.", type: "string", required: false },
 ];
 pagesDelivery
   .command(`preview`)
   .description(`The same shape \`GET /pages/delivery/page\` answers, built from the UNPUBLISHED working copy instead of the published revision — so a reviewer without an editor account sees exactly what the storefront would render.`)
-  .option(`--token <token>`, `The token handed out by POST /pages/editor/{page_id}/preview-grant.`)
+  .option(`--preview-token <preview-token>`, `The token handed out by POST /pages/editor/{page_id}/preview-grant.`)
   .option(`--langcode <langcode>`, `Language to resolve the tree for. Falls back to the page's source language, per field.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { token, langcode } = await promptForMissing(
+        const { previewToken, langcode } = await promptForMissing(
           _options,
           previewSpecs,
           _command,
         );
         const _client = await sdkForProject();
-        const _apiPath = `/pages/delivery/preview/{token}`.replace(`{token}`, token);
+        const _apiPath = `/pages/delivery/preview/{token}`.replace(`{token}`, previewToken);
         const _payload: RequestParams = {};
         if (langcode !== undefined) {
           _payload[`langcode`] = langcode;

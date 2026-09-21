@@ -349,7 +349,7 @@ const getScreenshotSpecs: PromptSpec[] = [
   { key: "width", option: "--width <width>", name: "width", description: "Output image width. Pass 0 to use original width, or an integer between 1 to 2000. Defaults to 0 (original width).", type: "integer", required: false },
   { key: "height", option: "--height <height>", name: "height", description: "Output image height. Pass 0 to use original height, or an integer between 1 to 2000. Defaults to 0 (original height).", type: "integer", required: false },
   { key: "quality", option: "--quality <quality>", name: "quality", description: "Screenshot quality. Pass an integer between 0 to 100. Defaults to keep existing image quality.", type: "integer", required: false },
-  { key: "output", option: "--output <output>", name: "output", description: "Output format type (jpeg, jpg, png, gif and webp).", type: "string", required: false, enum: ["jpg","jpeg","png","webp","heic","avif","gif"] },
+  { key: "outputFormat", option: "--output-format <output-format>", name: "output", description: "Output format type (jpeg, jpg, png, gif and webp).", type: "string", required: false, enum: ["jpg","jpeg","png","webp","heic","avif","gif"] },
 ];
 avatars
   .command(`get-screenshot`)
@@ -387,11 +387,11 @@ When width and height are specified, the image is resized accordingly. If both d
   .option(`--width <width>`, `Output image width. Pass 0 to use original width, or an integer between 1 to 2000. Defaults to 0 (original width).`, parseInteger)
   .option(`--height <height>`, `Output image height. Pass 0 to use original height, or an integer between 1 to 2000. Defaults to 0 (original height).`, parseInteger)
   .option(`--quality <quality>`, `Screenshot quality. Pass an integer between 0 to 100. Defaults to keep existing image quality.`, parseInteger)
-  .option(`--output <output>`, `Output format type (jpeg, jpg, png, gif and webp).`)
+  .option(`--output-format <output-format>`, `Output format type (jpeg, jpg, png, gif and webp).`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { url, headers, viewportWidth, viewportHeight, scale, theme, userAgent, fullpage, locale, timezone, latitude, longitude, accuracy, touch, permissions, sleep, width, height, quality, output } = await promptForMissing(
+        const { url, headers, viewportWidth, viewportHeight, scale, theme, userAgent, fullpage, locale, timezone, latitude, longitude, accuracy, touch, permissions, sleep, width, height, quality, outputFormat } = await promptForMissing(
           _options,
           getScreenshotSpecs,
           _command,
@@ -456,8 +456,8 @@ When width and height are specified, the image is resized accordingly. If both d
         if (quality !== undefined) {
           _payload[`quality`] = quality;
         }
-        if (output !== undefined) {
-          _payload[`output`] = output;
+        if (outputFormat !== undefined) {
+          _payload[`output`] = outputFormat;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

@@ -79,7 +79,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
 
-namespace Appwrite.Models
+namespace Revenexx.Models
 {
 <% for (const attribute of collection.attributes) { -%>
 <% if (attribute.format === 'enum') { -%>

@@ -21,6 +21,7 @@ import {
   generateState,
   openBrowser,
   runLoopbackCapture,
+  tenantsFromClaims,
 } from "../oauth.js";
 import {
   actionRunner,
@@ -92,6 +93,8 @@ const planSessionLogout = (selectedSessionIds: string[]): string[] => {
  */
 export type ApiKeyProbeFailureKind =
   | "invalid-key"
+  /** The stored SSO token was rejected outright (expired/revoked/foreign issuer). */
+  | "invalid-session"
   | "invalid-tenant"
   | "missing-tenant"
   | "other";
@@ -129,6 +132,23 @@ export const classifyApiKeyProbe = (
       ok: false,
       kind: "invalid-tenant",
       reason: `the key is not valid for tenant '${tenant}'`,
+    };
+  }
+  // Bearer (SSO) probes: the gateway checks the token's `tenant_ids` claim and
+  // answers 403 for a slug the account is not a member of, 401 for a token it
+  // does not accept at all.
+  if (message === "not a member of this tenant") {
+    return {
+      ok: false,
+      kind: "invalid-tenant",
+      reason: `your account is not a member of tenant '${tenant}'`,
+    };
+  }
+  if (message === "not authenticated") {
+    return {
+      ok: false,
+      kind: "invalid-session",
+      reason: "the gateway rejected the session token — run `login` again",
     };
   }
   if (message === "missing X-Revenexx-Tenant") {
@@ -177,6 +197,47 @@ export const validateApiKey = async (
   } catch (err) {
     return classifyApiKeyProbe(err, tenant);
   }
+};
+
+/**
+ * The SSO twin of `validateApiKey`: probe `/locale` with the browser-session
+ * JWT in `Authorization: Bearer` plus the tenant header. The gateway validates
+ * the token and then checks membership from its `tenant_ids` claim, so a slug
+ * the account cannot reach comes back as a 403 `not a member of this tenant`.
+ */
+export const validateSsoJwt = async (
+  jwt: string,
+  endpoint: string,
+  tenant: string,
+): Promise<ApiKeyValidationResult> => {
+  const client = new ClientLegacy()
+    .setEndpoint(endpoint)
+    .setTenant(tenant)
+    .setBearer(jwt);
+  try {
+    await client.call("GET", "/locale", { "content-type": "application/json" }, {});
+    return classifyApiKeyProbe(null, tenant);
+  } catch (err) {
+    return classifyApiKeyProbe(err, tenant);
+  }
+};
+
+/**
+ * The line printed after a browser sign-in when no tenant is selected yet. A
+ * fresh account has no way to learn its slug from the terminal unless we tell
+ * it: name the tenants the token grants (one → the exact command to run,
+ * several → the choice), and fall back to `tenants list` when the token
+ * carries none. Pure, so the three shapes can be unit-tested.
+ */
+export const postLoginTenantHint = (accountTenants: string[]): string => {
+  if (accountTenants.length === 1) {
+    const slug = accountTenants[0];
+    return `No tenant is set yet. Your account can access '${slug}' — run \`${EXECUTABLE_NAME} tenants use ${slug}\` so commands are scoped to it.`;
+  }
+  if (accountTenants.length > 1) {
+    return `No tenant is set yet. Your account can access: ${accountTenants.join(", ")}. Run \`${EXECUTABLE_NAME} tenants use <slug>\` to pick one (\`${EXECUTABLE_NAME} tenants list\` shows them again).`;
+  }
+  return `No tenant is set yet. Run \`${EXECUTABLE_NAME} tenants list\` to see the tenants your account can access, then \`${EXECUTABLE_NAME} tenants use <slug>\`.`;
 };
 
 /**
@@ -238,7 +299,7 @@ const SSO_LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 const ssoLogin = async (configEndpoint: string): Promise<void> => {
   if (!SSO_CLIENT_ID || SSO_CLIENT_ID.startsWith("REPLACE_WITH_")) {
     error(
-      `SSO is not configured. Set REVENEXX_SSO_CLIENT_ID (and REVENEXX_SSO_ISSUER) to your Zitadel application, or sign in with an API key via --token.`,
+      `SSO is not configured. Set REVENEXX_SSO_CLIENT_ID (and REVENEXX_SSO_ISSUER) to your Revenexx ID application, or sign in with an API key via --token.`,
     );
     return;
   }
@@ -321,9 +382,7 @@ const ssoLogin = async (configEndpoint: string): Promise<void> => {
     );
 
     if (!resolveTenant()) {
-      log(
-        `No tenant is set yet. Run \`${EXECUTABLE_NAME} tenants use <slug>\` so commands are scoped to a tenant.`,
-      );
+      log(postLoginTenantHint(tenantsFromClaims(decodeJwtClaims(tokens.jwt))));
     }
   } finally {
     capture.close();
@@ -463,7 +522,7 @@ export const whoami = new Command("whoami")
             ]
           : [
               {
-                "Auth method": "SSO (Zitadel)",
+                "Auth method": "SSO (Revenexx ID)",
                 Source: "login session",
                 User: globalConfig.getEmail() || "(unknown)",
                 Tenant: tenant,
@@ -503,7 +562,7 @@ export const login = new Command("login")
   )
   .option(
     `--browser`,
-    `Force interactive SSO sign-in via the browser (Zitadel), even if an API key is present`,
+    `Force interactive SSO sign-in via the browser (Revenexx ID), even if an API key is present`,
   )
   .option(`--sso`, `Alias for --browser`)
   .configureHelp({
@@ -640,13 +699,18 @@ export const client = new Command("client")
         localOpts: ClientCommandOptions,
         command: Command,
       ) => {
+        // `--endpoint` and `--debug` are also program options, and commander
+        // parses those anywhere in argv, so the program receives them and the
+        // command's own copies stay undefined — read them back from the parent.
         const parentOpts = (command.parent?.opts() ?? {}) as {
           endpoint?: string;
           projectId?: string;
+          debug?: boolean;
         };
         const endpoint = localOpts.endpoint ?? parentOpts.endpoint;
         const projectId = localOpts.projectId ?? parentOpts.projectId;
-        const { selfSigned, key, debug, reset, sensitiveTenants } = localOpts;
+        const debug = localOpts.debug ?? parentOpts.debug;
+        const { selfSigned, key, reset, sensitiveTenants } = localOpts;
 
         if (
           selfSigned == undefined &&

@@ -1043,17 +1043,22 @@ It exists because a PIM import (Akeneo, BMEcat) carries these in one blob keyed 
 registerPromptSpecs(products.commands.at(-1)!, updateSpecs, { method: "put" });
 const completenessSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `products` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products`. An id no product of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products", hasLimit: true } },
-  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 products
   .command(`completeness`)
   .description(`How much of what its family REQUIRES does this product actually carry — the number a merchandiser works down. products.completeness is jsonb that nothing had ever written. This computes it from family_attributes (is_required) against the product's own scoped attribute_values and stores the result. A product with no family answers 400 rather than an invented 0 % — it has nothing to be measured against.`)
   .option(`--id <id>`, `The \`products\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products\`. An id no product of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
-  .option(`--data <data>`, `Request body`)
+  .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, data } = await promptForMissing(
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { id, body } = await promptForMissing(
           _options,
           completenessSpecs,
           _command,
@@ -1061,8 +1066,8 @@ products
         const _client = await sdkForProject();
         const _apiPath = `/products/{id}/completeness`.replace(`{id}`, id);
         const _payload: RequestParams = {};
-        if (data !== undefined) {
-          Object.assign(_payload, resolveBodyParam(data));
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

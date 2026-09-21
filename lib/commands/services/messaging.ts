@@ -1432,7 +1432,7 @@ registerPromptSpecs(messaging.commands.at(-1)!, messageShowSpecs, { method: "get
 const sendPreviewSpecs: PromptSpec[] = [
   { key: "channel", option: "--channel <channel>", name: "channel", type: "string", required: true },
   { key: "template", option: "--template <template>", name: "template", type: "string", required: true },
-  { key: "data", option: "--data <data>", name: "data", description: "The render model: a free map of variable name to value, resolved against the template's\nplaceholders. Values may be strings, numbers, booleans, or nested objects and arrays —\n`{{ order.number }}` reads a nested one.\n\nNot the only source. A tenant's `defaults`, its layout, and the template's own\n`variable_defaults` are merged underneath, so a placeholder an event did not carry can\nstill resolve. Anything named here wins over all of them.", type: "object", required: false },
+  { key: "templateData", option: "--template-data <template-data>", name: "data", description: "The render model: a free map of variable name to value, resolved against the template's\nplaceholders. Values may be strings, numbers, booleans, or nested objects and arrays —\n`{{ order.number }}` reads a nested one.\n\nNot the only source. A tenant's `defaults`, its layout, and the template's own\n`variable_defaults` are merged underneath, so a placeholder an event did not carry can\nstill resolve. Anything named here wins over all of them.", type: "object", required: false },
   { key: "locale", option: "--locale <locale>", name: "locale", type: "string", required: false },
 ];
 messaging
@@ -1446,7 +1446,7 @@ nothing here for a market to change. Nor \`send_at\`, \`draft\` or
 \`attachments\` — all of them are properties of a dispatch, not of a render.`)
   .option(`--channel <channel>`, ``)
   .option(`--template <template>`, ``)
-  .option(`--data <data>`, `The render model: a free map of variable name to value, resolved against the template's
+  .option(`--template-data <template-data>`, `The render model: a free map of variable name to value, resolved against the template's
 placeholders. Values may be strings, numbers, booleans, or nested objects and arrays —
 \`{{ order.number }}\` reads a nested one.
 
@@ -1457,7 +1457,7 @@ still resolve. Anything named here wins over all of them.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { channel, template, data, locale } = await promptForMissing(
+        const { channel, template, templateData, locale } = await promptForMissing(
           _options,
           sendPreviewSpecs,
           _command,
@@ -1475,8 +1475,8 @@ still resolve. Anything named here wins over all of them.`)
         if (channel !== undefined) {
           _payload[`channel`] = channel;
         }
-        if (data !== undefined) {
-          _payload[`data`] = resolveBodyParam(data);
+        if (templateData !== undefined) {
+          _payload[`data`] = resolveBodyParam(templateData);
         }
         if (locale !== undefined) {
           _payload[`locale`] = locale;
@@ -1562,18 +1562,18 @@ up with are keyed that way.`)
   );
 registerPromptSpecs(messaging.commands.at(-1)!, erasureStoreSpecs, { method: "post" });
 const pushSubscriptionDestroySpecs: PromptSpec[] = [
-  { key: "endpoint", option: "--endpoint <endpoint>", name: "endpoint", type: "string", required: true },
+  { key: "pushEndpoint", option: "--push-endpoint <push-endpoint>", name: "endpoint", type: "string", required: true },
 ];
 messaging
   .command(`push-subscription-destroy`)
   .description(`By endpoint and not by id, because the browser knows its endpoint and has
 never seen our id — this is called from a service worker reacting to
 \`pushsubscriptionchange\`, or from a "turn off notifications" button.`)
-  .option(`--endpoint <endpoint>`, ``)
+  .option(`--push-endpoint <push-endpoint>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { endpoint } = await promptForMissing(
+        const { pushEndpoint } = await promptForMissing(
           _options,
           pushSubscriptionDestroySpecs,
           _command,
@@ -1582,8 +1582,8 @@ never seen our id — this is called from a service worker reacting to
         const _client = await sdkForProject();
         const _apiPath = `/messaging/push/subscriptions`;
         const _payload: RequestParams = {};
-        if (endpoint !== undefined) {
-          _payload[`endpoint`] = endpoint;
+        if (pushEndpoint !== undefined) {
+          _payload[`endpoint`] = pushEndpoint;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1655,7 +1655,7 @@ else can push with.`)
   );
 registerPromptSpecs(messaging.commands.at(-1)!, pushSubscriptionIndexSpecs, { method: "get" });
 const pushSubscriptionStoreSpecs: PromptSpec[] = [
-  { key: "endpoint", option: "--endpoint <endpoint>", name: "endpoint", type: "string", required: true },
+  { key: "pushEndpoint", option: "--push-endpoint <push-endpoint>", name: "endpoint", type: "string", required: true },
   { key: "keys", option: "--keys <keys>", name: "keys", type: "object", required: true },
   { key: "subscriberId", option: "--subscriber-id <subscriber-id>", name: "subscriber_id", type: "string", required: true },
   { key: "userAgent", option: "--user-agent <user-agent>", name: "user_agent", type: "string", required: false },
@@ -1672,14 +1672,14 @@ for a browser seen for the first time, 200 for one already registered. A
 browser calls \`subscribe()\` on every page load and hands back the same
 endpoint each time; treating that as a new device would give one laptop a
 thousand rows and push to it a thousand times.`)
-  .option(`--endpoint <endpoint>`, ``)
+  .option(`--push-endpoint <push-endpoint>`, ``)
   .option(`--keys <keys>`, ``)
   .option(`--subscriber-id <subscriber-id>`, ``)
   .option(`--user-agent <user-agent>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { endpoint, keys, subscriberId, userAgent } = await promptForMissing(
+        const { pushEndpoint, keys, subscriberId, userAgent } = await promptForMissing(
           _options,
           pushSubscriptionStoreSpecs,
           _command,
@@ -1694,8 +1694,8 @@ thousand rows and push to it a thousand times.`)
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (endpoint !== undefined) {
-          _payload[`endpoint`] = endpoint;
+        if (pushEndpoint !== undefined) {
+          _payload[`endpoint`] = pushEndpoint;
         }
         if (keys !== undefined) {
           _payload[`keys`] = resolveBodyParam(keys);
@@ -1725,7 +1725,7 @@ const sendSendSpecs: PromptSpec[] = [
   { key: "template", option: "--template <template>", name: "template", type: "string", required: true },
   { key: "to", option: "--to <to>", name: "to", type: "string", required: true },
   { key: "attachments", option: "--attachments [attachments...]", name: "attachments", description: "Files travelling with the message. Base64 content, never a URL:\nfetching an address that arrives in a request body would make\nthis service a request-forwarder inside the platform network —\nsee App\\Support\\Attachment.", type: "array", required: false },
-  { key: "data", option: "--data <data>", name: "data", description: "The render model: a free map of variable name to value, resolved against the template's\nplaceholders. Values may be strings, numbers, booleans, or nested objects and arrays —\n`{{ order.number }}` reads a nested one.\n\nNot the only source. A tenant's `defaults`, its layout, and the template's own\n`variable_defaults` are merged underneath, so a placeholder an event did not carry can\nstill resolve. Anything named here wins over all of them.", type: "object", required: false },
+  { key: "templateData", option: "--template-data <template-data>", name: "data", description: "The render model: a free map of variable name to value, resolved against the template's\nplaceholders. Values may be strings, numbers, booleans, or nested objects and arrays —\n`{{ order.number }}` reads a nested one.\n\nNot the only source. A tenant's `defaults`, its layout, and the template's own\n`variable_defaults` are merged underneath, so a placeholder an event did not carry can\nstill resolve. Anything named here wins over all of them.", type: "object", required: false },
   { key: "draft", option: "--draft <draft>", name: "draft", description: "A TEST SEND. Renders the draft instead of the published snapshot,\nwhich is the only way an author can check a correction in a real\nmail client before it goes live to everybody. Deliberately a flag on this route and not a route of its own:\neverything else about it — suppression, quiet hours, the\nlanguage chain, idempotency — has to behave exactly as a real\nsend, and a second endpoint is a second set of those rules that\ndrifts. The one difference is which fassung is rendered.", type: "boolean", required: false },
   { key: "locale", option: "--locale <locale>", name: "locale", description: "The language the CALLER states — step 1 of the resolution order,\nahead of anything in the payload. Absent is normal and is not\n\"English\": it means the recipient's own language decides.", type: "string", required: false },
   { key: "market", option: "--market <market>", name: "market", description: "Which market this send belongs to. Absent means the GLOBAL\nmarket, which is what every send was before markets reached this\npath — so a caller that never heard of them keeps working and\ngets the credentials it always had. The caller states it; nothing here derives it. A country code on\na phone number is a fact and a domain on an address is a guess,\nand a guess that decides which carrier carries a message would\nlook exactly like a decision somebody made.\n\nNot on `preview`: rendering picks no provider, so there is\nnothing there for a market to change.", type: "string", required: false },
@@ -1762,7 +1762,7 @@ reported as a refusal rather than as a silent success.`)
 fetching an address that arrives in a request body would make
 this service a request-forwarder inside the platform network —
 see App\\Support\\Attachment.`)
-  .option(`--data <data>`, `The render model: a free map of variable name to value, resolved against the template's
+  .option(`--template-data <template-data>`, `The render model: a free map of variable name to value, resolved against the template's
 placeholders. Values may be strings, numbers, booleans, or nested objects and arrays —
 \`{{ order.number }}\` reads a nested one.
 
@@ -1801,7 +1801,7 @@ message.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { channel, template, to, attachments, data, draft, locale, market, sendAt } = await promptForMissing(
+        const { channel, template, to, attachments, templateData, draft, locale, market, sendAt } = await promptForMissing(
           _options,
           sendSendSpecs,
           _command,
@@ -1822,8 +1822,8 @@ message.`)
         if (channel !== undefined) {
           _payload[`channel`] = channel;
         }
-        if (data !== undefined) {
-          _payload[`data`] = resolveBodyParam(data);
+        if (templateData !== undefined) {
+          _payload[`data`] = resolveBodyParam(templateData);
         }
         if (draft !== undefined) {
           _payload[`draft`] = draft;
@@ -2892,7 +2892,7 @@ the draft has moved on since.`)
 registerPromptSpecs(messaging.commands.at(-1)!, templateVersionIndexSpecs, { method: "get" });
 const templateVersionShowSpecs: PromptSpec[] = [
   { key: "templateId", option: "--template-id <template-id>", name: "templateId", type: "string", required: true, resource: { listPath: "/messaging/templates", hasLimit: false } },
-  { key: "version", option: "--version <version>", name: "version", type: "string", required: true, resource: { listPath: "/messaging/templates/{templateId}/versions", hasLimit: false } },
+  { key: "templateVersion", option: "--template-version <template-version>", name: "version", type: "string", required: true, resource: { listPath: "/messaging/templates/{templateId}/versions", hasLimit: false } },
 ];
 messaging
   .command(`template-version-show`)
@@ -2904,17 +2904,17 @@ This is what sends actually rendered while that version was live, so it
 is the thing to read when the question is "what did the mail we sent in
      * March say".`)
   .option(`--template-id <template-id>`, ``)
-  .option(`--version <version>`, ``)
+  .option(`--template-version <template-version>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { templateId, version } = await promptForMissing(
+        const { templateId, templateVersion } = await promptForMissing(
           _options,
           templateVersionShowSpecs,
           _command,
         );
         const _client = await sdkForProject();
-        const _apiPath = `/messaging/templates/{templateId}/versions/{version}`.replace(`{templateId}`, templateId).replace(`{version}`, version);
+        const _apiPath = `/messaging/templates/{templateId}/versions/{version}`.replace(`{templateId}`, templateId).replace(`{version}`, templateVersion);
         const _payload: RequestParams = {};
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2932,7 +2932,7 @@ is the thing to read when the question is "what did the mail we sent in
 registerPromptSpecs(messaging.commands.at(-1)!, templateVersionShowSpecs, { method: "get" });
 const templateVersionRestoreSpecs: PromptSpec[] = [
   { key: "templateId", option: "--template-id <template-id>", name: "templateId", type: "string", required: true, resource: { listPath: "/messaging/templates", hasLimit: false } },
-  { key: "version", option: "--version <version>", name: "version", type: "string", required: true, resource: { listPath: "/messaging/templates/{templateId}/versions", hasLimit: false } },
+  { key: "templateVersion", option: "--template-version <template-version>", name: "version", type: "string", required: true, resource: { listPath: "/messaging/templates/{templateId}/versions", hasLimit: false } },
   { key: "publish", option: "--publish <publish>", name: "publish", type: "boolean", required: false },
 ];
 messaging
@@ -2941,7 +2941,7 @@ messaging
 TemplatePublisher::restore for why that flag exists rather than asking
 the caller for a second round trip.`)
   .option(`--template-id <template-id>`, ``)
-  .option(`--version <version>`, ``)
+  .option(`--template-version <template-version>`, ``)
   .option(
     `--publish [value]`,
     ``,
@@ -2951,13 +2951,13 @@ the caller for a second round trip.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { templateId, version, publish } = await promptForMissing(
+        const { templateId, templateVersion, publish } = await promptForMissing(
           _options,
           templateVersionRestoreSpecs,
           _command,
         );
         const _client = await sdkForProject();
-        const _apiPath = `/messaging/templates/{templateId}/versions/{version}/restore`.replace(`{templateId}`, templateId).replace(`{version}`, version);
+        const _apiPath = `/messaging/templates/{templateId}/versions/{version}/restore`.replace(`{templateId}`, templateId).replace(`{version}`, templateVersion);
         const _payload: RequestParams = {};
         if (cliConfig.data !== undefined) {
           const body = resolveBodyParam(cliConfig.data);

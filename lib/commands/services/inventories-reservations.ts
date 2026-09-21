@@ -223,16 +223,21 @@ inventoriesReservations
   );
 registerPromptSpecs(inventoriesReservations.commands.at(-1)!, listSpecs, { method: "get" });
 const sweepSpecs: PromptSpec[] = [
-  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 inventoriesReservations
   .command(`sweep`)
   .description(`The expiry sweeper, also run by the 'expire-reservations' schedule every 15 minutes. Releases reservations past their own expires_at and — once reservation_ttl_minutes is above 0 — reservations older than that lifetime which never carried a deadline. Each release gives the stock back and writes a 'release' booking, exactly like a cancellation. Idempotent: a second run finds nothing.`)
-  .option(`--data <data>`, `Request body`)
+  .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { data } = await promptForMissing(
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { body } = await promptForMissing(
           _options,
           sweepSpecs,
           _command,
@@ -240,8 +245,8 @@ inventoriesReservations
         const _client = await sdkForProject();
         const _apiPath = `/inventories/reservations/sweep`;
         const _payload: RequestParams = {};
-        if (data !== undefined) {
-          Object.assign(_payload, resolveBodyParam(data));
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

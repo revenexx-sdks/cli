@@ -634,17 +634,22 @@ markets
 registerPromptSpecs(markets.commands.at(-1)!, contextSpecs, { method: "get" });
 const makeDefaultSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The market to promote — a uuid or a market code.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
-  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 markets
   .command(`make-default`)
   .description(`A tenant has ONE default market: it is what every call naming none falls back to. Moving the flag from a client was promote-then-demote, two PATCHes that leave two defaults when the second does not land and none when the first does. This is the one call instead — it promotes the market in the path and demotes whoever held the flag in the same operation, writing once per row that was actually wrong and not touching the rest. Accepts an id or a market CODE. Answers the market plus the codes it demoted; repeating the call writes nothing.`)
   .option(`--id <id>`, `The market to promote — a uuid or a market code.`)
-  .option(`--data <data>`, `Request body`)
+  .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, data } = await promptForMissing(
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { id, body } = await promptForMissing(
           _options,
           makeDefaultSpecs,
           _command,
@@ -652,8 +657,8 @@ markets
         const _client = await sdkForProject();
         const _apiPath = `/markets/{id}/make-default`.replace(`{id}`, id);
         const _payload: RequestParams = {};
-        if (data !== undefined) {
-          Object.assign(_payload, resolveBodyParam(data));
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

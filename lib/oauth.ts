@@ -458,6 +458,28 @@ export interface JwtClaims {
  * Best-effort decode of a JWT payload for display (e.g. the signed-in email).
  * Does NOT verify the signature — the gateway is the source of truth on auth.
  */
+/**
+ * The tenant slugs a Zitadel access token grants membership of. The IdP stamps
+ * them as `tenant_ids` (array) and `tenant_id` (the primary one) — the same two
+ * claims the gateway's authenticator reads to decide `MemberOf(tenant)` — so
+ * this list is exactly what the signed-in account can reach, without a network
+ * call. Empty when the token carries neither claim.
+ */
+export const tenantsFromClaims = (claims: JwtClaims | null): string[] => {
+  if (!claims) return [];
+  const out: string[] = [];
+  const add = (value: unknown): void => {
+    if (typeof value !== "string") return;
+    const slug = value.trim();
+    if (slug && !out.includes(slug)) out.push(slug);
+  };
+  add(claims.tenant_id);
+  if (Array.isArray(claims.tenant_ids)) {
+    for (const slug of claims.tenant_ids) add(slug);
+  }
+  return out;
+};
+
 export const decodeJwtClaims = (jwt: string): JwtClaims | null => {
   const parts = jwt.split(".");
   if (parts.length < 2) return null;

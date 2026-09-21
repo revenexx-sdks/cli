@@ -1,4 +1,3 @@
 ```bash
-revenexx customers principal-resolve \
-    --contact-id ''
+revenexx customers principal-resolve
 ```

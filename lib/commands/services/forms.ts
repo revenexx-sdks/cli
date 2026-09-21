@@ -321,7 +321,7 @@ Paging is \`limit\`/\`offset\` with a single-column \`order\`: the default page 
   );
 registerPromptSpecs(forms.commands.at(-1)!, submissionsListSpecs, { method: "get" });
 const submissionsCreateSpecs: PromptSpec[] = [
-  { key: "data", option: "--data <data>", name: "data", description: "What the visitor typed — the substance of the submission, and the reason this row is the payload of `form.submitted`.\n\nIt is an object keyed by the `name` of the definition node that collected each value, so the keys of a submission are the named nodes of its form's `definition` and nothing else. There is no fixed set of keys across forms: a contact form yields `{name, email, message}`, a price request whatever its operator built.\n\nThe VALUE type follows the input type, which is why this object is not typed further: a `text`, `email` or `textarea` yields a string, a `number` a number, a single `checkbox` a boolean, a `select`/`radio` the chosen option value, a multi-select or a checkbox set an array of them, and a `group` or `list` input nests an object or an array under its own name. Nothing coerces them — a value arrives as the storefront sent it and is stored as jsonb.\n\nTwo values are NOT here: the honeypot field, if the tenant configured one, is stripped before the row is written (it is a trap, not an answer the visitor gave), and the resolved notification recipient lives in `metadata`, not in what somebody typed.", type: "object", required: true },
+  { key: "submissionData", option: "--submission-data <submission-data>", name: "data", description: "What the visitor typed — the substance of the submission, and the reason this row is the payload of `form.submitted`.\n\nIt is an object keyed by the `name` of the definition node that collected each value, so the keys of a submission are the named nodes of its form's `definition` and nothing else. There is no fixed set of keys across forms: a contact form yields `{name, email, message}`, a price request whatever its operator built.\n\nThe VALUE type follows the input type, which is why this object is not typed further: a `text`, `email` or `textarea` yields a string, a `number` a number, a single `checkbox` a boolean, a `select`/`radio` the chosen option value, a multi-select or a checkbox set an array of them, and a `group` or `list` input nests an object or an array under its own name. Nothing coerces them — a value arrives as the storefront sent it and is stored as jsonb.\n\nTwo values are NOT here: the honeypot field, if the tenant configured one, is stripped before the row is written (it is a trap, not an answer the visitor gave), and the resolved notification recipient lives in `metadata`, not in what somebody typed.", type: "object", required: true },
   { key: "formId", option: "--form-id <form-id>", name: "form_id", description: "The form this submission was made against. It is resolved at insert, so an id no form in this tenant holds is a 404 and nothing is stored — a submission with no form is a lead nobody can read. Required on a create: it is the only thing that says which form was filled in.", type: "string", required: true },
   { key: "formSlug", option: "--form-slug <form-slug>", name: "form_slug", description: "The form's slug as it stood when this submission arrived, copied onto the row: the inbox filters by form without a join, and a submission still says which form collected it after that form has been renamed. It does not outlive a DELETED form — the foreign key cascades and takes the submission with it. On a write the body's value WINS; omit it and the form's own slug is copied in. So: OPTIONAL — send it and it is stored as sent, even if it disagrees with the form; omit it and the form's own slug is filled in from `form_id`.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form metadata, yours to key as an integration needs. The resolved notification recipient is merged OVER it at insert, so `notify_email` and `notify_source` sent here are overwritten — see the `FormSubmissionMetadata` schema.", type: "object", required: false },
@@ -335,7 +335,7 @@ forms
 It is also the only moment anything is known about a submission, so the tenant's policy is applied here. If honeypot_field names a decoy and the submission filled it in, the field is stripped — it is a trap, not an answer the visitor gave, so it never reaches \`data\` — and spam_handling (flag | reject) decides between storing the row as 'spam' and refusing outright with 422.
 
 The notification recipient is resolved once, here: the form's own notify_email, else the tenant's, stamped into metadata.notify_email with metadata.notify_source naming which of the two won. It is resolved at insert rather than at delivery because the row IS the event payload — a workflow reads the address off the event instead of re-resolving a form's settings that may since have changed.`)
-  .option(`--data <data>`, `What the visitor typed — the substance of the submission, and the reason this row is the payload of \`form.submitted\`.
+  .option(`--submission-data <submission-data>`, `What the visitor typed — the substance of the submission, and the reason this row is the payload of \`form.submitted\`.
 
 It is an object keyed by the \`name\` of the definition node that collected each value, so the keys of a submission are the named nodes of its form's \`definition\` and nothing else. There is no fixed set of keys across forms: a contact form yields \`{name, email, message}\`, a price request whatever its operator built.
 
@@ -350,7 +350,7 @@ Two values are NOT here: the honeypot field, if the tenant configured one, is st
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { data, formId, formSlug, metadata, source, status } = await promptForMissing(
+        const { submissionData, formId, formSlug, metadata, source, status } = await promptForMissing(
           _options,
           submissionsCreateSpecs,
           _command,
@@ -365,8 +365,8 @@ Two values are NOT here: the honeypot field, if the tenant configured one, is st
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (data !== undefined) {
-          _payload[`data`] = resolveBodyParam(data);
+        if (submissionData !== undefined) {
+          _payload[`data`] = resolveBodyParam(submissionData);
         }
         if (formId !== undefined) {
           _payload[`form_id`] = formId;
@@ -544,7 +544,7 @@ What you read here is what was sent: under the shipped \`submission_edit\` polic
 registerPromptSpecs(forms.commands.at(-1)!, submissionsGetSpecs, { method: "get" });
 const submissionsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The submission, by id.", type: "string", required: true, resource: { listPath: "/forms/submissions", hasLimit: true } },
-  { key: "data", option: "--data <data>", name: "data", description: "What the visitor typed — the substance of the submission, and the reason this row is the payload of `form.submitted`.\n\nIt is an object keyed by the `name` of the definition node that collected each value, so the keys of a submission are the named nodes of its form's `definition` and nothing else. There is no fixed set of keys across forms: a contact form yields `{name, email, message}`, a price request whatever its operator built.\n\nThe VALUE type follows the input type, which is why this object is not typed further: a `text`, `email` or `textarea` yields a string, a `number` a number, a single `checkbox` a boolean, a `select`/`radio` the chosen option value, a multi-select or a checkbox set an array of them, and a `group` or `list` input nests an object or an array under its own name. Nothing coerces them — a value arrives as the storefront sent it and is stored as jsonb.\n\nTwo values are NOT here: the honeypot field, if the tenant configured one, is stripped before the row is written (it is a trap, not an answer the visitor gave), and the resolved notification recipient lives in `metadata`, not in what somebody typed.", type: "object", required: false },
+  { key: "submissionData", option: "--submission-data <submission-data>", name: "data", description: "What the visitor typed — the substance of the submission, and the reason this row is the payload of `form.submitted`.\n\nIt is an object keyed by the `name` of the definition node that collected each value, so the keys of a submission are the named nodes of its form's `definition` and nothing else. There is no fixed set of keys across forms: a contact form yields `{name, email, message}`, a price request whatever its operator built.\n\nThe VALUE type follows the input type, which is why this object is not typed further: a `text`, `email` or `textarea` yields a string, a `number` a number, a single `checkbox` a boolean, a `select`/`radio` the chosen option value, a multi-select or a checkbox set an array of them, and a `group` or `list` input nests an object or an array under its own name. Nothing coerces them — a value arrives as the storefront sent it and is stored as jsonb.\n\nTwo values are NOT here: the honeypot field, if the tenant configured one, is stripped before the row is written (it is a trap, not an answer the visitor gave), and the resolved notification recipient lives in `metadata`, not in what somebody typed.", type: "object", required: false },
   { key: "formId", option: "--form-id <form-id>", name: "form_id", description: "The form this submission was made against. It is resolved at insert, so an id no form in this tenant holds is a 404 and nothing is stored — a submission with no form is a lead nobody can read. Required on a create: it is the only thing that says which form was filled in.", type: "string", required: false },
   { key: "formSlug", option: "--form-slug <form-slug>", name: "form_slug", description: "The form's slug as it stood when this submission arrived, copied onto the row: the inbox filters by form without a join, and a submission still says which form collected it after that form has been renamed. It does not outlive a DELETED form — the foreign key cascades and takes the submission with it. On a write the body's value WINS; omit it and the form's own slug is copied in. So: OPTIONAL — send it and it is stored as sent, even if it disagrees with the form; omit it and the form's own slug is filled in from `form_id`.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form metadata, yours to key as an integration needs. The resolved notification recipient is merged OVER it at insert, so `notify_email` and `notify_source` sent here are overwritten — see the `FormSubmissionMetadata` schema.", type: "object", required: false },
@@ -559,7 +559,7 @@ A received submission is a record of what somebody sent, so under submission_edi
 
 \`updated_at\` moves with the triage, which makes it evidence about the handling and never about the submitted values. And if the point is to get a lead out of the inbox rather than out of the database, this is the route for it: set \`status\` to \`archived\` here instead of reaching for the delete, which is permanent and has no undo.`)
   .option(`--id <id>`, `The submission, by id.`)
-  .option(`--data <data>`, `What the visitor typed — the substance of the submission, and the reason this row is the payload of \`form.submitted\`.
+  .option(`--submission-data <submission-data>`, `What the visitor typed — the substance of the submission, and the reason this row is the payload of \`form.submitted\`.
 
 It is an object keyed by the \`name\` of the definition node that collected each value, so the keys of a submission are the named nodes of its form's \`definition\` and nothing else. There is no fixed set of keys across forms: a contact form yields \`{name, email, message}\`, a price request whatever its operator built.
 
@@ -574,7 +574,7 @@ Two values are NOT here: the honeypot field, if the tenant configured one, is st
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, data, formId, formSlug, metadata, source, status } = await promptForMissing(
+        const { id, submissionData, formId, formSlug, metadata, source, status } = await promptForMissing(
           _options,
           submissionsUpdateSpecs,
           _command,
@@ -589,8 +589,8 @@ Two values are NOT here: the honeypot field, if the tenant configured one, is st
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (data !== undefined) {
-          _payload[`data`] = resolveBodyParam(data);
+        if (submissionData !== undefined) {
+          _payload[`data`] = resolveBodyParam(submissionData);
         }
         if (formId !== undefined) {
           _payload[`form_id`] = formId;

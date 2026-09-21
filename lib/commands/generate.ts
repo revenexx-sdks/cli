@@ -22,7 +22,7 @@ import { detectImportExtension } from "../shared/typescript-type-utils.js";
 type ServerSideOverride = "auto" | "true" | "false";
 
 export interface GenerateCommandOptions {
-  output: string;
+  dir: string;
   language?: string;
   server?: ServerSideOverride;
   sdkImportSource?: string;
@@ -106,7 +106,7 @@ const generateAction = async (
     collections: localConfig.getCollections(),
   };
 
-  const outputDir = options.output;
+  const outputDir = options.dir;
   const absoluteOutputDir = path.isAbsolute(outputDir)
     ? outputDir
     : path.join(process.cwd(), outputDir);
@@ -167,7 +167,9 @@ export const generate = new Command("generate")
     `Generate a type-safe SDK from your ${SDK_TITLE} project configuration`,
   )
   .option(
-    "-o, --output <directory>",
+    // -d/--dir, not -o/--output: the program's global `-o, --output <format>`
+    // is parsed anywhere in argv and would swallow the directory (DX-240).
+    "-d, --dir <directory>",
     "Output directory for generated files",
     "generated",
   )

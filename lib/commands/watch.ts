@@ -169,7 +169,8 @@ const add = new Command("add")
     ).makeOptionMandatory(),
   )
   .option(
-    "-f, --field <path>",
+    // No -f short flag: the program's global `-f, --force` would swallow it.
+    "--field <path>",
     "Dot path into the response (e.g. `status`, `items.0.state`). Also accepted as the first word of --until",
   )
   // No commander defaults here on purpose: formatDuration renders for humans

@@ -28,7 +28,7 @@ export const cartsIo = new Command("carts-io")
 
 const cartsImportSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Owner of the cart this import creates. Ignored when target_cart_id is sent.", type: "string", required: false },
-  { key: "csv", option: "--csv <csv>", name: "csv", description: "The CSV rows, when that is easier than putting them in `payload`. First line is the header, and its names are the ones the profile's mapping expects (the bundled quick-order template reads sku, name, quantity, unit_price). Numbers are coerced; a JSON column survives as a JSON string.", type: "string", required: false },
+  { key: "csvRows", option: "--csv-rows <csv-rows>", name: "csv", description: "The CSV rows, when that is easier than putting them in `payload`. First line is the header, and its names are the ones the profile's mapping expects (the bundled quick-order template reads sku, name, quantity, unit_price). Numbers are coerced; a JSON column survives as a JSON string.", type: "string", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Name for the cart this import creates. A name in the payload's own `cart` block wins over it; without either the cart is called 'Imported cart'.", type: "string", required: false },
   { key: "payload", option: "--payload <payload>", name: "payload", description: "The import itself. As an object: `{ \"cart\": { name, status, currency, channel_id, metadata }, \"items\": [ … ] }` — the same document carts.export produces, so an export round-trips. As a string: that document as raw JSON, or CSV rows when the profile is a csv one. A line with neither `name` nor `sku` is dropped, and a payload that leaves no line at all is a 400.", type: "object", required: false },
   { key: "profileId", option: "--profile-id <profile-id>", name: "profile_id", description: "The import profile to run — one of the ids `GET /carts/io/profiles?direction=import` lists. Omit it for an ad-hoc import: the payload is then read in the canonical shape, and as CSV if `csv` is what carried it.", type: "string", required: false },
@@ -39,7 +39,7 @@ cartsIo
   .command(`carts-import`)
   .description(`Reads a payload of lines into a cart — the bulk-order path a buyer pastes a spreadsheet into. With \`target_cart_id\` the lines land in that cart, which must be active, and the profile's \`apply_mode\` decides what happens to the lines already there: 'replace' clears them first, 'insert' and 'append' both add. Without a target a new cart is created, and an OWNER is then required — \`contact_id\` or \`session_key\` — because a cart with neither cannot exist. \`profile_id\` names an IMPORT profile; without one the payload is read ad hoc, as CSV when \`csv\` is present and as JSON otherwise. The lines fold into identical product lines exactly as carts.items.create does, so \`imported_lines\` counts the lines READ and the cart may have gained fewer rows than that. A payload that parses to no line at all is a 400 rather than a quiet no-op.`)
   .option(`--contact-id <contact-id>`, `Owner of the cart this import creates. Ignored when target_cart_id is sent.`)
-  .option(`--csv <csv>`, `The CSV rows, when that is easier than putting them in \`payload\`. First line is the header, and its names are the ones the profile's mapping expects (the bundled quick-order template reads sku, name, quantity, unit_price). Numbers are coerced; a JSON column survives as a JSON string.`)
+  .option(`--csv-rows <csv-rows>`, `The CSV rows, when that is easier than putting them in \`payload\`. First line is the header, and its names are the ones the profile's mapping expects (the bundled quick-order template reads sku, name, quantity, unit_price). Numbers are coerced; a JSON column survives as a JSON string.`)
   .option(`--name <name>`, `Name for the cart this import creates. A name in the payload's own \`cart\` block wins over it; without either the cart is called 'Imported cart'.`)
   .option(`--payload <payload>`, `The import itself. As an object: \`{ "cart": { name, status, currency, channel_id, metadata }, "items": [ … ] }\` — the same document carts.export produces, so an export round-trips. As a string: that document as raw JSON, or CSV rows when the profile is a csv one. A line with neither \`name\` nor \`sku\` is dropped, and a payload that leaves no line at all is a 400.`)
   .option(`--profile-id <profile-id>`, `The import profile to run — one of the ids \`GET /carts/io/profiles?direction=import\` lists. Omit it for an ad-hoc import: the payload is then read in the canonical shape, and as CSV if \`csv\` is what carried it.`)
@@ -48,7 +48,7 @@ cartsIo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { contactId, csv, name, payload, profileId, sessionKey, targetCartId } = await promptForMissing(
+        const { contactId, csvRows, name, payload, profileId, sessionKey, targetCartId } = await promptForMissing(
           _options,
           cartsImportSpecs,
           _command,
@@ -66,8 +66,8 @@ cartsIo
         if (contactId !== undefined) {
           _payload[`contact_id`] = contactId;
         }
-        if (csv !== undefined) {
-          _payload[`csv`] = csv;
+        if (csvRows !== undefined) {
+          _payload[`csv`] = csvRows;
         }
         if (name !== undefined) {
           _payload[`name`] = name;

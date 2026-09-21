@@ -41,6 +41,7 @@ const customersAddressesListSpecs: PromptSpec[] = [
   { key: "country", option: "--country <country>", name: "country", description: "Filter by ISO 3166-1 alpha-2 country code.", type: "string", required: false },
   { key: "phone", option: "--phone <phone>", name: "phone", description: "Filter to rows whose `phone` is exactly this value. Phone number for the carrier to reach at this address — often a different one from the contact's own.", type: "string", required: false },
   { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Filter to the default addresses. With `type` and an owner, this is the one address a checkout should preselect.", type: "boolean", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Filter to rows whose `external_id` is exactly this value. Id of this address in the system it came from — an ERP address number. Nullable and unique per tenant where it is set. It is also the id a line-based order export has to hand back, because the receiving system names a delivery or invoice address by it rather than by its street.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When the address was created.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When any column of this row last changed.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
@@ -70,6 +71,7 @@ customersOrganizations
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--external-id <external-id>`, `Filter to rows whose \`external_id\` is exactly this value. Id of this address in the system it came from — an ERP address number. Nullable and unique per tenant where it is set. It is also the id a line-based order export has to hand back, because the receiving system names a delivery or invoice address by it rather than by its street.`)
   .option(`--created-at <created-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the address was created.`)
   .option(`--updated-at <updated-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When any column of this row last changed.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
@@ -84,7 +86,7 @@ customersOrganizations
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, organizationId, contactId, type, company, name, street, street2, zip, city, region, country, phone, isDefault, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { id, organizationId, contactId, type, company, name, street, street2, zip, city, region, country, phone, isDefault, externalId, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           customersAddressesListSpecs,
           _command,
@@ -134,6 +136,9 @@ customersOrganizations
         if (isDefault !== undefined) {
           _payload[`is_default`] = isDefault;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
         }
@@ -177,6 +182,7 @@ const customersAddressesCreateSpecs: PromptSpec[] = [
   { key: "zip", option: "--zip <zip>", name: "zip", description: "Postal code, as text — leading zeros are real in most countries.", type: "string", required: true },
   { key: "company", option: "--company <company>", name: "company", description: "Company line on the label. Often the owning organization's name, but not always — a delivery to a construction site carries the site.", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Owning person — a personal address only that contact uses. Exactly one of organization_id / contact_id is set.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Id of this address in the system it came from — an ERP address number. Nullable and unique per tenant where it is set. It is also the id a line-based order export has to hand back, because the receiving system names a delivery or invoice address by it rather than by its street. Writable, so a record can be adopted or a wrong id corrected — but it is the key a repeated import matches on, so changing it on a row an import owns makes the next run create a second one rather than update this.", type: "string", required: false },
   { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The default address of its owner AND type: one default billing and one default shipping address per owner. Setting it moves the flag off the previous holder. Default false.", type: "boolean", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Recipient line on the label — the person or department the parcel is addressed to.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Owning company — a company address, shared by everyone in it. Exactly one of organization_id / contact_id is set.", type: "string", required: false },
@@ -194,6 +200,7 @@ customersOrganizations
   .option(`--zip <zip>`, `Postal code, as text — leading zeros are real in most countries.`)
   .option(`--company <company>`, `Company line on the label. Often the owning organization's name, but not always — a delivery to a construction site carries the site.`)
   .option(`--contact-id <contact-id>`, `Owning person — a personal address only that contact uses. Exactly one of organization_id / contact_id is set.`)
+  .option(`--external-id <external-id>`, `Id of this address in the system it came from — an ERP address number. Nullable and unique per tenant where it is set. It is also the id a line-based order export has to hand back, because the receiving system names a delivery or invoice address by it rather than by its street. Writable, so a record can be adopted or a wrong id corrected — but it is the key a repeated import matches on, so changing it on a row an import owns makes the next run create a second one rather than update this.`)
   .option(
     `--is-default [value]`,
     `The default address of its owner AND type: one default billing and one default shipping address per owner. Setting it moves the flag off the previous holder. Default false.`,
@@ -209,7 +216,7 @@ customersOrganizations
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { city, country, street, zip, company, contactId, isDefault, name, organizationId, phone, region, street2, type } = await promptForMissing(
+        const { city, country, street, zip, company, contactId, externalId, isDefault, name, organizationId, phone, region, street2, type } = await promptForMissing(
           _options,
           customersAddressesCreateSpecs,
           _command,
@@ -235,6 +242,9 @@ customersOrganizations
         }
         if (country !== undefined) {
           _payload[`country`] = country;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
         }
         if (isDefault !== undefined) {
           _payload[`is_default`] = isDefault;
@@ -348,6 +358,7 @@ const customersAddressesUpdateSpecs: PromptSpec[] = [
   { key: "company", option: "--company <company>", name: "company", description: "Company line on the label. Often the owning organization's name, but not always — a delivery to a construction site carries the site.", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Owning person — a personal address only that contact uses. Exactly one of organization_id / contact_id is set.", type: "string", required: false },
   { key: "country", option: "--country <country>", name: "country", description: "ISO 3166-1 alpha-2 country code, exactly two letters. Uppercase by convention; it is what shipping and tax both key off.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Id of this address in the system it came from — an ERP address number. Nullable and unique per tenant where it is set. It is also the id a line-based order export has to hand back, because the receiving system names a delivery or invoice address by it rather than by its street. Writable, so a record can be adopted or a wrong id corrected — but it is the key a repeated import matches on, so changing it on a row an import owns makes the next run create a second one rather than update this.", type: "string", required: false },
   { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The default address of its owner AND type: one default billing and one default shipping address per owner. Setting it moves the flag off the previous holder. Default false.", type: "boolean", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Recipient line on the label — the person or department the parcel is addressed to.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Owning company — a company address, shared by everyone in it. Exactly one of organization_id / contact_id is set.", type: "string", required: false },
@@ -366,6 +377,7 @@ customersOrganizations
   .option(`--company <company>`, `Company line on the label. Often the owning organization's name, but not always — a delivery to a construction site carries the site.`)
   .option(`--contact-id <contact-id>`, `Owning person — a personal address only that contact uses. Exactly one of organization_id / contact_id is set.`)
   .option(`--country <country>`, `ISO 3166-1 alpha-2 country code, exactly two letters. Uppercase by convention; it is what shipping and tax both key off.`)
+  .option(`--external-id <external-id>`, `Id of this address in the system it came from — an ERP address number. Nullable and unique per tenant where it is set. It is also the id a line-based order export has to hand back, because the receiving system names a delivery or invoice address by it rather than by its street. Writable, so a record can be adopted or a wrong id corrected — but it is the key a repeated import matches on, so changing it on a row an import owns makes the next run create a second one rather than update this.`)
   .option(
     `--is-default [value]`,
     `The default address of its owner AND type: one default billing and one default shipping address per owner. Setting it moves the flag off the previous holder. Default false.`,
@@ -383,7 +395,7 @@ customersOrganizations
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, city, company, contactId, country, isDefault, name, organizationId, phone, region, street, street2, type, zip } = await promptForMissing(
+        const { id, city, company, contactId, country, externalId, isDefault, name, organizationId, phone, region, street, street2, type, zip } = await promptForMissing(
           _options,
           customersAddressesUpdateSpecs,
           _command,
@@ -409,6 +421,9 @@ customersOrganizations
         }
         if (country !== undefined) {
           _payload[`country`] = country;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
         }
         if (isDefault !== undefined) {
           _payload[`is_default`] = isDefault;

@@ -23,6 +23,58 @@ export const customers = new Command("customers")
     helpWidth: process.stdout.columns || 80,
   });
 
+const authHandoffSpecs: PromptSpec[] = [
+  { key: "handoffKey", option: "--handoff-key <handoff-key>", name: "handoff_key", description: "The operations secret that makes the caller a trusted in-cluster app. Configured on both functions; never a value a browser or a storefront holds. In the body rather than a header because the gateway forwards a fixed header set, the same reason session material travels this way.", type: "string", required: true },
+  { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The buyer to sign in, as this app knows them. Exactly one of this and `email` is sent — this one when the caller already resolved the external name to a contact.", type: "string", required: false },
+  { key: "email", option: "--email <email>", name: "email", description: "The buyer to sign in, by address, when the caller holds no contact id. Exactly one of this and `contact_id` is sent. An address nobody holds is a 404 — this route never registers.", type: "string", required: false },
+];
+customers
+  .command(`auth-handoff`)
+  .description(`The same token \`POST /customers/auth/magic-link\` mints, answered WITH its secret instead of mailed — for a buyer another system has already authenticated and who therefore has no mailbox to check and no link to click. Punchout is the caller it exists for: an ERP hands its user over, this app decides whether that buyer may sign in, and the secret is redeemed through \`PUT /customers/auth/magic-link\` exactly as a mailed one is. Which is also why the method checked is the magic-link one: a store with \`login_magic_link\` off cannot redeem what this mints. Nothing is delivered, no account is founded (an address nobody holds is a 404 here, not a registration) and no \`contact_event\` is written — signing in is mechanics, and this app keeps it off the event bus. Not callable from a browser or a storefront: \`handoff_key\` is an operations secret configured on the calling app, and a deployment that has none has this capability switched off.`)
+  .option(`--handoff-key <handoff-key>`, `The operations secret that makes the caller a trusted in-cluster app. Configured on both functions; never a value a browser or a storefront holds. In the body rather than a header because the gateway forwards a fixed header set, the same reason session material travels this way.`)
+  .option(`--contact-id <contact-id>`, `The buyer to sign in, as this app knows them. Exactly one of this and \`email\` is sent — this one when the caller already resolved the external name to a contact.`)
+  .option(`--email <email>`, `The buyer to sign in, by address, when the caller holds no contact id. Exactly one of this and \`contact_id\` is sent. An address nobody holds is a 404 — this route never registers.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { handoffKey, contactId, email } = await promptForMissing(
+          _options,
+          authHandoffSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/auth/handoff`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (contactId !== undefined) {
+          _payload[`contact_id`] = contactId;
+        }
+        if (email !== undefined) {
+          _payload[`email`] = email;
+        }
+        if (handoffKey !== undefined) {
+          _payload[`handoff_key`] = handoffKey;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customers.commands.at(-1)!, authHandoffSpecs, { method: "post" });
 const authLoginSpecs: PromptSpec[] = [
   { key: "email", option: "--email <email>", name: "email", description: "The buyer's login address — the same one the contact carries.", type: "string", required: true },
   { key: "password", option: "--password <password>", name: "password", description: "The password from registration or recovery. Wrong credentials are a 401; a correct one on an undecided application is a 403.", type: "string", required: true, secret: true },
@@ -732,16 +784,18 @@ customers
   );
 registerPromptSpecs(customers.commands.at(-1)!, authVerificationConfirmSpecs, { method: "put" });
 const principalResolveSpecs: PromptSpec[] = [
-  { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The contact the caller is acting for.", type: "string", required: true },
+  { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The contact the caller asserted it is acting for.", type: "string", required: false },
+  { key: "userId", option: "--user-id <user-id>", name: "user_id", description: "The platform login the gateway authenticated, matched against `contacts.external_user_id` — the identity mirror this app maintains when it registers or invites a contact. Not a uuid: it is whatever the identity service issues as a subject.", type: "string", required: false },
 ];
 customers
   .command(`principal-resolve`)
-  .description(`The capability the API gateway calls to turn a caller's X-Revenexx-Principal assertion into the permission set it forwards to every other app as X-Revenexx-Permissions. This app is the platform's role provider (manifest#provides_roles), and this is the hot path of every attributed storefront request — one contact read plus the tenant's role map. A blocked or pending contact always resolves with active=false; what its \`permissions\` then say is the tenant's blocked_contact_behavior setting — 'keep' (the default, the role's grants), 'catalog_only' or 'deny_all'.`)
-  .option(`--contact-id <contact-id>`, `The contact the caller is acting for.`)
+  .description(`The capability the API gateway calls to turn whoever is acting into the permission set it forwards to every other app as X-Revenexx-Permissions. This app is the platform's role provider (manifest#provides_roles), and this is the hot path of every attributed request — one contact read plus the tenant's role map. Send EXACTLY ONE of two references. \`contact_id\` is the storefront plane: a BFF holding the tenant API key asserted a contact, and the gateway is resolving the assertion. \`user_id\` is the authenticated plane (RAD-12): the gateway verified a person's own Zitadel token and is resolving its subject against \`contacts.external_user_id\`, so the answer stands on a proven identity rather than a claimed one. The answer is the same shape either way — which plane a request came from is the gateway's business, not this app's. A blocked or pending contact always resolves with active=false; what its \`permissions\` then say is the tenant's blocked_contact_behavior setting — 'keep' (the default, the role's grants), 'catalog_only' or 'deny_all'.`)
+  .option(`--contact-id <contact-id>`, `The contact the caller asserted it is acting for.`)
+  .option(`--user-id <user-id>`, `The platform login the gateway authenticated, matched against \`contacts.external_user_id\` — the identity mirror this app maintains when it registers or invites a contact. Not a uuid: it is whatever the identity service issues as a subject.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { contactId } = await promptForMissing(
+        const { contactId, userId } = await promptForMissing(
           _options,
           principalResolveSpecs,
           _command,
@@ -758,6 +812,9 @@ customers
         }
         if (contactId !== undefined) {
           _payload[`contact_id`] = contactId;
+        }
+        if (userId !== undefined) {
+          _payload[`user_id`] = userId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

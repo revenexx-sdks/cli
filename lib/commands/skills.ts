@@ -12,7 +12,6 @@ import {
   log,
   warn,
   drawTable,
-  drawJSON,
   parse,
   cliConfig,
 } from "../parser.js";
@@ -367,8 +366,8 @@ skills
           tags: normalizeTags(tag).join(",") || undefined,
         });
 
-        if (cliConfig.json) {
-          drawJSON(
+        if (cliConfig.output !== "table") {
+          parse(
             items.map((skill) => {
               const status = readInstallStatus(agent, skill, !!global);
               return {
@@ -511,8 +510,8 @@ skills
           );
         }
 
-        if (cliConfig.json) {
-          drawJSON(skill);
+        if (cliConfig.output !== "table") {
+          parse(skill);
           return;
         }
 
@@ -564,7 +563,9 @@ skills
     `Target agent: ${Object.keys(AGENT_TARGETS).join(", ")}`,
     DEFAULT_AGENT,
   )
-  .option("--version <version>", "Skill version to install (defaults to latest)")
+  // --skill-version, not --version: the CLI answers `--version` itself before
+  // commander runs, so a skill pin under that name printed the CLI version.
+  .option("--skill-version <version>", "Skill version to install (defaults to latest)")
   .option(
     "--global",
     "Install into the agent's global (~/) skill directory instead of the project",
@@ -577,12 +578,12 @@ skills
         name: string,
         {
           agent,
-          version,
+          skillVersion: version,
           global,
           skillsEndpoint,
         }: {
           agent: string;
-          version?: string;
+          skillVersion?: string;
           global?: boolean;
           skillsEndpoint?: string;
         },

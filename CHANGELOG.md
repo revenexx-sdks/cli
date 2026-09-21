@@ -1,3 +1,6 @@
+## v0.4.1
+- Regenerated from the latest API specification
+
 ## v0.4.0
 - fix app deployment
 

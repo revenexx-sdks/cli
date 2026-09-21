@@ -4,7 +4,7 @@
  * The skeleton follows the app contract of the canonical `inventories`
  * reference app: manifest.json (capabilities stripped out) +
  * manifest.capabilities.json + schema.json + billing.json + cockpit.json +
- * CJS function entrypoint + node:test suite with the in-memory PostgREST
+ * CJS function entrypoint + node:test suite with the in-memory data-API
  * harness. The typed data client (src/db.generated.js) and the capability
  * register are generated in-process at scaffold time, so the result is
  * immediately `npm test`-green.
@@ -110,7 +110,7 @@ function buildSchemaJson(entities: string[], schemasBase: string): Record<string
 
 function buildManifestJson(opts: AppScaffoldOptions): Record<string, unknown> {
   return {
-    $schema: "https://revenexx.com/schemas/manifest.schema.json",
+    $schema: `${opts.schemasBase}/manifest.schema.json`,
     name: opts.name,
     vendor: opts.vendor,
     version: "0.1.0",
@@ -134,7 +134,7 @@ function buildManifestJson(opts: AppScaffoldOptions): Record<string, unknown> {
 
 function buildBillingJson(opts: AppScaffoldOptions): Record<string, unknown> {
   return {
-    $schema: "https://revenexx.com/schemas/billing.schema.json",
+    $schema: `${opts.schemasBase}/billing.schema.json`,
     type: "included",
     // Placeholders — replace with your own support contact before publishing.
     support: { email: "support@example.com", url: "https://example.com/support" },
@@ -161,7 +161,7 @@ function buildBillingJson(opts: AppScaffoldOptions): Record<string, unknown> {
 
 function buildCockpitJson(opts: AppScaffoldOptions): Record<string, unknown> {
   return {
-    $schema: "https://revenexx.com/schemas/cockpit.schema.json",
+    $schema: `${opts.schemasBase}/cockpit.schema.json`,
     navigation: [
       {
         label: opts.title,
@@ -423,12 +423,11 @@ const crypto = require('node:crypto');
 
 const handler = require('../src/main');
 
-// Minimal in-memory PostgREST keyed by table, wired in via global fetch —
-// the same harness every platform app uses (copied from the inventories
-// reference app; keep it verbatim).
+// Minimal in-memory stand-in for the platform data API, keyed by table and
+// wired in via global fetch — the same harness the reference apps use.
 let tables = {};
 
-function fakePostgrest(url, opts) {
+function fakeDataApi(url, opts) {
     const u = new URL(url);
     const table = u.pathname.split('/').filter(Boolean).pop();
     tables[table] ??= [];
@@ -506,7 +505,7 @@ function call(method, path, { query = {}, body = null, headers = {} } = {}) {
 
 beforeEach(() => {
     tables = {};
-    globalThis.fetch = fakePostgrest;
+    globalThis.fetch = fakeDataApi;
     process.env.REVENEXX_DATA_ENDPOINT = 'https://apps.api.revenexx.test/';
 });
 afterEach(() => { delete process.env.REVENEXX_DATA_ENDPOINT; });
@@ -579,7 +578,7 @@ ${entityList}
 
 \`\`\`bash
 npm install
-npm test                      # node:test against the in-memory PostgREST harness
+npm test                      # node:test against the in-memory data-API harness
 
 # after ANY schema.json or route change:
 npm run capabilities          # regenerate manifest.capabilities.json

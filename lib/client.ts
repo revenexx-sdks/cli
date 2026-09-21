@@ -453,7 +453,7 @@ return (
           }
           if (timedOut) {
             throw new RevenexxException(
-              `Request timed out after ${this.timeout}ms (${upperMethod} ${path}). Increase the limit with --timeout, or check your connection and the endpoint.`,
+              `Request timed out after ${this.timeout}ms (${upperMethod} ${path}). Increase the limit with --request-timeout, or check your connection and the endpoint.`,
             );
           }
           throw new RevenexxException(err.message);

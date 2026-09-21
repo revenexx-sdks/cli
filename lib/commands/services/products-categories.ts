@@ -235,16 +235,21 @@ One node of the category tree. \`parent_id\` is the structure this app navigates
   );
 registerPromptSpecs(productsCategories.commands.at(-1)!, createSpecs, { method: "post" });
 const rulesRecomputeAllSpecs: PromptSpec[] = [
-  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 productsCategories
   .command(`rules-recompute-all`)
   .description(`What the nightly \`recompute-category-rules\` schedule calls, and the call to reach for after a bulk import has changed what the rules select. Same sync as the single-category recompute, applied to every category with non-null rules. The whole run shares ONE budget: a category the budget no longer reaches is reported as \`skipped\` and picked up by the next run, and a failing category is reported in its result entry instead of aborting the run.`)
-  .option(`--data <data>`, `Request body`)
+  .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { data } = await promptForMissing(
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { body } = await promptForMissing(
           _options,
           rulesRecomputeAllSpecs,
           _command,
@@ -252,8 +257,8 @@ productsCategories
         const _client = await sdkForProject();
         const _apiPath = `/products/categories/rules/recompute-all`;
         const _payload: RequestParams = {};
-        if (data !== undefined) {
-          Object.assign(_payload, resolveBodyParam(data));
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

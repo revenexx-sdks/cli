@@ -411,7 +411,7 @@ pagesEditor
 registerPromptSpecs(pagesEditor.commands.at(-1)!, previewGrantSpecs, { method: "post" });
 const publishSpecs: PromptSpec[] = [
   { key: "pageId", option: "--page-id <page-id>", name: "page_id", description: "The page being edited.", type: "string", required: true },
-  { key: "force", option: "--force <force>", name: "force", description: "Publish despite violations. Without it a page with unresolved violations answers 422 and nothing is written.", type: "boolean", required: false },
+  { key: "forcePublish", option: "--force-publish <force-publish>", name: "force", description: "Publish despite violations. Without it a page with unresolved violations answers 422 and nothing is written.", type: "boolean", required: false },
   { key: "label", option: "--label <label>", name: "label", description: "What to call this publication in the page's history — \"Autumn campaign\" rather than a timestamp.", type: "string", required: false },
 ];
 pagesEditor
@@ -419,7 +419,7 @@ pagesEditor
   .description(`Four things in one call: the mutation log is replayed into a finished block tree, that tree is snapshotted into a new revision, the page's canonical blocks are replaced by it, and the edit state is archived — so the page comes out of this with nothing unpublished and the working copy behind it closed rather than deleted. The revision is written FIRST and the canonical blocks replaced after, so a failure mid-way leaves the page recoverable. Block uuids survive, which is why comments anchored to a block outlive the publish.`)
   .option(`--page-id <page-id>`, `The page being edited.`)
   .option(
-    `--force [value]`,
+    `--force-publish [value]`,
     `Publish despite violations. Without it a page with unresolved violations answers 422 and nothing is written.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
@@ -428,7 +428,7 @@ pagesEditor
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { pageId, force, label } = await promptForMissing(
+        const { pageId, forcePublish, label } = await promptForMissing(
           _options,
           publishSpecs,
           _command,
@@ -443,8 +443,8 @@ pagesEditor
           }
           Object.assign(_payload, body as RequestParams);
         }
-        if (force !== undefined) {
-          _payload[`force`] = force;
+        if (forcePublish !== undefined) {
+          _payload[`force`] = forcePublish;
         }
         if (label !== undefined) {
           _payload[`label`] = label;

@@ -1,7 +1,7 @@
 // SDK
 export const SDK_TITLE = 'Revenexx';
 export const SDK_TITLE_LOWER = 'revenexx';
-export const SDK_VERSION = '0.4.0';
+export const SDK_VERSION = '0.4.1';
 export const SDK_NAME = 'Revenexx CLI';
 export const SDK_PLATFORM = '';
 export const SDK_LANGUAGE = 'cli';
@@ -26,7 +26,7 @@ export const HOMEBREW_FORMULA = `${HOMEBREW_TAP}/revenexx`;
 
 // API
 export const DEFAULT_ENDPOINT = 'https://api.revenexx.com/v1';
-export const REGISTER_URL = 'https://revenexx.com/register';
+export const REGISTER_URL = 'https://console.revenexx.com/signup';
 
 // SSO (Zitadel OIDC) — overridable per environment via env vars (DX-57).
 export const SSO_ISSUER = process.env.REVENEXX_SSO_ISSUER || 'https://id.revenexx.com';

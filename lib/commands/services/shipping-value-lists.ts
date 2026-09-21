@@ -308,17 +308,22 @@ shippingValueLists
 registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingServiceLevelsUpdateSpecs, { method: "put" });
 const shippingServiceLevelsMakeDefaultSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/service-levels", hasLimit: true } },
-  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 shippingValueLists
   .command(`shipping-service-levels-make-default`)
   .description(`The flag is a single answer, not a per-row opinion: it is what every fallback lands on, so two defaults leave the result to row order and none leaves it to the seeded value. This row takes it and whoever was holding it is demoted in the same call — there is no separate write to clear the old one, and no window in which both carry it. Only the rows whose flag is wrong are written, so repeating the call is free.`)
   .option(`--id <id>`, `The row id.`)
-  .option(`--data <data>`, `Request body`)
+  .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, data } = await promptForMissing(
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { id, body } = await promptForMissing(
           _options,
           shippingServiceLevelsMakeDefaultSpecs,
           _command,
@@ -326,8 +331,8 @@ shippingValueLists
         const _client = await sdkForProject();
         const _apiPath = `/shipping/service-levels/{id}/make-default`.replace(`{id}`, id);
         const _payload: RequestParams = {};
-        if (data !== undefined) {
-          Object.assign(_payload, resolveBodyParam(data));
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -711,17 +716,22 @@ shippingValueLists
 registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingWeightUnitsUpdateSpecs, { method: "put" });
 const shippingWeightUnitsMakeDefaultSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/weight-units", hasLimit: true } },
-  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 shippingValueLists
   .command(`shipping-weight-units-make-default`)
   .description(`The flag is a single answer, not a per-row opinion: it is what every fallback lands on, so two defaults leave the result to row order and none leaves it to the seeded value. This row takes it and whoever was holding it is demoted in the same call — there is no separate write to clear the old one, and no window in which both carry it. Only the rows whose flag is wrong are written, so repeating the call is free.`)
   .option(`--id <id>`, `The row id.`)
-  .option(`--data <data>`, `Request body`)
+  .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, data } = await promptForMissing(
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { id, body } = await promptForMissing(
           _options,
           shippingWeightUnitsMakeDefaultSpecs,
           _command,
@@ -729,8 +739,8 @@ shippingValueLists
         const _client = await sdkForProject();
         const _apiPath = `/shipping/weight-units/{id}/make-default`.replace(`{id}`, id);
         const _payload: RequestParams = {};
-        if (data !== undefined) {
-          Object.assign(_payload, resolveBodyParam(data));
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

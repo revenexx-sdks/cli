@@ -6,6 +6,7 @@ import {
   readActiveTenant,
   writeActiveTenant,
   collectKnownTenants,
+  ACCOUNT_SOURCE,
 } from "../lib/commands/tenants.js";
 
 let workdir: string;
@@ -95,6 +96,26 @@ describe("collectKnownTenants", () => {
       sessionEmails: ["user@example.com", "apikey: ", "apikey:acme"],
     });
     expect(result.map((t) => t.slug)).toEqual(["acme"]);
+  });
+
+  it("lists the account's SSO memberships first, labelled as such (DX-230)", () => {
+    const result = collectKnownTenants({
+      accountTenants: ["acme", "globex"],
+      tenantFile: "initech",
+      sessionEmails: ["user@example.com"],
+    });
+    expect(result.map((t) => t.slug)).toEqual(["acme", "globex", "initech"]);
+    expect(result[0].sources).toEqual([ACCOUNT_SOURCE]);
+    expect(result[2].sources).toEqual(["~/.revenexx/tenant"]);
+  });
+
+  it("merges an account membership with the same slug from other sources", () => {
+    const result = collectKnownTenants({
+      accountTenants: ["acme", " ", ""],
+      env: "acme",
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].sources).toEqual([ACCOUNT_SOURCE, "REVENEXX_TENANT"]);
   });
 
   it("marks the active slug", () => {

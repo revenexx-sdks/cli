@@ -28,7 +28,7 @@ Once the installation is complete, you can verify the install using
 
 ```sh
 $ revenexx -v
-0.4.0
+0.4.1
 ```
 
 ### MacOS / Linux via [Homebrew](https://brew.sh)
@@ -70,7 +70,7 @@ On Windows, use `npm` — or download the `.exe` from the same release page.
 Once the installation completes, you can verify your install using
 ```
 $ revenexx -v
-0.4.0
+0.4.1
 ```
 
 ## Getting Started
@@ -80,7 +80,7 @@ $ revenexx -v
 Authenticate once — the CLI stores your session under `~/.revenexx/`.
 
 ```sh
-# Developers: interactive SSO sign-in via the browser (Zitadel)
+# Developers: interactive SSO sign-in via the browser (Revenexx ID)
 $ revenexx login
 
 # CI / scripts: a gateway API key
@@ -164,7 +164,7 @@ Running `revenexx` with no arguments on an interactive terminal launches the **f
 The CLI supports two ways to authenticate:
 
 - **Gateway API key** — non-interactive, ideal for CI and scripts. Sent as `X-Revenexx-Api-Key`.
-- **Zitadel SSO** — interactive browser sign-in for developers, using OAuth2 Authorization Code + PKCE. Mints a JWT that the CLI sends in the standard `Authorization: Bearer` header.
+- **Revenexx ID SSO** — interactive browser sign-in for developers, using OAuth2 Authorization Code + PKCE. Mints a JWT that the CLI sends in the standard `Authorization: Bearer` header.
 
 An API key always takes precedence; SSO is the fallback when no key is present (or when you force it with `--browser`).
 
@@ -178,15 +178,15 @@ $ revenexx login
 $ revenexx login --browser
 ```
 
-This opens your browser to sign in with Zitadel, captures the response on a local loopback callback (a fixed port — `8000` by default; free it if `login` reports it's in use), exchanges it for a JWT, and stores the JWT (plus a refresh token) in `~/.revenexx/prefs.json`. Expired JWTs are refreshed automatically; if the refresh fails you're prompted to `login` again. Once signed in, commands authenticate with the JWT in the `Authorization: Bearer` header.
+This opens your browser to sign in with Revenexx ID, captures the response on a local loopback callback (a fixed port — `8000` by default; free it if `login` reports it's in use), exchanges it for a JWT, and stores the JWT (plus a refresh token) in `~/.revenexx/prefs.json`. Expired JWTs are refreshed automatically; if the refresh fails you're prompted to `login` again. Once signed in, commands authenticate with the JWT in the `Authorization: Bearer` header.
 
-The Zitadel application is preconfigured, but every value can be overridden through the environment — useful for self-hosted or staging identity providers:
+The Revenexx ID OIDC application is preconfigured, but every value can be overridden through the environment — useful for self-hosted or staging identity providers:
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `REVENEXX_SSO_ISSUER` | `https://id.revenexx.com` | OIDC issuer; the authorize/token/userinfo endpoints come from its discovery document |
-| `REVENEXX_SSO_CLIENT_ID` | built-in CLI client | Zitadel application (native / public) client ID |
-| `REVENEXX_SSO_REDIRECT_URI` | `http://127.0.0.1:8000/callback` | Loopback callback — must exactly match a redirect URI registered on the Zitadel app |
+| `REVENEXX_SSO_CLIENT_ID` | built-in CLI client | OIDC application (native / public) client ID |
+| `REVENEXX_SSO_REDIRECT_URI` | `http://127.0.0.1:8000/callback` | Loopback callback — must exactly match a redirect URI registered on the OIDC application |
 
 ### API key login (non-interactive)
 
@@ -263,9 +263,9 @@ Use the `--image` flag on the script to pin a specific Node base (e.g. `--image 
 
 | Command | Status |
 |---|---|
-| `revenexx tenants use <slug>` | ✅ Persists the active slug to `~/.revenexx/tenant` (overriding `REVENEXX_TENANT`). When an API key is available the slug is validated against the gateway first; a tenant the key can't access is rejected unless `--force` is passed. |
+| `revenexx tenants use <slug>` | ✅ Persists the active slug to `~/.revenexx/tenant` (overriding `REVENEXX_TENANT`). The slug is validated against the gateway first — with your API key when one is set, otherwise with your browser (SSO) session; a tenant you can't access is rejected unless `--force` is passed. |
 | `revenexx tenants current` | ✅ Prints the active slug. Pass `--check` to verify it against the gateway. |
-| `revenexx tenants list` | ✅ Lists every tenant known to this machine (flag, env, `.revenexx.yaml`, `~/.revenexx/tenant`, login sessions) with its sources and whether the current API key can access it. The gateway doesn't expose a `/v1/tenants` endpoint (and by design never discloses whether a tenant exists), so this is a client-side aggregate verified per-slug. |
+| `revenexx tenants list` | ✅ Lists the tenants your signed-in account can access — read from the SSO token's `tenant_ids` membership claim, the same claim the gateway enforces — plus every slug configured on this machine (flag, env, `.revenexx.yaml`, `~/.revenexx/tenant`, API-key sessions), with its sources and whether your current credential reaches it. The gateway has no `/v1/tenants` endpoint and never discloses whether a tenant exists, so unknown slugs are verified one by one. |
 
 ## Command aliases
 
@@ -325,7 +325,7 @@ A one-glance health/identity panel — richer than `whoami`. Shows the signed-in
 ```sh
 $ revenexx status
 User          : you@example.com
-Auth method   : SSO (Zitadel)
+Auth method   : SSO (Revenexx ID)
 Tenant        : acme
 Endpoint      : https://api.revenexx.com
 Token expires : in 2h 41m
@@ -488,6 +488,8 @@ $ revenexx <service> get <id> -o json --fields id,status | jq .status
 ```
 
 > On a terminal, all formats prompt for any missing required option; when the output is piped (non-TTY) the command fails fast instead of hanging — so automation never blocks on a prompt.
+
+In every machine-readable format, **stdout carries the result document and nothing else** — so `revenexx deploy app --json | jq` works. Progress lines (what a long `deploy` is doing right now) go to **stderr**, where a CI log still shows the build wait; `--quiet` drops them entirely, while warnings stay on stderr either way. Human `table` output is unaffected: its status lines remain on stdout.
 
 ### Machine-readable errors & exit codes
 

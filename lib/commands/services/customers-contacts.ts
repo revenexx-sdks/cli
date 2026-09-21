@@ -180,6 +180,7 @@ const listSpecs: PromptSpec[] = [
   { key: "locale", option: "--locale <locale>", name: "locale", description: "Filter to rows whose `locale` is exactly this value. The language this person is written to in — BCP 47, and one of the store's configured locales. Null falls back to the store default.", type: "string", required: false },
   { key: "isPrimary", option: "--is-primary <is-primary>", name: "is_primary", description: "Filter to the primary contacts — with `organization_id`, the one person a merchant calls first at that company.", type: "boolean", required: false },
   { key: "externalUserId", option: "--external-user-id <external-user-id>", name: "external_user_id", description: "Find the contact behind a platform user id. What a storefront session resolves with when it has an auth id and needs the customer record.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Filter to rows whose `external_id` is exactly this value. Id of this person in the system the record came from — an ERP contact number, a CRM id. Nullable, because a contact created in the shop has none and never will, and unique per tenant where it is set, which is what lets a repeated import find the row it wrote last time instead of adding a second one. Distinct from `external_user_id`, which points at the platform account: this one points OUT of the platform.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When this person record was created in this app.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When any column of this row last changed.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
@@ -212,6 +213,7 @@ customersContacts
       value === undefined ? true : parseBool(value),
   )
   .option(`--external-user-id <external-user-id>`, `Find the contact behind a platform user id. What a storefront session resolves with when it has an auth id and needs the customer record.`)
+  .option(`--external-id <external-id>`, `Filter to rows whose \`external_id\` is exactly this value. Id of this person in the system the record came from — an ERP contact number, a CRM id. Nullable, because a contact created in the shop has none and never will, and unique per tenant where it is set, which is what lets a repeated import find the row it wrote last time instead of adding a second one. Distinct from \`external_user_id\`, which points at the platform account: this one points OUT of the platform.`)
   .option(`--created-at <created-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When this person record was created in this app.`)
   .option(`--updated-at <updated-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When any column of this row last changed.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
@@ -226,7 +228,7 @@ customersContacts
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, organizationId, email, firstName, lastName, phone, jobTitle, role, status, orderApprovalLimit, registrationStatus, registrationDecidedAt, registrationDecidedBy, registrationReason, locale, isPrimary, externalUserId, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { id, organizationId, email, firstName, lastName, phone, jobTitle, role, status, orderApprovalLimit, registrationStatus, registrationDecidedAt, registrationDecidedBy, registrationReason, locale, isPrimary, externalUserId, externalId, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -285,6 +287,9 @@ customersContacts
         if (externalUserId !== undefined) {
           _payload[`external_user_id`] = externalUserId;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
         }
@@ -323,6 +328,7 @@ customersContacts
 registerPromptSpecs(customersContacts.commands.at(-1)!, listSpecs, { method: "get" });
 const createSpecs: PromptSpec[] = [
   { key: "email", option: "--email <email>", name: "email", description: "Login identity and the unique key of a person within the tenant. Changing it changes the platform login with it. Two people at the same company therefore need two addresses — a shared purchasing mailbox is one contact, not several.", type: "string", required: true },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Id of this person in the system the record came from — an ERP contact number, a CRM id. Nullable, because a contact created in the shop has none and never will, and unique per tenant where it is set, which is what lets a repeated import find the row it wrote last time instead of adding a second one. Distinct from `external_user_id`, which points at the platform account: this one points OUT of the platform. Writable, so a record can be adopted or a wrong id corrected — but it is the key a repeated import matches on, so changing it on a row an import owns makes the next run create a second one rather than update this.", type: "string", required: false },
   { key: "firstName", option: "--first-name <first-name>", name: "first_name", description: "Given name. Optional: an ERP import often has only a mailbox.", type: "string", required: false },
   { key: "isPrimary", option: "--is-primary <is-primary>", name: "is_primary", description: "The main contact of its organization — who a merchant calls first. At most one per company is the intent; the tenant's `primary_contact_required` setting decides whether the last one may be demoted or deleted.", type: "boolean", required: false },
   { key: "jobTitle", option: "--job-title <job-title>", name: "job_title", description: "What this person does at the company — free text on purpose, because it is a title and not a grant. The permission ladder is `role`; overloading a job title with authority silently un-grants everyone the day the ledger is enforced.", type: "string", required: false },
@@ -339,6 +345,7 @@ customersContacts
   .command(`create`)
   .description(`A contact is a PERSON, and the unit that logs in: one platform user, one email address, one role held inside its organization. A contact without an organization is a standalone buyer rather than an error, and two people at the same company are two contacts sharing an \`organization_id\`. Creates the person and their platform login together, so a contact that exists can always sign in. \`role\` names one of this tenant's own roles and decides what they may do; \`registration_status\` may only be set to \`pending\` or \`approved\` here, because a rejection has to carry a reason and that is the reject route's job. \`email\` is the only field a create cannot omit; everything else is optional or defaulted by the database. Two rows of this tenant may not share \`email\` or \`external_user_id\` (while external_user_id IS NOT NULL).`)
   .option(`--email <email>`, `Login identity and the unique key of a person within the tenant. Changing it changes the platform login with it. Two people at the same company therefore need two addresses — a shared purchasing mailbox is one contact, not several.`)
+  .option(`--external-id <external-id>`, `Id of this person in the system the record came from — an ERP contact number, a CRM id. Nullable, because a contact created in the shop has none and never will, and unique per tenant where it is set, which is what lets a repeated import find the row it wrote last time instead of adding a second one. Distinct from \`external_user_id\`, which points at the platform account: this one points OUT of the platform. Writable, so a record can be adopted or a wrong id corrected — but it is the key a repeated import matches on, so changing it on a row an import owns makes the next run create a second one rather than update this.`)
   .option(`--first-name <first-name>`, `Given name. Optional: an ERP import often has only a mailbox.`)
   .option(
     `--is-primary [value]`,
@@ -358,7 +365,7 @@ customersContacts
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { email, firstName, isPrimary, jobTitle, lastName, locale, orderApprovalLimit, organizationId, phone, registrationStatus, role, status } = await promptForMissing(
+        const { email, externalId, firstName, isPrimary, jobTitle, lastName, locale, orderApprovalLimit, organizationId, phone, registrationStatus, role, status } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -375,6 +382,9 @@ customersContacts
         }
         if (email !== undefined) {
           _payload[`email`] = email;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
         }
         if (firstName !== undefined) {
           _payload[`first_name`] = firstName;
@@ -729,6 +739,7 @@ registerPromptSpecs(customersContacts.commands.at(-1)!, getSpecs, { method: "get
 const updateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The contact to update.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
   { key: "email", option: "--email <email>", name: "email", description: "Login identity and the unique key of a person within the tenant. Changing it changes the platform login with it. Two people at the same company therefore need two addresses — a shared purchasing mailbox is one contact, not several.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Id of this person in the system the record came from — an ERP contact number, a CRM id. Nullable, because a contact created in the shop has none and never will, and unique per tenant where it is set, which is what lets a repeated import find the row it wrote last time instead of adding a second one. Distinct from `external_user_id`, which points at the platform account: this one points OUT of the platform. Writable, so a record can be adopted or a wrong id corrected — but it is the key a repeated import matches on, so changing it on a row an import owns makes the next run create a second one rather than update this.", type: "string", required: false },
   { key: "firstName", option: "--first-name <first-name>", name: "first_name", description: "Given name. Optional: an ERP import often has only a mailbox.", type: "string", required: false },
   { key: "isPrimary", option: "--is-primary <is-primary>", name: "is_primary", description: "The main contact of its organization — who a merchant calls first. At most one per company is the intent; the tenant's `primary_contact_required` setting decides whether the last one may be demoted or deleted.", type: "boolean", required: false },
   { key: "jobTitle", option: "--job-title <job-title>", name: "job_title", description: "What this person does at the company — free text on purpose, because it is a title and not a grant. The permission ladder is `role`; overloading a job title with authority silently un-grants everyone the day the ledger is enforced.", type: "string", required: false },
@@ -746,6 +757,7 @@ customersContacts
   .description(`A contact is a PERSON, and the unit that logs in: one platform user, one email address, one role held inside its organization. A contact without an organization is a standalone buyer rather than an error, and two people at the same company are two contacts sharing an \`organization_id\`. A partial update — send only what changes. \`external_user_id\` and every \`registration_*\` column are ignored: the link to platform auth is mirror-managed, and registration state is only ever moved by the approve and reject routes, which record why. Two rows of this tenant may not share \`email\` or \`external_user_id\` (while external_user_id IS NOT NULL).`)
   .option(`--id <id>`, `The contact to update.`)
   .option(`--email <email>`, `Login identity and the unique key of a person within the tenant. Changing it changes the platform login with it. Two people at the same company therefore need two addresses — a shared purchasing mailbox is one contact, not several.`)
+  .option(`--external-id <external-id>`, `Id of this person in the system the record came from — an ERP contact number, a CRM id. Nullable, because a contact created in the shop has none and never will, and unique per tenant where it is set, which is what lets a repeated import find the row it wrote last time instead of adding a second one. Distinct from \`external_user_id\`, which points at the platform account: this one points OUT of the platform. Writable, so a record can be adopted or a wrong id corrected — but it is the key a repeated import matches on, so changing it on a row an import owns makes the next run create a second one rather than update this.`)
   .option(`--first-name <first-name>`, `Given name. Optional: an ERP import often has only a mailbox.`)
   .option(
     `--is-primary [value]`,
@@ -765,7 +777,7 @@ customersContacts
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, email, firstName, isPrimary, jobTitle, lastName, locale, orderApprovalLimit, organizationId, phone, registrationStatus, role, status } = await promptForMissing(
+        const { id, email, externalId, firstName, isPrimary, jobTitle, lastName, locale, orderApprovalLimit, organizationId, phone, registrationStatus, role, status } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -782,6 +794,9 @@ customersContacts
         }
         if (email !== undefined) {
           _payload[`email`] = email;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
         }
         if (firstName !== undefined) {
           _payload[`first_name`] = firstName;

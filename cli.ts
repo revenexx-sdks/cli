@@ -39,6 +39,7 @@ import { carts } from './lib/commands/services/carts.js';
 import { cartsIo } from './lib/commands/services/carts-io.js';
 import { cartsItems } from './lib/commands/services/carts-items.js';
 import { channels } from './lib/commands/services/channels.js';
+import { costCenters } from './lib/commands/services/cost-centers.js';
 import { customersValueLists } from './lib/commands/services/customers-value-lists.js';
 import { customersOrganizations } from './lib/commands/services/customers-organizations.js';
 import { customers } from './lib/commands/services/customers.js';
@@ -64,11 +65,17 @@ import { paymentsLedger } from './lib/commands/services/payments-ledger.js';
 import { paymentsProviders } from './lib/commands/services/payments-providers.js';
 import { paymentsMethods } from './lib/commands/services/payments-methods.js';
 import { prices } from './lib/commands/services/prices.js';
+import { procurement } from './lib/commands/services/procurement.js';
 import { products } from './lib/commands/services/products.js';
 import { productsDataModel } from './lib/commands/services/products-data-model.js';
 import { productsAssets } from './lib/commands/services/products-assets.js';
 import { productsCategories } from './lib/commands/services/products-categories.js';
 import { productsReferences } from './lib/commands/services/products-references.js';
+import { promotionsEvaluation } from './lib/commands/services/promotions-evaluation.js';
+import { promotionsVouchers } from './lib/commands/services/promotions-vouchers.js';
+import { promotionsPromotions } from './lib/commands/services/promotions-promotions.js';
+import { promotionsRedemptions } from './lib/commands/services/promotions-redemptions.js';
+import { punchout } from './lib/commands/services/punchout.js';
 import { search } from './lib/commands/services/search.js';
 import { settings } from './lib/commands/services/settings.js';
 import { shippingCarriers } from './lib/commands/services/shipping-carriers.js';
@@ -170,7 +177,12 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .option('--endpoint [endpoint]', 'Revenexx API URL (overrides REVENEXX_API_URL / config). Use to target staging or self-hosted instances.')
         .option('--token [token]', 'Gateway API key (overrides REVENEXX_API_KEY / config) for this command.')
         .option('--tenant [tenant]', 'Tenant slug (overrides REVENEXX_TENANT / config) for this command.')
-.option('--timeout <ms>', 'Per-request timeout in milliseconds (default 30000).', parseInteger)
+        // Named --request-timeout, not --timeout: commander lets program options
+        // appear after the subcommand, so a program-level --timeout swallowed
+        // every subcommand's own --timeout (deploy's build wait in seconds, the
+        // API's function/request timeout fields) and applied the value as the
+        // HTTP timeout in milliseconds (DX-229, DX-234).
+        .option('--request-timeout <ms>', 'Per-request HTTP timeout in milliseconds (default 30000).', parseInteger)
         .option('--no-retry', 'Disable automatic retries for transient failures (network errors, 429/503, 5xx).')
         .option('--debug', 'Log HTTP requests (method, path, status, duration, request-id) to stderr, fully redacted.')
         .on('option:output', function () {
@@ -220,8 +232,8 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .on('option:verbose', () => {
             cliConfig.verbose = true;
         })
-        .on('option:timeout', function () {
-            cliConfig.timeout = this.opts().timeout as number;
+        .on('option:request-timeout', function () {
+            cliConfig.timeout = this.opts().requestTimeout as number;
         })
         .on('option:no-retry', () => {
             cliConfig.retry = false;
@@ -266,6 +278,7 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(cartsIo)
         .addCommand(cartsItems)
         .addCommand(channels)
+        .addCommand(costCenters)
         .addCommand(customersValueLists)
         .addCommand(customersOrganizations)
         .addCommand(customers)
@@ -291,11 +304,17 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(paymentsProviders)
         .addCommand(paymentsMethods)
         .addCommand(prices)
+        .addCommand(procurement)
         .addCommand(products)
         .addCommand(productsDataModel)
         .addCommand(productsAssets)
         .addCommand(productsCategories)
         .addCommand(productsReferences)
+        .addCommand(promotionsEvaluation)
+        .addCommand(promotionsVouchers)
+        .addCommand(promotionsPromotions)
+        .addCommand(promotionsRedemptions)
+        .addCommand(punchout)
         .addCommand(search)
         .addCommand(settings)
         .addCommand(shippingCarriers)

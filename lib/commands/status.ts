@@ -164,7 +164,7 @@ export const status = new Command("status")
 
       parse({
         User: user,
-        "Auth method": usingKey ? "API key" : "SSO (Zitadel)",
+        "Auth method": usingKey ? "API key" : "SSO (Revenexx ID)",
         Tenant: tenant,
         Endpoint: endpoint,
         "Token expires": tokenExpiry,

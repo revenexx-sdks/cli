@@ -124,7 +124,7 @@ export const sdkForProject = async (): Promise<Client> => {
   client
     .setEndpoint(endpoint)
     .setSelfSigned(selfSigned)
-    // Transport resilience (DX-103): honor --timeout / --no-retry, and enable
+    // Transport resilience (DX-103): honor --request-timeout / --no-retry, and enable
     // redacted HTTP debug logging under --debug or --verbose.
     .setRetry(cliConfig.retry !== false)
     .setDebug(cliConfig.debug === true || cliConfig.verbose === true);
@@ -132,7 +132,7 @@ export const sdkForProject = async (): Promise<Client> => {
   if (cliConfig.timeout !== undefined) {
     if (!Number.isFinite(cliConfig.timeout) || cliConfig.timeout <= 0) {
       throw new Error(
-        `Invalid --timeout value '${cliConfig.timeout}'. Expected a positive integer (milliseconds).`,
+        `Invalid --request-timeout value '${cliConfig.timeout}'. Expected a positive integer (milliseconds).`,
       );
     }
     client.setTimeout(cliConfig.timeout);

@@ -54,6 +54,27 @@ const parseJson = (text: string): unknown => {
   }
 };
 
+/**
+ * The machine-readable error payload is a single JSON line on stderr, but
+ * status lines share that stream in machine-readable modes (DX-241) — and the
+ * TUI runs every command as `--output json`. Parse the last line that is valid
+ * JSON so a progress line ahead of the error no longer hides it.
+ */
+const parseJsonLine = (text: string): unknown => {
+  const whole = parseJson(text);
+  if (whole !== undefined) return whole;
+
+  const lines = text.split("\n");
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index].trim();
+    if (line === "" || !line.startsWith("{")) continue;
+    const parsed = parseJson(line);
+    if (parsed !== undefined) return parsed;
+  }
+
+  return undefined;
+};
+
 /** Bind a runner to the live program so the TUI can execute command tokens. */
 export const createRunner = (program: Command): TuiRunner => {
   return async (tokens, options = {}) => {
@@ -144,7 +165,7 @@ export const createRunner = (program: Command): TuiRunner => {
       cliConfig.force = saved.force;
     }
 
-    const errorPayload = parseJson(stderr) as
+    const errorPayload = parseJsonLine(stderr) as
       | { error?: ExecutionResult["error"] }
       | undefined;
     return {

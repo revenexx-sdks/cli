@@ -1,6 +1,6 @@
 import { Command, Option } from "commander";
 import inquirer from "inquirer";
-import { actionRunner, success, log, warn, hint, error, drawJSON, cliConfig } from "../parser.js";
+import { actionRunner, success, log, warn, hint, error, drawJSON, parse, cliConfig } from "../parser.js";
 import { sdkForProject } from "../sdks.js";
 import type { RequestParams } from "../types.js";
 import { apps } from "./services/apps.js";
@@ -105,8 +105,8 @@ const createApp = async (name: string, flags: CreateAppFlags): Promise<void> => 
 
   const result = scaffoldApp(options);
 
-  if (cliConfig.json) {
-    drawJSON(result);
+  if (cliConfig.output !== "table") {
+    parse(result);
     return;
   }
 
@@ -176,8 +176,8 @@ const createTheme = async (name: string, flags: CreateThemeFlags): Promise<void>
 
   const result = scaffoldTheme(options);
 
-  if (cliConfig.json) {
-    drawJSON(result);
+  if (cliConfig.output !== "table") {
+    parse(result);
     return;
   }
 
@@ -244,8 +244,8 @@ export const create = new Command("create")
             outputDirectory: flags.outputDirectory,
           };
           const site = (await client.call("post", "/sites", { "content-type": "application/json" }, payload)) as Record<string, unknown>;
-          if (cliConfig.json) {
-            drawJSON(site);
+          if (cliConfig.output !== "table") {
+            parse(site);
             return;
           }
           success(`Site '${name}' created (${site.$id ?? site.id})`);
@@ -292,8 +292,8 @@ const appsGenerate = new Command("generate")
         vendor: flags.vendor,
         app: flags.app,
       });
-      if (cliConfig.json) {
-        drawJSON(result);
+      if (cliConfig.output !== "table") {
+        parse(result);
         return;
       }
       success(`Generated ${result.target} client for [${result.entities.join(", ")}]`);

@@ -1551,18 +1551,23 @@ registerPromptSpecs(orders.commands.at(-1)!, returnsCompleteSpecs, { method: "po
 const returnsReceiveSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
   { key: "rid", option: "--rid <rid>", name: "rid", description: "The return id (uuid). It must belong to the order in {id} — a return of another order is a 404, not a cross-order write.", type: "string", required: true },
-  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 orders
   .command(`returns-receive`)
   .description(`The goods-in scan: the parcel is physically back, warehouse staff have it in their hands, and nobody has decided yet whether the customer gets their money. It moves the return from 'registered' to 'received' and stamps received_at, which is what separates 'announced' from 'here' on a returns worklist. It books nothing — quantity_returned is written by the complete step and by nothing else — so a return that arrives damaged can still be rejected afterwards. Only a registered return can be received; a second call, or one against a settled return, is a 422. This step is skippable: a return may be completed straight from 'registered' where a merchant does not scan goods in.`)
   .option(`--id <id>`, `The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.`)
   .option(`--rid <rid>`, `The return id (uuid). It must belong to the order in {id} — a return of another order is a 404, not a cross-order write.`)
-  .option(`--data <data>`, `Request body`)
+  .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, rid, data } = await promptForMissing(
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { id, rid, body } = await promptForMissing(
           _options,
           returnsReceiveSpecs,
           _command,
@@ -1570,8 +1575,8 @@ orders
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/returns/{rid}/receive`.replace(`{id}`, id).replace(`{rid}`, rid);
         const _payload: RequestParams = {};
-        if (data !== undefined) {
-          Object.assign(_payload, resolveBodyParam(data));
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1746,17 +1751,22 @@ orders
 registerPromptSpecs(orders.commands.at(-1)!, shippableSpecs, { method: "get" });
 const unholdSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-  { key: "data", option: "--data <data>", name: "data", description: "Request body", type: "object", required: true },
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 orders
   .command(`unhold`)
   .description(`The whole of the release: the flag comes off, the reason is cleared, and an order.unheld event says the order may move again. Whatever the hold was blocking — shipping, and cancellation on tenants configured that way — is accepted from this call on. It restores nothing else and skips nothing: the order continues from exactly the status and quantities it had when it was held, and any shipping that was due meanwhile still has to be done by hand. An order that is not on hold answers 422 rather than pretending to release one, so this is safe to give to a worklist and not to a loop that calls it blindly.`)
   .option(`--id <id>`, `The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.`)
-  .option(`--data <data>`, `Request body`)
+  .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, data } = await promptForMissing(
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { id, body } = await promptForMissing(
           _options,
           unholdSpecs,
           _command,
@@ -1764,8 +1774,8 @@ orders
         const _client = await sdkForProject();
         const _apiPath = `/orders/{id}/unhold`.replace(`{id}`, id);
         const _payload: RequestParams = {};
-        if (data !== undefined) {
-          Object.assign(_payload, resolveBodyParam(data));
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

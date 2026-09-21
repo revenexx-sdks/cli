@@ -7,8 +7,10 @@ import {
   generateState,
   pkceChallenge,
   runLoopbackCapture,
+  tenantsFromClaims,
 } from "../lib/oauth.js";
 import {
+  postLoginTenantHint,
   storeSsoSession,
   type SsoSessionStore,
 } from "../lib/commands/generic.js";
@@ -188,5 +190,53 @@ describe("storeSsoSession", () => {
     expect(record.email).toBe("sso");
     expect(record.refreshToken).toBeUndefined();
     expect(record.jwtExpiresAt).toBeUndefined();
+  });
+});
+
+describe("tenantsFromClaims (DX-230)", () => {
+  it("returns the primary tenant_id first, then the rest of tenant_ids, deduped", () => {
+    expect(
+      tenantsFromClaims({
+        sub: "1",
+        tenant_id: "acme",
+        tenant_ids: ["globex", "acme", " initech "],
+      }),
+    ).toEqual(["acme", "globex", "initech"]);
+  });
+
+  it("copes with a token that only carries tenant_ids", () => {
+    expect(tenantsFromClaims({ tenant_ids: ["acme"] })).toEqual(["acme"]);
+  });
+
+  it("ignores malformed values and returns [] for null or claim-less tokens", () => {
+    expect(tenantsFromClaims(null)).toEqual([]);
+    expect(tenantsFromClaims({ sub: "1" })).toEqual([]);
+    expect(
+      tenantsFromClaims({ tenant_id: 42, tenant_ids: "acme" } as never),
+    ).toEqual([]);
+    expect(tenantsFromClaims({ tenant_ids: [1, null, "", "acme"] })).toEqual([
+      "acme",
+    ]);
+  });
+});
+
+describe("postLoginTenantHint (DX-230)", () => {
+  it("names the single tenant and the exact command to select it", () => {
+    const hint = postLoginTenantHint(["acme"]);
+    expect(hint).toMatch(/can access 'acme'/);
+    expect(hint).toMatch(/tenants use acme`/);
+  });
+
+  it("lists several tenants and points at `tenants list`", () => {
+    const hint = postLoginTenantHint(["acme", "globex"]);
+    expect(hint).toMatch(/acme, globex/);
+    expect(hint).toMatch(/tenants use <slug>/);
+    expect(hint).toMatch(/tenants list/);
+  });
+
+  it("falls back to the discovery command when the token names no tenant", () => {
+    const hint = postLoginTenantHint([]);
+    expect(hint).toMatch(/tenants list/);
+    expect(hint).not.toMatch(/Your account can access/);
   });
 });

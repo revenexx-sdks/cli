@@ -35,7 +35,6 @@ const listSpecs: PromptSpec[] = [
   { key: "quantity", option: "--quantity <quantity>", name: "quantity", description: "Exact quantity — equality, so it matches a line of exactly this many, never 'at least'.", type: "number", required: false },
   { key: "unit", option: "--unit <unit>", name: "unit", description: "Lines counted in one unit ('pcs', 'm').", type: "string", required: false },
   { key: "unitPrice", option: "--unit-price <unit-price>", name: "unit_price", description: "Exact unit price — the lines still sitting at one particular number after a repricing run.", type: "number", required: false },
-  { key: "currency", option: "--currency <currency>", name: "currency", description: "Lines priced in one currency — normally the cart's, so this earns its place only where a cart mixes them.", type: "string", required: false },
   { key: "taxRate", option: "--tax-rate <tax-rate>", name: "tax_rate", description: "Lines at one VAT rate.", type: "number", required: false },
   { key: "lineTotal", option: "--line-total <line-total>", name: "line_total", description: "Exact line total. Equality only — there is no range form, so this finds `0` and little else.", type: "number", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "The line at one position.", type: "integer", required: false },
@@ -58,7 +57,6 @@ cartsItems
   .option(`--quantity <quantity>`, `Exact quantity — equality, so it matches a line of exactly this many, never 'at least'.`, parseInteger)
   .option(`--unit <unit>`, `Lines counted in one unit ('pcs', 'm').`)
   .option(`--unit-price <unit-price>`, `Exact unit price — the lines still sitting at one particular number after a repricing run.`, parseInteger)
-  .option(`--currency <currency>`, `Lines priced in one currency — normally the cart's, so this earns its place only where a cart mixes them.`)
   .option(`--tax-rate <tax-rate>`, `Lines at one VAT rate.`, parseInteger)
   .option(`--line-total <line-total>`, `Exact line total. Equality only — there is no range form, so this finds \`0\` and little else.`, parseInteger)
   .option(`--position <position>`, `The line at one position.`, parseInteger)
@@ -76,7 +74,7 @@ cartsItems
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { cartId, id, type, productId, sku, name, quantity, unit, unitPrice, currency, taxRate, lineTotal, position, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { cartId, id, type, productId, sku, name, quantity, unit, unitPrice, taxRate, lineTotal, position, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -107,9 +105,6 @@ cartsItems
         }
         if (unitPrice !== undefined) {
           _payload[`unit_price`] = unitPrice;
-        }
-        if (currency !== undefined) {
-          _payload[`currency`] = currency;
         }
         if (taxRate !== undefined) {
           _payload[`tax_rate`] = taxRate;
@@ -159,7 +154,7 @@ registerPromptSpecs(cartsItems.commands.at(-1)!, listSpecs, { method: "get" });
 const createSpecs: PromptSpec[] = [
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.", type: "string", required: true },
   { key: "configuration", option: "--configuration <configuration>", name: "configuration", description: "What was configured on this line, in the configurator's own vocabulary — this app stores it and reads nothing out of it. Its mere PRESENCE is behaviour: a line that carries a configuration never merges with another, because two differently configured units of the same article are not one line. Keys are the configurator's; the example is one shape, not the shape.", type: "object", required: false },
-  { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code. Defaults to the cart's currency.", type: "string", required: false },
+  { key: "currency", option: "--currency <currency>", name: "currency", description: "Optional, and it cannot change anything: a line is read in its CART's currency and stores none of its own. Sending the cart's code (or nothing) is accepted — which is what makes an exported line re-importable — and sending a different one answers 409 `currency_mismatch` rather than being converted or quietly stored.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data the storefront hangs on the line. Stored and returned verbatim; no key in here is read by this app.", type: "object", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "What the line reads as on the cart page. Falls back to 'sku' when omitted, so a line always has something to show.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort order within the cart, ascending. Default 0 when adding a line; in a bulk replace the payload order fills it in.", type: "integer", required: false },
@@ -174,10 +169,10 @@ const createSpecs: PromptSpec[] = [
 ];
 cartsItems
   .command(`create`)
-  .description(`Adds one line to an ACTIVE cart — the add-to-basket call. \`name\` or \`sku\` is required (a line sent with only a SKU takes the SKU as its name, so a line always has something to show) and \`quantity\` must be greater than zero; everything else defaults, including the currency, which falls back to the cart's. The one thing that surprises a caller: a plain product line with the same product/sku AND the same \`unit_price\` as a line already in the cart does not open a second row — its quantity is added to that line, and the 201 names a row that already existed. Price is part of that identity on purpose, so a changed price never averages into an old line. A configured or custom line always stands alone. The cart's \`item_count\` (the sum of QUANTITIES) and \`subtotal\` are recomputed before the answer, and \`max_items_per_cart\` / \`max_quantity_per_line\` are checked on the RESULT of the merge (422), so ten calls of one piece cannot walk past a limit one call of ten would hit.`)
+  .description(`Adds one line to an ACTIVE cart — the add-to-basket call. \`name\` or \`sku\` is required (a line sent with only a SKU takes the SKU as its name, so a line always has something to show) and \`quantity\` must be greater than zero; everything else defaults. The line is priced in the CART's currency and stores none of its own, so a \`currency\` in the payload may only repeat the cart's — a different one is a 409. The one thing that surprises a caller: a plain product line with the same product/sku AND the same \`unit_price\` as a line already in the cart does not open a second row — its quantity is added to that line, and the 201 names a row that already existed. Price is part of that identity on purpose, so a changed price never averages into an old line. A configured or custom line always stands alone. The cart's \`item_count\` (the sum of QUANTITIES) and \`subtotal\` are recomputed before the answer, and \`max_items_per_cart\` / \`max_quantity_per_line\` are checked on the RESULT of the merge (422), so ten calls of one piece cannot walk past a limit one call of ten would hit.`)
   .option(`--cart-id <cart-id>`, `The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.`)
   .option(`--configuration <configuration>`, `What was configured on this line, in the configurator's own vocabulary — this app stores it and reads nothing out of it. Its mere PRESENCE is behaviour: a line that carries a configuration never merges with another, because two differently configured units of the same article are not one line. Keys are the configurator's; the example is one shape, not the shape.`)
-  .option(`--currency <currency>`, `ISO 4217 code. Defaults to the cart's currency.`)
+  .option(`--currency <currency>`, `Optional, and it cannot change anything: a line is read in its CART's currency and stores none of its own. Sending the cart's code (or nothing) is accepted — which is what makes an exported line re-importable — and sending a different one answers 409 \`currency_mismatch\` rather than being converted or quietly stored.`)
   .option(`--metadata <metadata>`, `Free-form data the storefront hangs on the line. Stored and returned verbatim; no key in here is read by this app.`)
   .option(`--name <name>`, `What the line reads as on the cart page. Falls back to 'sku' when omitted, so a line always has something to show.`)
   .option(`--position <position>`, `Sort order within the cart, ascending. Default 0 when adding a line; in a bulk replace the payload order fills it in.`, parseInteger)
@@ -377,7 +372,7 @@ const updateSpecs: PromptSpec[] = [
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.", type: "string", required: true },
   { key: "id", option: "--id <id>", name: "id", description: "The line, by its id. The cart in the path is checked too: a line that belongs to a different cart answers 404, so an id guessed from another cart never resolves here.", type: "string", required: true, resource: { listPath: "/carts/{cart_id}/items", hasLimit: true } },
   { key: "configuration", option: "--configuration <configuration>", name: "configuration", description: "What was configured on this line, in the configurator's own vocabulary — this app stores it and reads nothing out of it. Its mere PRESENCE is behaviour: a line that carries a configuration never merges with another, because two differently configured units of the same article are not one line. Keys are the configurator's; the example is one shape, not the shape.", type: "object", required: false },
-  { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code. Defaults to the cart's currency.", type: "string", required: false },
+  { key: "currency", option: "--currency <currency>", name: "currency", description: "Optional, and it cannot change anything: a line is read in its CART's currency and stores none of its own. Sending the cart's code (or nothing) is accepted — which is what makes an exported line re-importable — and sending a different one answers 409 `currency_mismatch` rather than being converted or quietly stored.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data the storefront hangs on the line. Stored and returned verbatim; no key in here is read by this app.", type: "object", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "What the line reads as on the cart page. Falls back to 'sku' when omitted, so a line always has something to show.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort order within the cart, ascending. Default 0 when adding a line; in a bulk replace the payload order fills it in.", type: "integer", required: false },
@@ -396,7 +391,7 @@ cartsItems
   .option(`--cart-id <cart-id>`, `The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.`)
   .option(`--id <id>`, `The line, by its id. The cart in the path is checked too: a line that belongs to a different cart answers 404, so an id guessed from another cart never resolves here.`)
   .option(`--configuration <configuration>`, `What was configured on this line, in the configurator's own vocabulary — this app stores it and reads nothing out of it. Its mere PRESENCE is behaviour: a line that carries a configuration never merges with another, because two differently configured units of the same article are not one line. Keys are the configurator's; the example is one shape, not the shape.`)
-  .option(`--currency <currency>`, `ISO 4217 code. Defaults to the cart's currency.`)
+  .option(`--currency <currency>`, `Optional, and it cannot change anything: a line is read in its CART's currency and stores none of its own. Sending the cart's code (or nothing) is accepted — which is what makes an exported line re-importable — and sending a different one answers 409 \`currency_mismatch\` rather than being converted or quietly stored.`)
   .option(`--metadata <metadata>`, `Free-form data the storefront hangs on the line. Stored and returned verbatim; no key in here is read by this app.`)
   .option(`--name <name>`, `What the line reads as on the cart page. Falls back to 'sku' when omitted, so a line always has something to show.`)
   .option(`--position <position>`, `Sort order within the cart, ascending. Default 0 when adding a line; in a bulk replace the payload order fills it in.`, parseInteger)

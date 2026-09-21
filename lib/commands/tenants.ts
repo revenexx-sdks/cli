@@ -16,8 +16,11 @@ import {
 import { globalConfig } from "../config.js";
 import { loadProjectConfig } from "../project-config.js";
 import { DEFAULT_ENDPOINT, EXECUTABLE_NAME } from "../constants.js";
+import { decodeJwtClaims, tenantsFromClaims } from "../oauth.js";
+import { resolveSsoJwt } from "../sdks.js";
 import {
   validateApiKey,
+  validateSsoJwt,
   type ApiKeyValidationResult,
 } from "./generic.js";
 
@@ -63,11 +66,20 @@ export interface KnownTenant {
   active: boolean;
 }
 
+/** The source label for tenants read off the SSO token's membership claims. */
+export const ACCOUNT_SOURCE = "your account (SSO)";
+
 export interface TenantSources {
   env?: string;
   flag?: string;
   projectFile?: string;
   tenantFile?: string;
+  /**
+   * Tenants the signed-in account is a member of, from the SSO token's
+   * `tenant_ids` claim (see `tenantsFromClaims`). This is the one source that
+   * does not require the user to already know the slug.
+   */
+  accountTenants?: string[];
   /** Session emails from the global config; `apikey:<tenant>` entries count. */
   sessionEmails?: string[];
   active?: string;
@@ -87,6 +99,11 @@ export const collectKnownTenants = (sources: TenantSources): KnownTenant[] => {
     found.set(trimmed, entry);
   };
 
+  // The account's own memberships first: that is the list a fresh login is
+  // looking for, so it should head the table.
+  for (const slug of sources.accountTenants ?? []) {
+    add(slug, ACCOUNT_SOURCE);
+  }
   add(sources.flag, "--tenant flag");
   add(sources.env, "REVENEXX_TENANT");
   add(sources.projectFile, ".revenexx.yaml");
@@ -105,6 +122,14 @@ export const collectKnownTenants = (sources: TenantSources): KnownTenant[] => {
   }));
 };
 
+/**
+ * The tenants the signed-in SSO account is a member of, read off the stored
+ * token's claims. Works offline and even on an expired token — the claims are
+ * still decodable, and the gateway would enforce exactly this list.
+ */
+export const discoverAccountTenants = (): string[] =>
+  tenantsFromClaims(decodeJwtClaims(globalConfig.getJWT()));
+
 const resolveProbeContext = (): { endpoint: string; key: string } => {
   const projectFile = loadProjectConfig();
   const endpoint =
@@ -122,13 +147,50 @@ const resolveProbeContext = (): { endpoint: string; key: string } => {
   return { endpoint, key };
 };
 
+/**
+ * Whatever the CLI can present to the gateway to check a slug: an API key
+ * (flag/env/yaml/config — the same precedence every command uses), else the
+ * browser-session JWT, refreshed if it has expired. `expired` means an SSO
+ * session exists but could not be refreshed; `none` means nobody is signed in.
+ */
+export type ProbeCredential =
+  | { kind: "apikey"; key: string }
+  | { kind: "sso"; jwt: string }
+  | { kind: "expired"; reason: string }
+  | { kind: "none" };
+
+const resolveProbeCredential = async (): Promise<ProbeCredential> => {
+  const { key } = resolveProbeContext();
+  if (key) return { kind: "apikey", key };
+  if (!globalConfig.getJWT()) return { kind: "none" };
+  try {
+    const jwt = await resolveSsoJwt();
+    return jwt ? { kind: "sso", jwt } : { kind: "none" };
+  } catch (err) {
+    return { kind: "expired", reason: (err as Error).message };
+  }
+};
+
 const probeTenant = async (
   slug: string,
+  credential: ProbeCredential,
 ): Promise<ApiKeyValidationResult | null> => {
-  const { endpoint, key } = resolveProbeContext();
-  if (!key) return null;
-  return await validateApiKey(key, endpoint, slug);
+  const { endpoint } = resolveProbeContext();
+  switch (credential.kind) {
+    case "apikey":
+      return await validateApiKey(credential.key, endpoint, slug);
+    case "sso":
+      return await validateSsoJwt(credential.jwt, endpoint, slug);
+    default:
+      return null;
+  }
 };
+
+/** Why a slug could not be validated, for the human-readable warnings. */
+const noCredentialNote = (credential: ProbeCredential): string =>
+  credential.kind === "expired"
+    ? credential.reason
+    : `Not signed in — run \`${EXECUTABLE_NAME} login\` first to validate tenant access.`;
 
 export const tenants = new Command("tenants")
   .description(commandDescriptions["tenants"] ?? "Manage Revenexx tenants")
@@ -139,11 +201,12 @@ export const tenants = new Command("tenants")
 tenants
   .command("list")
   .description(
-    "List tenants known to this machine and whether the current API key can access them",
+    "List the tenants your account can access, plus any slugs configured on this machine, and whether the current credential reaches each",
   )
   .action(
     actionRunner(async () => {
       const projectFile = loadProjectConfig();
+      const accountTenants = discoverAccountTenants();
       const known = collectKnownTenants({
         env: process.env.REVENEXX_TENANT,
         flag: cliConfig.tenant,
@@ -155,6 +218,7 @@ tenants
             return undefined;
           }
         })(),
+        accountTenants,
         sessionEmails: globalConfig
           .getSessions()
           .map((session) => session.email ?? ""),
@@ -162,19 +226,36 @@ tenants
       });
 
       if (known.length === 0) {
-        log(
-          `No tenants configured yet. Run \`${EXECUTABLE_NAME} tenants use <slug>\` or \`${EXECUTABLE_NAME} login --tenant <slug>\`.`,
-        );
+        if (globalConfig.getJWT()) {
+          // Signed in via SSO, but the token grants no tenant. Nothing the CLI
+          // can discover — the account itself has no membership yet.
+          log(
+            `Your account is not a member of any tenant yet. Ask a tenant admin for access, then run \`${EXECUTABLE_NAME} login\` again to refresh your session.`,
+          );
+        } else {
+          log(
+            `Not signed in. Run \`${EXECUTABLE_NAME} login\` and then \`${EXECUTABLE_NAME} tenants list\` to see the tenants your account can access, or \`${EXECUTABLE_NAME} login --token <key> --tenant <slug>\` for an API key.`,
+          );
+        }
         return;
       }
 
-      const { key } = resolveProbeContext();
+      const credential = await resolveProbeCredential();
       const rows = [];
       for (const tenant of known) {
-        let access = "(no key to verify)";
-        if (key) {
-          const result = await probeTenant(tenant.slug);
-          access = result?.ok ? "ok" : (result?.reason ?? "unknown");
+        let access: string;
+        switch (credential.kind) {
+          case "apikey":
+          case "sso": {
+            const result = await probeTenant(tenant.slug, credential);
+            access = result?.ok ? "ok" : (result?.reason ?? "unknown");
+            break;
+          }
+          case "expired":
+            access = "(session expired)";
+            break;
+          default:
+            access = "(not signed in)";
         }
         rows.push({
           Tenant: tenant.slug,
@@ -189,9 +270,16 @@ tenants
         return;
       }
       drawTable(rows);
-      if (!key) {
+      if (credential.kind === "none") {
         hint(
-          `Set an API key (\`${EXECUTABLE_NAME} login\` or REVENEXX_API_KEY) to verify tenant access.`,
+          `Sign in (\`${EXECUTABLE_NAME} login\`) or set REVENEXX_API_KEY to verify tenant access.`,
+        );
+      } else if (credential.kind === "expired") {
+        hint(credential.reason);
+      }
+      if (!readActiveTenant()) {
+        hint(
+          `Run \`${EXECUTABLE_NAME} tenants use <slug>\` to scope commands to one of these tenants.`,
         );
       }
     }),
@@ -200,7 +288,7 @@ tenants
 tenants
   .command("use <slug>")
   .description(
-    "Switch the active tenant context (validated against the gateway when an API key is available)",
+    "Switch the active tenant context (validated against the gateway with your API key or browser session)",
   )
   .action(
     actionRunner(async (slug: string) => {
@@ -209,16 +297,23 @@ tenants
         return;
       }
 
-      const result = await probeTenant(slug);
+      const credential = await resolveProbeCredential();
+      const result = await probeTenant(slug, credential);
       if (result === null) {
         warn(
-          "No API key available — switching tenant without gateway validation.",
+          `${noCredentialNote(credential)} Switching tenant without gateway validation.`,
         );
       } else if (!result.ok) {
         if (result.kind === "invalid-tenant" && !cliConfig.force) {
           error(
             `Cannot switch: ${result.reason}. Pass --force to set it anyway.`,
           );
+          const accountTenants = discoverAccountTenants();
+          if (credential.kind === "sso" && accountTenants.length > 0) {
+            hint(
+              `Your account can access: ${accountTenants.join(", ")} (\`${EXECUTABLE_NAME} tenants list\`).`,
+            );
+          }
           return;
         }
         warn(`Could not verify tenant '${slug}': ${result.reason}.`);
@@ -237,17 +332,22 @@ tenants
     actionRunner(async ({ check }: { check?: boolean }) => {
       const slug = readActiveTenant();
       if (!slug) {
-        log(`No active tenant set. Run \`${EXECUTABLE_NAME} tenants use <slug>\`.`);
+        log(
+          `No active tenant set. Run \`${EXECUTABLE_NAME} tenants list\` to see your tenants, then \`${EXECUTABLE_NAME} tenants use <slug>\`.`,
+        );
         return;
       }
       log(slug);
 
       if (check) {
-        const result = await probeTenant(slug);
+        const credential = await resolveProbeCredential();
+        const result = await probeTenant(slug, credential);
         if (result === null) {
-          warn("No API key available — cannot verify tenant access.");
+          warn(`${noCredentialNote(credential)} Cannot verify tenant access.`);
         } else if (result.ok) {
-          success(`Tenant '${slug}' is accessible with the current API key`);
+          success(
+            `Tenant '${slug}' is accessible with the current ${credential.kind === "apikey" ? "API key" : "session"}`,
+          );
         } else {
           error(`Tenant check failed: ${result.reason}`);
         }
