@@ -4,7 +4,7 @@ import * as os from "os";
 import * as path from "path";
 import { create as createTar } from "tar";
 import { sdkForProject } from "../sdks.js";
-import { readActiveTenant } from "./tenants.js";
+import { resolveTenant } from "../project-config.js";
 import { EXECUTABLE_NAME } from "../constants.js";
 import type { RequestParams } from "../types.js";
 import { actionRunner, success, log, warn, hint, parse, cliConfig } from "../parser.js";
@@ -322,7 +322,7 @@ export const deployApp = async (dir: string, flags: DeployAppFlags): Promise<voi
 
   let installed = false;
   if (flags.install) {
-    const owner = flags.owner ?? readActiveTenant();
+    const owner = flags.owner ?? (cliConfig.tenant || resolveTenant());
     if (!owner) {
       warn(`no owner tenant resolved — skipping the marketplace install (pass --owner or '${EXECUTABLE_NAME} tenants use')`);
     } else {
@@ -499,7 +499,7 @@ export const deployTheme = async (dir: string, flags: DeployThemeFlags): Promise
   }
   let installed = false;
   if (flags.install) {
-    const owner = flags.owner ?? readActiveTenant();
+    const owner = flags.owner ?? (cliConfig.tenant || resolveTenant());
     if (!owner) {
       warn(`no owner tenant resolved — skipping the marketplace install (pass --owner or '${EXECUTABLE_NAME} tenants use')`);
     } else {

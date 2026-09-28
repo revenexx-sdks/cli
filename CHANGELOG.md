@@ -1,3 +1,6 @@
+## v0.5.0
+- fix --tenant flag handling
+
 ## v0.4.1
 - Regenerated from the latest API specification
 

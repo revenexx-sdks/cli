@@ -26,8 +26,9 @@ vi.mock("../lib/sdks.js", () => ({
   }),
 }));
 
-vi.mock("../lib/commands/tenants.js", () => ({
-  readActiveTenant: () => "acme",
+vi.mock("../lib/project-config.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/project-config.js")>()),
+  resolveTenant: () => "acme",
 }));
 
 import { deployApp, deployTheme, parseSeconds, type DeployAppFlags, type DeployThemeFlags } from "../lib/commands/deploy.js";
@@ -99,6 +100,19 @@ describe("deploy app", () => {
     ]);
     const install = calls.find((c) => c.path === "/apps/marketplace/install");
     expect(install?.params).toEqual({ owner: "acme", name: "cost-centers" });
+  });
+
+  it("installs on the --tenant slug over the tenant file and REVENEXX_TENANT", async () => {
+    respond = happyGateway();
+    cliConfig.tenant = "staging";
+    try {
+      await deployApp(workdir, baseFlags());
+    } finally {
+      cliConfig.tenant = undefined;
+    }
+
+    const install = calls.find((c) => c.path === "/apps/marketplace/install");
+    expect(install?.params).toEqual({ owner: "staging", name: "cost-centers" });
   });
 
   it("on build timeout says publish + install did NOT run and names the resume command", async () => {

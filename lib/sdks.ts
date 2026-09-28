@@ -84,9 +84,9 @@ export const sdkForProject = async (): Promise<Client> => {
     globalConfig.getEndpoint() ||
     DEFAULT_ENDPOINT;
 
-  // resolveTenant() covers ~/.revenexx/tenant (`tenants use`), then
-  // REVENEXX_TENANT, then .revenexx.yaml — keeping this in sync with the
-  // x-revenexx-tenant header below.
+  // --tenant first, then resolveTenant() for ~/.revenexx/tenant (`tenants
+  // use`), REVENEXX_TENANT and .revenexx.yaml. This is also the
+  // x-revenexx-tenant header below: re-resolving there would put the flag last.
   const project =
     cliConfig.tenant ||
     resolveTenant() ||
@@ -118,7 +118,7 @@ export const sdkForProject = async (): Promise<Client> => {
     "x-sdk-version": SDK_VERSION,
     "user-agent": `${SDK_TITLE}CLI/${SDK_VERSION} (${os.type()} ${os.version()}; ${os.arch()})`,
     // The API gateway scopes every request to a tenant.
-    "x-revenexx-tenant": resolveTenant(project),
+    "x-revenexx-tenant": project,
   };
 
   client

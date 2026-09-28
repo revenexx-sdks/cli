@@ -497,6 +497,50 @@ customersContacts
     ),
   );
 registerPromptSpecs(customersContacts.commands.at(-1)!, eventsCreateSpecs, { method: "post" });
+const identitySpecs: PromptSpec[] = [
+  { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person whose login is missing.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
+  { key: "createdBy", option: "--created-by <created-by>", name: "created_by", description: "Who ordered the repair, for the timeline entry. An automated sweep names itself here.", type: "string", required: false },
+];
+customersContacts
+  .command(`identity`)
+  .description(`Repair the one contact an import leaves unable to sign in. A contact created through this API is mirrored as a platform login in the same call; a contact written straight into the record by a migration or an ERP feed is not, and reads as a customer everywhere while being able to do nothing — no password, no recovery, and "no account found for that address" as the only explanation. This call creates the missing login and links it. It is idempotent: a contact that already has one is answered with it and \`created\` false, and nothing is touched, so a whole import is healed with one call per contact and is safe to re-run. It takes no password — the person is handed to \`POST /customers/auth/recovery\` and mints their own. It mirrors the state it finds: a blocked contact, or one whose registration is still pending or rejected, gets its login created DISABLED, so a repair can never hand access to somebody who was refused it. And it delivers nothing at all — telling the person is what the invitation is for.`)
+  .option(`--contact-id <contact-id>`, `The person whose login is missing.`)
+  .option(`--created-by <created-by>`, `Who ordered the repair, for the timeline entry. An automated sweep names itself here.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { contactId, createdBy } = await promptForMissing(
+          _options,
+          identitySpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/contacts/{contact_id}/identity`.replace(`{contact_id}`, contactId);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (createdBy !== undefined) {
+          _payload[`created_by`] = createdBy;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customersContacts.commands.at(-1)!, identitySpecs, { method: "post" });
 const inviteSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person being told. They are already a member — this only sends the message.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
   { key: "url", option: "--url <url>", name: "url", description: "Where the invitation points — the storefront sign-in, normally. There is no token in it: the person is already a member and only has to sign in.", type: "string", required: true },

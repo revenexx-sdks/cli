@@ -76,6 +76,11 @@ import { promotionsVouchers } from './lib/commands/services/promotions-vouchers.
 import { promotionsPromotions } from './lib/commands/services/promotions-promotions.js';
 import { promotionsRedemptions } from './lib/commands/services/promotions-redemptions.js';
 import { punchout } from './lib/commands/services/punchout.js';
+import { quotesPricing } from './lib/commands/services/quotes-pricing.js';
+import { quotesRanges } from './lib/commands/services/quotes-ranges.js';
+import { quotesQuotes } from './lib/commands/services/quotes-quotes.js';
+import { quotesAcceptance } from './lib/commands/services/quotes-acceptance.js';
+import { quotesTrail } from './lib/commands/services/quotes-trail.js';
 import { search } from './lib/commands/services/search.js';
 import { settings } from './lib/commands/services/settings.js';
 import { shippingCarriers } from './lib/commands/services/shipping-carriers.js';
@@ -315,6 +320,11 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(promotionsPromotions)
         .addCommand(promotionsRedemptions)
         .addCommand(punchout)
+        .addCommand(quotesPricing)
+        .addCommand(quotesRanges)
+        .addCommand(quotesQuotes)
+        .addCommand(quotesAcceptance)
+        .addCommand(quotesTrail)
         .addCommand(search)
         .addCommand(settings)
         .addCommand(shippingCarriers)
