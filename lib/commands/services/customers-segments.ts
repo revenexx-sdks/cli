@@ -29,7 +29,7 @@ const customersSegmentMembersListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to rows whose `id` is exactly this value. Primary key of the membership row.", type: "string", required: false },
   { key: "segmentId", option: "--segment-id <segment-id>", name: "segment_id", description: "Filter to one segment — its members.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Filter to one company — the segments it belongs to. The same route answers both questions.", type: "string", required: false },
-  { key: "source", option: "--source <source>", name: "source", description: "Filter by how the membership came about. `manual` is the hand-picked set a recompute will never touch.", type: "string", required: false, enum: ["manual","rule"] },
+  { key: "source", option: "--source <source>", name: "source", description: "Filter by how the membership came about. `manual` is the hand-picked set a recompute will never touch, `sync` the set an import from the owning system wrote, and `rule` the only one a recompute rewrites.", type: "string", required: false, enum: ["manual","rule","sync"] },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When the organization joined the segment.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
@@ -42,7 +42,7 @@ customersSegments
   .option(`--id <id>`, `Filter to rows whose \`id\` is exactly this value. Primary key of the membership row.`)
   .option(`--segment-id <segment-id>`, `Filter to one segment — its members.`)
   .option(`--organization-id <organization-id>`, `Filter to one company — the segments it belongs to. The same route answers both questions.`)
-  .option(`--source <source>`, `Filter by how the membership came about. \`manual\` is the hand-picked set a recompute will never touch.`)
+  .option(`--source <source>`, `Filter by how the membership came about. \`manual\` is the hand-picked set a recompute will never touch, \`sync\` the set an import from the owning system wrote, and \`rule\` the only one a recompute rewrites.`)
   .option(`--created-at <created-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the organization joined the segment.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
@@ -112,18 +112,20 @@ registerPromptSpecs(customersSegments.commands.at(-1)!, customersSegmentMembersL
 const customersSegmentMembersCreateSpecs: PromptSpec[] = [
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The member company. Segments group companies, never people — a person is reached through their organization.", type: "string", required: true },
   { key: "segmentId", option: "--segment-id <segment-id>", name: "segment_id", description: "The segment.", type: "string", required: true },
-  { key: "source", option: "--source <source>", name: "source", description: "How this membership came about: 'manual' is hand-picked, 'rule' was materialized by a recompute. The distinction is load-bearing — a recompute only ever inserts and deletes 'rule' rows, so a hand-picked member survives every rule change. Default 'manual'.", type: "string", required: false, enum: ["manual","rule"] },
+  { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "When the organization joined the segment. Accepted on create only from a call naming no acting contact — an operator, an import, an ERP carrying a record over with its original date. A buyer sending it, or any update changing it, is a 400 `server_owned_field`.", type: "string", required: false },
+  { key: "source", option: "--source <source>", name: "source", description: "How this membership came about: 'manual' is hand-picked, 'rule' was materialized by a recompute, 'sync' was written by an import from the system that owns the grouping — an ERP customer discount or price group arrives as a segment membership rather than as a column on the company. The distinction is load-bearing — a recompute only ever inserts and deletes 'rule' rows, so a hand-picked member and an imported one both survive every rule change. Default 'manual'. Send 'sync' from an import so the next recompute of the segment leaves the row alone; 'rule' rows are the recompute's own and it deletes the ones that stopped matching.", type: "string", required: false, enum: ["manual","rule","sync"] },
 ];
 customersSegments
   .command(`customers-segment-members-create`)
   .description(`One organization inside one segment, plus the record of how it got there: \`source: "manual"\` for a company somebody put in, \`source: "rule"\` for one the rule engine matched. That distinction is what lets a recompute rewrite its own rows and leave every hand-picked one alone. Adds a company to a segment BY HAND. The row is \`source: "manual"\`, which is what protects it: a rule recompute rewrites the rule-derived rows of that segment and never touches this one. A create cannot omit \`segment_id\` and \`organization_id\`; everything else is optional or defaulted by the database. Two rows of this tenant may not share the combination of \`segment_id\` + \`organization_id\`.`)
   .option(`--organization-id <organization-id>`, `The member company. Segments group companies, never people — a person is reached through their organization.`)
   .option(`--segment-id <segment-id>`, `The segment.`)
-  .option(`--source <source>`, `How this membership came about: 'manual' is hand-picked, 'rule' was materialized by a recompute. The distinction is load-bearing — a recompute only ever inserts and deletes 'rule' rows, so a hand-picked member survives every rule change. Default 'manual'.`)
+  .option(`--created-at <created-at>`, `When the organization joined the segment. Accepted on create only from a call naming no acting contact — an operator, an import, an ERP carrying a record over with its original date. A buyer sending it, or any update changing it, is a 400 \`server_owned_field\`.`)
+  .option(`--source <source>`, `How this membership came about: 'manual' is hand-picked, 'rule' was materialized by a recompute, 'sync' was written by an import from the system that owns the grouping — an ERP customer discount or price group arrives as a segment membership rather than as a column on the company. The distinction is load-bearing — a recompute only ever inserts and deletes 'rule' rows, so a hand-picked member and an imported one both survive every rule change. Default 'manual'. Send 'sync' from an import so the next recompute of the segment leaves the row alone; 'rule' rows are the recompute's own and it deletes the ones that stopped matching.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { organizationId, segmentId, source } = await promptForMissing(
+        const { organizationId, segmentId, createdAt, source } = await promptForMissing(
           _options,
           customersSegmentMembersCreateSpecs,
           _command,
@@ -137,6 +139,9 @@ customersSegments
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (createdAt !== undefined) {
+          _payload[`created_at`] = createdAt;
         }
         if (organizationId !== undefined) {
           _payload[`organization_id`] = organizationId;
@@ -230,7 +235,7 @@ const customersSegmentMembersUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The segment membership to update.", type: "string", required: true, resource: { listPath: "/customers/segment_members", hasLimit: true } },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The member company. Segments group companies, never people — a person is reached through their organization.", type: "string", required: false },
   { key: "segmentId", option: "--segment-id <segment-id>", name: "segment_id", description: "The segment.", type: "string", required: false },
-  { key: "source", option: "--source <source>", name: "source", description: "How this membership came about: 'manual' is hand-picked, 'rule' was materialized by a recompute. The distinction is load-bearing — a recompute only ever inserts and deletes 'rule' rows, so a hand-picked member survives every rule change. Default 'manual'.", type: "string", required: false, enum: ["manual","rule"] },
+  { key: "source", option: "--source <source>", name: "source", description: "How this membership came about: 'manual' is hand-picked, 'rule' was materialized by a recompute, 'sync' was written by an import from the system that owns the grouping — an ERP customer discount or price group arrives as a segment membership rather than as a column on the company. The distinction is load-bearing — a recompute only ever inserts and deletes 'rule' rows, so a hand-picked member and an imported one both survive every rule change. Default 'manual'. Send 'sync' from an import so the next recompute of the segment leaves the row alone; 'rule' rows are the recompute's own and it deletes the ones that stopped matching.", type: "string", required: false, enum: ["manual","rule","sync"] },
 ];
 customersSegments
   .command(`customers-segment-members-update`)
@@ -238,7 +243,7 @@ customersSegments
   .option(`--id <id>`, `The segment membership to update.`)
   .option(`--organization-id <organization-id>`, `The member company. Segments group companies, never people — a person is reached through their organization.`)
   .option(`--segment-id <segment-id>`, `The segment.`)
-  .option(`--source <source>`, `How this membership came about: 'manual' is hand-picked, 'rule' was materialized by a recompute. The distinction is load-bearing — a recompute only ever inserts and deletes 'rule' rows, so a hand-picked member survives every rule change. Default 'manual'.`)
+  .option(`--source <source>`, `How this membership came about: 'manual' is hand-picked, 'rule' was materialized by a recompute, 'sync' was written by an import from the system that owns the grouping — an ERP customer discount or price group arrives as a segment membership rather than as a column on the company. The distinction is load-bearing — a recompute only ever inserts and deletes 'rule' rows, so a hand-picked member and an imported one both survive every rule change. Default 'manual'. Send 'sync' from an import so the next recompute of the segment leaves the row alone; 'rule' rows are the recompute's own and it deletes the ones that stopped matching.`)
   .action(
     actionRunner(
       async (_options, _command) => {
@@ -286,6 +291,8 @@ const listSpecs: PromptSpec[] = [
   { key: "position", option: "--position <position>", name: "position", description: "Filter to rows whose `position` is exactly this value. Sort order in the cockpit, ascending. Ties fall back to insertion order.", type: "integer", required: false },
   { key: "ruleMatch", option: "--rule-match <rule-match>", name: "rule_match", description: "Filter to rows whose `rule_match` is exactly this value. How the conditions combine: 'all' (default) is AND, 'any' is OR. Null means the same as 'all'.", type: "string", required: false, enum: ["all","any"] },
   { key: "rulesComputedAt", option: "--rules-computed-at <rules-computed-at>", name: "rules_computed_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When the rule last finished a COMPLETE recompute. Null after a rule change, and while a chunked recompute is still running — so it doubles as \"are the rule memberships trustworthy right now?\".", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Filter to rows whose `external_id` is exactly this value. The key this group has in the system that owns it — an ERP price group, discount group or bonus group arrives as a segment, and this is what it was called there. Unique per tenant where set.", type: "string", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When this row was last confirmed against its source. What a delta run asks for changes since, and what tells an operator that a feed has gone quiet — a row edited in the Cockpit does not touch it, because it says when the SOURCE was last seen, not when the row changed. Null for a row no source owns.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When the segment was created.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When any column of this row last changed.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
@@ -301,6 +308,8 @@ customersSegments
   .option(`--position <position>`, `Filter to rows whose \`position\` is exactly this value. Sort order in the cockpit, ascending. Ties fall back to insertion order.`, parseInteger)
   .option(`--rule-match <rule-match>`, `Filter to rows whose \`rule_match\` is exactly this value. How the conditions combine: 'all' (default) is AND, 'any' is OR. Null means the same as 'all'.`)
   .option(`--rules-computed-at <rules-computed-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the rule last finished a COMPLETE recompute. Null after a rule change, and while a chunked recompute is still running — so it doubles as "are the rule memberships trustworthy right now?".`)
+  .option(`--external-id <external-id>`, `Filter to rows whose \`external_id\` is exactly this value. The key this group has in the system that owns it — an ERP price group, discount group or bonus group arrives as a segment, and this is what it was called there. Unique per tenant where set.`)
+  .option(`--source-synced-at <source-synced-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When this row was last confirmed against its source. What a delta run asks for changes since, and what tells an operator that a feed has gone quiet — a row edited in the Cockpit does not touch it, because it says when the SOURCE was last seen, not when the row changed. Null for a row no source owns.`)
   .option(`--created-at <created-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the segment was created.`)
   .option(`--updated-at <updated-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When any column of this row last changed.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
@@ -315,7 +324,7 @@ customersSegments
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, position, ruleMatch, rulesComputedAt, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { id, code, position, ruleMatch, rulesComputedAt, externalId, sourceSyncedAt, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -337,6 +346,12 @@ customersSegments
         }
         if (rulesComputedAt !== undefined) {
           _payload[`rules_computed_at`] = rulesComputedAt;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
@@ -376,6 +391,7 @@ customersSegments
 registerPromptSpecs(customersSegments.commands.at(-1)!, listSpecs, { method: "get" });
 const createSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "Stable identifier, unique per tenant — what other apps and integrations name the segment by. Free text, but lowercase with underscores is the convention every seeded vocabulary follows.", type: "string", required: true },
+  { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "When the segment was created. Accepted on create only from a call naming no acting contact — an operator, an import, an ERP carrying a record over with its original date. A buyer sending it, or any update changing it, is a 400 `server_owned_field`.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized display names keyed by language tag. Null means nobody translated it and a client falls back to showing the code.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort order in the cockpit, ascending. Ties fall back to insertion order. Default 0.", type: "integer", required: false },
   { key: "ruleMatch", option: "--rule-match <rule-match>", name: "rule_match", description: "How the conditions combine: 'all' (default) is AND, 'any' is OR. Null means the same as 'all'.", type: "string", required: false, enum: ["all","any"] },
@@ -383,8 +399,9 @@ const createSpecs: PromptSpec[] = [
 ];
 customersSegments
   .command(`create`)
-  .description(`A segment is a named group of ORGANIZATIONS — never of people — built by hand, by rule, or both at once. It is what a price list, a campaign or a shipping option is pointed at when the answer is "these customers, not those". Creates the group. Rules are optional: leave them out for a hand-picked list, or store a rule document and let the recompute keep the membership up to date. The \`code\` is what other apps point at, so pick it deliberately. \`code\` is the only field a create cannot omit; everything else is optional or defaulted by the database. Two rows of this tenant may not share \`code\`.`)
+  .description(`A segment is a named group of ORGANIZATIONS — never of people — built by hand, by rule, or both at once. It is what a price list, a campaign or a shipping option is pointed at when the answer is "these customers, not those". Creates the group. Rules are optional: leave them out for a hand-picked list, or store a rule document and let the recompute keep the membership up to date. The \`code\` is what other apps point at, so pick it deliberately. \`code\` is the only field a create cannot omit; everything else is optional or defaulted by the database. Two rows of this tenant may not share \`code\` or \`external_id\` (while external_id IS NOT NULL).`)
   .option(`--code <code>`, `Stable identifier, unique per tenant — what other apps and integrations name the segment by. Free text, but lowercase with underscores is the convention every seeded vocabulary follows.`)
+  .option(`--created-at <created-at>`, `When the segment was created. Accepted on create only from a call naming no acting contact — an operator, an import, an ERP carrying a record over with its original date. A buyer sending it, or any update changing it, is a 400 \`server_owned_field\`.`)
   .option(`--labels <labels>`, `Localized display names keyed by language tag. Null means nobody translated it and a client falls back to showing the code.`)
   .option(`--position <position>`, `Sort order in the cockpit, ascending. Ties fall back to insertion order. Default 0.`, parseInteger)
   .option(`--rule-match <rule-match>`, `How the conditions combine: 'all' (default) is AND, 'any' is OR. Null means the same as 'all'.`)
@@ -392,7 +409,7 @@ customersSegments
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, labels, position, ruleMatch, rules } = await promptForMissing(
+        const { code, createdAt, labels, position, ruleMatch, rules } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -409,6 +426,9 @@ customersSegments
         }
         if (code !== undefined) {
           _payload[`code`] = code;
+        }
+        if (createdAt !== undefined) {
+          _payload[`created_at`] = createdAt;
         }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
@@ -551,7 +571,7 @@ const updateSpecs: PromptSpec[] = [
 ];
 customersSegments
   .command(`update`)
-  .description(`A segment is a named group of ORGANIZATIONS — never of people — built by hand, by rule, or both at once. It is what a price list, a campaign or a shipping option is pointed at when the answer is "these customers, not those". A partial update — send only what changes. Editing the rules does NOT re-evaluate them: that is \`POST /customers/segments/{segment_id}/rules/recompute\`, so a half-typed rule never silently empties a live segment. Two rows of this tenant may not share \`code\`.`)
+  .description(`A segment is a named group of ORGANIZATIONS — never of people — built by hand, by rule, or both at once. It is what a price list, a campaign or a shipping option is pointed at when the answer is "these customers, not those". A partial update — send only what changes. Editing the rules does NOT re-evaluate them: that is \`POST /customers/segments/{segment_id}/rules/recompute\`, so a half-typed rule never silently empties a live segment. Two rows of this tenant may not share \`code\` or \`external_id\` (while external_id IS NOT NULL).`)
   .option(`--id <id>`, `The segment to update.`)
   .option(`--code <code>`, `Stable identifier, unique per tenant — what other apps and integrations name the segment by. Free text, but lowercase with underscores is the convention every seeded vocabulary follows.`)
   .option(`--labels <labels>`, `Localized display names keyed by language tag. Null means nobody translated it and a client falls back to showing the code.`)

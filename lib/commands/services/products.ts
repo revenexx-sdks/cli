@@ -42,6 +42,10 @@ const listSpecs: PromptSpec[] = [
   { key: "label", option: "--label <label>", name: "label", description: "Exact match on `label`. The display name, maintained by the DATABASE so a grid of twenty thousand rows can sort and filter on a name with no join. It is the first of `attribute_values.common.name`, `…common.label`, the `de`/`en`/`de_DE`/`en_US` locale buckets, `…common.manufacturer_aid`, and finally the SKU — so a value is ALWAYS present, and a label equal to the SKU means the catalog holds no name for this product. A generated column: it cannot be written, and a create or update that names it has it dropped rather than refused. The family-aware answer, which can consult `families.label_attribute` and report where the name came from, is `POST /products/labels`.", type: "string", required: false },
   { key: "quantifiedAssociations", option: "--quantified-associations <quantified-associations>", name: "quantified_associations", description: "Exact match on `quantified_associations`. The import-side mirror of associations that carry a quantity — a bundle, a bill of materials, a spare-parts set. NOTHING IN THIS APP READS OR WRITES IT: no route produces it, no route consumes it, and it is null on every product this app has created. The surface that IS served is relational — `product_associations`, whose `quantity` column holds the number, guarded by `association_types.is_quantified`. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "completeness", option: "--completeness <completeness>", name: "completeness", description: "Exact match on `completeness`. How much of what this product's family REQUIRES it actually carries — the number a merchandiser works down. `required` counts the attributes the family marks `is_required`, `filled` how many of those carry a value in ANY bucket, `ratio` is filled/required between 0 and 1 (a family that requires nothing is 1, not undefined), `missing` lists the codes with no value anywhere, sorted, and `computed_at` is when it was measured. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact match on `external_id`. The key this article has in the system that OWNS it — for a catalog fed by BMEcat, the PIM's own id for the row. It is NOT the `sku`: the SKU is the merchant's article number, typed by people and printed on paper, while this is whatever the feeding system calls the same article, often a number nobody outside it sees. Unique per tenant where set, so a repeated import upserts on it instead of matching on SKU and founding a second product. Null for a product created here.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact match on `external_refs`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact match on `source_synced_at`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "Exact match on `source_data`. What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the row was created. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the row was last written. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "deletedAt", option: "--deleted-at <deleted-at>", name: "deleted_at", description: "Exact match on `deleted_at`. When the product was soft-deleted. `GET /products/grid` and every category-rule evaluation exclude a row that carries one; `GET /products` does NOT — filter on it to read the live catalog.", type: "string", required: false },
@@ -72,6 +76,10 @@ Every column of \`products\` is an exact-match query parameter, \`order\` sorts 
   .option(`--label <label>`, `Exact match on \`label\`. The display name, maintained by the DATABASE so a grid of twenty thousand rows can sort and filter on a name with no join. It is the first of \`attribute_values.common.name\`, \`…common.label\`, the \`de\`/\`en\`/\`de_DE\`/\`en_US\` locale buckets, \`…common.manufacturer_aid\`, and finally the SKU — so a value is ALWAYS present, and a label equal to the SKU means the catalog holds no name for this product. A generated column: it cannot be written, and a create or update that names it has it dropped rather than refused. The family-aware answer, which can consult \`families.label_attribute\` and report where the name came from, is \`POST /products/labels\`.`)
   .option(`--quantified-associations <quantified-associations>`, `Exact match on \`quantified_associations\`. The import-side mirror of associations that carry a quantity — a bundle, a bill of materials, a spare-parts set. NOTHING IN THIS APP READS OR WRITES IT: no route produces it, no route consumes it, and it is null on every product this app has created. The surface that IS served is relational — \`product_associations\`, whose \`quantity\` column holds the number, guarded by \`association_types.is_quantified\`. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--completeness <completeness>`, `Exact match on \`completeness\`. How much of what this product's family REQUIRES it actually carries — the number a merchandiser works down. \`required\` counts the attributes the family marks \`is_required\`, \`filled\` how many of those carry a value in ANY bucket, \`ratio\` is filled/required between 0 and 1 (a family that requires nothing is 1, not undefined), \`missing\` lists the codes with no value anywhere, sorted, and \`computed_at\` is when it was measured. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--external-id <external-id>`, `Exact match on \`external_id\`. The key this article has in the system that OWNS it — for a catalog fed by BMEcat, the PIM's own id for the row. It is NOT the \`sku\`: the SKU is the merchant's article number, typed by people and printed on paper, while this is whatever the feeding system calls the same article, often a number nobody outside it sees. Unique per tenant where set, so a repeated import upserts on it instead of matching on SKU and founding a second product. Null for a product created here.`)
+  .option(`--external-refs <external-refs>`, `Exact match on \`external_refs\`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--source-synced-at <source-synced-at>`, `Exact match on \`source_synced_at\`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
+  .option(`--source-data <source-data>`, `Exact match on \`source_data\`. What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the row was created. Server-set — it is not part of any request body.`)
   .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the row was last written. Server-set — it is not part of any request body.`)
   .option(`--deleted-at <deleted-at>`, `Exact match on \`deleted_at\`. When the product was soft-deleted. \`GET /products/grid\` and every category-rule evaluation exclude a row that carries one; \`GET /products\` does NOT — filter on it to read the live catalog.`)
@@ -84,7 +92,7 @@ Every column of \`products\` is an exact-match query parameter, \`order\` sorts 
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, sku, kind, parentId, familyId, familyVariantId, enabled, taxClass, attributeValues, label, quantifiedAssociations, completeness, createdAt, updatedAt, deletedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, sku, kind, parentId, familyId, familyVariantId, enabled, taxClass, attributeValues, label, quantifiedAssociations, completeness, externalId, externalRefs, sourceSyncedAt, sourceData, createdAt, updatedAt, deletedAt, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -137,6 +145,18 @@ Every column of \`products\` is an exact-match query parameter, \`order\` sorts 
         if (completeness !== undefined) {
           _payload[`completeness`] = completeness;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = externalRefs;
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = sourceData;
+        }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
         }
@@ -173,11 +193,15 @@ const createSpecs: PromptSpec[] = [
   { key: "completeness", option: "--completeness <completeness>", name: "completeness", description: "How much of what this product's family REQUIRES it actually carries — the number a merchandiser works down. `required` counts the attributes the family marks `is_required`, `filled` how many of those carry a value in ANY bucket, `ratio` is filled/required between 0 and 1 (a family that requires nothing is 1, not undefined), `missing` lists the codes with no value anywhere, sorted, and `computed_at` is when it was measured.\n\nWritten only by `POST /products/{id}/completeness` and by `POST /products/{id}/family`; a plain create or update never touches it, so it is null until one of the two has run. It also stays null for a product with no family — there is nothing to measure it against, and 0 % would be a lie.", type: "object", required: false },
   { key: "deletedAt", option: "--deleted-at <deleted-at>", name: "deleted_at", description: "When the product was soft-deleted. `GET /products/grid` and every category-rule evaluation exclude a row that carries one; `GET /products` does NOT — filter on it to read the live catalog.", type: "string", required: false },
   { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Whether the product is offered. A create defaults it from the `new_products_enabled_by_default` tenant setting rather than blindly to true, so an import does not publish twenty thousand unfinished products the moment it lands. An explicit value in the body always wins.", type: "boolean", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this article has in the system that OWNS it — for a catalog fed by BMEcat, the PIM's own id for the row. It is NOT the `sku`: the SKU is the merchant's article number, typed by people and printed on paper, while this is whatever the feeding system calls the same article, often a number nobody outside it sees. Unique per tenant where set, so a repeated import upserts on it instead of matching on SKU and founding a second product. Null for a product created here.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "familyId", option: "--family-id <family-id>", name: "family_id", description: "The family that decides which attributes this product HAS. Without one nothing is required, completeness cannot be computed and the display name never resolves — `POST /products/{id}/family` is the call that sets it and computes completeness in the same step.", type: "string", required: false },
   { key: "familyVariantId", option: "--family-variant-id <family-variant-id>", name: "family_variant_id", description: "Which variant structure of the family this product follows — the axes it splits on. Null on a simple product.", type: "string", required: false },
   { key: "kind", option: "--kind <kind>", name: "kind", description: "Where the product sits in the variant hierarchy. 'simple' stands on its own. 'model' carries the values its variants share and is never sold itself. 'variant' carries the axis values and points at its model through `parent_id`.", type: "string", required: false, enum: ["simple","model","variant"] },
   { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", description: "The product MODEL this variant belongs to. Only a `variant` carries one. Deleting the model leaves its variants behind with a null parent rather than deleting them.", type: "string", required: false },
   { key: "quantifiedAssociations", option: "--quantified-associations <quantified-associations>", name: "quantified_associations", description: "The import-side mirror of associations that carry a quantity — a bundle, a bill of materials, a spare-parts set. NOTHING IN THIS APP READS OR WRITES IT: no route produces it, no route consumes it, and it is null on every product this app has created. The surface that IS served is relational — `product_associations`, whose `quantity` column holds the number, guarded by `association_types.is_quantified`.\n\nIt exists because a PIM import (Akeneo, BMEcat) carries these in one blob keyed by association type code, and the column lets that document round-trip instead of being dropped. The database enforces no shape on it, so what a reader finds is whatever the importer wrote; the example is the conventional form.", type: "object", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
   { key: "taxClass", option: "--tax-class <tax-class>", name: "tax_class", description: "The tax class key the prices app resolves a VAT rate from. Free text here — the vocabulary belongs to the app that prices, and `POST /products/batch` exists to hand exactly this column to it in bulk.", type: "string", required: false },
 ];
 products
@@ -216,6 +240,8 @@ Written only by \`POST /products/{id}/completeness\` and by \`POST /products/{id
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--external-id <external-id>`, `The key this article has in the system that OWNS it — for a catalog fed by BMEcat, the PIM's own id for the row. It is NOT the \`sku\`: the SKU is the merchant's article number, typed by people and printed on paper, while this is whatever the feeding system calls the same article, often a number nobody outside it sees. Unique per tenant where set, so a repeated import upserts on it instead of matching on SKU and founding a second product. Null for a product created here.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--family-id <family-id>`, `The family that decides which attributes this product HAS. Without one nothing is required, completeness cannot be computed and the display name never resolves — \`POST /products/{id}/family\` is the call that sets it and computes completeness in the same step.`)
   .option(`--family-variant-id <family-variant-id>`, `Which variant structure of the family this product follows — the axes it splits on. Null on a simple product.`)
   .option(`--kind <kind>`, `Where the product sits in the variant hierarchy. 'simple' stands on its own. 'model' carries the values its variants share and is never sold itself. 'variant' carries the axis values and points at its model through \`parent_id\`.`)
@@ -223,11 +249,13 @@ Written only by \`POST /products/{id}/completeness\` and by \`POST /products/{id
   .option(`--quantified-associations <quantified-associations>`, `The import-side mirror of associations that carry a quantity — a bundle, a bill of materials, a spare-parts set. NOTHING IN THIS APP READS OR WRITES IT: no route produces it, no route consumes it, and it is null on every product this app has created. The surface that IS served is relational — \`product_associations\`, whose \`quantity\` column holds the number, guarded by \`association_types.is_quantified\`.
 
 It exists because a PIM import (Akeneo, BMEcat) carries these in one blob keyed by association type code, and the column lets that document round-trip instead of being dropped. The database enforces no shape on it, so what a reader finds is whatever the importer wrote; the example is the conventional form.`)
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .option(`--tax-class <tax-class>`, `The tax class key the prices app resolves a VAT rate from. Free text here — the vocabulary belongs to the app that prices, and \`POST /products/batch\` exists to hand exactly this column to it in bulk.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { sku, attributeValues, completeness, deletedAt, enabled, familyId, familyVariantId, kind, parentId, quantifiedAssociations, taxClass } = await promptForMissing(
+        const { sku, attributeValues, completeness, deletedAt, enabled, externalId, externalRefs, familyId, familyVariantId, kind, parentId, quantifiedAssociations, sourceData, sourceSyncedAt, taxClass } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -254,6 +282,12 @@ It exists because a PIM import (Akeneo, BMEcat) carries these in one blob keyed 
         if (enabled !== undefined) {
           _payload[`enabled`] = enabled;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (familyId !== undefined) {
           _payload[`family_id`] = familyId;
         }
@@ -271,6 +305,12 @@ It exists because a PIM import (Akeneo, BMEcat) carries these in one blob keyed 
         }
         if (sku !== undefined) {
           _payload[`sku`] = sku;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (taxClass !== undefined) {
           _payload[`tax_class`] = taxClass;
@@ -290,20 +330,29 @@ It exists because a PIM import (Akeneo, BMEcat) carries these in one blob keyed 
   );
 registerPromptSpecs(products.commands.at(-1)!, createSpecs, { method: "post" });
 const batchSpecs: PromptSpec[] = [
-  { key: "ids", option: "--ids [ids...]", name: "ids", description: "Product ids, when the caller already holds them.", type: "array", required: false },
-  { key: "skus", option: "--skus [skus...]", name: "skus", description: "Product SKUs — the identifier a foreign system carries, which is why this route exists at all.", type: "array", required: false },
+  { key: "full", option: "--full <full>", name: "full", description: "True answers each product as its whole row (`ProductBatchRow`) instead of the four-field reference (`ProductTaxRef`). For a caller that must hand a whole product on — every column and attribute value — without a read per line.", type: "boolean", required: false, default: "false" },
+  { key: "ids", option: "--ids [ids...]", name: "ids", description: "Product ids, when the caller already holds them. At most 500.", type: "array", required: false },
+  { key: "skus", option: "--skus [skus...]", name: "skus", description: "Product SKUs — the identifier a foreign system carries, which is why this route exists at all. At most 500.", type: "array", required: false },
 ];
 products
   .command(`batch`)
-  .description(`Answers four fields — id, sku, tax_class and the resolved display name — for a list of ids and/or SKUs in ONE call. It exists for the app on the other side of a product reference: the prices app holds SKUs and needs a tax class, a feed builder holds ids and needs names, and neither should page through the catalog or fire a request per line. Ask by either identifier or both; the two are unioned and a product named twice comes back once.
+  .description(`Answers four fields — id, sku, tax_class and the resolved display name — for a list of ids and/or SKUs in ONE call. It exists for the app on the other side of a product reference: the prices app holds SKUs and needs a tax class, a feed builder holds ids and needs names, and neither should page through the catalog or fire a request per line. Ask by either identifier or both; the two are unioned and a product named twice comes back once. At most 500 of each per call; more is refused with 400 rather than cut short.
 
-It answers what it FOUND: an id or SKU that names nothing is simply absent from \`items\` rather than an error, so compare the length of what you sent with what came back if a miss matters. It is not a general product read — for the whole row use \`GET /products/{id}\`, and for a scannable list use \`GET /products/grid\`.`)
-  .option(`--ids [ids...]`, `Product ids, when the caller already holds them.`)
-  .option(`--skus [skus...]`, `Product SKUs — the identifier a foreign system carries, which is why this route exists at all.`)
+With \`full: true\` each item is the whole row instead — what \`GET /products/{id}\` answers, every column and the complete \`attribute_values\` document, with \`label\` still the resolved name. That mode is for a caller that has to hand a product on and cannot know in advance which fields it will need: punchout's hand-back writes whatever columns and attribute codes a merchant's field mappings name, for every line of a cart, and needs them in one read. Leave it off when four fields will do; the short shape is unchanged by it.
+
+Either way it answers what it FOUND: an id or SKU that names nothing is simply absent from \`items\` rather than an error, so compare the length of what you sent with what came back if a miss matters. For a scannable list use \`GET /products/grid\`.`)
+  .option(
+    `--full [value]`,
+    `True answers each product as its whole row (\`ProductBatchRow\`) instead of the four-field reference (\`ProductTaxRef\`). For a caller that must hand a whole product on — every column and attribute value — without a read per line.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--ids [ids...]`, `Product ids, when the caller already holds them. At most 500.`)
+  .option(`--skus [skus...]`, `Product SKUs — the identifier a foreign system carries, which is why this route exists at all. At most 500.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { ids, skus } = await promptForMissing(
+        const { full, ids, skus } = await promptForMissing(
           _options,
           batchSpecs,
           _command,
@@ -317,6 +366,9 @@ It answers what it FOUND: an id or SKU that names nothing is simply absent from 
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (full !== undefined) {
+          _payload[`full`] = full;
         }
         if (ids !== undefined) {
           _payload[`ids`] = ids;
@@ -470,6 +522,7 @@ const productAssociationsListSpecs: PromptSpec[] = [
   { key: "quantity", option: "--quantity <quantity>", name: "quantity", description: "Exact match on `quantity`. How many of the target belong to the source — the 4 in \"this bundle contains 4 casters\". Only meaningful when the association type carries `is_quantified`; null on an ordinary cross-sell.", type: "number", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Order in which the targets are shown, ascending.", type: "integer", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the row was created. Server-set — it is not part of any request body.", type: "string", required: false },
+  { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the row was last written. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 products
@@ -489,6 +542,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--quantity <quantity>`, `Exact match on \`quantity\`. How many of the target belong to the source — the 4 in "this bundle contains 4 casters". Only meaningful when the association type carries \`is_quantified\`; null on an ordinary cross-sell.`, parseInteger)
   .option(`--position <position>`, `Exact match on \`position\`. Order in which the targets are shown, ascending.`, parseInteger)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the row was created. Server-set — it is not part of any request body.`)
+  .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the row was last written. Server-set — it is not part of any request body.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -498,7 +552,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, productId, associationTypeId, targetProductId, quantity, position, createdAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, productId, associationTypeId, targetProductId, quantity, position, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productAssociationsListSpecs,
           _command,
@@ -535,6 +589,9 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
+        }
+        if (updatedAt !== undefined) {
+          _payload[`updated_at`] = updatedAt;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -923,12 +980,16 @@ const updateSpecs: PromptSpec[] = [
   { key: "completeness", option: "--completeness <completeness>", name: "completeness", description: "How much of what this product's family REQUIRES it actually carries — the number a merchandiser works down. `required` counts the attributes the family marks `is_required`, `filled` how many of those carry a value in ANY bucket, `ratio` is filled/required between 0 and 1 (a family that requires nothing is 1, not undefined), `missing` lists the codes with no value anywhere, sorted, and `computed_at` is when it was measured.\n\nWritten only by `POST /products/{id}/completeness` and by `POST /products/{id}/family`; a plain create or update never touches it, so it is null until one of the two has run. It also stays null for a product with no family — there is nothing to measure it against, and 0 % would be a lie.", type: "object", required: false },
   { key: "deletedAt", option: "--deleted-at <deleted-at>", name: "deleted_at", description: "When the product was soft-deleted. `GET /products/grid` and every category-rule evaluation exclude a row that carries one; `GET /products` does NOT — filter on it to read the live catalog.", type: "string", required: false },
   { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Whether the product is offered. A create defaults it from the `new_products_enabled_by_default` tenant setting rather than blindly to true, so an import does not publish twenty thousand unfinished products the moment it lands. An explicit value in the body always wins.", type: "boolean", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this article has in the system that OWNS it — for a catalog fed by BMEcat, the PIM's own id for the row. It is NOT the `sku`: the SKU is the merchant's article number, typed by people and printed on paper, while this is whatever the feeding system calls the same article, often a number nobody outside it sees. Unique per tenant where set, so a repeated import upserts on it instead of matching on SKU and founding a second product. Null for a product created here.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "familyId", option: "--family-id <family-id>", name: "family_id", description: "The family that decides which attributes this product HAS. Without one nothing is required, completeness cannot be computed and the display name never resolves — `POST /products/{id}/family` is the call that sets it and computes completeness in the same step.", type: "string", required: false },
   { key: "familyVariantId", option: "--family-variant-id <family-variant-id>", name: "family_variant_id", description: "Which variant structure of the family this product follows — the axes it splits on. Null on a simple product.", type: "string", required: false },
   { key: "kind", option: "--kind <kind>", name: "kind", description: "Where the product sits in the variant hierarchy. 'simple' stands on its own. 'model' carries the values its variants share and is never sold itself. 'variant' carries the axis values and points at its model through `parent_id`.", type: "string", required: false, enum: ["simple","model","variant"] },
   { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", description: "The product MODEL this variant belongs to. Only a `variant` carries one. Deleting the model leaves its variants behind with a null parent rather than deleting them.", type: "string", required: false },
   { key: "quantifiedAssociations", option: "--quantified-associations <quantified-associations>", name: "quantified_associations", description: "The import-side mirror of associations that carry a quantity — a bundle, a bill of materials, a spare-parts set. NOTHING IN THIS APP READS OR WRITES IT: no route produces it, no route consumes it, and it is null on every product this app has created. The surface that IS served is relational — `product_associations`, whose `quantity` column holds the number, guarded by `association_types.is_quantified`.\n\nIt exists because a PIM import (Akeneo, BMEcat) carries these in one blob keyed by association type code, and the column lets that document round-trip instead of being dropped. The database enforces no shape on it, so what a reader finds is whatever the importer wrote; the example is the conventional form.", type: "object", required: false },
   { key: "sku", option: "--sku <sku>", name: "sku", description: "The merchant's own article number — unique per tenant, and the value every integration (ERP, shop, feed, price list) joins on. The one identifier a person types, and the fallback this app shows when the catalog holds no name.", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
   { key: "taxClass", option: "--tax-class <tax-class>", name: "tax_class", description: "The tax class key the prices app resolves a VAT rate from. Free text here — the vocabulary belongs to the app that prices, and `POST /products/batch` exists to hand exactly this column to it in bulk.", type: "string", required: false },
 ];
 products
@@ -967,6 +1028,8 @@ Written only by \`POST /products/{id}/completeness\` and by \`POST /products/{id
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--external-id <external-id>`, `The key this article has in the system that OWNS it — for a catalog fed by BMEcat, the PIM's own id for the row. It is NOT the \`sku\`: the SKU is the merchant's article number, typed by people and printed on paper, while this is whatever the feeding system calls the same article, often a number nobody outside it sees. Unique per tenant where set, so a repeated import upserts on it instead of matching on SKU and founding a second product. Null for a product created here.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--family-id <family-id>`, `The family that decides which attributes this product HAS. Without one nothing is required, completeness cannot be computed and the display name never resolves — \`POST /products/{id}/family\` is the call that sets it and computes completeness in the same step.`)
   .option(`--family-variant-id <family-variant-id>`, `Which variant structure of the family this product follows — the axes it splits on. Null on a simple product.`)
   .option(`--kind <kind>`, `Where the product sits in the variant hierarchy. 'simple' stands on its own. 'model' carries the values its variants share and is never sold itself. 'variant' carries the axis values and points at its model through \`parent_id\`.`)
@@ -975,11 +1038,13 @@ Written only by \`POST /products/{id}/completeness\` and by \`POST /products/{id
 
 It exists because a PIM import (Akeneo, BMEcat) carries these in one blob keyed by association type code, and the column lets that document round-trip instead of being dropped. The database enforces no shape on it, so what a reader finds is whatever the importer wrote; the example is the conventional form.`)
   .option(`--sku <sku>`, `The merchant's own article number — unique per tenant, and the value every integration (ERP, shop, feed, price list) joins on. The one identifier a person types, and the fallback this app shows when the catalog holds no name.`)
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .option(`--tax-class <tax-class>`, `The tax class key the prices app resolves a VAT rate from. Free text here — the vocabulary belongs to the app that prices, and \`POST /products/batch\` exists to hand exactly this column to it in bulk.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, attributeValues, completeness, deletedAt, enabled, familyId, familyVariantId, kind, parentId, quantifiedAssociations, sku, taxClass } = await promptForMissing(
+        const { id, attributeValues, completeness, deletedAt, enabled, externalId, externalRefs, familyId, familyVariantId, kind, parentId, quantifiedAssociations, sku, sourceData, sourceSyncedAt, taxClass } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -1006,6 +1071,12 @@ It exists because a PIM import (Akeneo, BMEcat) carries these in one blob keyed 
         if (enabled !== undefined) {
           _payload[`enabled`] = enabled;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (familyId !== undefined) {
           _payload[`family_id`] = familyId;
         }
@@ -1023,6 +1094,12 @@ It exists because a PIM import (Akeneo, BMEcat) carries these in one blob keyed 
         }
         if (sku !== undefined) {
           _payload[`sku`] = sku;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (taxClass !== undefined) {
           _payload[`tax_class`] = taxClass;

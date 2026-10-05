@@ -20,7 +20,7 @@ import {
 export const pages = new Command("pages")
   .description(
     commandDescriptions["pages"] ??
-      `The records this app stores, addressed by id and edited outside the visual editor: pages and their publish history, the menus a theme renders as navigation, the block templates a new page can start from, the library of block subtrees many pages share, and the one seeding call a theme activation hook fires. A page here is its METADATA — title, slug, status, type — never its blocks; the blocks live in the editor group, because changing one is a mutation and not a field update. The vocabularies that name the permitted values of a status column are here too.`,
+      `The records this app stores, addressed by id and edited outside the visual editor: pages and their publish history, the menus a theme renders as navigation, the block templates a new page can start from, the library of block subtrees many pages share, the site-wide settings a theme renders every page with, the page each product or category renders as its template, and the one seeding call a theme install fires. A page here is its METADATA — title, slug, status, type — never its blocks; the blocks live in the editor group, because changing one is a mutation and not a field update. The vocabularies that name the permitted values of a status column are here too.`,
   )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
@@ -164,6 +164,7 @@ const libraryUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The library item id.", type: "string", required: true, resource: { listPath: "/pages/library", hasLimit: true } },
   { key: "bundle", option: "--bundle <bundle>", name: "bundle", description: "The block type this item instantiates. Changing it moves the item to a different part of the picker.", type: "string", required: false },
   { key: "label", option: "--label <label>", name: "label", description: "What the item is called in the picker.", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "The item's own bag, replaced wholesale. This route is the only way to write it — the library item itself is made by the `make_reusable` editor step, which writes none — so an importer creates the item and then names it here.", type: "object", required: false },
   { key: "tree", option: "--tree <tree>", name: "tree", description: "A block and its whole subtree, serialized. Produced by the editor when a selection is made reusable or saved as a template, and instantiated back into real blocks when one is inserted.", type: "object", required: false },
 ];
 pages
@@ -172,11 +173,12 @@ pages
   .option(`--id <id>`, `The library item id.`)
   .option(`--bundle <bundle>`, `The block type this item instantiates. Changing it moves the item to a different part of the picker.`)
   .option(`--label <label>`, `What the item is called in the picker.`)
+  .option(`--metadata <metadata>`, `The item's own bag, replaced wholesale. This route is the only way to write it — the library item itself is made by the \`make_reusable\` editor step, which writes none — so an importer creates the item and then names it here.`)
   .option(`--tree <tree>`, `A block and its whole subtree, serialized. Produced by the editor when a selection is made reusable or saved as a template, and instantiated back into real blocks when one is inserted.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, bundle, label, tree } = await promptForMissing(
+        const { id, bundle, label, metadata, tree } = await promptForMissing(
           _options,
           libraryUpdateSpecs,
           _command,
@@ -196,6 +198,9 @@ pages
         }
         if (label !== undefined) {
           _payload[`label`] = label;
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (tree !== undefined) {
           _payload[`tree`] = resolveBodyParam(tree);
@@ -394,6 +399,7 @@ const menusUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The menu row id.", type: "string", required: true, resource: { listPath: "/pages/menus", hasLimit: true } },
   { key: "items", option: "--items [items...]", name: "items", description: "The ordered navigation tree. Replaces the stored one completely.", type: "array", required: false },
   { key: "label", option: "--label <label>", name: "label", description: "What this menu is called for the people who edit it.", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "The menu's own bag, replaced wholesale. This route is the only way to write it — the upsert reads `menuKey`, `label` and `items` and nothing else — so a caller that seeds a menu by key names its metadata here afterwards.", type: "object", required: false },
 ];
 pages
   .command(`menus-update`)
@@ -401,10 +407,11 @@ pages
   .option(`--id <id>`, `The menu row id.`)
   .option(`--items [items...]`, `The ordered navigation tree. Replaces the stored one completely.`)
   .option(`--label <label>`, `What this menu is called for the people who edit it.`)
+  .option(`--metadata <metadata>`, `The menu's own bag, replaced wholesale. This route is the only way to write it — the upsert reads \`menuKey\`, \`label\` and \`items\` and nothing else — so a caller that seeds a menu by key names its metadata here afterwards.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, items, label } = await promptForMissing(
+        const { id, items, label, metadata } = await promptForMissing(
           _options,
           menusUpdateSpecs,
           _command,
@@ -424,6 +431,9 @@ pages
         }
         if (label !== undefined) {
           _payload[`label`] = label;
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -446,17 +456,19 @@ const pagesListSpecs: PromptSpec[] = [
   { key: "bundle", option: "--bundle <bundle>", name: "bundle", description: "Exact page type. The value set belongs to the active theme, so this app constrains it to a non-empty string and nothing more.", type: "string", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Exact lifecycle status.", type: "string", required: false, enum: ["draft","published","archived"] },
   { key: "q", option: "--q <q>", name: "q", description: "Case-insensitive substring search over the page title. Runs in the query, so `page.total` counts the matches. Empty means no search.", type: "string", required: false },
+  { key: "deleted", option: "--deleted <deleted>", name: "deleted", description: "Send `only` for the trash: soft-deleted pages instead of live ones, default order `deleted_at.desc`. Every other filter, the search and `order` apply as on the live list. Any other value is refused with 400.", type: "string", required: false, enum: ["only"] },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 pages
   .command(`pages-list`)
-  .description(`The EDITORIAL index — every live page of the tenant, whatever its status, newest change first. This is the list the Cockpit shows a person: drafts and archived pages are in it, and a row here says nothing about whether a visitor can see the page, because a published status without a published revision still delivers nothing. A storefront wants \`GET /pages/delivery/pages\` instead, which answers only what is actually servable. Soft-deleted pages are never returned and the predicate is this route's own, not something a caller can switch off.`)
+  .description(`The EDITORIAL index — every live page of the tenant, whatever its status, newest change first. This is the list the Cockpit shows a person: drafts and archived pages are in it, and a row here says nothing about whether a visitor can see the page, because a published status without a published revision still delivers nothing. A storefront wants \`GET /pages/delivery/pages\` instead, which answers only what is actually servable. Soft-deleted pages are not returned unless \`?deleted=only\` asks for the trash instead: then ONLY soft-deleted pages come back, most recently deleted first, each carrying its \`deleted_at\`, and \`POST /pages/pages/{id}/restore\` brings one back. The two collections never mix in one answer.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. A column this entity does not have, or any other shape, is refused with 400.`)
   .option(`--bundle <bundle>`, `Exact page type. The value set belongs to the active theme, so this app constrains it to a non-empty string and nothing more.`)
   .option(`--status <status>`, `Exact lifecycle status.`)
   .option(`--q <q>`, `Case-insensitive substring search over the page title. Runs in the query, so \`page.total\` counts the matches. Empty means no search.`)
+  .option(`--deleted <deleted>`, `Send \`only\` for the trash: soft-deleted pages instead of live ones, default order \`deleted_at.desc\`. Every other filter, the search and \`order\` apply as on the live list. Any other value is refused with 400.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -466,7 +478,7 @@ pages
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, bundle, status, q, filter } = await promptForMissing(
+        const { limit, offset, order, bundle, status, q, deleted, filter } = await promptForMissing(
           _options,
           pagesListSpecs,
           _command,
@@ -491,6 +503,9 @@ pages
         }
         if (q !== undefined) {
           _payload[`q`] = q;
+        }
+        if (deleted !== undefined) {
+          _payload[`deleted`] = deleted;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -520,6 +535,7 @@ const pagesCreateSpecs: PromptSpec[] = [
   { key: "meta", option: "--meta <meta>", name: "meta", description: "The page's metadata bag (SEO and social fields). Stored and handed back untouched — this app reads no key of it, so the theme decides what goes in.", type: "object", required: false },
   { key: "slug", option: "--slug <slug>", name: "slug", description: "The path segment the storefront routes it under, without a leading slash. Unique per tenant among live pages; omit or send null for a page reached only by id. Nothing here derives one from the title.", type: "string", required: false },
   { key: "sourceLanguage", option: "--source-language <source-language>", name: "sourceLanguage", description: "The language you are authoring in, and the fallback for every later translation. Omit to take the default_source_language setting for the request market.", type: "string", required: false },
+  { key: "templateId", option: "--template-id <template-id>", name: "templateId", description: "Start from a template instead of an empty page: its blocks become the page's blocks, with new ids, in the template's `field_name` (or `content` when it has none), and the page takes the template's `page_bundle` as its type. Nothing is published — the page starts at default_page_status like any other. `GET /pages/templates?page_bundle=` lists the templates for a type, and `is_default` marks the one to offer first. Omit or send null for an empty page.", type: "string", required: false },
 ];
 pages
   .command(`pages-create`)
@@ -530,10 +546,11 @@ pages
   .option(`--meta <meta>`, `The page's metadata bag (SEO and social fields). Stored and handed back untouched — this app reads no key of it, so the theme decides what goes in.`)
   .option(`--slug <slug>`, `The path segment the storefront routes it under, without a leading slash. Unique per tenant among live pages; omit or send null for a page reached only by id. Nothing here derives one from the title.`)
   .option(`--source-language <source-language>`, `The language you are authoring in, and the fallback for every later translation. Omit to take the default_source_language setting for the request market.`)
+  .option(`--template-id <template-id>`, `Start from a template instead of an empty page: its blocks become the page's blocks, with new ids, in the template's \`field_name\` (or \`content\` when it has none), and the page takes the template's \`page_bundle\` as its type. Nothing is published — the page starts at default_page_status like any other. \`GET /pages/templates?page_bundle=\` lists the templates for a type, and \`is_default\` marks the one to offer first. Omit or send null for an empty page.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { title, bundle, hostOptions, meta, slug, sourceLanguage } = await promptForMissing(
+        const { title, bundle, hostOptions, meta, slug, sourceLanguage, templateId } = await promptForMissing(
           _options,
           pagesCreateSpecs,
           _command,
@@ -563,6 +580,9 @@ pages
         if (sourceLanguage !== undefined) {
           _payload[`sourceLanguage`] = sourceLanguage;
         }
+        if (templateId !== undefined) {
+          _payload[`templateId`] = templateId;
+        }
         if (title !== undefined) {
           _payload[`title`] = title;
         }
@@ -585,7 +605,7 @@ const pagesDeleteSpecs: PromptSpec[] = [
 ];
 pages
   .command(`pages-delete`)
-  .description(`Writes a tombstone. The page leaves every list, every read and all delivery at once, and its slug is immediately free for another page — the unique index counts live rows only. Nothing is erased: the translations, blocks, edit state, revisions, comments and preview grants that hang off the page all keep their rows, because their \`on delete cascade\` belongs to a hard delete and this is not one. So a page can be brought back intact by clearing \`deleted_at\` — but not through this app, which publishes no route that does it.`)
+  .description(`Writes a tombstone. The page leaves every list, every read and all delivery at once, and its slug is immediately free for another page — the unique index counts live rows only. Nothing is erased: the translations, blocks, edit state, revisions, comments and preview grants that hang off the page all keep their rows, because their \`on delete cascade\` belongs to a hard delete and this is not one. So a page comes back intact through \`POST /pages/pages/{id}/restore\`, and until then it is listed in the trash at \`GET /pages/pages?deleted=only\`.`)
   .option(`--id <id>`, `The page id.`)
   .action(
     actionRunner(
@@ -709,6 +729,87 @@ pages
     ),
   );
 registerPromptSpecs(pages.commands.at(-1)!, pagesUpdateSpecs, { method: "put" });
+const pagesDuplicateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The page to copy.", type: "string", required: true, resource: { listPath: "/pages/pages", hasLimit: true } },
+  { key: "slug", option: "--slug <slug>", name: "slug", description: "The path segment to route the copy under. Omit or send null for none — the source's slug stays the source's. One another live page or a live page's translation holds answers 409.", type: "string", required: false },
+  { key: "title", option: "--title <title>", name: "title", description: "The copy's title in its source language. Omit for the source title plus `(Kopie)` / `(copy)`.", type: "string", required: false },
+];
+pages
+  .command(`pages-duplicate`)
+  .description(`Creates a new page from what the source SHOWS: its blocks as they stand, which after a publish are the live tree, every language's title, its type, language, display options and metadata. An open draft on the source is not copied — it lives in the source's edit state, not in its blocks. Every block of the copy gets a new id, so editing the copy never touches the source, while a block that references a library item keeps referencing it. The copy is unpublished, has no revisions and no edit state, and starts at default_page_status. With an empty body (\`{}\`) its title is the source's plus a copy suffix in the source language and it has no slug, so it collides with nothing.`)
+  .option(`--id <id>`, `The page to copy.`)
+  .option(`--slug <slug>`, `The path segment to route the copy under. Omit or send null for none — the source's slug stays the source's. One another live page or a live page's translation holds answers 409.`)
+  .option(`--title <title>`, `The copy's title in its source language. Omit for the source title plus \`(Kopie)\` / \`(copy)\`.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, slug, title } = await promptForMissing(
+          _options,
+          pagesDuplicateSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/pages/{id}/duplicate`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (slug !== undefined) {
+          _payload[`slug`] = slug;
+        }
+        if (title !== undefined) {
+          _payload[`title`] = title;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, pagesDuplicateSpecs, { method: "post" });
+const pagesRestoreSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The deleted page, as the trash lists it.", type: "string", required: true, resource: { listPath: "/pages/pages", hasLimit: true } },
+];
+pages
+  .command(`pages-restore`)
+  .description(`Clears the tombstone, and that is the whole restore: a soft delete never touched the translations, blocks, edit state, revisions, comments or preview grants, so the page returns to every list, read and delivery exactly as it was, including its published revision. Only the slug can have moved on — deleting freed it, so another live page may hold it now. Then the page stays in the trash and the call answers 409; free or change the other page's slug and restore again.`)
+  .option(`--id <id>`, `The deleted page, as the trash lists it.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          pagesRestoreSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/pages/{id}/restore`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, pagesRestoreSpecs, { method: "post" });
 const pagesRevisionsSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The page whose history to read.", type: "string", required: true, resource: { listPath: "/pages/pages", hasLimit: true } },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
@@ -777,18 +878,24 @@ pages
   );
 registerPromptSpecs(pages.commands.at(-1)!, pagesRevisionsSpecs, { method: "get" });
 const seedSpecs: PromptSpec[] = [
+  { key: "library", option: "--library [library...]", name: "library", description: "The reusable blocks to create. Idempotent by label among live items. One without a label or without a block tree is reported under `skipped`.", type: "array", required: false },
   { key: "menus", option: "--menus [menus...]", name: "menus", description: "The menus to create. One with no key or no label is reported under `skipped`.", type: "array", required: false },
+  { key: "mode", option: "--mode <mode>", name: "mode", description: "`fill` (the default) adds what is missing and keeps everything that exists. `reset` replaces every section that is sent — pages, menus and library items go to the trash first, site settings are removed — and must be asked for by name.", type: "string", required: false, enum: ["fill","reset"] },
   { key: "pages", option: "--pages [pages...]", name: "pages", description: "The pages to create. One that has no `slug` or no `title` is reported under `skipped` rather than refused, so one bad entry never loses the rest.", type: "array", required: false },
+  { key: "settings", option: "--settings <settings>", name: "settings", description: "Site settings by key — the same values `PUT /pages/settings/site/{key}` stores. In fill only keys the tenant has not set are written; in reset every existing key is removed first. A key that is not a valid setting name, an empty value or one over 128 KiB is reported under `skipped`.", type: "object", required: false },
 ];
 pages
   .command(`seed`)
-  .description(`The target of a theme activation hook: hand it the theme's default pages and menus and it creates whatever is missing. Idempotent by \`slug\` and by menu key — a slug or a key the tenant already holds is skipped rather than rewritten, so re-running after a theme update adds only the new ones and never overwrites what an editor has since changed. A seeded page is published on the spot, immediately servable by delivery: the default_page_status setting deliberately does not apply, because a theme that activates with invisible pages looks broken.`)
+  .description(`The target of a theme install: hand it the theme's default pages, menus, library items and site settings. In \`fill\` mode — the default — it creates whatever is missing and leaves everything else alone: idempotent by page \`slug\`, menu key, library item label and setting key, so re-running after a theme update adds only the new ones and never overwrites what an editor has since changed, and a setting the tenant has set keeps its value. In \`reset\` mode every section the body carries REPLACES the tenant's own content of that kind: the live pages, menus or library items are soft-deleted first, exactly as their delete does it — so they wait in the trash and can be restored — and the site settings are removed, then the section is seeded as in fill. A section the body leaves out is not touched in either mode, and nothing reaches beyond the calling tenant. A seeded page is published on the spot, immediately servable by delivery: the default_page_status setting deliberately does not apply, because a theme that activates with invisible pages looks broken.`)
+  .option(`--library [library...]`, `The reusable blocks to create. Idempotent by label among live items. One without a label or without a block tree is reported under \`skipped\`.`)
   .option(`--menus [menus...]`, `The menus to create. One with no key or no label is reported under \`skipped\`.`)
+  .option(`--mode <mode>`, `\`fill\` (the default) adds what is missing and keeps everything that exists. \`reset\` replaces every section that is sent — pages, menus and library items go to the trash first, site settings are removed — and must be asked for by name.`)
   .option(`--pages [pages...]`, `The pages to create. One that has no \`slug\` or no \`title\` is reported under \`skipped\` rather than refused, so one bad entry never loses the rest.`)
+  .option(`--settings <settings>`, `Site settings by key — the same values \`PUT /pages/settings/site/{key}\` stores. In fill only keys the tenant has not set are written; in reset every existing key is removed first. A key that is not a valid setting name, an empty value or one over 128 KiB is reported under \`skipped\`.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { menus, pages } = await promptForMissing(
+        const { library, menus, mode, pages, settings } = await promptForMissing(
           _options,
           seedSpecs,
           _command,
@@ -803,11 +910,20 @@ pages
           }
           Object.assign(_payload, body as RequestParams);
         }
+        if (library !== undefined) {
+          _payload[`library`] = library;
+        }
         if (menus !== undefined) {
           _payload[`menus`] = menus;
         }
+        if (mode !== undefined) {
+          _payload[`mode`] = mode;
+        }
         if (pages !== undefined) {
           _payload[`pages`] = pages;
+        }
+        if (settings !== undefined) {
+          _payload[`settings`] = resolveBodyParam(settings);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -823,6 +939,309 @@ pages
     ),
   );
 registerPromptSpecs(pages.commands.at(-1)!, seedSpecs, { method: "post" });
+const settingsSiteListSpecs: PromptSpec[] = [
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+pages
+  .command(`settings-site-list`)
+  .description(`Every site setting the tenant has set, ordered by key — what a theme styles the whole storefront with: its appearance, its design tokens, its custom CSS. Not paged: a tenant holds a handful of keys, and this is the whole set in one read. A key nobody set is simply absent here; \`GET /pages/delivery/site-settings\` is the read that answers it as \`null\`.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { filter } = await promptForMissing(
+          _options,
+          settingsSiteListSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/settings/site`;
+        const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, settingsSiteListSpecs, { method: "get" });
+const settingsSiteDeleteSpecs: PromptSpec[] = [
+  { key: "key", option: "--key <key>", name: "key", description: "The setting key: a lower-case letter, then letters and digits, 64 characters at most. The storefront themes read `appearance`, `design` and `customCss`.", type: "string", required: true, resource: { listPath: "/pages/settings/site", hasLimit: false } },
+];
+pages
+  .command(`settings-site-delete`)
+  .description(`Takes the value away, so the key reads as unset again — absent from the list, \`null\` on delivery, which is where a theme falls back to its own default. Not a tombstone: there is nothing to restore, and setting the key again starts afresh.`)
+  .option(`--key <key>`, `The setting key: a lower-case letter, then letters and digits, 64 characters at most. The storefront themes read \`appearance\`, \`design\` and \`customCss\`.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { key } = await promptForMissing(
+          _options,
+          settingsSiteDeleteSpecs,
+          _command,
+        );
+        await confirmDestructive(`pages settings-site-delete`);
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/settings/site/{key}`.replace(`{key}`, key);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `delete`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, settingsSiteDeleteSpecs, { method: "delete", destructive: true });
+const settingsSiteGetSpecs: PromptSpec[] = [
+  { key: "key", option: "--key <key>", name: "key", description: "The setting key: a lower-case letter, then letters and digits, 64 characters at most. The storefront themes read `appearance`, `design` and `customCss`.", type: "string", required: true, resource: { listPath: "/pages/settings/site", hasLimit: false } },
+];
+pages
+  .command(`settings-site-get`)
+  .description(`One key, with who set it and when. A key the tenant never set answers 404 rather than an empty value, so an editor can tell "not set" from "set to nothing".`)
+  .option(`--key <key>`, `The setting key: a lower-case letter, then letters and digits, 64 characters at most. The storefront themes read \`appearance\`, \`design\` and \`customCss\`.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { key } = await promptForMissing(
+          _options,
+          settingsSiteGetSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/settings/site/{key}`.replace(`{key}`, key);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, settingsSiteGetSpecs, { method: "get" });
+const settingsSitePutSpecs: PromptSpec[] = [
+  { key: "key", option: "--key <key>", name: "key", description: "The setting key: a lower-case letter, then letters and digits, 64 characters at most. The storefront themes read `appearance`, `design` and `customCss`.", type: "string", required: true, resource: { listPath: "/pages/settings/site", hasLimit: false } },
+  { key: "value", option: "--value <value>", name: "value", description: "The value, as JSON. `appearance` and `design` hold objects, `customCss` a string; any other key holds whatever the theme reading it expects. At most 128 KiB serialized.", type: "object", required: true },
+];
+pages
+  .command(`settings-site-put`)
+  .description(`Stores the value under the key, creating the key or replacing its value — both answer 200 with the stored row, because after either call the key holds exactly what was sent. The value is replaced whole, never merged, and it is not checked against what a theme expects: this app stores JSON and the theme reading the key decides its shape. It reaches every storefront of the tenant at once, through \`GET /pages/delivery/site-settings\`.`)
+  .option(`--key <key>`, `The setting key: a lower-case letter, then letters and digits, 64 characters at most. The storefront themes read \`appearance\`, \`design\` and \`customCss\`.`)
+  .option(`--value <value>`, `The value, as JSON. \`appearance\` and \`design\` hold objects, \`customCss\` a string; any other key holds whatever the theme reading it expects. At most 128 KiB serialized.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { key, value } = await promptForMissing(
+          _options,
+          settingsSitePutSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/settings/site/{key}`.replace(`{key}`, key);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (value !== undefined) {
+          _payload[`value`] = resolveBodyParam(value);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `put`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, settingsSitePutSpecs, { method: "put" });
+const templateAssignmentsListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. A column this entity does not have, or any other shape, is refused with 400.", type: "string", required: false },
+  { key: "resourceType", option: "--resource-type <resource-type>", name: "resource_type", description: "Exact record type — the assignments of every product, say.", type: "string", required: false },
+  { key: "pageSlug", option: "--page-slug <page-slug>", name: "page_slug", description: "Exact page slug — which records render with this page.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+pages
+  .command(`template-assignments-list`)
+  .description(`Which records render with which page: one entry per product or category that has a page of its own as its template. Every other record renders with the theme's default template, so an absent record is not an error. Filter by \`resource_type\` for one kind of record, by \`page_slug\` for everything one page is the template of.`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. A column this entity does not have, or any other shape, is refused with 400.`)
+  .option(`--resource-type <resource-type>`, `Exact record type — the assignments of every product, say.`)
+  .option(`--page-slug <page-slug>`, `Exact page slug — which records render with this page.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { limit, offset, order, resourceType, pageSlug, filter } = await promptForMissing(
+          _options,
+          templateAssignmentsListSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/template-assignments`;
+        const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
+        if (resourceType !== undefined) {
+          _payload[`resource_type`] = resourceType;
+        }
+        if (pageSlug !== undefined) {
+          _payload[`page_slug`] = pageSlug;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, templateAssignmentsListSpecs, { method: "get" });
+const templateAssignmentsDeleteSpecs: PromptSpec[] = [
+  { key: "resourceType", option: "--resource-type <resource-type>", name: "resource_type", description: "The kind of record: `product`, `category`, … Lower case.", type: "string", required: true, resource: { listPath: "/pages/template-assignments", hasLimit: true } },
+  { key: "resourceId", option: "--resource-id <resource-id>", name: "resource_id", description: "The record's id in the app that owns it. This app never looks it up.", type: "string", required: true },
+];
+pages
+  .command(`template-assignments-delete`)
+  .description(`Takes the page away from the record, which then renders with the theme's default template again. The page itself is not touched. Not a tombstone: the assignment is gone, and assigning a page again starts afresh.`)
+  .option(`--resource-type <resource-type>`, `The kind of record: \`product\`, \`category\`, … Lower case.`)
+  .option(`--resource-id <resource-id>`, `The record's id in the app that owns it. This app never looks it up.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { resourceType, resourceId } = await promptForMissing(
+          _options,
+          templateAssignmentsDeleteSpecs,
+          _command,
+        );
+        await confirmDestructive(`pages template-assignments-delete`);
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/template-assignments/{resource_type}/{resource_id}`.replace(`{resource_type}`, resourceType).replace(`{resource_id}`, resourceId);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `delete`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, templateAssignmentsDeleteSpecs, { method: "delete", destructive: true });
+const templateAssignmentsPutSpecs: PromptSpec[] = [
+  { key: "resourceType", option: "--resource-type <resource-type>", name: "resource_type", description: "The kind of record: `product`, `category`, … Lower case.", type: "string", required: true, resource: { listPath: "/pages/template-assignments", hasLimit: true } },
+  { key: "resourceId", option: "--resource-id <resource-id>", name: "resource_id", description: "The record's id in the app that owns it. This app never looks it up.", type: "string", required: true },
+  { key: "pageSlug", option: "--page-slug <page-slug>", name: "pageSlug", description: "The slug of the page that renders as this record's template.", type: "string", required: true },
+];
+pages
+  .command(`template-assignments-put`)
+  .description(`Makes a page the template one record renders with, replacing any page assigned before — the record is the address, so a second PUT moves it rather than adding another. The page is named by its slug and has to be a live page when the call is made; it need not be published yet, but the storefront only uses it once it is. Answers 200 with the stored assignment either way.`)
+  .option(`--resource-type <resource-type>`, `The kind of record: \`product\`, \`category\`, … Lower case.`)
+  .option(`--resource-id <resource-id>`, `The record's id in the app that owns it. This app never looks it up.`)
+  .option(`--page-slug <page-slug>`, `The slug of the page that renders as this record's template.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { resourceType, resourceId, pageSlug } = await promptForMissing(
+          _options,
+          templateAssignmentsPutSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/template-assignments/{resource_type}/{resource_id}`.replace(`{resource_type}`, resourceType).replace(`{resource_id}`, resourceId);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (pageSlug !== undefined) {
+          _payload[`pageSlug`] = pageSlug;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `put`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, templateAssignmentsPutSpecs, { method: "put" });
 const templatesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },

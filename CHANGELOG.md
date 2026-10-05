@@ -1,3 +1,6 @@
+## v0.6.0
+- orderlists to-order and some flags were removed (for example --vat-id, --tax-class, --filter on several lists); new consent-manager, tag-manager, documents and sales-reps commands; flags that clash with global options are now prefixed, for example --delivery-token
+
 ## v0.5.0
 - fix --tenant flag handling
 

@@ -31,6 +31,7 @@ const paymentsListSpecs: PromptSpec[] = [
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "The cart a payment pays for. Indexed.", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The paying customer contact. Indexed.", type: "string", required: false },
+  { key: "orderId", option: "--order-id <order-id>", name: "order_id", description: "The order a payment is for, as the orders app knows it. Indexed — this is how an order finds what has been paid against it.", type: "string", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Restrict to one lifecycle state. Indexed.", type: "string", required: false, enum: ["created","requires_action","authorized","captured","failed","cancelled","refunded"] },
   { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", description: "Exact external order reference.", type: "string", required: false },
   { key: "methodCode", option: "--method-code <method-code>", name: "method_code", description: "Exact code of the method the payment was made with.", type: "string", required: false },
@@ -38,16 +39,19 @@ const paymentsListSpecs: PromptSpec[] = [
   { key: "provider", option: "--provider <provider>", name: "provider", description: "Exact PSP code.", type: "string", required: false },
   { key: "dunningStage", option: "--dunning-stage <dunning-stage>", name: "dunning_stage", description: "Restrict to one dunning stage — what the daily scan wrote.", type: "string", required: false, enum: ["none","reminder","overdue"] },
   { key: "idempotencyKey", option: "--idempotency-key <idempotency-key>", name: "idempotency_key", description: "Exact idempotency key. Unique per tenant, so this answers at most one row.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact key of the system that booked the payment — the ERP's document number, not the provider's own transaction id. This is the reconciliation lookup. Not unique: a payment cannot be updated here, so several rows may legitimately carry one key, and this may answer more than one.", type: "string", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact instant a payment was last confirmed against its source. The index behind it is what makes a delta run cheap, and a delta run SORTS (`?order=source_synced_at.desc`) rather than naming one instant — `external_refs` and `source_data` carry no parameter at all, because such a column is compared as a whole document.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 paymentsLedger
   .command(`payments-list`)
-  .description(`The ledger, paged and filtered — the Payments screen, the reconciliation query and the way an order or a cart finds out what has been paid against it. Every column of the entity is an exact-match filter, which is what makes it useful: \`?cart_id=\` and \`?contact_id=\` are indexed, \`?status=authorized&kind=self_managed\` is the awaiting-payment queue the dunning scan classifies, and \`?order_ref=\` is the only way to resolve a payment by its external reference. Rows come back in the database's own order, so a newest-first list needs \`?order=created_at.desc\`. \`error_message\` is answered from the failure taxonomy rather than echoed out of the column, so what a driver or a PSP actually wrote is never serialized here.`)
+  .description(`The ledger, paged and filtered — the Payments screen, the reconciliation query and the way an order or a cart finds out what has been paid against it. Every column of the entity is an exact-match filter, which is what makes it useful: \`?cart_id=\` and \`?contact_id=\` are indexed, \`?status=authorized&kind=self_managed\` is the awaiting-payment queue the dunning scan classifies, and \`?order_ref=\` is the only way to resolve a payment by its external reference. Rows come back in the database's own order, so a newest-first list needs \`?order=created_at.desc\`. \`error_message\` is answered from the failure taxonomy rather than echoed out of the column, so what a driver or a PSP actually wrote is never serialized here. On a buyer's own call the list holds that buyer's payments only, and a \`contact_id\` naming anyone else answers 400 \`buyer_mismatch\`.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
   .option(`--cart-id <cart-id>`, `The cart a payment pays for. Indexed.`)
   .option(`--contact-id <contact-id>`, `The paying customer contact. Indexed.`)
+  .option(`--order-id <order-id>`, `The order a payment is for, as the orders app knows it. Indexed — this is how an order finds what has been paid against it.`)
   .option(`--status <status>`, `Restrict to one lifecycle state. Indexed.`)
   .option(`--order-ref <order-ref>`, `Exact external order reference.`)
   .option(`--method-code <method-code>`, `Exact code of the method the payment was made with.`)
@@ -55,6 +59,8 @@ paymentsLedger
   .option(`--provider <provider>`, `Exact PSP code.`)
   .option(`--dunning-stage <dunning-stage>`, `Restrict to one dunning stage — what the daily scan wrote.`)
   .option(`--idempotency-key <idempotency-key>`, `Exact idempotency key. Unique per tenant, so this answers at most one row.`)
+  .option(`--external-id <external-id>`, `Exact key of the system that booked the payment — the ERP's document number, not the provider's own transaction id. This is the reconciliation lookup. Not unique: a payment cannot be updated here, so several rows may legitimately carry one key, and this may answer more than one.`)
+  .option(`--source-synced-at <source-synced-at>`, `Exact instant a payment was last confirmed against its source. The index behind it is what makes a delta run cheap, and a delta run SORTS (\`?order=source_synced_at.desc\`) rather than naming one instant — \`external_refs\` and \`source_data\` carry no parameter at all, because such a column is compared as a whole document.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -64,7 +70,7 @@ paymentsLedger
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, cartId, contactId, status, orderRef, methodCode, kind, provider, dunningStage, idempotencyKey, filter } = await promptForMissing(
+        const { limit, offset, order, cartId, contactId, orderId, status, orderRef, methodCode, kind, provider, dunningStage, idempotencyKey, externalId, sourceSyncedAt, filter } = await promptForMissing(
           _options,
           paymentsListSpecs,
           _command,
@@ -87,6 +93,9 @@ paymentsLedger
         if (contactId !== undefined) {
           _payload[`contact_id`] = contactId;
         }
+        if (orderId !== undefined) {
+          _payload[`order_id`] = orderId;
+        }
         if (status !== undefined) {
           _payload[`status`] = status;
         }
@@ -107,6 +116,12 @@ paymentsLedger
         }
         if (idempotencyKey !== undefined) {
           _payload[`idempotency_key`] = idempotencyKey;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -136,28 +151,38 @@ const paymentsCreateSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The paying customer contact. Not a foreign key — a payment must survive a contact being merged or erased. Indexed.", type: "string", required: false },
   { key: "country", option: "--country <country>", name: "country", description: "The buyer's ISO 3166-1 alpha-2 country code, for the eligibility check. A method restricted to countries is refused with 422 without it.", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code the amount and the fee are in. The database bounds the length at three characters and nothing else, so lower case is stored as written. Defaults to EUR.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this payment has in the system that BOOKED it — the ERP's own document number for the receipt. A different thing from `psp_payment_id`, which is the provider's own transaction id: one payment is known to two systems and this is the merchant's side of that pair, which is what makes a reconciliation run possible at all. Free text, nullable, and deliberately NOT unique — a payment cannot be updated here, so there is no upsert for a uniqueness rule to serve, and an import that must not book twice sends its key as `idempotency_key` too and gets the same payment back with 200. null for a payment a checkout made, which is the ordinary case.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this payment, keyed by system name — a second ERP, a bank statement reference, a dunning platform. `external_id` is the leading system and `psp_payment_id` is the provider's own; this is the rest. Free jsonb: the database constrains neither the keys nor the values. Not a query parameter — such a column is compared as a WHOLE document, so a filter over part of one is refused rather than answered.", type: "object", required: false },
   { key: "idempotencyKey", option: "--idempotency-key <idempotency-key>", name: "idempotency_key", description: "The caller's own key for this creation attempt. Sending it again answers the SAME payment with 200 instead of creating a second one — which is what makes a retried checkout safe. Unique per tenant, so a filter on it answers at most one row. The replay answers 200, not 201.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data to keep on the payment. Merged with the keys this app writes itself (`provider_method`, `return_url`, later the cancel/refund reasons), which win on a collision.", type: "object", required: false },
+  { key: "orderId", option: "--order-id <order-id>", name: "order_id", description: "The order this payment is for, as the orders app knows it (its uuid). Optional. When it is sent, the payment is checked against the order before anything is written: its currency must be the order's (409 `currency_mismatch`), and together with every payment of the order that is created, requires_action, authorized or captured it must not exceed the order's `grand_total` (409 `amount_exceeds_order`) — several payments per order are fine. A `cancelled` order takes no payment (409 `order_not_payable`); every other order status passes. An order that does not exist is 400 `unknown_order`; an orders app that cannot be asked is 502 `orders_unavailable` and nothing is created. On a buyer's own call the order must be the buyer's (400 `buyer_mismatch`). Left out, the payment is accepted unchecked, as before 1.0 — a purchase under approval has no order yet.", type: "string", required: false },
   { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", description: "The external order reference the checkout wrote onto the payment. It is what POST /payments/orders/{order_ref}/capture resolves and the fallback key a PSP webhook is matched on when it carries no transaction id — so an integration that leaves it null gives up both. Free text with no uniqueness: several payments may share one reference.", type: "string", required: false },
   { key: "returnUrl", option: "--return-url <return-url>", name: "return_url", description: "Where the PSP sends the buyer back after a redirect or a 3-D Secure challenge. Kept in `metadata.return_url` and handed to the driver — a PSP method that needs a redirect and has none leaves the buyer stranded at the provider.", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this payment, kept as it said it. `system` names it, `etag` is the token an `If-Match` write-back has to hand back — there is nowhere else to keep it between two runs — and `raw` holds the source fields this app does not model, so they survive a round trip instead of being lost. Free jsonb; nothing here is read by this app.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this payment was last confirmed against the system that booked it. What a delta run asks for changes since, and what tells an operator a feed has gone quiet — a capture or a refund does not touch it, because it says when the SOURCE was last seen and not when the row moved. Indexed, and null for a payment no source owns.", type: "string", required: false },
 ];
 paymentsLedger
   .command(`payments-create`)
-  .description(`The checkout's write: it opens the ledger row and takes it as far as the named method allows, in one call. A create cannot omit \`method_code\` and \`amount\`; every other column is optional or defaulted by the database. Nothing else about the money is the caller's to choose: \`kind\`, \`provider\` and \`fee_amount\` are read off the method that \`method_code\` names, so a caller can neither pick an acquirer nor discount its own fee. \`amount: 0\` is legal (free orders); negative is 400. Eligibility is enforced HERE and not only in the checkout UI — the same country and order-value rules POST /payments/methods/eligible applies answer 422 if the method does not apply to this buyer. What comes back depends on the method: a self-managed one (invoice, prepayment) is \`authorized\` at once with the dunning clock already started, and a PSP one is \`captured\` or \`authorized\`, or \`requires_action\` with \`next_action\` — the instruction the storefront must carry out, typically a redirect, set at that status and at no other. Send an \`idempotency_key\` and a repeat of the same call answers 200 with the payment that key already named, unchanged and not re-authorized. What is never stored: the \`instrument\`, \`token\` or \`card\` is handed to the driver in-process and no token or PAN is written to the row.`)
+  .description(`The checkout's write: it opens the ledger row and takes it as far as the named method allows, in one call. A create cannot omit \`method_code\` and \`amount\`; every other column is optional or defaulted by the database. Nothing else about the money is the caller's to choose: \`kind\`, \`provider\` and \`fee_amount\` are read off the method that \`method_code\` names, so a caller can neither pick an acquirer nor discount its own fee. \`amount: 0\` is legal (free orders); negative is 400. Eligibility is enforced HERE and not only in the checkout UI — the same country and order-value rules POST /payments/methods/eligible applies answer 422 if the method does not apply to this buyer. What comes back depends on the method: a self-managed one (invoice, prepayment) is \`authorized\` at once with the dunning clock already started, and a PSP one is \`captured\` or \`authorized\`, or \`requires_action\` with \`next_action\` — the instruction the storefront must carry out, typically a redirect, set at that status and at no other. Send an \`idempotency_key\` and a repeat of the same call answers 200 with the payment that key already named, unchanged and not re-authorized; the same key with another method, amount or currency is 409 \`idempotency_key_reused\`. On a buyer's own call — the gateway resolved a contact — only the checkout's routes answer (eligibility, creating and confirming a payment, the buyer's own payments, vocabularies, catalog, logos); every other route answers 403 \`buyer_not_permitted\`. What is never stored: the \`instrument\`, \`token\` or \`card\` is handed to the driver in-process and no token or PAN is written to the row.`)
   .option(`--amount <amount>`, `What the provider is asked to authorize, in \`currency\`. 0 is legal (a free order) and negative is refused by the handler and by the CHECK behind it. \`fee_amount\` is recorded beside this and is NOT added to it — a checkout that charges its payment surcharge sends a total that already includes it.`, parseInteger)
   .option(`--method-code <method-code>`, `The \`code\` of the payment method this payment was made with, copied at creation. Deliberately a code and not a foreign key: the ledger records what happened and has to outlive the configuration it happened under. It must name a method this tenant has configured; eligibility for the buyer context below is re-checked here, whatever the checkout showed.`)
   .option(`--cart-id <cart-id>`, `The cart this payment pays for. Not a foreign key: the payment is a record of what happened and outlives the cart. Indexed, so it is the cheap way to find the payment behind a checkout.`)
   .option(`--contact-id <contact-id>`, `The paying customer contact. Not a foreign key — a payment must survive a contact being merged or erased. Indexed.`)
   .option(`--country <country>`, `The buyer's ISO 3166-1 alpha-2 country code, for the eligibility check. A method restricted to countries is refused with 422 without it.`)
   .option(`--currency <currency>`, `ISO 4217 code the amount and the fee are in. The database bounds the length at three characters and nothing else, so lower case is stored as written. Defaults to EUR.`)
+  .option(`--external-id <external-id>`, `The key this payment has in the system that BOOKED it — the ERP's own document number for the receipt. A different thing from \`psp_payment_id\`, which is the provider's own transaction id: one payment is known to two systems and this is the merchant's side of that pair, which is what makes a reconciliation run possible at all. Free text, nullable, and deliberately NOT unique — a payment cannot be updated here, so there is no upsert for a uniqueness rule to serve, and an import that must not book twice sends its key as \`idempotency_key\` too and gets the same payment back with 200. null for a payment a checkout made, which is the ordinary case.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this payment, keyed by system name — a second ERP, a bank statement reference, a dunning platform. \`external_id\` is the leading system and \`psp_payment_id\` is the provider's own; this is the rest. Free jsonb: the database constrains neither the keys nor the values. Not a query parameter — such a column is compared as a WHOLE document, so a filter over part of one is refused rather than answered.`)
   .option(`--idempotency-key <idempotency-key>`, `The caller's own key for this creation attempt. Sending it again answers the SAME payment with 200 instead of creating a second one — which is what makes a retried checkout safe. Unique per tenant, so a filter on it answers at most one row. The replay answers 200, not 201.`)
   .option(`--metadata <metadata>`, `Free-form data to keep on the payment. Merged with the keys this app writes itself (\`provider_method\`, \`return_url\`, later the cancel/refund reasons), which win on a collision.`)
+  .option(`--order-id <order-id>`, `The order this payment is for, as the orders app knows it (its uuid). Optional. When it is sent, the payment is checked against the order before anything is written: its currency must be the order's (409 \`currency_mismatch\`), and together with every payment of the order that is created, requires_action, authorized or captured it must not exceed the order's \`grand_total\` (409 \`amount_exceeds_order\`) — several payments per order are fine. A \`cancelled\` order takes no payment (409 \`order_not_payable\`); every other order status passes. An order that does not exist is 400 \`unknown_order\`; an orders app that cannot be asked is 502 \`orders_unavailable\` and nothing is created. On a buyer's own call the order must be the buyer's (400 \`buyer_mismatch\`). Left out, the payment is accepted unchecked, as before 1.0 — a purchase under approval has no order yet.`)
   .option(`--order-ref <order-ref>`, `The external order reference the checkout wrote onto the payment. It is what POST /payments/orders/{order_ref}/capture resolves and the fallback key a PSP webhook is matched on when it carries no transaction id — so an integration that leaves it null gives up both. Free text with no uniqueness: several payments may share one reference.`)
   .option(`--return-url <return-url>`, `Where the PSP sends the buyer back after a redirect or a 3-D Secure challenge. Kept in \`metadata.return_url\` and handed to the driver — a PSP method that needs a redirect and has none leaves the buyer stranded at the provider.`)
+  .option(`--source-data <source-data>`, `What the source said about this payment, kept as it said it. \`system\` names it, \`etag\` is the token an \`If-Match\` write-back has to hand back — there is nowhere else to keep it between two runs — and \`raw\` holds the source fields this app does not model, so they survive a round trip instead of being lost. Free jsonb; nothing here is read by this app.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this payment was last confirmed against the system that booked it. What a delta run asks for changes since, and what tells an operator a feed has gone quiet — a capture or a refund does not touch it, because it says when the SOURCE was last seen and not when the row moved. Indexed, and null for a payment no source owns.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { amount, methodCode, cartId, contactId, country, currency, idempotencyKey, metadata, orderRef, returnUrl } = await promptForMissing(
+        const { amount, methodCode, cartId, contactId, country, currency, externalId, externalRefs, idempotencyKey, metadata, orderId, orderRef, returnUrl, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           paymentsCreateSpecs,
           _command,
@@ -187,6 +212,12 @@ paymentsLedger
         if (currency !== undefined) {
           _payload[`currency`] = currency;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (idempotencyKey !== undefined) {
           _payload[`idempotency_key`] = idempotencyKey;
         }
@@ -196,11 +227,20 @@ paymentsLedger
         if (methodCode !== undefined) {
           _payload[`method_code`] = methodCode;
         }
+        if (orderId !== undefined) {
+          _payload[`order_id`] = orderId;
+        }
         if (orderRef !== undefined) {
           _payload[`order_ref`] = orderRef;
         }
         if (returnUrl !== undefined) {
           _payload[`return_url`] = returnUrl;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -402,7 +442,7 @@ const paymentsWebhooksIngestSpecs: PromptSpec[] = [
   { key: "provider", option: "--provider <provider>", name: "provider", description: "The catalog provider code whose callback shape to normalize. Anything the normalizer does not recognise is read as the generic {event, psp_payment_id?, order_ref?, error?} envelope rather than refused.", type: "string", required: true },
   { key: "id", option: "--id <id>", name: "id", description: "The dispatcher's delivery id. Echoed back as `delivery_id` so a delivery and what the ledger did can be correlated.", type: "any", required: false },
   { key: "request", option: "--request <request>", name: "request", description: "The captured HTTP request as the PSP sent it.", type: "object", required: false },
-  { key: "verified", option: "--verified <verified>", name: "verified", description: "Whether the ingress verified the callback signature against the provider's `webhook_secret`. An explicit false is refused with 422: an endpoint may run in annotate mode, and the ledger stays sovereign over one that does.", type: "any", required: false },
+  { key: "verified", option: "--verified <verified>", name: "verified", description: "Whether the ingress verified the callback signature against the provider's `webhook_secret`. Only `true` is applied; false, missing or anything else is refused with 422: an endpoint may run in annotate mode, and the ledger stays sovereign over one that does.", type: "any", required: false },
 ];
 paymentsLedger
   .command(`payments-webhooks-ingest`)
@@ -410,7 +450,7 @@ paymentsLedger
   .option(`--provider <provider>`, `The catalog provider code whose callback shape to normalize. Anything the normalizer does not recognise is read as the generic {event, psp_payment_id?, order_ref?, error?} envelope rather than refused.`)
   .option(`--id <id>`, `The dispatcher's delivery id. Echoed back as \`delivery_id\` so a delivery and what the ledger did can be correlated.`)
   .option(`--request <request>`, `The captured HTTP request as the PSP sent it.`)
-  .option(`--verified <verified>`, `Whether the ingress verified the callback signature against the provider's \`webhook_secret\`. An explicit false is refused with 422: an endpoint may run in annotate mode, and the ledger stays sovereign over one that does.`)
+  .option(`--verified <verified>`, `Whether the ingress verified the callback signature against the provider's \`webhook_secret\`. Only \`true\` is applied; false, missing or anything else is refused with 422: an endpoint may run in annotate mode, and the ledger stays sovereign over one that does.`)
   .action(
     actionRunner(
       async (_options, _command) => {
@@ -457,7 +497,7 @@ const paymentsGetSpecs: PromptSpec[] = [
 ];
 paymentsLedger
   .command(`payments-get`)
-  .description(`One ledger row in full: the amount and the fee that were computed at creation, the method code and PSP it was made through, where it stands in the lifecycle, the timestamp of each transition it has been through (\`authorized_at\`, \`captured_at\`, \`failed_at\`, \`refunded_at\`), the dunning columns the daily scan maintains and, while the buyer still has something to do, \`next_action\`. This is the call to poll after sending a buyer to a PSP redirect. Two things it does not do: \`error_message\` is answered from the failure taxonomy and never carries the provider's or the runtime's own words, and there is no route that resolves a payment by \`order_ref\` — that column is nullable and not unique, so it is a filter on the list (\`GET /payments?order_ref=…\`) which may legitimately answer several rows.`)
+  .description(`One ledger row in full: the amount and the fee that were computed at creation, the method code and PSP it was made through, where it stands in the lifecycle, the timestamp of each transition it has been through (\`authorized_at\`, \`captured_at\`, \`failed_at\`, \`refunded_at\`), the dunning columns the daily scan maintains and, while the buyer still has something to do, \`next_action\`. This is the call to poll after sending a buyer to a PSP redirect. Two things it does not do: \`error_message\` is answered from the failure taxonomy and never carries the provider's or the runtime's own words, and there is no route that resolves a payment by \`order_ref\` — that column is nullable and not unique, so it is a filter on the list (\`GET /payments?order_ref=…\`) which may legitimately answer several rows. On a buyer's own call a payment of another contact answers 404.`)
   .option(`--id <id>`, `The payment. A uuid — the data plane casts this segment and answers 400, not 404, for anything else.`)
   .action(
     actionRunner(
@@ -565,7 +605,7 @@ const paymentsConfirmSpecs: PromptSpec[] = [
 ];
 paymentsLedger
   .command(`payments-confirm`)
-  .description(`The other half of a redirect. POST /payments answered \`requires_action\` with a \`next_action\` the storefront carried out — a 3-D Secure step, a wallet approval, a bank login — and this is the call that asks the PSP how it went and writes the answer to the ledger. It starts from \`requires_action\` and from nothing else, so a payment that already came back authorized needs no confirm and the lattice answers 400 rather than repeating one. \`next_action\` is cleared by this call whatever the outcome. Where the tenant's \`auto_capture_policy\` is 'immediate' the money is taken straight after the authorization, in the same request, so a successful confirm can come back \`captured\` rather than \`authorized\`; a failed auto-capture does not fail the confirm, because a good authorization is worth more than a tidy status.`)
+  .description(`The other half of a redirect. POST /payments answered \`requires_action\` with a \`next_action\` the storefront carried out — a 3-D Secure step, a wallet approval, a bank login — and this is the call that asks the PSP how it went and writes the answer to the ledger. It starts from \`requires_action\` and from nothing else, so a payment that already came back authorized needs no confirm and the lattice answers 400 rather than repeating one. \`next_action\` is cleared by this call whatever the outcome. Where the tenant's \`auto_capture_policy\` is 'immediate' the money is taken straight after the authorization, in the same request, so a successful confirm can come back \`captured\` rather than \`authorized\`; a failed auto-capture does not fail the confirm, because a good authorization is worth more than a tidy status. On a buyer's own call a payment of another contact answers 404.`)
   .option(`--id <id>`, `The payment. A uuid — the data plane casts this segment and answers 400, not 404, for anything else.`)
   .action(
     actionRunner(

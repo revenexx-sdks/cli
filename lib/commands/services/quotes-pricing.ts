@@ -66,25 +66,33 @@ quotesPricing
 registerPromptSpecs(quotesPricing.commands.at(-1)!, expireSpecs, { method: "post" });
 const priceSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The quote.", type: "string", required: true },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this quote has in the system that owns it. Left out on anything this shop raised itself.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every other system that knows this quote, keyed by system name.", type: "object", required: false },
   { key: "items", option: "--items [items...]", name: "items", description: "The positions to price. A position left out keeps what it has.", type: "array", required: false },
   { key: "sellerNote", option: "--seller-note <seller-note>", name: "seller_note", description: "What the customer reads with the quote.", type: "string", required: false },
   { key: "shippingAmount", option: "--shipping-amount <shipping-amount>", name: "shipping_amount", description: "Carriage quoted alongside the goods, net. It enters `grand_total` and the first order out of the quote.", type: "number", required: false },
   { key: "shippingTaxRate", option: "--shipping-tax-rate <shipping-tax-rate>", name: "shipping_tax_rate", description: "The rate carriage is taxed at, in percent (0–100).", type: "number", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this quote was last confirmed against its source.", type: "string", required: false },
   { key: "validUntil", option: "--valid-until <valid-until>", name: "valid_until", description: "When the offer stops standing. Left out, the configured default validity is used.", type: "string", required: false },
 ];
 quotesPricing
   .command(`price`)
   .description(`The merchant's side of the desk, and THE designated override point of this app: a tenant whose prices come out of an ERP replaces this one capability at the gateway and keeps everything else. Sets a negotiated price per position, a validity, and the note the customer reads. Re-pricing a quote the buyer has already seen writes a new revision by default, so every round of a negotiation stays readable.`)
   .option(`--id <id>`, `The quote.`)
+  .option(`--external-id <external-id>`, `The key this quote has in the system that owns it. Left out on anything this shop raised itself.`)
+  .option(`--external-refs <external-refs>`, `Every other system that knows this quote, keyed by system name.`)
   .option(`--items [items...]`, `The positions to price. A position left out keeps what it has.`)
   .option(`--seller-note <seller-note>`, `What the customer reads with the quote.`)
   .option(`--shipping-amount <shipping-amount>`, `Carriage quoted alongside the goods, net. It enters \`grand_total\` and the first order out of the quote.`, parseInteger)
   .option(`--shipping-tax-rate <shipping-tax-rate>`, `The rate carriage is taxed at, in percent (0–100).`, parseInteger)
+  .option(`--source-data <source-data>`, `What the source said, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this quote was last confirmed against its source.`)
   .option(`--valid-until <valid-until>`, `When the offer stops standing. Left out, the configured default validity is used.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, items, sellerNote, shippingAmount, shippingTaxRate, validUntil } = await promptForMissing(
+        const { id, externalId, externalRefs, items, sellerNote, shippingAmount, shippingTaxRate, sourceData, sourceSyncedAt, validUntil } = await promptForMissing(
           _options,
           priceSpecs,
           _command,
@@ -99,6 +107,12 @@ quotesPricing
           }
           Object.assign(_payload, body as RequestParams);
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (items !== undefined) {
           _payload[`items`] = items;
         }
@@ -110,6 +124,12 @@ quotesPricing
         }
         if (shippingTaxRate !== undefined) {
           _payload[`shipping_tax_rate`] = shippingTaxRate;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (validUntil !== undefined) {
           _payload[`valid_until`] = validUntil;

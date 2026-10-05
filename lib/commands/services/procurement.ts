@@ -376,6 +376,340 @@ procurement
     ),
   );
 registerPromptSpecs(procurement.commands.at(-1)!, approvalRulesUpdateSpecs, { method: "put" });
+const budgetReleasesListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+procurement
+  .command(`budget-releases-list`)
+  .description(`List BudgetRelease`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          budgetReleasesListSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/procurement/budget-releases`;
+        const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(procurement.commands.at(-1)!, budgetReleasesListSpecs, { method: "get" });
+const budgetReleasesGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/procurement/budget-releases", hasLimit: true } },
+];
+procurement
+  .command(`budget-releases-get`)
+  .description(`Read one budget release`)
+  .option(`--id <id>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          budgetReleasesGetSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/procurement/budget-releases/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(procurement.commands.at(-1)!, budgetReleasesGetSpecs, { method: "get" });
+const budgetReleasesRetrySpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/procurement/budget-releases", hasLimit: true } },
+];
+procurement
+  .command(`budget-releases-retry`)
+  .description(`Retry giving back a cancelled order's budget — from pending or refused (409 otherwise)`)
+  .option(`--id <id>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          budgetReleasesRetrySpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/procurement/budget-releases/{id}/retry`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(procurement.commands.at(-1)!, budgetReleasesRetrySpecs, { method: "post" });
+const budgetReleasesSettleSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/procurement/budget-releases", hasLimit: true } },
+  { key: "note", option: "--note <note>", name: "note", description: "Required free-text reason, kept on the record.", type: "string", required: true },
+];
+procurement
+  .command(`budget-releases-settle`)
+  .description(`Settle a refused budget release by hand, with a note — the budget then stays booked for that order (administrator; 409 unless refused)`)
+  .option(`--id <id>`, ``)
+  .option(`--note <note>`, `Required free-text reason, kept on the record.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, note } = await promptForMissing(
+          _options,
+          budgetReleasesSettleSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/procurement/budget-releases/{id}/settle`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (note !== undefined) {
+          _payload[`note`] = note;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(procurement.commands.at(-1)!, budgetReleasesSettleSpecs, { method: "post" });
+const directOrdersListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+procurement
+  .command(`direct-orders-list`)
+  .description(`List DirectOrder`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { limit, offset, order, filter } = await promptForMissing(
+          _options,
+          directOrdersListSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/procurement/direct-orders`;
+        const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(procurement.commands.at(-1)!, directOrdersListSpecs, { method: "get" });
+const directOrdersGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/procurement/direct-orders", hasLimit: true } },
+];
+procurement
+  .command(`direct-orders-get`)
+  .description(`Read one direct order`)
+  .option(`--id <id>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          directOrdersGetSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/procurement/direct-orders/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(procurement.commands.at(-1)!, directOrdersGetSpecs, { method: "get" });
+const directOrdersCommitSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/procurement/direct-orders", hasLimit: true } },
+];
+procurement
+  .command(`direct-orders-commit`)
+  .description(`Retry a direct order's budget commit from the movement recorded at submit — from commit_pending or commit_refused (409 otherwise)`)
+  .option(`--id <id>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          directOrdersCommitSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/procurement/direct-orders/{id}/commit`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(procurement.commands.at(-1)!, directOrdersCommitSpecs, { method: "post" });
+const directOrdersSettleSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/procurement/direct-orders", hasLimit: true } },
+  { key: "note", option: "--note <note>", name: "note", description: "Required free-text reason, kept on the record.", type: "string", required: true },
+];
+procurement
+  .command(`direct-orders-settle`)
+  .description(`Settle a refused budget commit by hand, with a note — the budget is then never booked for that order (administrator; 409 unless commit_refused)`)
+  .option(`--id <id>`, ``)
+  .option(`--note <note>`, `Required free-text reason, kept on the record.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, note } = await promptForMissing(
+          _options,
+          directOrdersSettleSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/procurement/direct-orders/{id}/settle`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (note !== undefined) {
+          _payload[`note`] = note;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(procurement.commands.at(-1)!, directOrdersSettleSpecs, { method: "post" });
 const pendingApprovalsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
@@ -1377,12 +1711,12 @@ procurement
   );
 registerPromptSpecs(procurement.commands.at(-1)!, purchaseRequestsOrderSpecs, { method: "post" });
 const reconcileSpecs: PromptSpec[] = [
-  { key: "limit", option: "--limit <limit>", name: "limit", description: "Requests examined per status (default 50, max 200).", type: "integer", required: false },
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Records examined per status (default 50, max 200).", type: "integer", required: false },
 ];
 procurement
   .command(`reconcile`)
-  .description(`Reconciliation sweep — complete stuck approved→ordered promotions, release orphaned budget reservations, and record any outcome whose write failed`)
-  .option(`--limit <limit>`, `Requests examined per status (default 50, max 200).`, parseInteger)
+  .description(`Reconciliation sweep — complete stuck approved→ordered promotions, release orphaned budget reservations, record any outcome whose write failed, finish direct orders whose budget commit is owed, and retry budget releases of cancelled orders`)
+  .option(`--limit <limit>`, `Records examined per status (default 50, max 200).`, parseInteger)
   .action(
     actionRunner(
       async (_options, _command) => {
@@ -1530,3 +1864,79 @@ procurement
     ),
   );
 registerPromptSpecs(procurement.commands.at(-1)!, submitSpecs, { method: "post" });
+const vocabulariesListSpecs: PromptSpec[] = [
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+procurement
+  .command(`vocabularies-list`)
+  .description(`List the enums this app publishes, by name and title, without their values`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { filter } = await promptForMissing(
+          _options,
+          vocabulariesListSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/procurement/vocabularies`;
+        const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(procurement.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
+const vocabulariesGetSpecs: PromptSpec[] = [
+  { key: "name", option: "--name <name>", name: "name", description: "Which vocabulary to read — the part after the dot in `procurement.<name>`.", type: "string", required: true, enum: ["approval-statuses","approver-types","budget-release-scopes","budget-release-statuses","direct-order-statuses","event-names","item-types","request-statuses","rule-conditions","rule-effects"], resource: { listPath: "/procurement/vocabularies", hasLimit: false } },
+];
+procurement
+  .command(`vocabularies-get`)
+  .description(`Read one vocabulary — every permitted value in constraint order, with its title and badge tone; 404 for a name that is not one`)
+  .option(`--name <name>`, `Which vocabulary to read — the part after the dot in \`procurement.<name>\`.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { name } = await promptForMissing(
+          _options,
+          vocabulariesGetSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/procurement/vocabularies/{name}`.replace(`{name}`, name);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(procurement.commands.at(-1)!, vocabulariesGetSpecs, { method: "get" });

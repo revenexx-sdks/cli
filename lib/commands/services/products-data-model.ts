@@ -318,6 +318,7 @@ const productsAssociationTypesListSpecs: PromptSpec[] = [
   { key: "isQuantified", option: "--is-quantified <is-quantified>", name: "is_quantified", description: "Exact match on `is_quantified`. Declares that a relation of this kind carries a quantity — a bundle, a bill of materials. `product_associations.quantity` is where that number goes, and it is meaningless without this flag.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. What the relation is called in a product form, per language tag. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the row was created. Server-set — it is not part of any request body.", type: "string", required: false },
+  { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the row was last written. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsDataModel
@@ -346,6 +347,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   )
   .option(`--labels <labels>`, `Exact match on \`labels\`. What the relation is called in a product form, per language tag. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the row was created. Server-set — it is not part of any request body.`)
+  .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the row was last written. Server-set — it is not part of any request body.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -355,7 +357,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, code, isTwoWay, isQuantified, labels, createdAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, code, isTwoWay, isQuantified, labels, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsAssociationTypesListSpecs,
           _command,
@@ -389,6 +391,9 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
+        }
+        if (updatedAt !== undefined) {
+          _payload[`updated_at`] = updatedAt;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -703,6 +708,11 @@ const productsAttributeGroupsListSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "Exact match on `code`. The group's stable identifier, and the value an `AttributeField` carries as its `group` — a SECTION of the product form, not a label. Unique per tenant and the key an import joins on.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Where this section sits in a form, ascending. Sections that tie keep the order the database returns them in.", type: "integer", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. The section heading a person sees, keyed by language tag. The code is never shown to an operator; a tag nobody translated falls back to the next filled one, then to English. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact match on `external_id`. The key this section has in the system that owns the property model — the block a supplier's data sheet groups its fields under. Unique per tenant where set, and null for a section somebody created here to tidy up a form, which is most of them.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact match on `external_refs`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact match on `source_synced_at`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "Exact match on `source_data`. What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Exact match on `metadata`. Free-form jsonb this tenant owns — the extension point a section otherwise has none of. `source_data` is what the SOURCE said about the row; this is what you say about it. Nothing in this app reads it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the row was created. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the row was last written. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -721,6 +731,11 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--code <code>`, `Exact match on \`code\`. The group's stable identifier, and the value an \`AttributeField\` carries as its \`group\` — a SECTION of the product form, not a label. Unique per tenant and the key an import joins on.`)
   .option(`--position <position>`, `Exact match on \`position\`. Where this section sits in a form, ascending. Sections that tie keep the order the database returns them in.`, parseInteger)
   .option(`--labels <labels>`, `Exact match on \`labels\`. The section heading a person sees, keyed by language tag. The code is never shown to an operator; a tag nobody translated falls back to the next filled one, then to English. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--external-id <external-id>`, `Exact match on \`external_id\`. The key this section has in the system that owns the property model — the block a supplier's data sheet groups its fields under. Unique per tenant where set, and null for a section somebody created here to tidy up a form, which is most of them.`)
+  .option(`--external-refs <external-refs>`, `Exact match on \`external_refs\`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--source-synced-at <source-synced-at>`, `Exact match on \`source_synced_at\`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
+  .option(`--source-data <source-data>`, `Exact match on \`source_data\`. What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--metadata <metadata>`, `Exact match on \`metadata\`. Free-form jsonb this tenant owns — the extension point a section otherwise has none of. \`source_data\` is what the SOURCE said about the row; this is what you say about it. Nothing in this app reads it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the row was created. Server-set — it is not part of any request body.`)
   .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the row was last written. Server-set — it is not part of any request body.`)
   .option(
@@ -732,7 +747,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, code, position, labels, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, code, position, labels, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsAttributeGroupsListSpecs,
           _command,
@@ -760,6 +775,21 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         }
         if (labels !== undefined) {
           _payload[`labels`] = labels;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = externalRefs;
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = sourceData;
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = metadata;
         }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
@@ -790,8 +820,13 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeGroupsListSpecs, { method: "get" });
 const productsAttributeGroupsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The group's stable identifier, and the value an `AttributeField` carries as its `group` — a SECTION of the product form, not a label. Unique per tenant and the key an import joins on.", type: "string", required: true },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this section has in the system that owns the property model — the block a supplier's data sheet groups its fields under. Unique per tenant where set, and null for a section somebody created here to tidy up a form, which is most of them.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "The section heading a person sees, keyed by language tag. The code is never shown to an operator; a tag nobody translated falls back to the next filled one, then to English.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns — the extension point a section otherwise has none of. `source_data` is what the SOURCE said about the row; this is what you say about it. Nothing in this app reads it.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Where this section sits in a form, ascending. Sections that tie keep the order the database returns them in.", type: "integer", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsDataModel
   .command(`products-attribute-groups-create`)
@@ -801,12 +836,17 @@ An attribute group is a SECTION of a product form — "Technical attributes", "L
 
 \`code\` is the only column the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
   .option(`--code <code>`, `The group's stable identifier, and the value an \`AttributeField\` carries as its \`group\` — a SECTION of the product form, not a label. Unique per tenant and the key an import joins on.`)
+  .option(`--external-id <external-id>`, `The key this section has in the system that owns the property model — the block a supplier's data sheet groups its fields under. Unique per tenant where set, and null for a section somebody created here to tidy up a form, which is most of them.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--labels <labels>`, `The section heading a person sees, keyed by language tag. The code is never shown to an operator; a tag nobody translated falls back to the next filled one, then to English.`)
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns — the extension point a section otherwise has none of. \`source_data\` is what the SOURCE said about the row; this is what you say about it. Nothing in this app reads it.`)
   .option(`--position <position>`, `Where this section sits in a form, ascending. Sections that tie keep the order the database returns them in.`, parseInteger)
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, labels, position } = await promptForMissing(
+        const { code, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsAttributeGroupsCreateSpecs,
           _command,
@@ -824,11 +864,26 @@ An attribute group is a SECTION of a product form — "Technical attributes", "L
         if (code !== undefined) {
           _payload[`code`] = code;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
         }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
+        }
         if (position !== undefined) {
           _payload[`position`] = position;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -922,8 +977,13 @@ registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeGroupsG
 const productsAttributeGroupsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `attribute_groups` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/attribute_groups`. An id no attribute group of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/attribute_groups", hasLimit: true } },
   { key: "code", option: "--code <code>", name: "code", description: "The group's stable identifier, and the value an `AttributeField` carries as its `group` — a SECTION of the product form, not a label. Unique per tenant and the key an import joins on.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this section has in the system that owns the property model — the block a supplier's data sheet groups its fields under. Unique per tenant where set, and null for a section somebody created here to tidy up a form, which is most of them.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "The section heading a person sees, keyed by language tag. The code is never shown to an operator; a tag nobody translated falls back to the next filled one, then to English.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns — the extension point a section otherwise has none of. `source_data` is what the SOURCE said about the row; this is what you say about it. Nothing in this app reads it.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Where this section sits in a form, ascending. Sections that tie keep the order the database returns them in.", type: "integer", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsDataModel
   .command(`products-attribute-groups-update`)
@@ -934,12 +994,17 @@ An attribute group is a SECTION of a product form — "Technical attributes", "L
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
   .option(`--id <id>`, `The \`attribute_groups\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/attribute_groups\`. An id no attribute group of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(`--code <code>`, `The group's stable identifier, and the value an \`AttributeField\` carries as its \`group\` — a SECTION of the product form, not a label. Unique per tenant and the key an import joins on.`)
+  .option(`--external-id <external-id>`, `The key this section has in the system that owns the property model — the block a supplier's data sheet groups its fields under. Unique per tenant where set, and null for a section somebody created here to tidy up a form, which is most of them.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--labels <labels>`, `The section heading a person sees, keyed by language tag. The code is never shown to an operator; a tag nobody translated falls back to the next filled one, then to English.`)
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns — the extension point a section otherwise has none of. \`source_data\` is what the SOURCE said about the row; this is what you say about it. Nothing in this app reads it.`)
   .option(`--position <position>`, `Where this section sits in a form, ascending. Sections that tie keep the order the database returns them in.`, parseInteger)
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, labels, position } = await promptForMissing(
+        const { id, code, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsAttributeGroupsUpdateSpecs,
           _command,
@@ -957,11 +1022,26 @@ A body that names nothing writable is refused with 400 rather than answered as a
         if (code !== undefined) {
           _payload[`code`] = code;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
         }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
+        }
         if (position !== undefined) {
           _payload[`position`] = position;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -987,7 +1067,13 @@ const productsAttributeOptionsListSpecs: PromptSpec[] = [
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Order in the dropdown, ascending. Options that tie keep the order the database returns them in, so give every option a position if the order matters.", type: "integer", required: false },
   { key: "swatch", option: "--swatch <swatch>", name: "swatch", description: "Exact match on `swatch`. A colour or texture chip for the picker. Null for an option that is not visual. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. What the option is called, per language tag. Two tenants may label the same code differently; only the code is ever written into a record. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact match on `external_id`. The key this option has in the system that owns the value list — an ETIM value, an eCl@ss value key. Unique per tenant where set. `code` is what a product stores when the option is picked; this is what the source calls the same choice, and holding the two apart is what stops a re-import founding a second option that means the same thing.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact match on `external_refs`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact match on `source_synced_at`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "Exact match on `source_data`. What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Exact match on `metadata`. Free-form jsonb this tenant owns, for whatever an integration has to remember about an option beyond its code, its label and its swatch. Nothing in this app reads it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the row was created. Server-set — it is not part of any request body.", type: "string", required: false },
+  { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the row was last written. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsDataModel
@@ -1006,7 +1092,13 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--position <position>`, `Exact match on \`position\`. Order in the dropdown, ascending. Options that tie keep the order the database returns them in, so give every option a position if the order matters.`, parseInteger)
   .option(`--swatch <swatch>`, `Exact match on \`swatch\`. A colour or texture chip for the picker. Null for an option that is not visual. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--labels <labels>`, `Exact match on \`labels\`. What the option is called, per language tag. Two tenants may label the same code differently; only the code is ever written into a record. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--external-id <external-id>`, `Exact match on \`external_id\`. The key this option has in the system that owns the value list — an ETIM value, an eCl@ss value key. Unique per tenant where set. \`code\` is what a product stores when the option is picked; this is what the source calls the same choice, and holding the two apart is what stops a re-import founding a second option that means the same thing.`)
+  .option(`--external-refs <external-refs>`, `Exact match on \`external_refs\`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--source-synced-at <source-synced-at>`, `Exact match on \`source_synced_at\`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
+  .option(`--source-data <source-data>`, `Exact match on \`source_data\`. What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--metadata <metadata>`, `Exact match on \`metadata\`. Free-form jsonb this tenant owns, for whatever an integration has to remember about an option beyond its code, its label and its swatch. Nothing in this app reads it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the row was created. Server-set — it is not part of any request body.`)
+  .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the row was last written. Server-set — it is not part of any request body.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -1016,7 +1108,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, attributeId, code, position, swatch, labels, createdAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, attributeId, code, position, swatch, labels, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsAttributeOptionsListSpecs,
           _command,
@@ -1051,8 +1143,26 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         if (labels !== undefined) {
           _payload[`labels`] = labels;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = externalRefs;
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = sourceData;
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = metadata;
+        }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
+        }
+        if (updatedAt !== undefined) {
+          _payload[`updated_at`] = updatedAt;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -1078,8 +1188,13 @@ registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeOptions
 const productsAttributeOptionsCreateSpecs: PromptSpec[] = [
   { key: "attributeId", option: "--attribute-id <attribute-id>", name: "attribute_id", description: "The select / multi-select attribute these are the permitted values of. Deleting the attribute deletes its options with it.", type: "string", required: true },
   { key: "code", option: "--code <code>", name: "code", description: "The value actually STORED in a record's `attribute_values` when this option is picked — never the label. Unique within the attribute.", type: "string", required: true },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this option has in the system that owns the value list — an ETIM value, an eCl@ss value key. Unique per tenant where set. `code` is what a product stores when the option is picked; this is what the source calls the same choice, and holding the two apart is what stops a re-import founding a second option that means the same thing.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What the option is called, per language tag. Two tenants may label the same code differently; only the code is ever written into a record.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns, for whatever an integration has to remember about an option beyond its code, its label and its swatch. Nothing in this app reads it.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Order in the dropdown, ascending. Options that tie keep the order the database returns them in, so give every option a position if the order matters.", type: "integer", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
   { key: "swatch", option: "--swatch <swatch>", name: "swatch", description: "A colour or texture chip for the picker. Null for an option that is not visual.", type: "object", required: false },
 ];
 productsDataModel
@@ -1091,13 +1206,18 @@ The permitted values of one select or multi-select attribute. A record stores th
 \`attribute_id\` and \`code\` are the only columns the database refuses the row without; everything else has a default or is nullable. A second row with the same \`attribute_id\` and \`code\` answers 409.`)
   .option(`--attribute-id <attribute-id>`, `The select / multi-select attribute these are the permitted values of. Deleting the attribute deletes its options with it.`)
   .option(`--code <code>`, `The value actually STORED in a record's \`attribute_values\` when this option is picked — never the label. Unique within the attribute.`)
+  .option(`--external-id <external-id>`, `The key this option has in the system that owns the value list — an ETIM value, an eCl@ss value key. Unique per tenant where set. \`code\` is what a product stores when the option is picked; this is what the source calls the same choice, and holding the two apart is what stops a re-import founding a second option that means the same thing.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--labels <labels>`, `What the option is called, per language tag. Two tenants may label the same code differently; only the code is ever written into a record.`)
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns, for whatever an integration has to remember about an option beyond its code, its label and its swatch. Nothing in this app reads it.`)
   .option(`--position <position>`, `Order in the dropdown, ascending. Options that tie keep the order the database returns them in, so give every option a position if the order matters.`, parseInteger)
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .option(`--swatch <swatch>`, `A colour or texture chip for the picker. Null for an option that is not visual.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { attributeId, code, labels, position, swatch } = await promptForMissing(
+        const { attributeId, code, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt, swatch } = await promptForMissing(
           _options,
           productsAttributeOptionsCreateSpecs,
           _command,
@@ -1118,11 +1238,26 @@ The permitted values of one select or multi-select attribute. A record stores th
         if (code !== undefined) {
           _payload[`code`] = code;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
         }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
+        }
         if (position !== undefined) {
           _payload[`position`] = position;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (swatch !== undefined) {
           _payload[`swatch`] = resolveBodyParam(swatch);
@@ -1220,8 +1355,13 @@ const productsAttributeOptionsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `attribute_options` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/attribute_options`. An id no attribute option of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/attribute_options", hasLimit: true } },
   { key: "attributeId", option: "--attribute-id <attribute-id>", name: "attribute_id", description: "The select / multi-select attribute these are the permitted values of. Deleting the attribute deletes its options with it.", type: "string", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The value actually STORED in a record's `attribute_values` when this option is picked — never the label. Unique within the attribute.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this option has in the system that owns the value list — an ETIM value, an eCl@ss value key. Unique per tenant where set. `code` is what a product stores when the option is picked; this is what the source calls the same choice, and holding the two apart is what stops a re-import founding a second option that means the same thing.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What the option is called, per language tag. Two tenants may label the same code differently; only the code is ever written into a record.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns, for whatever an integration has to remember about an option beyond its code, its label and its swatch. Nothing in this app reads it.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Order in the dropdown, ascending. Options that tie keep the order the database returns them in, so give every option a position if the order matters.", type: "integer", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
   { key: "swatch", option: "--swatch <swatch>", name: "swatch", description: "A colour or texture chip for the picker. Null for an option that is not visual.", type: "object", required: false },
 ];
 productsDataModel
@@ -1234,13 +1374,18 @@ A body that names nothing writable is refused with 400 rather than answered as a
   .option(`--id <id>`, `The \`attribute_options\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/attribute_options\`. An id no attribute option of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(`--attribute-id <attribute-id>`, `The select / multi-select attribute these are the permitted values of. Deleting the attribute deletes its options with it.`)
   .option(`--code <code>`, `The value actually STORED in a record's \`attribute_values\` when this option is picked — never the label. Unique within the attribute.`)
+  .option(`--external-id <external-id>`, `The key this option has in the system that owns the value list — an ETIM value, an eCl@ss value key. Unique per tenant where set. \`code\` is what a product stores when the option is picked; this is what the source calls the same choice, and holding the two apart is what stops a re-import founding a second option that means the same thing.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--labels <labels>`, `What the option is called, per language tag. Two tenants may label the same code differently; only the code is ever written into a record.`)
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns, for whatever an integration has to remember about an option beyond its code, its label and its swatch. Nothing in this app reads it.`)
   .option(`--position <position>`, `Order in the dropdown, ascending. Options that tie keep the order the database returns them in, so give every option a position if the order matters.`, parseInteger)
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .option(`--swatch <swatch>`, `A colour or texture chip for the picker. Null for an option that is not visual.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, attributeId, code, labels, position, swatch } = await promptForMissing(
+        const { id, attributeId, code, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt, swatch } = await promptForMissing(
           _options,
           productsAttributeOptionsUpdateSpecs,
           _command,
@@ -1261,11 +1406,26 @@ A body that names nothing writable is refused with 400 rather than answered as a
         if (code !== undefined) {
           _payload[`code`] = code;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
         }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
+        }
         if (position !== undefined) {
           _payload[`position`] = position;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (swatch !== undefined) {
           _payload[`swatch`] = resolveBodyParam(swatch);
@@ -1303,6 +1463,11 @@ const productsAttributesListSpecs: PromptSpec[] = [
   { key: "config", option: "--config <config>", name: "config", description: "Exact match on `config`. Type-specific settings; which keys apply depends on `type`. The ones this app reads: `units` (the unit list a measure attribute offers) and `reference_entity` (which entity a reference attribute draws its options from). The ones the cockpit edits alongside them: `unit`, `metric_family`, `decimals_allowed`, `asset_family`, `max_file_size`, `allowed_extensions`. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. The field label a person sees, keyed by language tag. Resolution falls back to English and then to the code, so an untranslated attribute is still renderable. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Where the field sits inside its group. A family may override it for its own form through `family_attributes.position`; this is the attribute's default.", type: "integer", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact match on `external_id`. The key this attribute has in the system that owns the property model — an ETIM feature, an eCl@ss property, a column of a supplier's data sheet. Unique per tenant where set. It is the half that survives a rename of `code`, so an import maps a source property onto an attribute once rather than on every run.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact match on `external_refs`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact match on `source_synced_at`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "Exact match on `source_data`. What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Exact match on `metadata`. Free-form jsonb this tenant owns. `validation` and `config` are read by this app and mean something to it; this is the pocket for everything else an integration has to remember about an attribute — a mapping note, an owning team, an export flag. Nothing here reads it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the row was created. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the row was last written. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -1357,6 +1522,11 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--config <config>`, `Exact match on \`config\`. Type-specific settings; which keys apply depends on \`type\`. The ones this app reads: \`units\` (the unit list a measure attribute offers) and \`reference_entity\` (which entity a reference attribute draws its options from). The ones the cockpit edits alongside them: \`unit\`, \`metric_family\`, \`decimals_allowed\`, \`asset_family\`, \`max_file_size\`, \`allowed_extensions\`. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--labels <labels>`, `Exact match on \`labels\`. The field label a person sees, keyed by language tag. Resolution falls back to English and then to the code, so an untranslated attribute is still renderable. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--position <position>`, `Exact match on \`position\`. Where the field sits inside its group. A family may override it for its own form through \`family_attributes.position\`; this is the attribute's default.`, parseInteger)
+  .option(`--external-id <external-id>`, `Exact match on \`external_id\`. The key this attribute has in the system that owns the property model — an ETIM feature, an eCl@ss property, a column of a supplier's data sheet. Unique per tenant where set. It is the half that survives a rename of \`code\`, so an import maps a source property onto an attribute once rather than on every run.`)
+  .option(`--external-refs <external-refs>`, `Exact match on \`external_refs\`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--source-synced-at <source-synced-at>`, `Exact match on \`source_synced_at\`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
+  .option(`--source-data <source-data>`, `Exact match on \`source_data\`. What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--metadata <metadata>`, `Exact match on \`metadata\`. Free-form jsonb this tenant owns. \`validation\` and \`config\` are read by this app and mean something to it; this is the pocket for everything else an integration has to remember about an attribute — a mapping note, an owning team, an export flag. Nothing here reads it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the row was created. Server-set — it is not part of any request body.`)
   .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the row was last written. Server-set — it is not part of any request body.`)
   .option(
@@ -1368,7 +1538,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, code, entityType, entityRef, type, groupId, localizable, scopable, isUnique, isFilterable, usableInGrid, validation, config, labels, position, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, code, entityType, entityRef, type, groupId, localizable, scopable, isUnique, isFilterable, usableInGrid, validation, config, labels, position, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsAttributesListSpecs,
           _command,
@@ -1430,6 +1600,21 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         if (position !== undefined) {
           _payload[`position`] = position;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = externalRefs;
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = sourceData;
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = metadata;
+        }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
         }
@@ -1463,13 +1648,18 @@ const productsAttributesCreateSpecs: PromptSpec[] = [
   { key: "config", option: "--config <config>", name: "config", description: "Type-specific settings; which keys apply depends on `type`. The ones this app reads: `units` (the unit list a measure attribute offers) and `reference_entity` (which entity a reference attribute draws its options from). The ones the cockpit edits alongside them: `unit`, `metric_family`, `decimals_allowed`, `asset_family`, `max_file_size`, `allowed_extensions`.", type: "object", required: false },
   { key: "entityRef", option: "--entity-ref <entity-ref>", name: "entity_ref", description: "Narrows `entity_type` to ONE reference entity or asset family, by its code — the attributes of `brand` rather than of every reference entity. Null for a plain product attribute.", type: "string", required: false },
   { key: "entityType", option: "--entity-type <entity-type>", name: "entity_type", description: "Which kind of record carries this attribute: 'product' for the catalog itself, 'reference_entity', 'asset' or 'category' for the other things in this app that have attributes. Deliberately carries no CHECK — a tenant that models a fifth kind is served on it too.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this attribute has in the system that owns the property model — an ETIM feature, an eCl@ss property, a column of a supplier's data sheet. Unique per tenant where set. It is the half that survives a rename of `code`, so an import maps a source property onto an attribute once rather than on every run.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "groupId", option: "--group-id <group-id>", name: "group_id", description: "The `attribute_groups` row this attribute is filed under — the form section it appears in. Null is ungrouped, and an ungrouped field is rendered after every section that has a name.", type: "string", required: false },
   { key: "isFilterable", option: "--is-filterable <is-filterable>", name: "is_filterable", description: "Offer this attribute as a filter in a product list. `GET /products/grid` reports exactly these attributes in its `filters` array, and nothing else reads the flag.", type: "boolean", required: false },
   { key: "isUnique", option: "--is-unique <is-unique>", name: "is_unique", description: "Declares that the value identifies the product — an EAN, a manufacturer part number. It is metadata a form and an importer read: no database index enforces it, because the value lives inside jsonb rather than in a column.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "The field label a person sees, keyed by language tag. Resolution falls back to English and then to the code, so an untranslated attribute is still renderable.", type: "object", required: false },
   { key: "localizable", option: "--localizable <localizable>", name: "localizable", description: "True → the record holds ONE VALUE PER LOCALE, under `attribute_values.locale_specific.<locale>.<code>`. False → one value, under `attribute_values.common.<code>`. This flag is what decides where a write goes.", type: "boolean", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns. `validation` and `config` are read by this app and mean something to it; this is the pocket for everything else an integration has to remember about an attribute — a mapping note, an owning team, an export flag. Nothing here reads it.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Where the field sits inside its group. A family may override it for its own form through `family_attributes.position`; this is the attribute's default.", type: "integer", required: false },
   { key: "scopable", option: "--scopable <scopable>", name: "scopable", description: "True → one value PER CHANNEL, under `attribute_values.channel_specific.<channel>.<code>`. Set together with `localizable` it means one value per channel AND locale, in `channel_locale_specific`.", type: "boolean", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
   { key: "usableInGrid", option: "--usable-in-grid <usable-in-grid>", name: "usable_in_grid", description: "Show this attribute as a COLUMN in the product grid. `GET /products/grid` returns a column definition and a per-row value for exactly these.", type: "boolean", required: false },
   { key: "validation", option: "--validation <validation>", name: "validation", description: "Limits a value has to satisfy, as a flat object. The seven keys a client can act on are `min`, `max`, `min_length`, `max_length`, `pattern`, `min_items`, `max_items` — `GET /products/attribute-schema` republishes those and leaves anything else the tenant stored untouched.", type: "object", required: false },
 ];
@@ -1485,6 +1675,8 @@ An attribute is one property a record can carry, and in an attribute-driven PIM 
   .option(`--config <config>`, `Type-specific settings; which keys apply depends on \`type\`. The ones this app reads: \`units\` (the unit list a measure attribute offers) and \`reference_entity\` (which entity a reference attribute draws its options from). The ones the cockpit edits alongside them: \`unit\`, \`metric_family\`, \`decimals_allowed\`, \`asset_family\`, \`max_file_size\`, \`allowed_extensions\`.`)
   .option(`--entity-ref <entity-ref>`, `Narrows \`entity_type\` to ONE reference entity or asset family, by its code — the attributes of \`brand\` rather than of every reference entity. Null for a plain product attribute.`)
   .option(`--entity-type <entity-type>`, `Which kind of record carries this attribute: 'product' for the catalog itself, 'reference_entity', 'asset' or 'category' for the other things in this app that have attributes. Deliberately carries no CHECK — a tenant that models a fifth kind is served on it too.`)
+  .option(`--external-id <external-id>`, `The key this attribute has in the system that owns the property model — an ETIM feature, an eCl@ss property, a column of a supplier's data sheet. Unique per tenant where set. It is the half that survives a rename of \`code\`, so an import maps a source property onto an attribute once rather than on every run.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--group-id <group-id>`, `The \`attribute_groups\` row this attribute is filed under — the form section it appears in. Null is ungrouped, and an ungrouped field is rendered after every section that has a name.`)
   .option(
     `--is-filterable [value]`,
@@ -1505,6 +1697,7 @@ An attribute is one property a record can carry, and in an attribute-driven PIM 
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns. \`validation\` and \`config\` are read by this app and mean something to it; this is the pocket for everything else an integration has to remember about an attribute — a mapping note, an owning team, an export flag. Nothing here reads it.`)
   .option(`--position <position>`, `Where the field sits inside its group. A family may override it for its own form through \`family_attributes.position\`; this is the attribute's default.`, parseInteger)
   .option(
     `--scopable [value]`,
@@ -1512,6 +1705,8 @@ An attribute is one property a record can carry, and in an attribute-driven PIM 
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .option(
     `--usable-in-grid [value]`,
     `Show this attribute as a COLUMN in the product grid. \`GET /products/grid\` returns a column definition and a per-row value for exactly these.`,
@@ -1522,7 +1717,7 @@ An attribute is one property a record can carry, and in an attribute-driven PIM 
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, type, config, entityRef, entityType, groupId, isFilterable, isUnique, labels, localizable, position, scopable, usableInGrid, validation } = await promptForMissing(
+        const { code, type, config, entityRef, entityType, externalId, externalRefs, groupId, isFilterable, isUnique, labels, localizable, metadata, position, scopable, sourceData, sourceSyncedAt, usableInGrid, validation } = await promptForMissing(
           _options,
           productsAttributesCreateSpecs,
           _command,
@@ -1549,6 +1744,12 @@ An attribute is one property a record can carry, and in an attribute-driven PIM 
         if (entityType !== undefined) {
           _payload[`entity_type`] = entityType;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (groupId !== undefined) {
           _payload[`group_id`] = groupId;
         }
@@ -1564,11 +1765,20 @@ An attribute is one property a record can carry, and in an attribute-driven PIM 
         if (localizable !== undefined) {
           _payload[`localizable`] = localizable;
         }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
+        }
         if (position !== undefined) {
           _payload[`position`] = position;
         }
         if (scopable !== undefined) {
           _payload[`scopable`] = scopable;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (type !== undefined) {
           _payload[`type`] = type;
@@ -1674,13 +1884,18 @@ const productsAttributesUpdateSpecs: PromptSpec[] = [
   { key: "config", option: "--config <config>", name: "config", description: "Type-specific settings; which keys apply depends on `type`. The ones this app reads: `units` (the unit list a measure attribute offers) and `reference_entity` (which entity a reference attribute draws its options from). The ones the cockpit edits alongside them: `unit`, `metric_family`, `decimals_allowed`, `asset_family`, `max_file_size`, `allowed_extensions`.", type: "object", required: false },
   { key: "entityRef", option: "--entity-ref <entity-ref>", name: "entity_ref", description: "Narrows `entity_type` to ONE reference entity or asset family, by its code — the attributes of `brand` rather than of every reference entity. Null for a plain product attribute.", type: "string", required: false },
   { key: "entityType", option: "--entity-type <entity-type>", name: "entity_type", description: "Which kind of record carries this attribute: 'product' for the catalog itself, 'reference_entity', 'asset' or 'category' for the other things in this app that have attributes. Deliberately carries no CHECK — a tenant that models a fifth kind is served on it too.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this attribute has in the system that owns the property model — an ETIM feature, an eCl@ss property, a column of a supplier's data sheet. Unique per tenant where set. It is the half that survives a rename of `code`, so an import maps a source property onto an attribute once rather than on every run.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "groupId", option: "--group-id <group-id>", name: "group_id", description: "The `attribute_groups` row this attribute is filed under — the form section it appears in. Null is ungrouped, and an ungrouped field is rendered after every section that has a name.", type: "string", required: false },
   { key: "isFilterable", option: "--is-filterable <is-filterable>", name: "is_filterable", description: "Offer this attribute as a filter in a product list. `GET /products/grid` reports exactly these attributes in its `filters` array, and nothing else reads the flag.", type: "boolean", required: false },
   { key: "isUnique", option: "--is-unique <is-unique>", name: "is_unique", description: "Declares that the value identifies the product — an EAN, a manufacturer part number. It is metadata a form and an importer read: no database index enforces it, because the value lives inside jsonb rather than in a column.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "The field label a person sees, keyed by language tag. Resolution falls back to English and then to the code, so an untranslated attribute is still renderable.", type: "object", required: false },
   { key: "localizable", option: "--localizable <localizable>", name: "localizable", description: "True → the record holds ONE VALUE PER LOCALE, under `attribute_values.locale_specific.<locale>.<code>`. False → one value, under `attribute_values.common.<code>`. This flag is what decides where a write goes.", type: "boolean", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns. `validation` and `config` are read by this app and mean something to it; this is the pocket for everything else an integration has to remember about an attribute — a mapping note, an owning team, an export flag. Nothing here reads it.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Where the field sits inside its group. A family may override it for its own form through `family_attributes.position`; this is the attribute's default.", type: "integer", required: false },
   { key: "scopable", option: "--scopable <scopable>", name: "scopable", description: "True → one value PER CHANNEL, under `attribute_values.channel_specific.<channel>.<code>`. Set together with `localizable` it means one value per channel AND locale, in `channel_locale_specific`.", type: "boolean", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
   { key: "type", option: "--type <type>", name: "type", description: "Which editor the value asks for — 'text', 'select', 'metric', 'price', 'asset_collection', 'reference_entity'. Carries no CHECK on purpose: an integrator adds a type, and `GET /products/attribute-schema` maps an unknown one onto a text field rather than refusing to answer.", type: "string", required: false },
   { key: "usableInGrid", option: "--usable-in-grid <usable-in-grid>", name: "usable_in_grid", description: "Show this attribute as a COLUMN in the product grid. `GET /products/grid` returns a column definition and a per-row value for exactly these.", type: "boolean", required: false },
   { key: "validation", option: "--validation <validation>", name: "validation", description: "Limits a value has to satisfy, as a flat object. The seven keys a client can act on are `min`, `max`, `min_length`, `max_length`, `pattern`, `min_items`, `max_items` — `GET /products/attribute-schema` republishes those and leaves anything else the tenant stored untouched.", type: "object", required: false },
@@ -1697,6 +1912,8 @@ A body that names nothing writable is refused with 400 rather than answered as a
   .option(`--config <config>`, `Type-specific settings; which keys apply depends on \`type\`. The ones this app reads: \`units\` (the unit list a measure attribute offers) and \`reference_entity\` (which entity a reference attribute draws its options from). The ones the cockpit edits alongside them: \`unit\`, \`metric_family\`, \`decimals_allowed\`, \`asset_family\`, \`max_file_size\`, \`allowed_extensions\`.`)
   .option(`--entity-ref <entity-ref>`, `Narrows \`entity_type\` to ONE reference entity or asset family, by its code — the attributes of \`brand\` rather than of every reference entity. Null for a plain product attribute.`)
   .option(`--entity-type <entity-type>`, `Which kind of record carries this attribute: 'product' for the catalog itself, 'reference_entity', 'asset' or 'category' for the other things in this app that have attributes. Deliberately carries no CHECK — a tenant that models a fifth kind is served on it too.`)
+  .option(`--external-id <external-id>`, `The key this attribute has in the system that owns the property model — an ETIM feature, an eCl@ss property, a column of a supplier's data sheet. Unique per tenant where set. It is the half that survives a rename of \`code\`, so an import maps a source property onto an attribute once rather than on every run.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--group-id <group-id>`, `The \`attribute_groups\` row this attribute is filed under — the form section it appears in. Null is ungrouped, and an ungrouped field is rendered after every section that has a name.`)
   .option(
     `--is-filterable [value]`,
@@ -1717,6 +1934,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns. \`validation\` and \`config\` are read by this app and mean something to it; this is the pocket for everything else an integration has to remember about an attribute — a mapping note, an owning team, an export flag. Nothing here reads it.`)
   .option(`--position <position>`, `Where the field sits inside its group. A family may override it for its own form through \`family_attributes.position\`; this is the attribute's default.`, parseInteger)
   .option(
     `--scopable [value]`,
@@ -1724,6 +1942,8 @@ A body that names nothing writable is refused with 400 rather than answered as a
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .option(`--type <type>`, `Which editor the value asks for — 'text', 'select', 'metric', 'price', 'asset_collection', 'reference_entity'. Carries no CHECK on purpose: an integrator adds a type, and \`GET /products/attribute-schema\` maps an unknown one onto a text field rather than refusing to answer.`)
   .option(
     `--usable-in-grid [value]`,
@@ -1735,7 +1955,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, config, entityRef, entityType, groupId, isFilterable, isUnique, labels, localizable, position, scopable, type, usableInGrid, validation } = await promptForMissing(
+        const { id, code, config, entityRef, entityType, externalId, externalRefs, groupId, isFilterable, isUnique, labels, localizable, metadata, position, scopable, sourceData, sourceSyncedAt, type, usableInGrid, validation } = await promptForMissing(
           _options,
           productsAttributesUpdateSpecs,
           _command,
@@ -1762,6 +1982,12 @@ A body that names nothing writable is refused with 400 rather than answered as a
         if (entityType !== undefined) {
           _payload[`entity_type`] = entityType;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (groupId !== undefined) {
           _payload[`group_id`] = groupId;
         }
@@ -1777,11 +2003,20 @@ A body that names nothing writable is refused with 400 rather than answered as a
         if (localizable !== undefined) {
           _payload[`localizable`] = localizable;
         }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
+        }
         if (position !== undefined) {
           _payload[`position`] = position;
         }
         if (scopable !== undefined) {
           _payload[`scopable`] = scopable;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (type !== undefined) {
           _payload[`type`] = type;
@@ -1815,6 +2050,11 @@ const productsFamiliesListSpecs: PromptSpec[] = [
   { key: "labelAttribute", option: "--label-attribute <label-attribute>", name: "label_attribute", description: "Exact match on `label_attribute`. Which attribute CODE carries the display name of a product in this family. A product's name is an attribute, not a column, and which attribute it is, is per family. Null falls back to the `default_label_attribute` setting and then to the conventional `name`.", type: "string", required: false },
   { key: "imageAttribute", option: "--image-attribute <image-attribute>", name: "image_attribute", description: "Exact match on `image_attribute`. Which attribute code carries the product's main image — the one a grid thumbnail and a picker read.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. What the family is called, per language tag — the name an operator picks from, while the code is what everything else joins on. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact match on `external_id`. The key this family has in the system that owns the classification — an ETIM class, an eCl@ss class, a supplier's article type. Unique per tenant where set, and what an import joins on to decide which family a delivered article belongs in.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact match on `external_refs`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact match on `source_synced_at`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "Exact match on `source_data`. What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Exact match on `metadata`. Free-form jsonb this tenant owns, for anything about a family this app does not model. `source_data` is the source's account of the row; this one is yours. Nothing here reads it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the row was created. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the row was last written. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -1834,6 +2074,11 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--label-attribute <label-attribute>`, `Exact match on \`label_attribute\`. Which attribute CODE carries the display name of a product in this family. A product's name is an attribute, not a column, and which attribute it is, is per family. Null falls back to the \`default_label_attribute\` setting and then to the conventional \`name\`.`)
   .option(`--image-attribute <image-attribute>`, `Exact match on \`image_attribute\`. Which attribute code carries the product's main image — the one a grid thumbnail and a picker read.`)
   .option(`--labels <labels>`, `Exact match on \`labels\`. What the family is called, per language tag — the name an operator picks from, while the code is what everything else joins on. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--external-id <external-id>`, `Exact match on \`external_id\`. The key this family has in the system that owns the classification — an ETIM class, an eCl@ss class, a supplier's article type. Unique per tenant where set, and what an import joins on to decide which family a delivered article belongs in.`)
+  .option(`--external-refs <external-refs>`, `Exact match on \`external_refs\`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--source-synced-at <source-synced-at>`, `Exact match on \`source_synced_at\`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
+  .option(`--source-data <source-data>`, `Exact match on \`source_data\`. What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--metadata <metadata>`, `Exact match on \`metadata\`. Free-form jsonb this tenant owns, for anything about a family this app does not model. \`source_data\` is the source's account of the row; this one is yours. Nothing here reads it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the row was created. Server-set — it is not part of any request body.`)
   .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the row was last written. Server-set — it is not part of any request body.`)
   .option(
@@ -1845,7 +2090,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, code, labelAttribute, imageAttribute, labels, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, code, labelAttribute, imageAttribute, labels, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsFamiliesListSpecs,
           _command,
@@ -1877,6 +2122,21 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         if (labels !== undefined) {
           _payload[`labels`] = labels;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = externalRefs;
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = sourceData;
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = metadata;
+        }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
         }
@@ -1906,9 +2166,14 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamiliesListSpecs, { method: "get" });
 const productsFamiliesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The family's stable identifier — which set of attributes a product of this family HAS. Unique per tenant, and the value `GET /products/attribute-schema?family_code=` resolves.", type: "string", required: true },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this family has in the system that owns the classification — an ETIM class, an eCl@ss class, a supplier's article type. Unique per tenant where set, and what an import joins on to decide which family a delivered article belongs in.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "imageAttribute", option: "--image-attribute <image-attribute>", name: "image_attribute", description: "Which attribute code carries the product's main image — the one a grid thumbnail and a picker read.", type: "string", required: false },
   { key: "labelAttribute", option: "--label-attribute <label-attribute>", name: "label_attribute", description: "Which attribute CODE carries the display name of a product in this family. A product's name is an attribute, not a column, and which attribute it is, is per family. Null falls back to the `default_label_attribute` setting and then to the conventional `name`.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What the family is called, per language tag — the name an operator picks from, while the code is what everything else joins on.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns, for anything about a family this app does not model. `source_data` is the source's account of the row; this one is yours. Nothing here reads it.", type: "object", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsDataModel
   .command(`products-families-create`)
@@ -1918,13 +2183,18 @@ A family decides WHICH attributes a product has — the set is \`family_attribut
 
 \`code\` is the only column the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
   .option(`--code <code>`, `The family's stable identifier — which set of attributes a product of this family HAS. Unique per tenant, and the value \`GET /products/attribute-schema?family_code=\` resolves.`)
+  .option(`--external-id <external-id>`, `The key this family has in the system that owns the classification — an ETIM class, an eCl@ss class, a supplier's article type. Unique per tenant where set, and what an import joins on to decide which family a delivered article belongs in.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--image-attribute <image-attribute>`, `Which attribute code carries the product's main image — the one a grid thumbnail and a picker read.`)
   .option(`--label-attribute <label-attribute>`, `Which attribute CODE carries the display name of a product in this family. A product's name is an attribute, not a column, and which attribute it is, is per family. Null falls back to the \`default_label_attribute\` setting and then to the conventional \`name\`.`)
   .option(`--labels <labels>`, `What the family is called, per language tag — the name an operator picks from, while the code is what everything else joins on.`)
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns, for anything about a family this app does not model. \`source_data\` is the source's account of the row; this one is yours. Nothing here reads it.`)
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, imageAttribute, labelAttribute, labels } = await promptForMissing(
+        const { code, externalId, externalRefs, imageAttribute, labelAttribute, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsFamiliesCreateSpecs,
           _command,
@@ -1942,6 +2212,12 @@ A family decides WHICH attributes a product has — the set is \`family_attribut
         if (code !== undefined) {
           _payload[`code`] = code;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (imageAttribute !== undefined) {
           _payload[`image_attribute`] = imageAttribute;
         }
@@ -1950,6 +2226,15 @@ A family decides WHICH attributes a product has — the set is \`family_attribut
         }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2043,9 +2328,14 @@ registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamiliesGetSpecs
 const productsFamiliesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `families` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/families`. An id no familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/families", hasLimit: true } },
   { key: "code", option: "--code <code>", name: "code", description: "The family's stable identifier — which set of attributes a product of this family HAS. Unique per tenant, and the value `GET /products/attribute-schema?family_code=` resolves.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this family has in the system that owns the classification — an ETIM class, an eCl@ss class, a supplier's article type. Unique per tenant where set, and what an import joins on to decide which family a delivered article belongs in.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "imageAttribute", option: "--image-attribute <image-attribute>", name: "image_attribute", description: "Which attribute code carries the product's main image — the one a grid thumbnail and a picker read.", type: "string", required: false },
   { key: "labelAttribute", option: "--label-attribute <label-attribute>", name: "label_attribute", description: "Which attribute CODE carries the display name of a product in this family. A product's name is an attribute, not a column, and which attribute it is, is per family. Null falls back to the `default_label_attribute` setting and then to the conventional `name`.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What the family is called, per language tag — the name an operator picks from, while the code is what everything else joins on.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns, for anything about a family this app does not model. `source_data` is the source's account of the row; this one is yours. Nothing here reads it.", type: "object", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsDataModel
   .command(`products-families-update`)
@@ -2056,13 +2346,18 @@ A family decides WHICH attributes a product has — the set is \`family_attribut
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
   .option(`--id <id>`, `The \`families\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/families\`. An id no familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(`--code <code>`, `The family's stable identifier — which set of attributes a product of this family HAS. Unique per tenant, and the value \`GET /products/attribute-schema?family_code=\` resolves.`)
+  .option(`--external-id <external-id>`, `The key this family has in the system that owns the classification — an ETIM class, an eCl@ss class, a supplier's article type. Unique per tenant where set, and what an import joins on to decide which family a delivered article belongs in.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--image-attribute <image-attribute>`, `Which attribute code carries the product's main image — the one a grid thumbnail and a picker read.`)
   .option(`--label-attribute <label-attribute>`, `Which attribute CODE carries the display name of a product in this family. A product's name is an attribute, not a column, and which attribute it is, is per family. Null falls back to the \`default_label_attribute\` setting and then to the conventional \`name\`.`)
   .option(`--labels <labels>`, `What the family is called, per language tag — the name an operator picks from, while the code is what everything else joins on.`)
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns, for anything about a family this app does not model. \`source_data\` is the source's account of the row; this one is yours. Nothing here reads it.`)
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, imageAttribute, labelAttribute, labels } = await promptForMissing(
+        const { id, code, externalId, externalRefs, imageAttribute, labelAttribute, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsFamiliesUpdateSpecs,
           _command,
@@ -2080,6 +2375,12 @@ A body that names nothing writable is refused with 400 rather than answered as a
         if (code !== undefined) {
           _payload[`code`] = code;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (imageAttribute !== undefined) {
           _payload[`image_attribute`] = imageAttribute;
         }
@@ -2088,6 +2389,15 @@ A body that names nothing writable is refused with 400 rather than answered as a
         }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2114,6 +2424,7 @@ const productsFamilyAttributesListSpecs: PromptSpec[] = [
   { key: "isRequired", option: "--is-required <is-required>", name: "is_required", description: "Exact match on `is_required`. The attribute has to carry a value for a product of this family to count as complete. `POST /products/{id}/completeness` measures exactly these and nothing else.", type: "boolean", required: false },
   { key: "requiredChannels", option: "--required-channels <required-channels>", name: "required_channels", description: "Exact match on `required_channels`. Narrows `is_required` to named channels. NULL or an empty list means required EVERYWHERE, not nowhere — that is how every required link in the wild is stored, and reading an empty list as \"nowhere\" reports a fully configured family as demanding nothing. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the row was created. Server-set — it is not part of any request body.", type: "string", required: false },
+  { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the row was last written. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsDataModel
@@ -2138,6 +2449,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   )
   .option(`--required-channels <required-channels>`, `Exact match on \`required_channels\`. Narrows \`is_required\` to named channels. NULL or an empty list means required EVERYWHERE, not nowhere — that is how every required link in the wild is stored, and reading an empty list as "nowhere" reports a fully configured family as demanding nothing. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the row was created. Server-set — it is not part of any request body.`)
+  .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the row was last written. Server-set — it is not part of any request body.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -2147,7 +2459,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, familyId, attributeId, position, isRequired, requiredChannels, createdAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, familyId, attributeId, position, isRequired, requiredChannels, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsFamilyAttributesListSpecs,
           _command,
@@ -2184,6 +2496,9 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
+        }
+        if (updatedAt !== undefined) {
+          _payload[`updated_at`] = updatedAt;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -2434,6 +2749,11 @@ const productsFamilyVariantsListSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "Exact match on `code`. The variant structure's stable identifier — how this family splits, not which product it splits. Unique per tenant.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. What the variant structure is called, per language tag. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "axes", option: "--axes <axes>", name: "axes", description: "Exact match on `axes`. The attribute codes a product model splits its variants on. Two shapes are in the wild and both are read: a bare list of codes, or one entry per level, outermost first — `[{\"level\": 1, \"axes\": [\"colour\"]}, {\"level\": 2, \"axes\": [\"size\"]}]`. An attribute named here is READ-ONLY on the model and set on each variant, which is what `AttributeField.readonly_reason` reports. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact match on `external_id`. The key this variant structure has in the system it came from. Unique per tenant where set, and usually null — few sources model how a family splits, so this is normally a structure somebody built here.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact match on `external_refs`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact match on `source_synced_at`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "Exact match on `source_data`. What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Exact match on `metadata`. Free-form jsonb this tenant owns, for anything about a variant structure this app does not model. Nothing here reads it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the row was created. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the row was last written. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -2453,6 +2773,11 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--code <code>`, `Exact match on \`code\`. The variant structure's stable identifier — how this family splits, not which product it splits. Unique per tenant.`)
   .option(`--labels <labels>`, `Exact match on \`labels\`. What the variant structure is called, per language tag. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--axes <axes>`, `Exact match on \`axes\`. The attribute codes a product model splits its variants on. Two shapes are in the wild and both are read: a bare list of codes, or one entry per level, outermost first — \`[{"level": 1, "axes": ["colour"]}, {"level": 2, "axes": ["size"]}]\`. An attribute named here is READ-ONLY on the model and set on each variant, which is what \`AttributeField.readonly_reason\` reports. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--external-id <external-id>`, `Exact match on \`external_id\`. The key this variant structure has in the system it came from. Unique per tenant where set, and usually null — few sources model how a family splits, so this is normally a structure somebody built here.`)
+  .option(`--external-refs <external-refs>`, `Exact match on \`external_refs\`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--source-synced-at <source-synced-at>`, `Exact match on \`source_synced_at\`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
+  .option(`--source-data <source-data>`, `Exact match on \`source_data\`. What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--metadata <metadata>`, `Exact match on \`metadata\`. Free-form jsonb this tenant owns, for anything about a variant structure this app does not model. Nothing here reads it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the row was created. Server-set — it is not part of any request body.`)
   .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the row was last written. Server-set — it is not part of any request body.`)
   .option(
@@ -2464,7 +2789,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, familyId, code, labels, axes, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, familyId, code, labels, axes, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsFamilyVariantsListSpecs,
           _command,
@@ -2495,6 +2820,21 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         }
         if (axes !== undefined) {
           _payload[`axes`] = axes;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = externalRefs;
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = sourceData;
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = metadata;
         }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
@@ -2527,7 +2867,12 @@ const productsFamilyVariantsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The variant structure's stable identifier — how this family splits, not which product it splits. Unique per tenant.", type: "string", required: true },
   { key: "familyId", option: "--family-id <family-id>", name: "family_id", description: "The family this variant structure belongs to. A family may carry several, and a product names the one it follows through `family_variant_id`.", type: "string", required: true },
   { key: "axes", option: "--axes <axes>", name: "axes", description: "The attribute codes a product model splits its variants on. Two shapes are in the wild and both are read: a bare list of codes, or one entry per level, outermost first — `[{\"level\": 1, \"axes\": [\"colour\"]}, {\"level\": 2, \"axes\": [\"size\"]}]`. An attribute named here is READ-ONLY on the model and set on each variant, which is what `AttributeField.readonly_reason` reports.", type: "object", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this variant structure has in the system it came from. Unique per tenant where set, and usually null — few sources model how a family splits, so this is normally a structure somebody built here.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What the variant structure is called, per language tag.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns, for anything about a variant structure this app does not model. Nothing here reads it.", type: "object", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsDataModel
   .command(`products-family-variants-create`)
@@ -2539,11 +2884,16 @@ A variant structure of a family: the attribute axes a product model splits its v
   .option(`--code <code>`, `The variant structure's stable identifier — how this family splits, not which product it splits. Unique per tenant.`)
   .option(`--family-id <family-id>`, `The family this variant structure belongs to. A family may carry several, and a product names the one it follows through \`family_variant_id\`.`)
   .option(`--axes <axes>`, `The attribute codes a product model splits its variants on. Two shapes are in the wild and both are read: a bare list of codes, or one entry per level, outermost first — \`[{"level": 1, "axes": ["colour"]}, {"level": 2, "axes": ["size"]}]\`. An attribute named here is READ-ONLY on the model and set on each variant, which is what \`AttributeField.readonly_reason\` reports.`)
+  .option(`--external-id <external-id>`, `The key this variant structure has in the system it came from. Unique per tenant where set, and usually null — few sources model how a family splits, so this is normally a structure somebody built here.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--labels <labels>`, `What the variant structure is called, per language tag.`)
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns, for anything about a variant structure this app does not model. Nothing here reads it.`)
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, familyId, axes, labels } = await promptForMissing(
+        const { code, familyId, axes, externalId, externalRefs, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsFamilyVariantsCreateSpecs,
           _command,
@@ -2564,11 +2914,26 @@ A variant structure of a family: the attribute axes a product model splits its v
         if (code !== undefined) {
           _payload[`code`] = code;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (familyId !== undefined) {
           _payload[`family_id`] = familyId;
         }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -2663,8 +3028,13 @@ const productsFamilyVariantsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `family_variants` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/family_variants`. An id no family variant of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/family_variants", hasLimit: true } },
   { key: "axes", option: "--axes <axes>", name: "axes", description: "The attribute codes a product model splits its variants on. Two shapes are in the wild and both are read: a bare list of codes, or one entry per level, outermost first — `[{\"level\": 1, \"axes\": [\"colour\"]}, {\"level\": 2, \"axes\": [\"size\"]}]`. An attribute named here is READ-ONLY on the model and set on each variant, which is what `AttributeField.readonly_reason` reports.", type: "object", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The variant structure's stable identifier — how this family splits, not which product it splits. Unique per tenant.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this variant structure has in the system it came from. Unique per tenant where set, and usually null — few sources model how a family splits, so this is normally a structure somebody built here.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "familyId", option: "--family-id <family-id>", name: "family_id", description: "The family this variant structure belongs to. A family may carry several, and a product names the one it follows through `family_variant_id`.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What the variant structure is called, per language tag.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns, for anything about a variant structure this app does not model. Nothing here reads it.", type: "object", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsDataModel
   .command(`products-family-variants-update`)
@@ -2676,12 +3046,17 @@ A body that names nothing writable is refused with 400 rather than answered as a
   .option(`--id <id>`, `The \`family_variants\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/family_variants\`. An id no family variant of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(`--axes <axes>`, `The attribute codes a product model splits its variants on. Two shapes are in the wild and both are read: a bare list of codes, or one entry per level, outermost first — \`[{"level": 1, "axes": ["colour"]}, {"level": 2, "axes": ["size"]}]\`. An attribute named here is READ-ONLY on the model and set on each variant, which is what \`AttributeField.readonly_reason\` reports.`)
   .option(`--code <code>`, `The variant structure's stable identifier — how this family splits, not which product it splits. Unique per tenant.`)
+  .option(`--external-id <external-id>`, `The key this variant structure has in the system it came from. Unique per tenant where set, and usually null — few sources model how a family splits, so this is normally a structure somebody built here.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--family-id <family-id>`, `The family this variant structure belongs to. A family may carry several, and a product names the one it follows through \`family_variant_id\`.`)
   .option(`--labels <labels>`, `What the variant structure is called, per language tag.`)
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns, for anything about a variant structure this app does not model. Nothing here reads it.`)
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, axes, code, familyId, labels } = await promptForMissing(
+        const { id, axes, code, externalId, externalRefs, familyId, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsFamilyVariantsUpdateSpecs,
           _command,
@@ -2702,11 +3077,26 @@ A body that names nothing writable is refused with 400 rather than answered as a
         if (code !== undefined) {
           _payload[`code`] = code;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (familyId !== undefined) {
           _payload[`family_id`] = familyId;
         }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

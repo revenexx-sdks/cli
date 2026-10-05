@@ -505,7 +505,14 @@ function emitDts(entities: Record<string, BuiltEntity>, events: Record<string, B
     }
     if (e.ops.includes("get")) methods.push(`  get(id: ${id}): Promise<${Type} | null>;`);
     if (e.ops.includes("create")) methods.push(`  create(data: ${Type}Create): Promise<${Type}>;`);
-    if (e.ops.includes("update")) methods.push(`  update(id: ${id}, patch: Partial<${Type}Create>): Promise<${Type}>;`);
+    if (e.ops.includes("update")) {
+      methods.push(`  update(id: ${id}, patch: Partial<${Type}Create>): Promise<${Type}>;`);
+      // Compare-and-set, gated by the same op. `Query['where']` rather than the
+      // SDK's `Where` alias so the client also type-checks against an older SDK.
+      methods.push(
+        `  updateIf(id: ${id}, where: NonNullable<Query<${Type}>['where']>, patch: Partial<${Type}Create>): Promise<${Type} | null>;`,
+      );
+    }
     if (e.ops.includes("delete")) methods.push(`  delete(id: ${id}): Promise<void>;`);
 
     blocks.push(
@@ -677,6 +684,18 @@ function repositoryClass(name: string, entity: BuiltEntity): string {
     public function update(${idT} $id, array $patch): ${Type}
     {
         return ${Type}::fromRow($this->client->update($this->entity, $id, $patch));
+    }`);
+    methods.push(`    /**
+     * Update only if the row still matches $where; null when no row matched.
+     *
+     * @param array<string, mixed> $where
+     * @param array<string, mixed> $patch
+     */
+    public function updateIf(${idT} $id, array $where, array $patch): ?${Type}
+    {
+        $row = $this->client->updateIf($this->entity, $id, $where, $patch);
+
+        return $row === null ? null : ${Type}::fromRow($row);
     }`);
   }
   if (entity.ops.includes("delete")) {

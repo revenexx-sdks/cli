@@ -28,12 +28,12 @@ export const markets = new Command("markets")
 
 const listSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Exact match on `id`. Primary key. Note that OTHER apps do not store this: the market scope dimension is keyed on `code` (manifest `provides_scopes.slug_source = markets.code`), so a row elsewhere that is \"in this market\" carries the code, not this uuid. It is the item routes and /context that want this value.", type: "string", required: false },
-  { key: "code", option: "--code <code>", name: "code", description: "Exact match on `code`. Market code, unique per tenant, and the single most load-bearing string in this app: it IS the market scope slug. The Entity Scoping Engine publishes it as the `market` dimension (`scope_context.market` in the JWT), and every other commerce app — products, prices, orders, customers — stores THIS value to say which market a row belongs to. Renaming it re-keys that scope for everyone, so treat it as permanent. Accepted in place of the uuid on /readiness, /clone, /backfill and /make-default — but not on the item routes or /context, which take a uuid only.", type: "string", required: false },
+  { key: "code", option: "--code <code>", name: "code", description: "Exact match on `code`. Market code, unique per tenant, and the single most load-bearing string in this app: it IS the market scope slug. The Entity Scoping Engine publishes it as the `market` dimension (`scope_context.market` in the JWT), and every other commerce app — products, prices, orders, customers — stores THIS value to say which market a row belongs to. Renaming it would re-key that scope for everyone, so it is fixed once the market exists (an update that changes it is a 409). Accepted in place of the uuid on /readiness, /clone, /backfill and /make-default — but not on the item routes or /context, which take a uuid only.", type: "string", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Exact match on `name`. Display name, in the operator's own language. Cockpit copy only — nothing resolves a market by it.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. Exact whole-document equality on the jsonb: the value is a whole JSON document and has to match every key, so this is not a path or a containment query. Key order and whitespace are irrelevant — the comparison is semantic. A value that does not parse as JSON is refused with 400 `invalid_value` rather than answered with zero rows. Localized display names for storefronts, keyed by locale: a flat {locale: label} map, one level deep, string values. WHICH key to write is not free — GET /markets/{id}/context returns `locale_policy`, whose `write` is the key this tenant keys by (a full locale under regional granularity, a bare language under language granularity) and whose `read` is the order to try. Null means nothing is translated and `name` is all there is.", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "Exact match on `currency`. Base currency this market quotes in — ISO 4217, and schema.json's own default is 'EUR'. This is the single currency prices are STATED in; the currencies collection under the market is the wider set it accepts. A base currency missing from that collection is a blocking readiness failure.", type: "string", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Exact match on `status`. Default 'active'. Only an active market serves a storefront; 'inactive' keeps the market and all its configuration but takes it out of service. Readiness reports an active market that cannot trade as `serving: true, ready: false` — live and broken.", type: "string", required: false, enum: ["active","inactive"] },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Exact match on `is_default`. The tenant default market — what a call naming no market falls back to. Exactly one market holds it; move it with POST /markets/{id}/make-default rather than by writing this flag, which does not demote the market that currently holds it.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Exact match on `is_default`. The tenant default market — what a call naming no market falls back to. Exactly one market holds it, and it is moved only with POST /markets/{id}/make-default: a create may set it only while the tenant has none, and an update cannot change it.", type: "boolean", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Sort position among the tenant's markets, ascending, default 0. Presentation only — it decides the order the Cockpit and a market picker list them in, and nothing resolves a market by it.", type: "integer", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the market row was inserted. Set by the database; never writable.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the market row was last written. Set by the database on every update; never writable.", type: "string", required: false },
@@ -46,14 +46,14 @@ markets
   .command(`list`)
   .description(`Every column is an exact-match filter and they combine with AND (?code=northwind); each one is declared as a query parameter above. A \`?column=value\` this entity does not have is DROPPED rather than refused — the call answers 200 with the unfiltered list — and \`filter\` echoes what was actually applied, which is the only way to tell that apart from a filter that matched nothing.`)
   .option(`--id <id>`, `Exact match on \`id\`. Primary key. Note that OTHER apps do not store this: the market scope dimension is keyed on \`code\` (manifest \`provides_scopes.slug_source = markets.code\`), so a row elsewhere that is "in this market" carries the code, not this uuid. It is the item routes and /context that want this value.`)
-  .option(`--code <code>`, `Exact match on \`code\`. Market code, unique per tenant, and the single most load-bearing string in this app: it IS the market scope slug. The Entity Scoping Engine publishes it as the \`market\` dimension (\`scope_context.market\` in the JWT), and every other commerce app — products, prices, orders, customers — stores THIS value to say which market a row belongs to. Renaming it re-keys that scope for everyone, so treat it as permanent. Accepted in place of the uuid on /readiness, /clone, /backfill and /make-default — but not on the item routes or /context, which take a uuid only.`)
+  .option(`--code <code>`, `Exact match on \`code\`. Market code, unique per tenant, and the single most load-bearing string in this app: it IS the market scope slug. The Entity Scoping Engine publishes it as the \`market\` dimension (\`scope_context.market\` in the JWT), and every other commerce app — products, prices, orders, customers — stores THIS value to say which market a row belongs to. Renaming it would re-key that scope for everyone, so it is fixed once the market exists (an update that changes it is a 409). Accepted in place of the uuid on /readiness, /clone, /backfill and /make-default — but not on the item routes or /context, which take a uuid only.`)
   .option(`--name <name>`, `Exact match on \`name\`. Display name, in the operator's own language. Cockpit copy only — nothing resolves a market by it.`)
   .option(`--labels <labels>`, `Exact match on \`labels\`. Exact whole-document equality on the jsonb: the value is a whole JSON document and has to match every key, so this is not a path or a containment query. Key order and whitespace are irrelevant — the comparison is semantic. A value that does not parse as JSON is refused with 400 \`invalid_value\` rather than answered with zero rows. Localized display names for storefronts, keyed by locale: a flat {locale: label} map, one level deep, string values. WHICH key to write is not free — GET /markets/{id}/context returns \`locale_policy\`, whose \`write\` is the key this tenant keys by (a full locale under regional granularity, a bare language under language granularity) and whose \`read\` is the order to try. Null means nothing is translated and \`name\` is all there is.`)
   .option(`--currency <currency>`, `Exact match on \`currency\`. Base currency this market quotes in — ISO 4217, and schema.json's own default is 'EUR'. This is the single currency prices are STATED in; the currencies collection under the market is the wider set it accepts. A base currency missing from that collection is a blocking readiness failure.`)
   .option(`--status <status>`, `Exact match on \`status\`. Default 'active'. Only an active market serves a storefront; 'inactive' keeps the market and all its configuration but takes it out of service. Readiness reports an active market that cannot trade as \`serving: true, ready: false\` — live and broken.`)
   .option(
     `--is-default [value]`,
-    `Exact match on \`is_default\`. The tenant default market — what a call naming no market falls back to. Exactly one market holds it; move it with POST /markets/{id}/make-default rather than by writing this flag, which does not demote the market that currently holds it.`,
+    `Exact match on \`is_default\`. The tenant default market — what a call naming no market falls back to. Exactly one market holds it, and it is moved only with POST /markets/{id}/make-default: a create may set it only while the tenant has none, and an update cannot change it.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -141,10 +141,10 @@ markets
   );
 registerPromptSpecs(markets.commands.at(-1)!, listSpecs, { method: "get" });
 const createSpecs: PromptSpec[] = [
-  { key: "code", option: "--code <code>", name: "code", description: "Market code, unique per tenant, and the single most load-bearing string in this app: it IS the market scope slug. The Entity Scoping Engine publishes it as the `market` dimension (`scope_context.market` in the JWT), and every other commerce app — products, prices, orders, customers — stores THIS value to say which market a row belongs to. Renaming it re-keys that scope for everyone, so treat it as permanent. Accepted in place of the uuid on /readiness, /clone, /backfill and /make-default — but not on the item routes or /context, which take a uuid only.", type: "string", required: true },
+  { key: "code", option: "--code <code>", name: "code", description: "Market code — the market scope slug every other app stores. Lowercase letters, digits and underscores, starting with a letter, at most 63 characters (400 `invalid_market_code`). Fixed once the market exists: an update that changes it is refused with 409 `code_immutable`; the same value sent back is accepted and ignored.", type: "string", required: true },
   { key: "name", option: "--name <name>", name: "name", description: "Display name, in the operator's own language. Cockpit copy only — nothing resolves a market by it.", type: "string", required: true },
-  { key: "currency", option: "--currency <currency>", name: "currency", description: "Base currency this market quotes in — ISO 4217, and schema.json's own default is 'EUR'. This is the single currency prices are STATED in; the currencies collection under the market is the wider set it accepts. A base currency missing from that collection is a blocking readiness failure.", type: "string", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The tenant default market — what a call naming no market falls back to. Exactly one market holds it; move it with POST /markets/{id}/make-default rather than by writing this flag, which does not demote the market that currently holds it.", type: "boolean", required: false },
+  { key: "currency", option: "--currency <currency>", name: "currency", description: "Base currency, upper-case ISO 4217 (400 `invalid_currency` otherwise — it is not uppercased for you). Defaults to EUR.", type: "string", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The tenant default flag. On a create, `true` is accepted only while the tenant has no default market (409 `default_exists` otherwise). On an update it cannot change — move it with POST /markets/{id}/make-default (400 `default_via_make_default`); the current value sent back is accepted and ignored.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized display names for storefronts, keyed by locale: a flat {locale: label} map, one level deep, string values. WHICH key to write is not free — GET /markets/{id}/context returns `locale_policy`, whose `write` is the key this tenant keys by (a full locale under regional granularity, a bare language under language granularity) and whose `read` is the order to try. Null means nothing is translated and `name` is all there is.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among the tenant's markets, ascending, default 0. Presentation only — it decides the order the Cockpit and a market picker list them in, and nothing resolves a market by it.", type: "integer", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Default 'active'. Only an active market serves a storefront; 'inactive' keeps the market and all its configuration but takes it out of service. Readiness reports an active market that cannot trade as `serving: true, ready: false` — live and broken.", type: "string", required: false, enum: ["active","inactive"] },
@@ -152,12 +152,12 @@ const createSpecs: PromptSpec[] = [
 markets
   .command(`create`)
   .description(`A market needs a 'code' and a 'name' — currency defaults to EUR, status to active. To get a market that can actually trade, clone an existing one instead: POST /markets/{id}/clone.`)
-  .option(`--code <code>`, `Market code, unique per tenant, and the single most load-bearing string in this app: it IS the market scope slug. The Entity Scoping Engine publishes it as the \`market\` dimension (\`scope_context.market\` in the JWT), and every other commerce app — products, prices, orders, customers — stores THIS value to say which market a row belongs to. Renaming it re-keys that scope for everyone, so treat it as permanent. Accepted in place of the uuid on /readiness, /clone, /backfill and /make-default — but not on the item routes or /context, which take a uuid only.`)
+  .option(`--code <code>`, `Market code — the market scope slug every other app stores. Lowercase letters, digits and underscores, starting with a letter, at most 63 characters (400 \`invalid_market_code\`). Fixed once the market exists: an update that changes it is refused with 409 \`code_immutable\`; the same value sent back is accepted and ignored.`)
   .option(`--name <name>`, `Display name, in the operator's own language. Cockpit copy only — nothing resolves a market by it.`)
-  .option(`--currency <currency>`, `Base currency this market quotes in — ISO 4217, and schema.json's own default is 'EUR'. This is the single currency prices are STATED in; the currencies collection under the market is the wider set it accepts. A base currency missing from that collection is a blocking readiness failure.`)
+  .option(`--currency <currency>`, `Base currency, upper-case ISO 4217 (400 \`invalid_currency\` otherwise — it is not uppercased for you). Defaults to EUR.`)
   .option(
     `--is-default [value]`,
-    `The tenant default market — what a call naming no market falls back to. Exactly one market holds it; move it with POST /markets/{id}/make-default rather than by writing this flag, which does not demote the market that currently holds it.`,
+    `The tenant default flag. On a create, \`true\` is accepted only while the tenant has no default market (409 \`default_exists\` otherwise). On an update it cannot change — move it with POST /markets/{id}/make-default (400 \`default_via_make_default\`); the current value sent back is accepted and ignored.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -298,7 +298,7 @@ const deleteSpecs: PromptSpec[] = [
 ];
 markets
   .command(`delete`)
-  .description(`Deleting a market takes its locales, currencies and tax classes with it: all three carry an ON DELETE CASCADE onto markets.id, so this is never refused for having children.`)
+  .description(`Deleting a market takes its locales, currencies and tax classes with it: all three carry an ON DELETE CASCADE onto markets.id, so this is never refused for having children. The tenant's default market is not deleted (409 \`default_market\`) — move the flag first.`)
   .option(`--id <id>`, `The market, by its primary key. A uuid — this route does not resolve a market code, so a segment that will not cast is a 400 before any row is read.`)
   .action(
     actionRunner(
@@ -360,9 +360,9 @@ markets
 registerPromptSpecs(markets.commands.at(-1)!, getSpecs, { method: "get" });
 const updateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The market, by its primary key. A uuid — this route does not resolve a market code, so a segment that will not cast is a 400 before any row is read.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
-  { key: "code", option: "--code <code>", name: "code", description: "Market code, unique per tenant, and the single most load-bearing string in this app: it IS the market scope slug. The Entity Scoping Engine publishes it as the `market` dimension (`scope_context.market` in the JWT), and every other commerce app — products, prices, orders, customers — stores THIS value to say which market a row belongs to. Renaming it re-keys that scope for everyone, so treat it as permanent. Accepted in place of the uuid on /readiness, /clone, /backfill and /make-default — but not on the item routes or /context, which take a uuid only.", type: "string", required: false },
-  { key: "currency", option: "--currency <currency>", name: "currency", description: "Base currency this market quotes in — ISO 4217, and schema.json's own default is 'EUR'. This is the single currency prices are STATED in; the currencies collection under the market is the wider set it accepts. A base currency missing from that collection is a blocking readiness failure.", type: "string", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The tenant default market — what a call naming no market falls back to. Exactly one market holds it; move it with POST /markets/{id}/make-default rather than by writing this flag, which does not demote the market that currently holds it.", type: "boolean", required: false },
+  { key: "code", option: "--code <code>", name: "code", description: "Market code — the market scope slug every other app stores. Lowercase letters, digits and underscores, starting with a letter, at most 63 characters (400 `invalid_market_code`). Fixed once the market exists: an update that changes it is refused with 409 `code_immutable`; the same value sent back is accepted and ignored.", type: "string", required: false },
+  { key: "currency", option: "--currency <currency>", name: "currency", description: "Base currency, upper-case ISO 4217 (400 `invalid_currency` otherwise — it is not uppercased for you). Defaults to EUR.", type: "string", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The tenant default flag. On a create, `true` is accepted only while the tenant has no default market (409 `default_exists` otherwise). On an update it cannot change — move it with POST /markets/{id}/make-default (400 `default_via_make_default`); the current value sent back is accepted and ignored.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized display names for storefronts, keyed by locale: a flat {locale: label} map, one level deep, string values. WHICH key to write is not free — GET /markets/{id}/context returns `locale_policy`, whose `write` is the key this tenant keys by (a full locale under regional granularity, a bare language under language granularity) and whose `read` is the order to try. Null means nothing is translated and `name` is all there is.", type: "object", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Display name, in the operator's own language. Cockpit copy only — nothing resolves a market by it.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among the tenant's markets, ascending, default 0. Presentation only — it decides the order the Cockpit and a market picker list them in, and nothing resolves a market by it.", type: "integer", required: false },
@@ -372,11 +372,11 @@ markets
   .command(`update`)
   .description(`Partial: omitted fields keep their value.`)
   .option(`--id <id>`, `The market, by its primary key. A uuid — this route does not resolve a market code, so a segment that will not cast is a 400 before any row is read.`)
-  .option(`--code <code>`, `Market code, unique per tenant, and the single most load-bearing string in this app: it IS the market scope slug. The Entity Scoping Engine publishes it as the \`market\` dimension (\`scope_context.market\` in the JWT), and every other commerce app — products, prices, orders, customers — stores THIS value to say which market a row belongs to. Renaming it re-keys that scope for everyone, so treat it as permanent. Accepted in place of the uuid on /readiness, /clone, /backfill and /make-default — but not on the item routes or /context, which take a uuid only.`)
-  .option(`--currency <currency>`, `Base currency this market quotes in — ISO 4217, and schema.json's own default is 'EUR'. This is the single currency prices are STATED in; the currencies collection under the market is the wider set it accepts. A base currency missing from that collection is a blocking readiness failure.`)
+  .option(`--code <code>`, `Market code — the market scope slug every other app stores. Lowercase letters, digits and underscores, starting with a letter, at most 63 characters (400 \`invalid_market_code\`). Fixed once the market exists: an update that changes it is refused with 409 \`code_immutable\`; the same value sent back is accepted and ignored.`)
+  .option(`--currency <currency>`, `Base currency, upper-case ISO 4217 (400 \`invalid_currency\` otherwise — it is not uppercased for you). Defaults to EUR.`)
   .option(
     `--is-default [value]`,
-    `The tenant default market — what a call naming no market falls back to. Exactly one market holds it; move it with POST /markets/{id}/make-default rather than by writing this flag, which does not demote the market that currently holds it.`,
+    `The tenant default flag. On a create, \`true\` is accepted only while the tenant has no default market (409 \`default_exists\` otherwise). On an update it cannot change — move it with POST /markets/{id}/make-default (400 \`default_via_make_default\`); the current value sent back is accepted and ignored.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -513,11 +513,11 @@ markets
 registerPromptSpecs(markets.commands.at(-1)!, backfillSpecs, { method: "post" });
 const cloneSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The SOURCE market to copy — a uuid or a market code.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
-  { key: "code", option: "--code <code>", name: "code", description: "Code of the NEW market (unique per tenant).", type: "string", required: true },
+  { key: "code", option: "--code <code>", name: "code", description: "Code of the NEW market (unique per tenant). Lowercase letters, digits and underscores, starting with a letter, at most 63 characters (400 `invalid_market_code`).", type: "string", required: true },
   { key: "copyCurrencies", option: "--copy-currencies <copy-currencies>", name: "copy_currencies", description: "Copy the source's traded currencies. Default true. The new market's own base currency is registered and marked default either way.", type: "boolean", required: false },
   { key: "copyLocales", option: "--copy-locales <copy-locales>", name: "copy_locales", description: "Copy the source's locales. Default true. False leaves the new market with no language of its own, so the tenant fallback_locale is seeded instead — it is never left with none.", type: "boolean", required: false },
   { key: "copyTaxClasses", option: "--copy-tax-classes <copy-tax-classes>", name: "copy_tax_classes", description: "Copy the source's tax classes, rates and all. Default true. False leaves the market unable to tax anything, which readiness reports as blocking.", type: "boolean", required: false },
-  { key: "currency", option: "--currency <currency>", name: "currency", description: "Base currency of the new market (ISO 4217). Defaults to the source market's, and is registered and marked default on the new one either way.", type: "string", required: false },
+  { key: "currency", option: "--currency <currency>", name: "currency", description: "Base currency of the new market, upper-case ISO 4217 (400 `invalid_currency` — it is not uppercased for you). Defaults to the source market's, and is registered and marked default on the new one either way.", type: "string", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Display name of the new market. Defaults to its code.", type: "string", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Status of the new market. Defaults to 'active'; clone it 'inactive' to build it out before it serves anyone.", type: "string", required: false, enum: ["active","inactive"] },
 ];
@@ -525,7 +525,7 @@ markets
   .command(`clone`)
   .description(`Creates a NEW market out of an existing one, taking its locales, its traded currencies and its tax classes with it in a single call. That is the difference between this and POST /markets: a plain create leaves a row that cannot serve anybody, while what comes back here is a market with a language to render in, a currency to price in and a rate to tax with. The path id is the SOURCE market, resolved by uuid OR by market code.`)
   .option(`--id <id>`, `The SOURCE market to copy — a uuid or a market code.`)
-  .option(`--code <code>`, `Code of the NEW market (unique per tenant).`)
+  .option(`--code <code>`, `Code of the NEW market (unique per tenant). Lowercase letters, digits and underscores, starting with a letter, at most 63 characters (400 \`invalid_market_code\`).`)
   .option(
     `--copy-currencies [value]`,
     `Copy the source's traded currencies. Default true. The new market's own base currency is registered and marked default either way.`,
@@ -544,7 +544,7 @@ markets
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
-  .option(`--currency <currency>`, `Base currency of the new market (ISO 4217). Defaults to the source market's, and is registered and marked default on the new one either way.`)
+  .option(`--currency <currency>`, `Base currency of the new market, upper-case ISO 4217 (400 \`invalid_currency\` — it is not uppercased for you). Defaults to the source market's, and is registered and marked default on the new one either way.`)
   .option(`--name <name>`, `Display name of the new market. Defaults to its code.`)
   .option(`--status <status>`, `Status of the new market. Defaults to 'active'; clone it 'inactive' to build it out before it serves anyone.`)
   .action(
@@ -710,12 +710,13 @@ const currenciesListSpecs: PromptSpec[] = [
   { key: "marketId", option: "--market-id <market-id>", name: "market_id", description: "The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
   { key: "id", option: "--id <id>", name: "id", description: "Exact match on `id`. Primary key of this currency registration. The currency is named by `code` everywhere else.", type: "string", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "Exact match on `code`. ISO 4217 code, unique per market — one entry in the set of currencies this market TRADES in, as opposed to the single base currency on the market row that its prices are quoted in. The base currency must appear here or the market cannot serve; clone and backfill register it for you.", type: "string", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Exact match on `is_default`. The currency offered first to a buyer who states no preference. At most one per market, and it should be the market's base currency — readiness reports it as a warning when it is not.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Exact match on `is_default`. The currency offered first to a buyer who states no preference. At most one per market — a write flagging one takes it from the others — and it should be the market's base currency — readiness reports it as a warning when it is not.", type: "boolean", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Sort position among this market's currencies, ascending, default 0 — the order a currency switcher lists them in.", type: "integer", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the currency was registered on this market. Set by the database; never writable.", type: "string", required: false },
+  { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the currency registration was last written. Set by the database on every update; never writable. A currency is changed in place — its default flag and its position move — so this is the column that says when that last happened.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). Out of range is CLAMPED, not refused — ?limit=999 answers 200 with 200 rows, and `page.limit` says so.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). A negative offset is clamped to 0 rather than refused.", type: "integer", required: false },
-  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, is_default, position, created_at.", type: "string", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, is_default, position, created_at, updated_at.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 markets
@@ -726,15 +727,16 @@ markets
   .option(`--code <code>`, `Exact match on \`code\`. ISO 4217 code, unique per market — one entry in the set of currencies this market TRADES in, as opposed to the single base currency on the market row that its prices are quoted in. The base currency must appear here or the market cannot serve; clone and backfill register it for you.`)
   .option(
     `--is-default [value]`,
-    `Exact match on \`is_default\`. The currency offered first to a buyer who states no preference. At most one per market, and it should be the market's base currency — readiness reports it as a warning when it is not.`,
+    `Exact match on \`is_default\`. The currency offered first to a buyer who states no preference. At most one per market — a write flagging one takes it from the others — and it should be the market's base currency — readiness reports it as a warning when it is not.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .option(`--position <position>`, `Exact match on \`position\`. Sort position among this market's currencies, ascending, default 0 — the order a currency switcher lists them in.`, parseInteger)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the currency was registered on this market. Set by the database; never writable.`)
+  .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the currency registration was last written. Set by the database on every update; never writable. A currency is changed in place — its default flag and its position move — so this is the column that says when that last happened.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200). Out of range is CLAMPED, not refused — ?limit=999 answers 200 with 200 rows, and \`page.limit\` says so.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). A negative offset is clamped to 0 rather than refused.`, parseInteger)
-  .option(`--order <order>`, `Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, is_default, position, created_at.`)
+  .option(`--order <order>`, `Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, is_default, position, created_at, updated_at.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -744,7 +746,7 @@ markets
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { marketId, id, code, isDefault, position, createdAt, limit, offset, order, filter } = await promptForMissing(
+        const { marketId, id, code, isDefault, position, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           currenciesListSpecs,
           _command,
@@ -766,6 +768,9 @@ markets
         }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
+        }
+        if (updatedAt !== undefined) {
+          _payload[`updated_at`] = updatedAt;
         }
         if (limit !== undefined) {
           _payload[`limit`] = limit;
@@ -799,18 +804,18 @@ markets
 registerPromptSpecs(markets.commands.at(-1)!, currenciesListSpecs, { method: "get" });
 const currenciesCreateSpecs: PromptSpec[] = [
   { key: "marketId", option: "--market-id <market-id>", name: "market_id", description: "The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
-  { key: "code", option: "--code <code>", name: "code", description: "ISO 4217 code, unique per market — one entry in the set of currencies this market TRADES in, as opposed to the single base currency on the market row that its prices are quoted in. The base currency must appear here or the market cannot serve; clone and backfill register it for you.", type: "string", required: true },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The currency offered first to a buyer who states no preference. At most one per market, and it should be the market's base currency — readiness reports it as a warning when it is not.", type: "boolean", required: false },
+  { key: "code", option: "--code <code>", name: "code", description: "Upper-case ISO 4217 code (400 `invalid_currency` otherwise — it is not uppercased for you). Unique per market.", type: "string", required: true },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this currency as the market's default. The flag MOVES: every other currency of the market loses it in the same call.", type: "boolean", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among this market's currencies, ascending, default 0 — the order a currency switcher lists them in.", type: "integer", required: false },
 ];
 markets
   .command(`currencies-create`)
   .description(`The owning market comes from the path and overrides anything in the body.`)
   .option(`--market-id <market-id>`, `The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.`)
-  .option(`--code <code>`, `ISO 4217 code, unique per market — one entry in the set of currencies this market TRADES in, as opposed to the single base currency on the market row that its prices are quoted in. The base currency must appear here or the market cannot serve; clone and backfill register it for you.`)
+  .option(`--code <code>`, `Upper-case ISO 4217 code (400 \`invalid_currency\` otherwise — it is not uppercased for you). Unique per market.`)
   .option(
     `--is-default [value]`,
-    `The currency offered first to a buyer who states no preference. At most one per market, and it should be the market's base currency — readiness reports it as a warning when it is not.`,
+    `Flag this currency as the market's default. The flag MOVES: every other currency of the market loses it in the same call.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -928,8 +933,8 @@ registerPromptSpecs(markets.commands.at(-1)!, currenciesGetSpecs, { method: "get
 const currenciesUpdateSpecs: PromptSpec[] = [
   { key: "marketId", option: "--market-id <market-id>", name: "market_id", description: "The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
   { key: "id", option: "--id <id>", name: "id", description: "The currency of a market, by its primary key. A uuid — this route does not resolve a code, so a segment that will not cast is a 400 before any row is read.", type: "string", required: true, resource: { listPath: "/markets/{market_id}/currencies", hasLimit: true } },
-  { key: "code", option: "--code <code>", name: "code", description: "ISO 4217 code, unique per market — one entry in the set of currencies this market TRADES in, as opposed to the single base currency on the market row that its prices are quoted in. The base currency must appear here or the market cannot serve; clone and backfill register it for you.", type: "string", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The currency offered first to a buyer who states no preference. At most one per market, and it should be the market's base currency — readiness reports it as a warning when it is not.", type: "boolean", required: false },
+  { key: "code", option: "--code <code>", name: "code", description: "Upper-case ISO 4217 code (400 `invalid_currency` otherwise — it is not uppercased for you). Unique per market.", type: "string", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this currency as the market's default. The flag MOVES: every other currency of the market loses it in the same call.", type: "boolean", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among this market's currencies, ascending, default 0 — the order a currency switcher lists them in.", type: "integer", required: false },
 ];
 markets
@@ -937,10 +942,10 @@ markets
   .description(`Partial: omitted fields keep their value.`)
   .option(`--market-id <market-id>`, `The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.`)
   .option(`--id <id>`, `The currency of a market, by its primary key. A uuid — this route does not resolve a code, so a segment that will not cast is a 400 before any row is read.`)
-  .option(`--code <code>`, `ISO 4217 code, unique per market — one entry in the set of currencies this market TRADES in, as opposed to the single base currency on the market row that its prices are quoted in. The base currency must appear here or the market cannot serve; clone and backfill register it for you.`)
+  .option(`--code <code>`, `Upper-case ISO 4217 code (400 \`invalid_currency\` otherwise — it is not uppercased for you). Unique per market.`)
   .option(
     `--is-default [value]`,
-    `The currency offered first to a buyer who states no preference. At most one per market, and it should be the market's base currency — readiness reports it as a warning when it is not.`,
+    `Flag this currency as the market's default. The flag MOVES: every other currency of the market loses it in the same call.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -992,12 +997,13 @@ const localesListSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "Exact match on `code`. Locale code, language-COUNTRY — the language a storefront renders this market in, and the key a translation is stored under. Unique per market. The app's own seeded value is the tenant's `fallback_locale` setting, whose declared default is de-DE.", type: "string", required: false },
   { key: "language", option: "--language <language>", name: "language", description: "Exact match on `language`. ISO 639-1 language code — the language half of `code`, stored separately so a client can group markets by language without parsing.", type: "string", required: false },
   { key: "country", option: "--country <country>", name: "country", description: "Exact match on `country`. ISO 3166-1 alpha-2 country code — the region half of `code`. It is a spelling of the language, not a shipping destination: a market may register de-AT without trading in Austria.", type: "string", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Exact match on `is_default`. The locale a storefront renders this market in when the request asks for none. At most one per market; where none carries the flag the first by position is used, and `default_locale.source` on the context says which of the two happened.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Exact match on `is_default`. The locale a storefront renders this market in when the request asks for none. At most one per market — a write flagging one takes it from the others; where none carries the flag the first by position is used, and `default_locale.source` on the context says which of the two happened.", type: "boolean", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Sort position among this market's locales, ascending, default 0 — and the tie-break that picks a default when no locale is flagged.", type: "integer", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the locale was registered on this market. Set by the database; never writable.", type: "string", required: false },
+  { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the locale registration was last written. Set by the database on every update; never writable. A locale is changed in place — its default flag and its position move — so this is the column that says when that last happened.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). Out of range is CLAMPED, not refused — ?limit=999 answers 200 with 200 rows, and `page.limit` says so.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). A negative offset is clamped to 0 rather than refused.", type: "integer", required: false },
-  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, language, country, is_default, position, created_at.", type: "string", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, language, country, is_default, position, created_at, updated_at.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 markets
@@ -1010,15 +1016,16 @@ markets
   .option(`--country <country>`, `Exact match on \`country\`. ISO 3166-1 alpha-2 country code — the region half of \`code\`. It is a spelling of the language, not a shipping destination: a market may register de-AT without trading in Austria.`)
   .option(
     `--is-default [value]`,
-    `Exact match on \`is_default\`. The locale a storefront renders this market in when the request asks for none. At most one per market; where none carries the flag the first by position is used, and \`default_locale.source\` on the context says which of the two happened.`,
+    `Exact match on \`is_default\`. The locale a storefront renders this market in when the request asks for none. At most one per market — a write flagging one takes it from the others; where none carries the flag the first by position is used, and \`default_locale.source\` on the context says which of the two happened.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .option(`--position <position>`, `Exact match on \`position\`. Sort position among this market's locales, ascending, default 0 — and the tie-break that picks a default when no locale is flagged.`, parseInteger)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the locale was registered on this market. Set by the database; never writable.`)
+  .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the locale registration was last written. Set by the database on every update; never writable. A locale is changed in place — its default flag and its position move — so this is the column that says when that last happened.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200). Out of range is CLAMPED, not refused — ?limit=999 answers 200 with 200 rows, and \`page.limit\` says so.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). A negative offset is clamped to 0 rather than refused.`, parseInteger)
-  .option(`--order <order>`, `Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, language, country, is_default, position, created_at.`)
+  .option(`--order <order>`, `Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, language, country, is_default, position, created_at, updated_at.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -1028,7 +1035,7 @@ markets
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { marketId, id, code, language, country, isDefault, position, createdAt, limit, offset, order, filter } = await promptForMissing(
+        const { marketId, id, code, language, country, isDefault, position, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           localesListSpecs,
           _command,
@@ -1056,6 +1063,9 @@ markets
         }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
+        }
+        if (updatedAt !== undefined) {
+          _payload[`updated_at`] = updatedAt;
         }
         if (limit !== undefined) {
           _payload[`limit`] = limit;
@@ -1089,30 +1099,30 @@ markets
 registerPromptSpecs(markets.commands.at(-1)!, localesListSpecs, { method: "get" });
 const localesCreateSpecs: PromptSpec[] = [
   { key: "marketId", option: "--market-id <market-id>", name: "market_id", description: "The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
-  { key: "code", option: "--code <code>", name: "code", description: "Locale code, language-COUNTRY — the language a storefront renders this market in, and the key a translation is stored under. Unique per market. The app's own seeded value is the tenant's `fallback_locale` setting, whose declared default is de-DE.", type: "string", required: true },
-  { key: "country", option: "--country <country>", name: "country", description: "ISO 3166-1 alpha-2 country code — the region half of `code`. It is a spelling of the language, not a shipping destination: a market may register de-AT without trading in Austria.", type: "string", required: true },
-  { key: "language", option: "--language <language>", name: "language", description: "ISO 639-1 language code — the language half of `code`, stored separately so a client can group markets by language without parsing.", type: "string", required: true },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The locale a storefront renders this market in when the request asks for none. At most one per market; where none carries the flag the first by position is used, and `default_locale.source` on the context says which of the two happened.", type: "boolean", required: false },
+  { key: "code", option: "--code <code>", name: "code", description: "Locale code, language-COUNTRY: ISO 639-1 lower case, a hyphen, ISO 3166-1 upper case — `de-DE` (400 `invalid_locale_code`). Unique per market.", type: "string", required: true },
+  { key: "country", option: "--country <country>", name: "country", description: "The country half of `code`. Omit it and it is derived from the code; state it and it must agree (400 `locale_code_mismatch`).", type: "string", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this locale as the market's default. The flag MOVES: every other locale of the market loses it in the same call.", type: "boolean", required: false },
+  { key: "language", option: "--language <language>", name: "language", description: "The language half of `code`. Omit it and it is derived from the code; state it and it must agree (400 `locale_code_mismatch`).", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among this market's locales, ascending, default 0 — and the tie-break that picks a default when no locale is flagged.", type: "integer", required: false },
 ];
 markets
   .command(`locales-create`)
   .description(`The owning market comes from the path and overrides anything in the body.`)
   .option(`--market-id <market-id>`, `The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.`)
-  .option(`--code <code>`, `Locale code, language-COUNTRY — the language a storefront renders this market in, and the key a translation is stored under. Unique per market. The app's own seeded value is the tenant's \`fallback_locale\` setting, whose declared default is de-DE.`)
-  .option(`--country <country>`, `ISO 3166-1 alpha-2 country code — the region half of \`code\`. It is a spelling of the language, not a shipping destination: a market may register de-AT without trading in Austria.`)
-  .option(`--language <language>`, `ISO 639-1 language code — the language half of \`code\`, stored separately so a client can group markets by language without parsing.`)
+  .option(`--code <code>`, `Locale code, language-COUNTRY: ISO 639-1 lower case, a hyphen, ISO 3166-1 upper case — \`de-DE\` (400 \`invalid_locale_code\`). Unique per market.`)
+  .option(`--country <country>`, `The country half of \`code\`. Omit it and it is derived from the code; state it and it must agree (400 \`locale_code_mismatch\`).`)
   .option(
     `--is-default [value]`,
-    `The locale a storefront renders this market in when the request asks for none. At most one per market; where none carries the flag the first by position is used, and \`default_locale.source\` on the context says which of the two happened.`,
+    `Flag this locale as the market's default. The flag MOVES: every other locale of the market loses it in the same call.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--language <language>`, `The language half of \`code\`. Omit it and it is derived from the code; state it and it must agree (400 \`locale_code_mismatch\`).`)
   .option(`--position <position>`, `Sort position among this market's locales, ascending, default 0 — and the tie-break that picks a default when no locale is flagged.`, parseInteger)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { marketId, code, country, language, isDefault, position } = await promptForMissing(
+        const { marketId, code, country, isDefault, language, position } = await promptForMissing(
           _options,
           localesCreateSpecs,
           _command,
@@ -1228,10 +1238,10 @@ registerPromptSpecs(markets.commands.at(-1)!, localesGetSpecs, { method: "get" }
 const localesUpdateSpecs: PromptSpec[] = [
   { key: "marketId", option: "--market-id <market-id>", name: "market_id", description: "The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
   { key: "id", option: "--id <id>", name: "id", description: "The locale of a market, by its primary key. A uuid — this route does not resolve a code, so a segment that will not cast is a 400 before any row is read.", type: "string", required: true, resource: { listPath: "/markets/{market_id}/locales", hasLimit: true } },
-  { key: "code", option: "--code <code>", name: "code", description: "Locale code, language-COUNTRY — the language a storefront renders this market in, and the key a translation is stored under. Unique per market. The app's own seeded value is the tenant's `fallback_locale` setting, whose declared default is de-DE.", type: "string", required: false },
-  { key: "country", option: "--country <country>", name: "country", description: "ISO 3166-1 alpha-2 country code — the region half of `code`. It is a spelling of the language, not a shipping destination: a market may register de-AT without trading in Austria.", type: "string", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The locale a storefront renders this market in when the request asks for none. At most one per market; where none carries the flag the first by position is used, and `default_locale.source` on the context says which of the two happened.", type: "boolean", required: false },
-  { key: "language", option: "--language <language>", name: "language", description: "ISO 639-1 language code — the language half of `code`, stored separately so a client can group markets by language without parsing.", type: "string", required: false },
+  { key: "code", option: "--code <code>", name: "code", description: "Locale code, language-COUNTRY: ISO 639-1 lower case, a hyphen, ISO 3166-1 upper case — `de-DE` (400 `invalid_locale_code`). Unique per market.", type: "string", required: false },
+  { key: "country", option: "--country <country>", name: "country", description: "The country half of `code`. Omit it and it is derived from the code; state it and it must agree (400 `locale_code_mismatch`).", type: "string", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this locale as the market's default. The flag MOVES: every other locale of the market loses it in the same call.", type: "boolean", required: false },
+  { key: "language", option: "--language <language>", name: "language", description: "The language half of `code`. Omit it and it is derived from the code; state it and it must agree (400 `locale_code_mismatch`).", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among this market's locales, ascending, default 0 — and the tie-break that picks a default when no locale is flagged.", type: "integer", required: false },
 ];
 markets
@@ -1239,15 +1249,15 @@ markets
   .description(`Partial: omitted fields keep their value.`)
   .option(`--market-id <market-id>`, `The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.`)
   .option(`--id <id>`, `The locale of a market, by its primary key. A uuid — this route does not resolve a code, so a segment that will not cast is a 400 before any row is read.`)
-  .option(`--code <code>`, `Locale code, language-COUNTRY — the language a storefront renders this market in, and the key a translation is stored under. Unique per market. The app's own seeded value is the tenant's \`fallback_locale\` setting, whose declared default is de-DE.`)
-  .option(`--country <country>`, `ISO 3166-1 alpha-2 country code — the region half of \`code\`. It is a spelling of the language, not a shipping destination: a market may register de-AT without trading in Austria.`)
+  .option(`--code <code>`, `Locale code, language-COUNTRY: ISO 639-1 lower case, a hyphen, ISO 3166-1 upper case — \`de-DE\` (400 \`invalid_locale_code\`). Unique per market.`)
+  .option(`--country <country>`, `The country half of \`code\`. Omit it and it is derived from the code; state it and it must agree (400 \`locale_code_mismatch\`).`)
   .option(
     `--is-default [value]`,
-    `The locale a storefront renders this market in when the request asks for none. At most one per market; where none carries the flag the first by position is used, and \`default_locale.source\` on the context says which of the two happened.`,
+    `Flag this locale as the market's default. The flag MOVES: every other locale of the market loses it in the same call.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
-  .option(`--language <language>`, `ISO 639-1 language code — the language half of \`code\`, stored separately so a client can group markets by language without parsing.`)
+  .option(`--language <language>`, `The language half of \`code\`. Omit it and it is derived from the code; state it and it must agree (400 \`locale_code_mismatch\`).`)
   .option(`--position <position>`, `Sort position among this market's locales, ascending, default 0 — and the tie-break that picks a default when no locale is flagged.`, parseInteger)
   .action(
     actionRunner(
@@ -1303,7 +1313,7 @@ const taxClassesListSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "Exact match on `name`. Display name of the rate bucket, in the operator's own language.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. Exact whole-document equality on the jsonb: the value is a whole JSON document and has to match every key, so this is not a path or a containment query. Key order and whitespace are irrelevant — the comparison is semantic. A value that does not parse as JSON is refused with 400 `invalid_value` rather than answered with zero rows. Localized display names for storefronts and invoices, keyed by locale: a flat {locale: label} map, one level deep, string values. The key to write is the `locale_policy.write` from GET /markets/{id}/context, exactly as for a market's labels. Null means nothing is translated and `name` is all there is.", type: "string", required: false },
   { key: "rate", option: "--rate <rate>", name: "rate", description: "Exact match on `rate`. Tax rate in PERCENT, 0–100 (default 0) — 20 means 20 %, not 0.2. Whether a stored price already contains it is a separate question, answered per market by `pricing.tax_basis` on the context.", type: "number", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Exact match on `is_default`. The class applied to a line that names none. At most one per market. A market that stores GROSS prices and marks no default cannot break those prices back down into net, which is why readiness turns that combination from a warning into a blocking failure.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Exact match on `is_default`. The class applied to a line that names none. At most one per market — a write flagging one takes it from the others. A market that stores GROSS prices and marks no default cannot break those prices back down into net, which is why readiness turns that combination from a warning into a blocking failure.", type: "boolean", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Sort position among this market's tax classes, ascending, default 0 — and the tie-break that picks a class when none is flagged default.", type: "integer", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the tax class was created on this market. Set by the database; never writable.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the tax class was last written. Set by the database on every update; never writable.", type: "string", required: false },
@@ -1323,7 +1333,7 @@ markets
   .option(`--rate <rate>`, `Exact match on \`rate\`. Tax rate in PERCENT, 0–100 (default 0) — 20 means 20 %, not 0.2. Whether a stored price already contains it is a separate question, answered per market by \`pricing.tax_basis\` on the context.`, parseInteger)
   .option(
     `--is-default [value]`,
-    `Exact match on \`is_default\`. The class applied to a line that names none. At most one per market. A market that stores GROSS prices and marks no default cannot break those prices back down into net, which is why readiness turns that combination from a warning into a blocking failure.`,
+    `Exact match on \`is_default\`. The class applied to a line that names none. At most one per market — a write flagging one takes it from the others. A market that stores GROSS prices and marks no default cannot break those prices back down into net, which is why readiness turns that combination from a warning into a blocking failure.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -1411,7 +1421,7 @@ const taxClassesCreateSpecs: PromptSpec[] = [
   { key: "marketId", option: "--market-id <market-id>", name: "market_id", description: "The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
   { key: "code", option: "--code <code>", name: "code", description: "Tax class code, unique per market — the rate bucket a product or a shipping method is assigned to ('standard', 'reduced', 'zero'). Other apps name a class by THIS and by nothing else: there is no foreign key behind it and there cannot be (ADR-0055), which is why the delete route asks the shipping app what still points at the code before removing it.", type: "string", required: true },
   { key: "name", option: "--name <name>", name: "name", description: "Display name of the rate bucket, in the operator's own language.", type: "string", required: true },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The class applied to a line that names none. At most one per market. A market that stores GROSS prices and marks no default cannot break those prices back down into net, which is why readiness turns that combination from a warning into a blocking failure.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this class as the market's default. The flag MOVES: every other tax class of the market loses it in the same call.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized display names for storefronts and invoices, keyed by locale: a flat {locale: label} map, one level deep, string values. The key to write is the `locale_policy.write` from GET /markets/{id}/context, exactly as for a market's labels. Null means nothing is translated and `name` is all there is.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among this market's tax classes, ascending, default 0 — and the tie-break that picks a class when none is flagged default.", type: "integer", required: false },
   { key: "rate", option: "--rate <rate>", name: "rate", description: "Tax rate in PERCENT, 0–100 (default 0) — 20 means 20 %, not 0.2. Whether a stored price already contains it is a separate question, answered per market by `pricing.tax_basis` on the context.", type: "number", required: false },
@@ -1424,7 +1434,7 @@ markets
   .option(`--name <name>`, `Display name of the rate bucket, in the operator's own language.`)
   .option(
     `--is-default [value]`,
-    `The class applied to a line that names none. At most one per market. A market that stores GROSS prices and marks no default cannot break those prices back down into net, which is why readiness turns that combination from a warning into a blocking failure.`,
+    `Flag this class as the market's default. The flag MOVES: every other tax class of the market loses it in the same call.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -1554,7 +1564,7 @@ const taxClassesUpdateSpecs: PromptSpec[] = [
   { key: "marketId", option: "--market-id <market-id>", name: "market_id", description: "The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
   { key: "id", option: "--id <id>", name: "id", description: "The tax class of a market, by its primary key. A uuid — this route does not resolve a code, so a segment that will not cast is a 400 before any row is read.", type: "string", required: true, resource: { listPath: "/markets/{market_id}/tax_classes", hasLimit: true } },
   { key: "code", option: "--code <code>", name: "code", description: "Tax class code, unique per market — the rate bucket a product or a shipping method is assigned to ('standard', 'reduced', 'zero'). Other apps name a class by THIS and by nothing else: there is no foreign key behind it and there cannot be (ADR-0055), which is why the delete route asks the shipping app what still points at the code before removing it.", type: "string", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The class applied to a line that names none. At most one per market. A market that stores GROSS prices and marks no default cannot break those prices back down into net, which is why readiness turns that combination from a warning into a blocking failure.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this class as the market's default. The flag MOVES: every other tax class of the market loses it in the same call.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized display names for storefronts and invoices, keyed by locale: a flat {locale: label} map, one level deep, string values. The key to write is the `locale_policy.write` from GET /markets/{id}/context, exactly as for a market's labels. Null means nothing is translated and `name` is all there is.", type: "object", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Display name of the rate bucket, in the operator's own language.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among this market's tax classes, ascending, default 0 — and the tie-break that picks a class when none is flagged default.", type: "integer", required: false },
@@ -1568,7 +1578,7 @@ markets
   .option(`--code <code>`, `Tax class code, unique per market — the rate bucket a product or a shipping method is assigned to ('standard', 'reduced', 'zero'). Other apps name a class by THIS and by nothing else: there is no foreign key behind it and there cannot be (ADR-0055), which is why the delete route asks the shipping app what still points at the code before removing it.`)
   .option(
     `--is-default [value]`,
-    `The class applied to a line that names none. At most one per market. A market that stores GROSS prices and marks no default cannot break those prices back down into net, which is why readiness turns that combination from a warning into a blocking failure.`,
+    `Flag this class as the market's default. The flag MOVES: every other tax class of the market loses it in the same call.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )

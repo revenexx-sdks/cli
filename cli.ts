@@ -39,6 +39,10 @@ import { carts } from './lib/commands/services/carts.js';
 import { cartsIo } from './lib/commands/services/carts-io.js';
 import { cartsItems } from './lib/commands/services/carts-items.js';
 import { channels } from './lib/commands/services/channels.js';
+import { consentManagerPolicy } from './lib/commands/services/consent-manager-policy.js';
+import { consentManagerRegistry } from './lib/commands/services/consent-manager-registry.js';
+import { consentManagerDelivery } from './lib/commands/services/consent-manager-delivery.js';
+import { consentManagerRecords } from './lib/commands/services/consent-manager-records.js';
 import { costCenters } from './lib/commands/services/cost-centers.js';
 import { customersValueLists } from './lib/commands/services/customers-value-lists.js';
 import { customersOrganizations } from './lib/commands/services/customers-organizations.js';
@@ -46,6 +50,8 @@ import { customers } from './lib/commands/services/customers.js';
 import { customersContacts } from './lib/commands/services/customers-contacts.js';
 import { customersRoles } from './lib/commands/services/customers-roles.js';
 import { customersSegments } from './lib/commands/services/customers-segments.js';
+import { documentsRegister } from './lib/commands/services/documents-register.js';
+import { documentsKinds } from './lib/commands/services/documents-kinds.js';
 import { events } from './lib/commands/services/events.js';
 import { forms } from './lib/commands/services/forms.js';
 import { inventoriesStock } from './lib/commands/services/inventories-stock.js';
@@ -81,6 +87,9 @@ import { quotesRanges } from './lib/commands/services/quotes-ranges.js';
 import { quotesQuotes } from './lib/commands/services/quotes-quotes.js';
 import { quotesAcceptance } from './lib/commands/services/quotes-acceptance.js';
 import { quotesTrail } from './lib/commands/services/quotes-trail.js';
+import { salesRepsCoverage } from './lib/commands/services/sales-reps-coverage.js';
+import { salesRepsActingFor } from './lib/commands/services/sales-reps-acting-for.js';
+import { salesRepsRoster } from './lib/commands/services/sales-reps-roster.js';
 import { search } from './lib/commands/services/search.js';
 import { settings } from './lib/commands/services/settings.js';
 import { shippingCarriers } from './lib/commands/services/shipping-carriers.js';
@@ -88,6 +97,9 @@ import { shippingMethods } from './lib/commands/services/shipping-methods.js';
 import { shippingValueLists } from './lib/commands/services/shipping-value-lists.js';
 import { sites } from './lib/commands/services/sites.js';
 import { storage } from './lib/commands/services/storage.js';
+import { tagManagerContainer } from './lib/commands/services/tag-manager-container.js';
+import { tagManagerDelivery } from './lib/commands/services/tag-manager-delivery.js';
+import { tagManagerTags } from './lib/commands/services/tag-manager-tags.js';
 import { about } from './lib/commands/about.js';
 import { create } from "./lib/commands/create.js";
 import { deploy } from "./lib/commands/deploy.js";
@@ -283,6 +295,10 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(cartsIo)
         .addCommand(cartsItems)
         .addCommand(channels)
+        .addCommand(consentManagerPolicy)
+        .addCommand(consentManagerRegistry)
+        .addCommand(consentManagerDelivery)
+        .addCommand(consentManagerRecords)
         .addCommand(costCenters)
         .addCommand(customersValueLists)
         .addCommand(customersOrganizations)
@@ -290,6 +306,8 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(customersContacts)
         .addCommand(customersRoles)
         .addCommand(customersSegments)
+        .addCommand(documentsRegister)
+        .addCommand(documentsKinds)
         .addCommand(events)
         .addCommand(forms)
         .addCommand(inventoriesStock)
@@ -325,6 +343,9 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(quotesQuotes)
         .addCommand(quotesAcceptance)
         .addCommand(quotesTrail)
+        .addCommand(salesRepsCoverage)
+        .addCommand(salesRepsActingFor)
+        .addCommand(salesRepsRoster)
         .addCommand(search)
         .addCommand(settings)
         .addCommand(shippingCarriers)
@@ -332,6 +353,9 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(shippingValueLists)
         .addCommand(sites)
         .addCommand(storage)
+        .addCommand(tagManagerContainer)
+        .addCommand(tagManagerDelivery)
+        .addCommand(tagManagerTags)
         .addCommand(about)
         .addCommand(create)
         .addCommand(deploy)

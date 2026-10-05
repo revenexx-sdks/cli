@@ -40,11 +40,14 @@ const listsListSpecs: PromptSpec[] = [
   { key: "requiresAuth", option: "--requires-auth <requires-auth>", name: "requires_auth", description: "Filter to the lists that resolve only for an authenticated buyer — what an anonymous storefront will never see.", type: "boolean", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Filter to the lists scoped to one contact — the most specific buyer scope there is.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Filter to the lists scoped to one organization.", type: "string", required: false },
+  { key: "segmentCode", option: "--segment-code <segment-code>", name: "segment_code", description: "Filter to the lists scoped to one buyer segment — the graduated price book a whole group of organizations is on. Exact match on the segment’s own code; a list scoped to no segment is never answered by it.", type: "string", required: false },
   { key: "channelId", option: "--channel-id <channel-id>", name: "channel_id", description: "Filter to the lists scoped to one sales channel.", type: "string", required: false },
   { key: "validFrom", option: "--valid-from <valid-from>", name: "valid_from", description: "Exact equality on the start of the list’s validity window — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by `order` plus `limit`.", type: "string", required: false },
   { key: "validUntil", option: "--valid-until <valid-until>", name: "valid_until", description: "Exact equality on the end of the list’s validity window — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by `order` plus `limit`.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact equality on the creation instant — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by `order` plus `limit`.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact equality on the last change — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by `order` plus `limit`.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Filter by the key the system that OWNS the price list knows it by — how an import finds the row it wrote last run. Exact match; a price list maintained here carries none and is never answered by it.", type: "string", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Filter to the price lists last confirmed against their source at exactly this instant. A filter is an equality, so bounding a period means sorting with `order` and paging.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -85,11 +88,14 @@ Market is deliberately not among them: a list is scoped to a market by an assign
   )
   .option(`--contact-id <contact-id>`, `Filter to the lists scoped to one contact — the most specific buyer scope there is.`)
   .option(`--organization-id <organization-id>`, `Filter to the lists scoped to one organization.`)
+  .option(`--segment-code <segment-code>`, `Filter to the lists scoped to one buyer segment — the graduated price book a whole group of organizations is on. Exact match on the segment’s own code; a list scoped to no segment is never answered by it.`)
   .option(`--channel-id <channel-id>`, `Filter to the lists scoped to one sales channel.`)
   .option(`--valid-from <valid-from>`, `Exact equality on the start of the list’s validity window — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by \`order\` plus \`limit\`.`)
   .option(`--valid-until <valid-until>`, `Exact equality on the end of the list’s validity window — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by \`order\` plus \`limit\`.`)
   .option(`--created-at <created-at>`, `Exact equality on the creation instant — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by \`order\` plus \`limit\`.`)
   .option(`--updated-at <updated-at>`, `Exact equality on the last change — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by \`order\` plus \`limit\`.`)
+  .option(`--external-id <external-id>`, `Filter by the key the system that OWNS the price list knows it by — how an import finds the row it wrote last run. Exact match; a price list maintained here carries none and is never answered by it.`)
+  .option(`--source-synced-at <source-synced-at>`, `Filter to the price lists last confirmed against their source at exactly this instant. A filter is an equality, so bounding a period means sorting with \`order\` and paging.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -102,7 +108,7 @@ Market is deliberately not among them: a list is scoped to a market by an assign
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, name, description, currency, status, priority, isDefault, taxBasis, taxIncluded, requiresAuth, contactId, organizationId, channelId, validFrom, validUntil, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { id, code, name, description, currency, status, priority, isDefault, taxBasis, taxIncluded, requiresAuth, contactId, organizationId, segmentCode, channelId, validFrom, validUntil, createdAt, updatedAt, externalId, sourceSyncedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           listsListSpecs,
           _command,
@@ -149,6 +155,9 @@ Market is deliberately not among them: a list is scoped to a market by an assign
         if (organizationId !== undefined) {
           _payload[`organization_id`] = organizationId;
         }
+        if (segmentCode !== undefined) {
+          _payload[`segment_code`] = segmentCode;
+        }
         if (channelId !== undefined) {
           _payload[`channel_id`] = channelId;
         }
@@ -163,6 +172,12 @@ Market is deliberately not among them: a list is scoped to a market by an assign
         }
         if (updatedAt !== undefined) {
           _payload[`updated_at`] = updatedAt;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (limit !== undefined) {
           _payload[`limit`] = limit;
@@ -197,16 +212,17 @@ registerPromptSpecs(prices.commands.at(-1)!, listsListSpecs, { method: "get" });
 const listsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "Unique list code per tenant — the handle every import and integration addresses this list by. A code already in use answers 409.", type: "string", required: true },
   { key: "name", option: "--name <name>", name: "name", description: "Operator-facing name, shown wherever a human picks a list.", type: "string", required: true },
-  { key: "channelId", option: "--channel-id <channel-id>", name: "channel_id", description: "Scope: only this sales channel. Beats the open lists, loses to contact and organization.", type: "string", required: false },
+  { key: "channelId", option: "--channel-id <channel-id>", name: "channel_id", description: "Scope: only this sales channel. Beats the open lists, loses to contact, organization and segment.", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Scope: only this contact. The most specific scope there is — it beats organization, channel and every open list, whatever their priority.", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code (default EUR) — the currency of EVERY amount in this list, since entries carry none of their own. Resolution only considers lists matching the currency of the call; nothing is ever converted.", type: "string", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "Free text for whoever maintains the list — why it exists and who it is for. Never shown to a buyer.", type: "string", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The fallback list. Within its group it sorts LAST, so it wins only where nothing more specific priced the item. Use prices.lists.make-default to move the flag rather than setting it here — two defaults leave a tie to row order.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The fallback list. Within its group it sorts LAST, so it wins only where nothing more specific priced the item. Taken on a create only while no list carries the flag (409 default_exists otherwise); a change may restate it but never move it (400 default_via_make_default). prices.lists.make-default moves it.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localised names, keyed by language tag — {\"de\": \"Händlerpreise\", \"en\": \"Dealer prices\"}. Omit to show `name` everywhere.", type: "object", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form bag: whatever JSON object you write round-trips exactly, and this app never reads it. Its keys are yours — ERP provenance is the usual content.", type: "object", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Scope: only buyers of this organization. Beats channel-scoped and open lists.", type: "string", required: false },
   { key: "priority", option: "--priority <priority>", name: "priority", description: "Tie-break WITHIN a specificity group (higher wins, default 0). It never beats scope: an organization list at 0 still wins over an open list at 100.", type: "integer", required: false },
   { key: "requiresAuth", option: "--requires-auth <requires-auth>", name: "requires_auth", description: "Gate: when true the list resolves only for an authenticated buyer (contact or organization context); anonymous resolve calls get on_request. Default false (open to everyone).", type: "boolean", required: false },
+  { key: "segmentCode", option: "--segment-code <segment-code>", name: "segment_code", description: "Scope: every buyer in this buyer segment — a GROUP of organizations, which is how a graduated price book is expressed without one list per organization. The segment’s own code, matched exactly against the segment_codes a resolve call states. Ranks between organization and channel.", type: "string", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Default 'active' — only active lists resolve. 'inactive' retires a list without deleting its prices.", type: "string", required: false, enum: ["active","inactive"] },
   { key: "taxBasis", option: "--tax-basis <tax-basis>", name: "tax_basis", description: "Whether the amounts in this list are net (tax excluded) or gross (tax included) — the one fact a price cannot be without. Omit (null) to inherit the tenant's tax_inclusive_default setting; the resolve answer names which of the two decided under tax_basis_source.", type: "string", required: false, enum: ["net","gross"] },
   { key: "taxIncluded", option: "--tax-included <tax-included>", name: "tax_included", description: "LEGACY mirror of tax_basis. false is the column default and is NOT read as a statement of intent; true is read as gross, and only where tax_basis is null. Prefer tax_basis.", type: "boolean", required: false },
@@ -221,18 +237,18 @@ prices
 
 Everything else has a default, and two of them are worth choosing rather than accepting. \`currency\` defaults to EUR and is the currency of every amount in the list, since entries carry none; a resolve call only considers lists in the currency it is asked about, and nothing is ever converted. \`tax_basis\` defaults to NOTHING, which means the amounts inherit the tenant's \`tax_inclusive_default\` — state net or gross here and the answer stops depending on a tenant setting somebody may change later.
 
-\`is_default: true\` here does NOT demote the list that currently holds the flag: you end up with two defaults, and which of them prices an item is left to the tenant's tie-break. Create the list, then move the flag with \`POST /prices/lists/{list_id}/make-default\`.
+\`is_default: true\` is taken only while no list of the tenant carries the flag — the first list, the seed. Once a default exists the create is refused with 409 \`default_exists\`: create the list without the flag, then move it with \`POST /prices/lists/{list_id}/make-default\`, which demotes the incumbent in the same call. That is what keeps the flag on exactly one list.
 
 A new list prices nothing at all until it has entries, so it is inert until you add them — which makes it safe to create one ahead of the prices that will fill it.`)
   .option(`--code <code>`, `Unique list code per tenant — the handle every import and integration addresses this list by. A code already in use answers 409.`)
   .option(`--name <name>`, `Operator-facing name, shown wherever a human picks a list.`)
-  .option(`--channel-id <channel-id>`, `Scope: only this sales channel. Beats the open lists, loses to contact and organization.`)
+  .option(`--channel-id <channel-id>`, `Scope: only this sales channel. Beats the open lists, loses to contact, organization and segment.`)
   .option(`--contact-id <contact-id>`, `Scope: only this contact. The most specific scope there is — it beats organization, channel and every open list, whatever their priority.`)
   .option(`--currency <currency>`, `ISO 4217 code (default EUR) — the currency of EVERY amount in this list, since entries carry none of their own. Resolution only considers lists matching the currency of the call; nothing is ever converted.`)
   .option(`--description <description>`, `Free text for whoever maintains the list — why it exists and who it is for. Never shown to a buyer.`)
   .option(
     `--is-default [value]`,
-    `The fallback list. Within its group it sorts LAST, so it wins only where nothing more specific priced the item. Use prices.lists.make-default to move the flag rather than setting it here — two defaults leave a tie to row order.`,
+    `The fallback list. Within its group it sorts LAST, so it wins only where nothing more specific priced the item. Taken on a create only while no list carries the flag (409 default_exists otherwise); a change may restate it but never move it (400 default_via_make_default). prices.lists.make-default moves it.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -246,6 +262,7 @@ A new list prices nothing at all until it has entries, so it is inert until you 
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--segment-code <segment-code>`, `Scope: every buyer in this buyer segment — a GROUP of organizations, which is how a graduated price book is expressed without one list per organization. The segment’s own code, matched exactly against the segment_codes a resolve call states. Ranks between organization and channel.`)
   .option(`--status <status>`, `Default 'active' — only active lists resolve. 'inactive' retires a list without deleting its prices.`)
   .option(`--tax-basis <tax-basis>`, `Whether the amounts in this list are net (tax excluded) or gross (tax included) — the one fact a price cannot be without. Omit (null) to inherit the tenant's tax_inclusive_default setting; the resolve answer names which of the two decided under tax_basis_source.`)
   .option(
@@ -259,7 +276,7 @@ A new list prices nothing at all until it has entries, so it is inert until you 
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, name, channelId, contactId, currency, description, isDefault, labels, metadata, organizationId, priority, requiresAuth, status, taxBasis, taxIncluded, validFrom, validUntil } = await promptForMissing(
+        const { code, name, channelId, contactId, currency, description, isDefault, labels, metadata, organizationId, priority, requiresAuth, segmentCode, status, taxBasis, taxIncluded, validFrom, validUntil } = await promptForMissing(
           _options,
           listsCreateSpecs,
           _command,
@@ -309,6 +326,9 @@ A new list prices nothing at all until it has entries, so it is inert until you 
         }
         if (requiresAuth !== undefined) {
           _payload[`requires_auth`] = requiresAuth;
+        }
+        if (segmentCode !== undefined) {
+          _payload[`segment_code`] = segmentCode;
         }
         if (status !== undefined) {
           _payload[`status`] = status;
@@ -372,7 +392,7 @@ prices
   .command(`lists-delete`)
   .description(`Deletes the list AND every price in it. \`price_entries.price_list_id\` references this row ON DELETE CASCADE, so the entries go in the same statement: nothing asks, nothing blocks, a book of 40 000 prices deletes exactly as fast as an empty one, and the answer is a bare \`{deleted, id}\` that never says how many prices went with it.
 
-What that means while a storefront is quoting: from the next resolve call the items this list priced fall through to the next candidate list, and where there is none the answer is \`on_request\` — "price on request" for something that had a price a second ago, never €0. If the deleted list held the default flag the tenant has no default until one is moved onto another list; re-running \`POST /prices/lists/defaults\` recreates the standard list only while no other default exists.
+What that means while a storefront is quoting: from the next resolve call the items this list priced fall through to the next candidate list, and where there is none the answer is \`on_request\` — "price on request" for something that had a price a second ago, never €0. The default list itself is never deleted: move the flag with \`POST /prices/lists/{list_id}/make-default\` first, otherwise the delete answers 409 \`default_price_list\`.
 
 This is not the way to take a list out of circulation. \`status: "inactive"\` does that immediately and reversibly and keeps the prices; deleting is for a list whose contents you are prepared to import again, because nothing here is recoverable.`)
   .option(`--id <id>`, `The price list, by id.`)
@@ -436,18 +456,19 @@ prices
 registerPromptSpecs(prices.commands.at(-1)!, listsGetSpecs, { method: "get" });
 const listsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The price list, by id.", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
-  { key: "channelId", option: "--channel-id <channel-id>", name: "channel_id", description: "Scope: only this sales channel. Beats the open lists, loses to contact and organization.", type: "string", required: false },
+  { key: "channelId", option: "--channel-id <channel-id>", name: "channel_id", description: "Scope: only this sales channel. Beats the open lists, loses to contact, organization and segment.", type: "string", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "Unique list code per tenant — the handle every import and integration addresses this list by. A code already in use answers 409.", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Scope: only this contact. The most specific scope there is — it beats organization, channel and every open list, whatever their priority.", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code (default EUR) — the currency of EVERY amount in this list, since entries carry none of their own. Resolution only considers lists matching the currency of the call; nothing is ever converted.", type: "string", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "Free text for whoever maintains the list — why it exists and who it is for. Never shown to a buyer.", type: "string", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The fallback list. Within its group it sorts LAST, so it wins only where nothing more specific priced the item. Use prices.lists.make-default to move the flag rather than setting it here — two defaults leave a tie to row order.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The fallback list. Within its group it sorts LAST, so it wins only where nothing more specific priced the item. Taken on a create only while no list carries the flag (409 default_exists otherwise); a change may restate it but never move it (400 default_via_make_default). prices.lists.make-default moves it.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localised names, keyed by language tag — {\"de\": \"Händlerpreise\", \"en\": \"Dealer prices\"}. Omit to show `name` everywhere.", type: "object", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form bag: whatever JSON object you write round-trips exactly, and this app never reads it. Its keys are yours — ERP provenance is the usual content.", type: "object", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Operator-facing name, shown wherever a human picks a list.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Scope: only buyers of this organization. Beats channel-scoped and open lists.", type: "string", required: false },
   { key: "priority", option: "--priority <priority>", name: "priority", description: "Tie-break WITHIN a specificity group (higher wins, default 0). It never beats scope: an organization list at 0 still wins over an open list at 100.", type: "integer", required: false },
   { key: "requiresAuth", option: "--requires-auth <requires-auth>", name: "requires_auth", description: "Gate: when true the list resolves only for an authenticated buyer (contact or organization context); anonymous resolve calls get on_request. Default false (open to everyone).", type: "boolean", required: false },
+  { key: "segmentCode", option: "--segment-code <segment-code>", name: "segment_code", description: "Scope: every buyer in this buyer segment — a GROUP of organizations, which is how a graduated price book is expressed without one list per organization. The segment’s own code, matched exactly against the segment_codes a resolve call states. Ranks between organization and channel.", type: "string", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Default 'active' — only active lists resolve. 'inactive' retires a list without deleting its prices.", type: "string", required: false, enum: ["active","inactive"] },
   { key: "taxBasis", option: "--tax-basis <tax-basis>", name: "tax_basis", description: "Whether the amounts in this list are net (tax excluded) or gross (tax included) — the one fact a price cannot be without. Omit (null) to inherit the tenant's tax_inclusive_default setting; the resolve answer names which of the two decided under tax_basis_source.", type: "string", required: false, enum: ["net","gross"] },
   { key: "taxIncluded", option: "--tax-included <tax-included>", name: "tax_included", description: "LEGACY mirror of tax_basis. false is the column default and is NOT read as a statement of intent; true is read as gross, and only where tax_basis is null. Prefer tax_basis.", type: "boolean", required: false },
@@ -460,16 +481,16 @@ prices
 
 Three edits do more than their field names suggest. \`currency\` re-denominates without converting: entries carry no currency of their own, so 19.90 EUR becomes 19.90 CHF and the whole book is re-priced by one edit. \`status: "inactive"\` takes the list out of every quote immediately while keeping its prices — the reversible way to stop selling on a list, and the one to reach for instead of deleting it. \`code\` is the handle imports and integrations address the list by, and a code another list already holds is a 409.
 
-\`is_default\` behaves here exactly as it does on create: setting it true leaves the incumbent default in place, so use \`POST /prices/lists/{list_id}/make-default\`, which demotes in the same call.`)
+\`is_default\` may be restated as it stands, never changed: a change that sets or clears it is refused with 400 \`default_via_make_default\`. \`POST /prices/lists/{list_id}/make-default\` moves the flag and demotes in the same call. On every write rule a change is checked only where a value changes, so a list stored before a rule existed can be saved back as it is.`)
   .option(`--id <id>`, `The price list, by id.`)
-  .option(`--channel-id <channel-id>`, `Scope: only this sales channel. Beats the open lists, loses to contact and organization.`)
+  .option(`--channel-id <channel-id>`, `Scope: only this sales channel. Beats the open lists, loses to contact, organization and segment.`)
   .option(`--code <code>`, `Unique list code per tenant — the handle every import and integration addresses this list by. A code already in use answers 409.`)
   .option(`--contact-id <contact-id>`, `Scope: only this contact. The most specific scope there is — it beats organization, channel and every open list, whatever their priority.`)
   .option(`--currency <currency>`, `ISO 4217 code (default EUR) — the currency of EVERY amount in this list, since entries carry none of their own. Resolution only considers lists matching the currency of the call; nothing is ever converted.`)
   .option(`--description <description>`, `Free text for whoever maintains the list — why it exists and who it is for. Never shown to a buyer.`)
   .option(
     `--is-default [value]`,
-    `The fallback list. Within its group it sorts LAST, so it wins only where nothing more specific priced the item. Use prices.lists.make-default to move the flag rather than setting it here — two defaults leave a tie to row order.`,
+    `The fallback list. Within its group it sorts LAST, so it wins only where nothing more specific priced the item. Taken on a create only while no list carries the flag (409 default_exists otherwise); a change may restate it but never move it (400 default_via_make_default). prices.lists.make-default moves it.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -484,6 +505,7 @@ Three edits do more than their field names suggest. \`currency\` re-denominates 
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--segment-code <segment-code>`, `Scope: every buyer in this buyer segment — a GROUP of organizations, which is how a graduated price book is expressed without one list per organization. The segment’s own code, matched exactly against the segment_codes a resolve call states. Ranks between organization and channel.`)
   .option(`--status <status>`, `Default 'active' — only active lists resolve. 'inactive' retires a list without deleting its prices.`)
   .option(`--tax-basis <tax-basis>`, `Whether the amounts in this list are net (tax excluded) or gross (tax included) — the one fact a price cannot be without. Omit (null) to inherit the tenant's tax_inclusive_default setting; the resolve answer names which of the two decided under tax_basis_source.`)
   .option(
@@ -497,7 +519,7 @@ Three edits do more than their field names suggest. \`currency\` re-denominates 
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, channelId, code, contactId, currency, description, isDefault, labels, metadata, name, organizationId, priority, requiresAuth, status, taxBasis, taxIncluded, validFrom, validUntil } = await promptForMissing(
+        const { id, channelId, code, contactId, currency, description, isDefault, labels, metadata, name, organizationId, priority, requiresAuth, segmentCode, status, taxBasis, taxIncluded, validFrom, validUntil } = await promptForMissing(
           _options,
           listsUpdateSpecs,
           _command,
@@ -548,6 +570,9 @@ Three edits do more than their field names suggest. \`currency\` re-denominates 
         if (requiresAuth !== undefined) {
           _payload[`requires_auth`] = requiresAuth;
         }
+        if (segmentCode !== undefined) {
+          _payload[`segment_code`] = segmentCode;
+        }
         if (status !== undefined) {
           _payload[`status`] = status;
         }
@@ -586,10 +611,16 @@ const entriesListSpecs: PromptSpec[] = [
   { key: "quantityMin", option: "--quantity-min <quantity-min>", name: "quantity_min", description: "Filter to one exact tier threshold — `?quantity_min=1` is the base rung of every ladder in the list.", type: "number", required: false },
   { key: "unitPrice", option: "--unit-price <unit-price>", name: "unit_price", description: "Filter to entries at one exact amount, in the list’s currency and on its tax basis. Equality, not a range — `?unit_price=0` finds the rows nobody has priced yet.", type: "number", required: false },
   { key: "unit", option: "--unit <unit>", name: "unit", description: "Filter by exact unit of measure.", type: "string", required: false },
+  { key: "priceQuantity", option: "--price-quantity <price-quantity>", name: "price_quantity", description: "Filter to the entries whose amount is the price of exactly this many units — `?price_quantity=100` is every line priced per hundred. Equality, not a range.", type: "number", required: false },
+  { key: "priceQuantityUnit", option: "--price-quantity-unit <price-quantity-unit>", name: "price_quantity_unit", description: "Filter by the exact unit the price quantity counts in. It is not the same column as `unit`: a line can be priced per 100 kg for an article sold by the piece.", type: "string", required: false },
+  { key: "discountPercent", option: "--discount-percent <discount-percent>", name: "discount_percent", description: "Filter to the entries carrying exactly this stated line discount. The column is never applied to a price, so this audits what a source sent, not what a buyer pays.", type: "number", required: false },
+  { key: "description", option: "--description <description>", name: "description", description: "Filter by the exact label the source gave the line. Exact match, not a search.", type: "string", required: false },
   { key: "validFrom", option: "--valid-from <valid-from>", name: "valid_from", description: "Exact equality on the start of the entry’s own validity — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by `order` plus `limit`.", type: "string", required: false },
   { key: "validUntil", option: "--valid-until <valid-until>", name: "valid_until", description: "Exact equality on the end of the entry’s own validity — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by `order` plus `limit`.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact equality on the creation instant — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by `order` plus `limit`.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact equality on the last change — a bulk adjust only writes the rows whose price actually moved — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by `order` plus `limit`.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Filter by the key the system that OWNS the price entry knows it by — how an import finds the row it wrote last run. Exact match; a price entry maintained here carries none and is never answered by it.", type: "string", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Filter to the price entrys last confirmed against their source at exactly this instant. A filter is an equality, so bounding a period means sorting with `order` and paging.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -608,10 +639,16 @@ The ladder of one item is the set of entries sharing an identity, so \`?product_
   .option(`--quantity-min <quantity-min>`, `Filter to one exact tier threshold — \`?quantity_min=1\` is the base rung of every ladder in the list.`, parseInteger)
   .option(`--unit-price <unit-price>`, `Filter to entries at one exact amount, in the list’s currency and on its tax basis. Equality, not a range — \`?unit_price=0\` finds the rows nobody has priced yet.`, parseInteger)
   .option(`--unit <unit>`, `Filter by exact unit of measure.`)
+  .option(`--price-quantity <price-quantity>`, `Filter to the entries whose amount is the price of exactly this many units — \`?price_quantity=100\` is every line priced per hundred. Equality, not a range.`, parseInteger)
+  .option(`--price-quantity-unit <price-quantity-unit>`, `Filter by the exact unit the price quantity counts in. It is not the same column as \`unit\`: a line can be priced per 100 kg for an article sold by the piece.`)
+  .option(`--discount-percent <discount-percent>`, `Filter to the entries carrying exactly this stated line discount. The column is never applied to a price, so this audits what a source sent, not what a buyer pays.`, parseInteger)
+  .option(`--description <description>`, `Filter by the exact label the source gave the line. Exact match, not a search.`)
   .option(`--valid-from <valid-from>`, `Exact equality on the start of the entry’s own validity — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by \`order\` plus \`limit\`.`)
   .option(`--valid-until <valid-until>`, `Exact equality on the end of the entry’s own validity — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by \`order\` plus \`limit\`.`)
   .option(`--created-at <created-at>`, `Exact equality on the creation instant — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by \`order\` plus \`limit\`.`)
   .option(`--updated-at <updated-at>`, `Exact equality on the last change — a bulk adjust only writes the rows whose price actually moved — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by \`order\` plus \`limit\`.`)
+  .option(`--external-id <external-id>`, `Filter by the key the system that OWNS the price entry knows it by — how an import finds the row it wrote last run. Exact match; a price entry maintained here carries none and is never answered by it.`)
+  .option(`--source-synced-at <source-synced-at>`, `Filter to the price entrys last confirmed against their source at exactly this instant. A filter is an equality, so bounding a period means sorting with \`order\` and paging.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -624,7 +661,7 @@ The ladder of one item is the set of entries sharing an identity, so \`?product_
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { listId, id, productId, sku, priceType, quantityMin, unitPrice, unit, validFrom, validUntil, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { listId, id, productId, sku, priceType, quantityMin, unitPrice, unit, priceQuantity, priceQuantityUnit, discountPercent, description, validFrom, validUntil, createdAt, updatedAt, externalId, sourceSyncedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           entriesListSpecs,
           _command,
@@ -653,6 +690,18 @@ The ladder of one item is the set of entries sharing an identity, so \`?product_
         if (unit !== undefined) {
           _payload[`unit`] = unit;
         }
+        if (priceQuantity !== undefined) {
+          _payload[`price_quantity`] = priceQuantity;
+        }
+        if (priceQuantityUnit !== undefined) {
+          _payload[`price_quantity_unit`] = priceQuantityUnit;
+        }
+        if (discountPercent !== undefined) {
+          _payload[`discount_percent`] = discountPercent;
+        }
+        if (description !== undefined) {
+          _payload[`description`] = description;
+        }
         if (validFrom !== undefined) {
           _payload[`valid_from`] = validFrom;
         }
@@ -664,6 +713,12 @@ The ladder of one item is the set of entries sharing an identity, so \`?product_
         }
         if (updatedAt !== undefined) {
           _payload[`updated_at`] = updatedAt;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (limit !== undefined) {
           _payload[`limit`] = limit;
@@ -697,7 +752,11 @@ The ladder of one item is the set of entries sharing an identity, so \`?product_
 registerPromptSpecs(prices.commands.at(-1)!, entriesListSpecs, { method: "get" });
 const entriesCreateSpecs: PromptSpec[] = [
   { key: "listId", option: "--list-id <list-id>", name: "list_id", description: "The price list the entries belong to. An id no list in this tenant has answers 404 rather than an empty page.", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
+  { key: "description", option: "--description <description>", name: "description", description: "The source’s own label for this price line — what a price book prints next to the amount. Free text, never read into a price, and not the LIST’s description.", type: "string", required: false },
+  { key: "discountPercent", option: "--discount-percent <discount-percent>", name: "discount_percent", description: "The line discount the SOURCE stated, kept so a document can show it. NEVER APPLIED: unit_price is the authoritative amount and resolution never computes with this field. Import it as it arrived and subtract nothing.", type: "number", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form bag: whatever JSON object you write round-trips exactly, and this app never reads it. Its keys are yours.", type: "object", required: false },
+  { key: "priceQuantity", option: "--price-quantity <price-quantity>", name: "price_quantity", description: "How many units unit_price is the price OF — 100 for a price per 100 m. Omit (null) for one, the ordinary case. Nothing divides by it: unit_price stays the number a resolve answer quotes.", type: "number", required: false },
+  { key: "priceQuantityUnit", option: "--price-quantity-unit <price-quantity-unit>", name: "price_quantity_unit", description: "The unit price_quantity counts in — NOT a duplicate of `unit`. A line can be priced per 100 kg for an article sold by the piece, and both come off the same source line.", type: "string", required: false },
   { key: "priceType", option: "--price-type <price-type>", name: "price_type", description: "Default 'standard'; 'on_request' is the explicit no-price marker — it STOPS resolution for this item on this list and answers \"price on request\" even where a cheaper list exists.", type: "string", required: false, enum: ["standard","on_request"] },
   { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The product this rung prices. An entry needs product_id or sku — the row CHECK enforces it.", type: "string", required: false },
   { key: "quantityMin", option: "--quantity-min <quantity-min>", name: "quantity_min", description: "Tier threshold (Staffelpreis): this price applies from this quantity upwards (default 1). The rungs of one item are the entries sharing its identity; the highest threshold at or below the requested quantity wins.", type: "number", required: false },
@@ -713,11 +772,15 @@ prices
 
 \`unit_price\` defaults to **0**. That is the one door through which a zero price enters an app whose whole doctrine is that a missing price is \`on_request\` and never €0: a create that forgets the amount publishes a free item, and the storefront shows 0.00 instead of "price on request". Send the amount, or send \`price_type: "on_request"\` where there genuinely is none. The amount is per ONE unit of \`unit\`, in the LIST's currency (entries carry none) and on the LIST's tax basis, as a decimal in major units — 19.90, never 1990.
 
-Nothing enforces one rung per (item, quantity): create the same \`quantity_min\` twice and both rows come back in the resolved \`tiers\`, with the last of them setting the price — an ambiguous ladder no error ever mentions. \`quantity_min\` defaults to 1 and \`price_type\` to \`standard\`.
+Nothing enforces one rung per (item, quantity) on this route: create the same \`quantity_min\` twice and both rows come back in the resolved \`tiers\`, with the last of them setting the price — an ambiguous ladder no error ever mentions (a replace or an import refuses such a payload as \`duplicate_tier\`). \`quantity_min\` defaults to 1 and \`price_type\` to \`standard\`.
 
 This route is for a rung at a time. A whole ladder in one call is \`POST …/entries/ladder\`, an import is \`POST …/entries/bulk\`, and a complete rewrite of the book is \`PUT …/entries\`. An unknown \`list_id\` answers 404 rather than attaching a price to nothing.`)
   .option(`--list-id <list-id>`, `The price list the entries belong to. An id no list in this tenant has answers 404 rather than an empty page.`)
+  .option(`--description <description>`, `The source’s own label for this price line — what a price book prints next to the amount. Free text, never read into a price, and not the LIST’s description.`)
+  .option(`--discount-percent <discount-percent>`, `The line discount the SOURCE stated, kept so a document can show it. NEVER APPLIED: unit_price is the authoritative amount and resolution never computes with this field. Import it as it arrived and subtract nothing.`, parseInteger)
   .option(`--metadata <metadata>`, `Free-form bag: whatever JSON object you write round-trips exactly, and this app never reads it. Its keys are yours.`)
+  .option(`--price-quantity <price-quantity>`, `How many units unit_price is the price OF — 100 for a price per 100 m. Omit (null) for one, the ordinary case. Nothing divides by it: unit_price stays the number a resolve answer quotes.`, parseInteger)
+  .option(`--price-quantity-unit <price-quantity-unit>`, `The unit price_quantity counts in — NOT a duplicate of \`unit\`. A line can be priced per 100 kg for an article sold by the piece, and both come off the same source line.`)
   .option(`--price-type <price-type>`, `Default 'standard'; 'on_request' is the explicit no-price marker — it STOPS resolution for this item on this list and answers "price on request" even where a cheaper list exists.`)
   .option(`--product-id <product-id>`, `The product this rung prices. An entry needs product_id or sku — the row CHECK enforces it.`)
   .option(`--quantity-min <quantity-min>`, `Tier threshold (Staffelpreis): this price applies from this quantity upwards (default 1). The rungs of one item are the entries sharing its identity; the highest threshold at or below the requested quantity wins.`, parseInteger)
@@ -729,7 +792,7 @@ This route is for a rung at a time. A whole ladder in one call is \`POST …/ent
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { listId, metadata, priceType, productId, quantityMin, sku, unit, unitPrice, validFrom, validUntil } = await promptForMissing(
+        const { listId, description, discountPercent, metadata, priceQuantity, priceQuantityUnit, priceType, productId, quantityMin, sku, unit, unitPrice, validFrom, validUntil } = await promptForMissing(
           _options,
           entriesCreateSpecs,
           _command,
@@ -744,8 +807,20 @@ This route is for a rung at a time. A whole ladder in one call is \`POST …/ent
           }
           Object.assign(_payload, body as RequestParams);
         }
+        if (description !== undefined) {
+          _payload[`description`] = description;
+        }
+        if (discountPercent !== undefined) {
+          _payload[`discount_percent`] = discountPercent;
+        }
         if (metadata !== undefined) {
           _payload[`metadata`] = resolveBodyParam(metadata);
+        }
+        if (priceQuantity !== undefined) {
+          _payload[`price_quantity`] = priceQuantity;
+        }
+        if (priceQuantityUnit !== undefined) {
+          _payload[`price_quantity_unit`] = priceQuantityUnit;
         }
         if (priceType !== undefined) {
           _payload[`price_type`] = priceType;
@@ -793,7 +868,7 @@ prices
   .command(`entries-replace`)
   .description(`Set semantics over the WHOLE list, not over one item: every entry of the list is deleted and the payload becomes the complete new book. It exists for the two callers that genuinely hold the whole book in hand — the Cockpit's table editor, whose save is this call, and a small import. \`entries: []\` is a legal payload and empties the list — the items it priced then resolve from the next candidate list, or come back \`on_request\`.
 
-Two consequences of "delete, then insert". Every row is inserted fresh, so all entry ids change and anything holding one is stale afterwards. And it is not a transaction: the deletes go out before the inserts, so a payload that fails part-way through leaves the list holding the rows that landed and none of the ones it had. What protects you is that the whole payload is normalized and validated BEFORE the first delete — a malformed row is a 400 with the list untouched.
+Two consequences of "insert, then delete". Every row is inserted fresh, so all entry ids change and anything holding one is stale afterwards. And it is not a transaction: the new rows go out in bulk first and the old ones are removed after, so a write the store refuses leaves the list as it was, and a failure between the two leaves both sets — repeat the call. The whole payload is normalized and validated BEFORE the first write — a malformed row is a 400 with the list untouched.
 
 For a book of any size, or for adding to one you want to keep, use \`POST …/entries/bulk\`: it upserts in chunks and never wipes.`)
   .option(`--list-id <list-id>`, `The price list the entries belong to. An id no list in this tenant has answers 404 rather than an empty page.`)
@@ -1115,7 +1190,11 @@ registerPromptSpecs(prices.commands.at(-1)!, entriesGetSpecs, { method: "get" })
 const entriesUpdateSpecs: PromptSpec[] = [
   { key: "listId", option: "--list-id <list-id>", name: "list_id", description: "The price list the entries belong to. An id no list in this tenant has answers 404 rather than an empty page.", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
   { key: "id", option: "--id <id>", name: "id", description: "The price entry, by id. An entry that belongs to a different list answers 404.", type: "string", required: true, resource: { listPath: "/prices/lists/{list_id}/entries", hasLimit: true } },
+  { key: "description", option: "--description <description>", name: "description", description: "The source’s own label for this price line — what a price book prints next to the amount. Free text, never read into a price, and not the LIST’s description.", type: "string", required: false },
+  { key: "discountPercent", option: "--discount-percent <discount-percent>", name: "discount_percent", description: "The line discount the SOURCE stated, kept so a document can show it. NEVER APPLIED: unit_price is the authoritative amount and resolution never computes with this field. Import it as it arrived and subtract nothing.", type: "number", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form bag: whatever JSON object you write round-trips exactly, and this app never reads it. Its keys are yours.", type: "object", required: false },
+  { key: "priceQuantity", option: "--price-quantity <price-quantity>", name: "price_quantity", description: "How many units unit_price is the price OF — 100 for a price per 100 m. Omit (null) for one, the ordinary case. Nothing divides by it: unit_price stays the number a resolve answer quotes.", type: "number", required: false },
+  { key: "priceQuantityUnit", option: "--price-quantity-unit <price-quantity-unit>", name: "price_quantity_unit", description: "The unit price_quantity counts in — NOT a duplicate of `unit`. A line can be priced per 100 kg for an article sold by the piece, and both come off the same source line.", type: "string", required: false },
   { key: "priceType", option: "--price-type <price-type>", name: "price_type", description: "Default 'standard'; 'on_request' is the explicit no-price marker — it STOPS resolution for this item on this list and answers \"price on request\" even where a cheaper list exists.", type: "string", required: false, enum: ["standard","on_request"] },
   { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The product this rung prices. An entry needs product_id or sku — the row CHECK enforces it.", type: "string", required: false },
   { key: "quantityMin", option: "--quantity-min <quantity-min>", name: "quantity_min", description: "Tier threshold (Staffelpreis): this price applies from this quantity upwards (default 1). The rungs of one item are the entries sharing its identity; the highest threshold at or below the requested quantity wins.", type: "number", required: false },
@@ -1134,7 +1213,11 @@ Two edits reach further than the field they touch. Moving \`quantity_min\` moves
 What this route cannot change is what the amount MEANS: currency and tax basis belong to the list, so re-denominating or switching net/gross is a list edit, not an entry edit. An entry of another list answers 404.`)
   .option(`--list-id <list-id>`, `The price list the entries belong to. An id no list in this tenant has answers 404 rather than an empty page.`)
   .option(`--id <id>`, `The price entry, by id. An entry that belongs to a different list answers 404.`)
+  .option(`--description <description>`, `The source’s own label for this price line — what a price book prints next to the amount. Free text, never read into a price, and not the LIST’s description.`)
+  .option(`--discount-percent <discount-percent>`, `The line discount the SOURCE stated, kept so a document can show it. NEVER APPLIED: unit_price is the authoritative amount and resolution never computes with this field. Import it as it arrived and subtract nothing.`, parseInteger)
   .option(`--metadata <metadata>`, `Free-form bag: whatever JSON object you write round-trips exactly, and this app never reads it. Its keys are yours.`)
+  .option(`--price-quantity <price-quantity>`, `How many units unit_price is the price OF — 100 for a price per 100 m. Omit (null) for one, the ordinary case. Nothing divides by it: unit_price stays the number a resolve answer quotes.`, parseInteger)
+  .option(`--price-quantity-unit <price-quantity-unit>`, `The unit price_quantity counts in — NOT a duplicate of \`unit\`. A line can be priced per 100 kg for an article sold by the piece, and both come off the same source line.`)
   .option(`--price-type <price-type>`, `Default 'standard'; 'on_request' is the explicit no-price marker — it STOPS resolution for this item on this list and answers "price on request" even where a cheaper list exists.`)
   .option(`--product-id <product-id>`, `The product this rung prices. An entry needs product_id or sku — the row CHECK enforces it.`)
   .option(`--quantity-min <quantity-min>`, `Tier threshold (Staffelpreis): this price applies from this quantity upwards (default 1). The rungs of one item are the entries sharing its identity; the highest threshold at or below the requested quantity wins.`, parseInteger)
@@ -1146,7 +1229,7 @@ What this route cannot change is what the amount MEANS: currency and tax basis b
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { listId, id, metadata, priceType, productId, quantityMin, sku, unit, unitPrice, validFrom, validUntil } = await promptForMissing(
+        const { listId, id, description, discountPercent, metadata, priceQuantity, priceQuantityUnit, priceType, productId, quantityMin, sku, unit, unitPrice, validFrom, validUntil } = await promptForMissing(
           _options,
           entriesUpdateSpecs,
           _command,
@@ -1161,8 +1244,20 @@ What this route cannot change is what the amount MEANS: currency and tax basis b
           }
           Object.assign(_payload, body as RequestParams);
         }
+        if (description !== undefined) {
+          _payload[`description`] = description;
+        }
+        if (discountPercent !== undefined) {
+          _payload[`discount_percent`] = discountPercent;
+        }
         if (metadata !== undefined) {
           _payload[`metadata`] = resolveBodyParam(metadata);
+        }
+        if (priceQuantity !== undefined) {
+          _payload[`price_quantity`] = priceQuantity;
+        }
+        if (priceQuantityUnit !== undefined) {
+          _payload[`price_quantity_unit`] = priceQuantityUnit;
         }
         if (priceType !== undefined) {
           _payload[`price_type`] = priceType;
@@ -1250,10 +1345,11 @@ const resolveSpecs: PromptSpec[] = [
   { key: "items", option: "--items [items...]", name: "items", description: "Items to price, at most 200 per call — a whole cart or a whole product listing in one round trip. The answer holds one entry per item, in this order.", type: "array", required: true },
   { key: "at", option: "--at <at>", name: "at", description: "The instant every validity window — list and entry — is evaluated at (ISO 8601). Default now. This is how a promo price is previewed before it starts, and it is echoed as `basis.evaluated_at`.", type: "string", required: false },
   { key: "channelId", option: "--channel-id <channel-id>", name: "channel_id", description: "Buyer context: the sales channel. Third scope — beats the open lists, loses to contact and organization.", type: "string", required: false },
-  { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Buyer context: the contact this quote is for. The most specific scope — a list naming this contact beats every other list, whatever their priority. Sending it (or organization_id) is also what makes the buyer AUTHENTICATED for `requires_auth` lists and for the tenant’s anonymous_resolve_allowed setting.", type: "string", required: false },
+  { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Buyer context: the contact this quote is for. The most specific scope — a list naming this contact beats every other list, whatever their priority. Sending it (or organization_id) is also what makes the buyer AUTHENTICATED for `requires_auth` lists and for the tenant’s anonymous_resolve_allowed setting. On a buyer's own call it is the acting contact, taken from the platform: the body may restate it, and naming another one is refused with 400 `buyer_mismatch`.", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code the quote is wanted in. ONLY lists in this currency are candidates and nothing is ever converted, so a wrong value here is not a rounding difference — it is no price at all. Omit to take the buyer market’s currency, then the tenant’s default_currency; `basis.currency_source` names which applied.", type: "string", required: false },
   { key: "marketId", option: "--market-id <market-id>", name: "market_id", description: "Buyer context: the market, as a uuid pin for older callers. Prefer the `X-Revenexx-Market` header, which carries a market CODE and is what scopes the visible price lists. The market decides the tax rates AND which per-market settings (rounding, tie-break, anonymous access) apply — with several markets and no signal at all the answer says `tax.resolved: false`, `reason: market_required` rather than quoting another market’s VAT.", type: "string", required: false },
-  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Buyer context: the organization the buyer belongs to. Second most specific scope; also counts as authenticated.", type: "string", required: false },
+  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Buyer context: the organization the buyer belongs to. Second most specific scope; also counts as authenticated. On a buyer's own call it is the acting contact's organization, taken from the platform: the body may restate it, and naming another one is refused with 400 `buyer_mismatch`.", type: "string", required: false },
+  { key: "segmentCodes", option: "--segment-codes [segment-codes...]", name: "segment_codes", description: "Buyer context: the buyer segments this buyer is in, by code. A list scoped to any of them is a candidate, and ranks BETWEEN organization and channel — a segment is a group of organizations, so it is less specific than one and more specific than a channel. Refused with 400 `segments_not_accepted` on a buyer's own call (one acting for a contact), because the platform does not state membership yet. Membership is not read here: a call that states no segment never matches a segment-scoped list. At most 50 codes, matched exactly; anything that is not a list of non-empty codes is refused with 400.", type: "array", required: false },
 ];
 prices
   .command(`resolve`)
@@ -1262,7 +1358,7 @@ prices
 Which price wins when several match is the whole value of this app, and it is not guessable from the field types. The order, in full:
 
 1. **Candidates.** A list is a candidate when it is \`active\`, its currency EQUALS the currency of the call (nothing is ever converted — a list in another currency simply does not price the item), the instant \`at\` falls inside its validity window, it is visible in the buyer’s market (the \`X-Revenexx-Market\` header scopes the list view; lists assigned to no market are global and always visible), and its buyer scope matches or is open. A \`requires_auth\` list is dropped for a buyer with neither \`contact_id\` nor \`organization_id\`.
-2. **Specificity decides first, and priority never overrules it.** contact-scoped (4) beats organization-scoped (3) beats channel-scoped (2) beats open (0). An organization list at \`priority: 0\` therefore wins over an open list at \`priority: 100\`.
+2. **Specificity decides first, and priority never overrules it.** contact-scoped beats organization-scoped beats segment-scoped beats channel-scoped beats open. An organization list at \`priority: 0\` therefore wins over an open list at \`priority: 100\`.
 3. **Within one specificity level:** \`priority\` descending, then non-default before default — the default list is deliberately last, so it prices only what nothing else did.
 4. **A genuine tie** (same specificity, same priority, same default flag) is settled by the tenant’s \`price_list_priority_tiebreak\` setting — \`lowest_price\`, \`highest_price\`, \`newest\` or \`code\` — never by the order the database happened to return rows in. The setting in force is echoed in \`basis.price_list_priority_tiebreak\`.
 5. **The first list that prices the item wins, and the search stops there** — even if a later, less specific list is cheaper. Its FULL tier ladder comes back in \`tiers\`; the rung with the highest \`quantity_min\` at or below the requested \`quantity\` sets \`unit_price\`, and below the first rung the first rung applies.
@@ -1270,6 +1366,8 @@ Which price wins when several match is the whole value of this app, and it is no
 7. **Nothing found → \`on_request\`, never 0**, with a reason (\`not_priced\`, \`on_request_entry\`, \`anonymous_denied\`, \`no_identity\`). A storefront shows "price on request"; it must never show €0.
 
 Amounts: \`unit_price\` is per ONE unit of the entry’s \`unit\`, in \`currency\`, as a decimal in MAJOR units (19.90) — never minor units/cents — and on the basis \`tax_basis\` names. \`tax_basis\` comes from the list’s own column, else from a legacy \`tax_included: true\` on it, else from the tenant’s \`tax_inclusive_default\`; \`tax_basis_source\` says which of the three. Read \`unit_price_net\`/\`unit_price_gross\` where you need an unambiguous number.
+
+Whose prices: a request acting for a contact (the gateway resolved the principal) is priced for THAT contact and its organization, taken from the platform. The body may restate them; a \`contact_id\` or \`organization_id\` naming anybody else is refused with 400 \`buyer_mismatch\`, and \`segment_codes\` with 400 \`segments_not_accepted\`, because the platform does not state segment membership yet. A call acting for no contact — the back office, another app — states its buyer context in the body. The market and the channel are the caller's to choose on either plane.
 
 Tax is never guessed. The market comes from the \`X-Revenexx-Market\` header (a market CODE) or from \`market_id\` in the body; with several markets whose rates differ and no signal, the answer is \`tax.resolved: false\`, \`reason: market_required\` rather than another market’s VAT. \`tax_rate: null\` means UNKNOWN, not 0 %.
 
@@ -1279,14 +1377,15 @@ One last thing worth knowing before you build on it. This is the most customised
   .option(`--items [items...]`, `Items to price, at most 200 per call — a whole cart or a whole product listing in one round trip. The answer holds one entry per item, in this order.`)
   .option(`--at <at>`, `The instant every validity window — list and entry — is evaluated at (ISO 8601). Default now. This is how a promo price is previewed before it starts, and it is echoed as \`basis.evaluated_at\`.`)
   .option(`--channel-id <channel-id>`, `Buyer context: the sales channel. Third scope — beats the open lists, loses to contact and organization.`)
-  .option(`--contact-id <contact-id>`, `Buyer context: the contact this quote is for. The most specific scope — a list naming this contact beats every other list, whatever their priority. Sending it (or organization_id) is also what makes the buyer AUTHENTICATED for \`requires_auth\` lists and for the tenant’s anonymous_resolve_allowed setting.`)
+  .option(`--contact-id <contact-id>`, `Buyer context: the contact this quote is for. The most specific scope — a list naming this contact beats every other list, whatever their priority. Sending it (or organization_id) is also what makes the buyer AUTHENTICATED for \`requires_auth\` lists and for the tenant’s anonymous_resolve_allowed setting. On a buyer's own call it is the acting contact, taken from the platform: the body may restate it, and naming another one is refused with 400 \`buyer_mismatch\`.`)
   .option(`--currency <currency>`, `ISO 4217 code the quote is wanted in. ONLY lists in this currency are candidates and nothing is ever converted, so a wrong value here is not a rounding difference — it is no price at all. Omit to take the buyer market’s currency, then the tenant’s default_currency; \`basis.currency_source\` names which applied.`)
   .option(`--market-id <market-id>`, `Buyer context: the market, as a uuid pin for older callers. Prefer the \`X-Revenexx-Market\` header, which carries a market CODE and is what scopes the visible price lists. The market decides the tax rates AND which per-market settings (rounding, tie-break, anonymous access) apply — with several markets and no signal at all the answer says \`tax.resolved: false\`, \`reason: market_required\` rather than quoting another market’s VAT.`)
-  .option(`--organization-id <organization-id>`, `Buyer context: the organization the buyer belongs to. Second most specific scope; also counts as authenticated.`)
+  .option(`--organization-id <organization-id>`, `Buyer context: the organization the buyer belongs to. Second most specific scope; also counts as authenticated. On a buyer's own call it is the acting contact's organization, taken from the platform: the body may restate it, and naming another one is refused with 400 \`buyer_mismatch\`.`)
+  .option(`--segment-codes [segment-codes...]`, `Buyer context: the buyer segments this buyer is in, by code. A list scoped to any of them is a candidate, and ranks BETWEEN organization and channel — a segment is a group of organizations, so it is less specific than one and more specific than a channel. Refused with 400 \`segments_not_accepted\` on a buyer's own call (one acting for a contact), because the platform does not state membership yet. Membership is not read here: a call that states no segment never matches a segment-scoped list. At most 50 codes, matched exactly; anything that is not a list of non-empty codes is refused with 400.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { items, at, channelId, contactId, currency, marketId, organizationId } = await promptForMissing(
+        const { items, at, channelId, contactId, currency, marketId, organizationId, segmentCodes } = await promptForMissing(
           _options,
           resolveSpecs,
           _command,
@@ -1321,6 +1420,9 @@ One last thing worth knowing before you build on it. This is the most customised
         }
         if (organizationId !== undefined) {
           _payload[`organization_id`] = organizationId;
+        }
+        if (segmentCodes !== undefined) {
+          _payload[`segment_codes`] = segmentCodes;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

@@ -35,6 +35,7 @@ const listSpecs: PromptSpec[] = [
   { key: "ownerId", option: "--owner-id <owner-id>", name: "owner_id", description: "One salesperson's desk.", type: "string", required: false },
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "The quote a cart became.", type: "string", required: false },
   { key: "number", option: "--number <number>", name: "number", description: "A quote by its number.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The quote the system that owns it knows by this key — what a mirror asks before it decides whether to create a second. The other three provenance columns carry no parameter: such a value is compared as a whole document, so a filter over part of one is refused rather than answered.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 quotesQuotes
@@ -50,6 +51,7 @@ quotesQuotes
   .option(`--owner-id <owner-id>`, `One salesperson's desk.`)
   .option(`--cart-id <cart-id>`, `The quote a cart became.`)
   .option(`--number <number>`, `A quote by its number.`)
+  .option(`--external-id <external-id>`, `The quote the system that owns it knows by this key — what a mirror asks before it decides whether to create a second. The other three provenance columns carry no parameter: such a value is compared as a whole document, so a filter over part of one is refused rather than answered.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -59,7 +61,7 @@ quotesQuotes
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, status, origin, organizationId, contactId, ownerId, cartId, number, filter } = await promptForMissing(
+        const { limit, offset, order, status, origin, organizationId, contactId, ownerId, cartId, number, externalId, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -97,6 +99,9 @@ quotesQuotes
         if (number !== undefined) {
           _payload[`number`] = number;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
           if (_eq <= 0) {
@@ -124,12 +129,16 @@ const createSpecs: PromptSpec[] = [
   { key: "billingAddress", option: "--billing-address <billing-address>", name: "billing_address", description: "Where an invoice would go.", type: "object", required: false },
   { key: "buyer", option: "--buyer <buyer>", name: "buyer", description: "Name and address of the customer.", type: "object", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Who the quote is for.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this quote has in the system that owns it. Left out on anything this shop raised itself.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every other system that knows this quote, keyed by system name.", type: "object", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data carried with the quote.", type: "object", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Which company.", type: "string", required: false },
   { key: "ownerId", option: "--owner-id <owner-id>", name: "owner_id", description: "Who at the merchant owns it. Taken from the caller identity when left out.", type: "string", required: false },
   { key: "reason", option: "--reason <reason>", name: "reason", description: "What the quote is about.", type: "string", required: false },
   { key: "sellerNote", option: "--seller-note <seller-note>", name: "seller_note", description: "What the merchant wants the customer to read.", type: "string", required: false },
   { key: "shippingAddress", option: "--shipping-address <shipping-address>", name: "shipping_address", description: "Where the goods would go.", type: "object", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this quote was last confirmed against its source.", type: "string", required: false },
 ];
 quotesQuotes
   .command(`create`)
@@ -139,16 +148,20 @@ quotesQuotes
   .option(`--billing-address <billing-address>`, `Where an invoice would go.`)
   .option(`--buyer <buyer>`, `Name and address of the customer.`)
   .option(`--contact-id <contact-id>`, `Who the quote is for.`)
+  .option(`--external-id <external-id>`, `The key this quote has in the system that owns it. Left out on anything this shop raised itself.`)
+  .option(`--external-refs <external-refs>`, `Every other system that knows this quote, keyed by system name.`)
   .option(`--metadata <metadata>`, `Free-form data carried with the quote.`)
   .option(`--organization-id <organization-id>`, `Which company.`)
   .option(`--owner-id <owner-id>`, `Who at the merchant owns it. Taken from the caller identity when left out.`)
   .option(`--reason <reason>`, `What the quote is about.`)
   .option(`--seller-note <seller-note>`, `What the merchant wants the customer to read.`)
   .option(`--shipping-address <shipping-address>`, `Where the goods would go.`)
+  .option(`--source-data <source-data>`, `What the source said, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this quote was last confirmed against its source.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { currency, items, billingAddress, buyer, contactId, metadata, organizationId, ownerId, reason, sellerNote, shippingAddress } = await promptForMissing(
+        const { currency, items, billingAddress, buyer, contactId, externalId, externalRefs, metadata, organizationId, ownerId, reason, sellerNote, shippingAddress, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -175,6 +188,12 @@ quotesQuotes
         if (currency !== undefined) {
           _payload[`currency`] = currency;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (items !== undefined) {
           _payload[`items`] = items;
         }
@@ -195,6 +214,12 @@ quotesQuotes
         }
         if (shippingAddress !== undefined) {
           _payload[`shipping_address`] = resolveBodyParam(shippingAddress);
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -319,10 +344,14 @@ const requestSpecs: PromptSpec[] = [
   { key: "buyerNote", option: "--buyer-note <buyer-note>", name: "buyer_note", description: "What the buyer wants to say about the request.", type: "string", required: false },
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "The cart this came from, for the trail back.", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Who is asking. Taken from the caller identity when left out.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this quote has in the system that owns it. Left out on anything this shop raised itself.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every other system that knows this quote, keyed by system name.", type: "object", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data carried with the quote.", type: "object", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Which company they buy for.", type: "string", required: false },
   { key: "reason", option: "--reason <reason>", name: "reason", description: "Why a quote is being asked for — too heavy to ship, price on request, a volume the list does not cover.", type: "string", required: false },
   { key: "shippingAddress", option: "--shipping-address <shipping-address>", name: "shipping_address", description: "Where the goods would go.", type: "object", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this quote was last confirmed against its source.", type: "string", required: false },
 ];
 quotesQuotes
   .command(`request`)
@@ -334,14 +363,18 @@ quotesQuotes
   .option(`--buyer-note <buyer-note>`, `What the buyer wants to say about the request.`)
   .option(`--cart-id <cart-id>`, `The cart this came from, for the trail back.`)
   .option(`--contact-id <contact-id>`, `Who is asking. Taken from the caller identity when left out.`)
+  .option(`--external-id <external-id>`, `The key this quote has in the system that owns it. Left out on anything this shop raised itself.`)
+  .option(`--external-refs <external-refs>`, `Every other system that knows this quote, keyed by system name.`)
   .option(`--metadata <metadata>`, `Free-form data carried with the quote.`)
   .option(`--organization-id <organization-id>`, `Which company they buy for.`)
   .option(`--reason <reason>`, `Why a quote is being asked for — too heavy to ship, price on request, a volume the list does not cover.`)
   .option(`--shipping-address <shipping-address>`, `Where the goods would go.`)
+  .option(`--source-data <source-data>`, `What the source said, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this quote was last confirmed against its source.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { currency, items, billingAddress, buyer, buyerNote, cartId, contactId, metadata, organizationId, reason, shippingAddress } = await promptForMissing(
+        const { currency, items, billingAddress, buyer, buyerNote, cartId, contactId, externalId, externalRefs, metadata, organizationId, reason, shippingAddress, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           requestSpecs,
           _command,
@@ -374,6 +407,12 @@ quotesQuotes
         if (currency !== undefined) {
           _payload[`currency`] = currency;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (items !== undefined) {
           _payload[`items`] = items;
         }
@@ -388,6 +427,12 @@ quotesQuotes
         }
         if (shippingAddress !== undefined) {
           _payload[`shipping_address`] = resolveBodyParam(shippingAddress);
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

@@ -16,7 +16,7 @@ import {
 export const pagesDelivery = new Command("pages-delivery")
   .description(
     commandDescriptions["pagesDelivery"] ??
-      `What a storefront calls, and the group to start in if you are building a theme. Four read-only routes, no editorial concepts in any of them: resolve one published page by slug or id into a ready-to-render block tree, list the published pages for routing and sitemaps, read the navigation menus, and resolve a share token into the CURRENT unpublished state for a preview link. These serve the published revision — not the live rows — with the requested language filled in from its fallback chain, block-level publish windows applied and library references expanded, so a renderer needs no second call and no knowledge of how any of it was authored.`,
+      `What a storefront calls, and the group to start in if you are building a theme. Six read-only routes, no editorial concepts in any of them: resolve one published page by slug or id into a ready-to-render block tree, list the published pages for routing and sitemaps, read the navigation menus, read the site settings the theme styles itself with, find the page a product or category renders as its template, and resolve a share token into the CURRENT unpublished state for a preview link. The page routes serve the published revision — not the live rows — with the requested language filled in from its fallback chain, block-level publish windows applied and library references expanded, so a renderer needs no second call and no knowledge of how any of it was authored.`,
   )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
@@ -199,3 +199,65 @@ pagesDelivery
     ),
   );
 registerPromptSpecs(pagesDelivery.commands.at(-1)!, previewSpecs, { method: "get" });
+pagesDelivery
+  .command(`site-settings`)
+  .description(`What a theme styles the whole storefront with, in one object keyed by setting name. \`appearance\`, \`design\` and \`customCss\` are always present — \`null\` when the tenant has not set them, which is the theme's cue to use its own default — and any other key the tenant set is answered alongside them.`)
+  .action(
+    actionRunner(
+      async () => {
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/delivery/site-settings`;
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+const templateSpecs: PromptSpec[] = [
+  { key: "type", option: "--type <type>", name: "type", description: "The kind of record: `product`, `category`, …", type: "string", required: false },
+  { key: "id", option: "--id <id>", name: "id", description: "The record's id in the app that owns it.", type: "string", required: false },
+];
+pagesDelivery
+  .command(`template`)
+  .description(`Which page a product or a category renders with: \`GET /pages/delivery/template?type=product&id=5137\` answers \`{ "slug": "product-detail" }\`, and the theme then renders that page through \`GET /pages/delivery/page\`. 404 means "use the default template" — no page is assigned, or the one assigned is hidden or not published, so a visitor is never sent to a page delivery would refuse.`)
+  .option(`--type <type>`, `The kind of record: \`product\`, \`category\`, …`)
+  .option(`--id <id>`, `The record's id in the app that owns it.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { type, id } = await promptForMissing(
+          _options,
+          templateSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/delivery/template`;
+        const _payload: RequestParams = {};
+        if (type !== undefined) {
+          _payload[`type`] = type;
+        }
+        if (id !== undefined) {
+          _payload[`id`] = id;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pagesDelivery.commands.at(-1)!, templateSpecs, { method: "get" });

@@ -1,5 +1,4 @@
 ```bash
 revenexx cost-centers commit \
-    --allocations one two three \
-    --order-id ''
+    --allocations one two three
 ```

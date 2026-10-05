@@ -20,7 +20,7 @@ import {
 export const inventoriesStock = new Command("inventories-stock")
   .description(
     commandDescriptions["inventoriesStock"] ??
-      `How much is there, what may still be sold, and every call that changes the number. A stock level is one item at one location and it carries two figures, neither of which is the sellable one: \`on_hand\` counts what is physically there INCLUDING everything already promised, \`reserved\` counts the promises and never reduces \`on_hand\`, and what a shop may sell is the difference — derived on read, never stored, so there is no \`available\` column to filter or order by. The balance is not editable either: every change is a booking in the movements ledger, which is why \`receive\` (goods in), \`adjust\` (a signed correction with a reason), \`restock\` (a return coming back) and the row-scoped adjust are the only things that move a number, and why the ledger reads sit in this same group rather than a section of their own — a movement is the receipt for the call above it, not a subject. POST /inventories/availability is the read side of all of it, and the one capability an ERP-stocked tenant replaces wholesale through the gateway override. The vocabulary routes are here because the code a caller cannot guess is a movement's \`type\`: it decides the SIGN of the quantity.`,
+      `How much is there, what may still be sold, and every call that changes the number. A stock level is one item at one location and it carries two figures, neither of which is the sellable one: \`on_hand\` counts what is physically there INCLUDING everything already promised, \`reserved\` counts the promises and never reduces \`on_hand\`, and what a shop may sell is the difference — derived on read, never stored, so there is no \`available\` column to filter or order by. The balance is not editable either: every change is a booking in the movements ledger, which is why \`receive\` (goods in), \`adjust\` (a signed correction with a reason), \`restock\` (a return coming back) and the row-scoped adjust are the only things that move a number, and why the ledger reads sit in this same group rather than a section of their own — a movement is the receipt for the call above it, not a subject. POST /inventories/availability is the read side of all of it, and the one capability an ERP-stocked tenant replaces wholesale through the gateway override. The vocabulary routes are here because the code a caller cannot guess is a movement's \`type\`: it decides the SIGN of the quantity. Two things a stock row carries that are not quantities at all sit here too, and they answer the question a buyer telephones sales about: \`expected_at\`, the date the item is due back, and \`availability_code\`, what the source system says about it — as one of the codes THIS TENANT keeps. Those codes are the availability states, the one set in this app a merchant extends themselves, and each of them carries \`orderable\`: whether a shop offers the order button in that state, held next to the value instead of hardcoded in a theme.`,
   )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
@@ -36,7 +36,7 @@ const inventoriesAdjustSpecs: PromptSpec[] = [
 ];
 inventoriesStock
   .command(`inventories-adjust`)
-  .description(`The batch correction route — a stocktake, breakage, shrinkage — and the manual way \`on_hand\` is ever put right. Quantities are SIGNED: a positive one adds to the balance, a negative one takes it away, and neither is written onto the row directly. Each item is booked into the movements ledger as an \`adjustment\` and the balance follows, so a correction leaves a record of who changed what and why instead of a number that silently differs from yesterday's. A reason is mandatory unless movement_reason_required is 'none'.`)
+  .description(`The batch correction route — a stocktake, breakage, shrinkage — and the manual way \`on_hand\` is ever put right. Quantities are SIGNED: a positive one adds to the balance, a negative one takes it away, and neither is written onto the row directly. Each item is booked into the movements ledger as an \`adjustment\` and the balance follows, so a correction leaves a record of who changed what and why instead of a number that silently differs from yesterday's. A batch is all-or-nothing: every item is judged against both guards before the first is booked, and a refusal books nothing. An item is named once with its whole correction; two lines for one item are refused. A reason is mandatory unless movement_reason_required is 'none'.`)
   .option(`--items [items...]`, `The corrections, at most 200 in one call — a stocktake, breakage, shrinkage. Quantities are SIGNED deltas, not new balances.`)
   .option(`--location-code <location-code>`, `Which location is being corrected. Omitted, the \`default_location_code\` setting decides. A correction is per location: the same SKU in two warehouses is two corrections.`)
   .option(`--product-id <product-id>`, `Inline single-item form: the product to move, instead of a one-entry \`items\` array. The two forms are equivalent — nothing downstream knows which arrived.`)
@@ -95,18 +95,18 @@ inventoriesStock
 registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesAdjustSpecs, { method: "post" });
 const inventoriesAvailabilitySpecs: PromptSpec[] = [
   { key: "items", option: "--items [items...]", name: "items", description: "The items to check, at most 200 in one call. A cart, a category page, a feed row — one call answers them all, which is why this route is the batch one.", type: "array", required: false },
-  { key: "locationCode", option: "--location-code <location-code>", name: "location_code", description: "Restrict the check to ONE location, by its code — the stock a click-and-collect store can promise today. Omitted, every ENABLED location is summed; a disabled one is never counted either way.", type: "string", required: false },
+  { key: "locationCode", option: "--location-code <location-code>", name: "location_code", description: "Restrict the check to ONE location, by its code — the stock a click-and-collect store can promise today. Omitted, every ENABLED location is summed; a disabled one is never counted either way, so a disabled location's code answers every item untracked. A code no location carries is answered 404 `unknown_location`.", type: "string", required: false },
   { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "Inline single-item form: the product to move, instead of a one-entry `items` array. The two forms are equivalent — nothing downstream knows which arrived.", type: "string", required: false },
-  { key: "quantity", option: "--quantity <quantity>", name: "quantity", description: "Inline single-item form: how many are wanted (default 1). It decides `orderable` and nothing else.", type: "number", required: false },
+  { key: "quantity", option: "--quantity <quantity>", name: "quantity", description: "Inline single-item form: how many are wanted, above zero (default 1). It decides `orderable` and nothing else.", type: "number", required: false },
   { key: "sku", option: "--sku <sku>", name: "sku", description: "Inline single-item form: the article number to move (instead of `product_id`).", type: "string", required: false },
 ];
 inventoriesStock
   .command(`inventories-availability`)
-  .description(`THE stock call of this app, and a batch one: name any number of items and each comes back with \`on_hand\`, \`reserved\` and the derived \`available\` (their difference, computed on read and stored nowhere), summed across the locations in scope and broken down per location, plus \`orderable\` — whether this much of it can be promised at this moment. An item this app has never seen is NOT an error: it comes back tracked:false, and the storefront decides whether an untracked item sells freely. It is also the most customised surface this product has in the field. A tenant whose stock really lives in an ERP — SAP live stock is the ordinary case, not the exotic one — replaces exactly this one capability, 1:1, with a custom app through the gateway's capability override, while every other route here keeps doing the stock-keeping CRUD unchanged. That is why the request and response shapes below read as a contract to be implemented rather than as an implementation detail: whatever ends up answering this path has to answer in these terms.`)
+  .description(`THE stock call of this app, and a batch one: name any number of items and each comes back with \`on_hand\`, \`reserved\` and the derived \`available\` (their difference, computed on read and stored nowhere), summed across the locations in scope and broken down per location, plus \`orderable\` — whether this much of it can be promised at this moment. An item this app has never seen is NOT an error: it comes back tracked:false, and the storefront decides whether an untracked item sells freely. It answers the two facts a buyer would otherwise telephone sales about, per location and rolled up for the item: \`expected_at\`, when it is due back, and \`availability_code\`, what the source system says about it as one of the codes this tenant keeps — and \`orderable\` weighs that code's \`orderable\` policy as well as the quantity, with \`unorderable_reason\` saying which of the two said no. It is also the most customised surface this product has in the field. A tenant whose stock really lives in an ERP — SAP live stock is the ordinary case, not the exotic one — replaces exactly this one capability, 1:1, with a custom app through the gateway's capability override, while every other route here keeps doing the stock-keeping CRUD unchanged. That is why the request and response shapes below read as a contract to be implemented rather than as an implementation detail: whatever ends up answering this path has to answer in these terms, these six fields included.`)
   .option(`--items [items...]`, `The items to check, at most 200 in one call. A cart, a category page, a feed row — one call answers them all, which is why this route is the batch one.`)
-  .option(`--location-code <location-code>`, `Restrict the check to ONE location, by its code — the stock a click-and-collect store can promise today. Omitted, every ENABLED location is summed; a disabled one is never counted either way.`)
+  .option(`--location-code <location-code>`, `Restrict the check to ONE location, by its code — the stock a click-and-collect store can promise today. Omitted, every ENABLED location is summed; a disabled one is never counted either way, so a disabled location's code answers every item untracked. A code no location carries is answered 404 \`unknown_location\`.`)
   .option(`--product-id <product-id>`, `Inline single-item form: the product to move, instead of a one-entry \`items\` array. The two forms are equivalent — nothing downstream knows which arrived.`)
-  .option(`--quantity <quantity>`, `Inline single-item form: how many are wanted (default 1). It decides \`orderable\` and nothing else.`, parseInteger)
+  .option(`--quantity <quantity>`, `Inline single-item form: how many are wanted, above zero (default 1). It decides \`orderable\` and nothing else.`, parseInteger)
   .option(`--sku <sku>`, `Inline single-item form: the article number to move (instead of \`product_id\`).`)
   .action(
     actionRunner(
@@ -155,6 +155,416 @@ inventoriesStock
     ),
   );
 registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesAvailabilitySpecs, { method: "post" });
+const inventoriesAvailabilityStatesListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc' — a bare column sorts ascending. The column has to be one this entity has; anything else is refused with 400.", type: "string", required: false },
+  { key: "id", option: "--id <id>", name: "id", description: "Exact-match filter on `id`. The row's own id, generated by the database.", type: "string", required: false },
+  { key: "code", option: "--code <code>", name: "code", description: "Exact-match filter on `code`. Unique per tenant, so this resolves a code a stock row carries without paging the whole set.", type: "string", required: false },
+  { key: "title", option: "--title <title>", name: "title", description: "Exact-match filter on `title`. What a person reads for this state, in the tenant's working language.", type: "string", required: false },
+  { key: "description", option: "--description <description>", name: "description", description: "Exact-match filter on `description`. One sentence a screen can put under the title, in the tenant's working language — what this state means for a buyer looking at the article.", type: "string", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact-match filter on `labels`. The title per language tag, for a shop that has to render it in the reader's language. The WHOLE jsonb document is compared, serialized as JSON — this is equality, not a key lookup or a containment query, and a value that does not parse is answered 400.", type: "string", required: false },
+  { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "Exact-match filter on `descriptions`. The description per language tag, on the same rule as `labels`: the tag if it is there, else `description`. The WHOLE jsonb document is compared, serialized as JSON — this is equality, not a key lookup or a containment query, and a value that does not parse is answered 400.", type: "string", required: false },
+  { key: "orderable", option: "--orderable <orderable>", name: "orderable", description: "Exact-match filter on `orderable`. The states a shop keeps selling in. `false` is the subset that takes the order button away.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Exact-match filter on `is_default`. Whether this is the state an import falls back to when a source value maps to none of the others.", type: "boolean", required: false },
+  { key: "tone", option: "--tone <tone>", name: "tone", description: "Exact-match filter on `tone`. Semantic badge colour for this state — what it MEANS, not what it looks like: 'success' for sellable, 'info' for on its way, 'warning' for not right now, 'danger' for gone for good, 'neutral' for anything else.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
+  { key: "position", option: "--position <position>", name: "position", description: "Exact-match filter on `position`. Where this state sits in a select or a legend: the set is served ASCENDING, so a lower number comes first, and states that tie fall back to their code.", type: "integer", required: false },
+  { key: "isSystem", option: "--is-system <is-system>", name: "is_system", description: "Exact-match filter on `is_system`. `true` is the four this app seeded, `false` the ones this tenant added.", type: "boolean", required: false },
+  { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact-match filter on `created_at`. When the row was created.", type: "string", required: false },
+  { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact-match filter on `updated_at`. When this state was last edited — a rename, a re-tone, a corrected `orderable`..", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+inventoriesStock
+  .command(`inventories-availability-states-list`)
+  .description(`An availability state is one of the codes THIS TENANT keeps for what a source system says about an article: a stock row stores one in \`availability_code\`, and the row's \`expected_at\` says when the article is due back. The set is a table rather than a fixed list because the number a source system delivers for availability is that system's number and what it means is the merchant's to state. Each value carries \`orderable\` — whether an item in this state may still be ordered — which is the fact a storefront needs in order to offer or withhold the order button without keeping a list of its own. This is the operator's view of the set — the rows, filterable and paged, in whatever order you ask for. A CLIENT that only wants to render a code does not want this route: GET /inventories/vocabularies/availability-states answers the same set keyed by code, ordered by \`position\`, with the titles per language and the \`orderable\` flag already merged, and it is the shape every other vocabulary in this platform is read in. A tenant who has never been seeded reads an EMPTY list here, because the seed runs on install and on POST /inventories/locations/defaults; the vocabulary route seeds on an empty read and this one does not.`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
+  .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc' — a bare column sorts ascending. The column has to be one this entity has; anything else is refused with 400.`)
+  .option(`--id <id>`, `Exact-match filter on \`id\`. The row's own id, generated by the database.`)
+  .option(`--code <code>`, `Exact-match filter on \`code\`. Unique per tenant, so this resolves a code a stock row carries without paging the whole set.`)
+  .option(`--title <title>`, `Exact-match filter on \`title\`. What a person reads for this state, in the tenant's working language.`)
+  .option(`--description <description>`, `Exact-match filter on \`description\`. One sentence a screen can put under the title, in the tenant's working language — what this state means for a buyer looking at the article.`)
+  .option(`--labels <labels>`, `Exact-match filter on \`labels\`. The title per language tag, for a shop that has to render it in the reader's language. The WHOLE jsonb document is compared, serialized as JSON — this is equality, not a key lookup or a containment query, and a value that does not parse is answered 400.`)
+  .option(`--descriptions <descriptions>`, `Exact-match filter on \`descriptions\`. The description per language tag, on the same rule as \`labels\`: the tag if it is there, else \`description\`. The WHOLE jsonb document is compared, serialized as JSON — this is equality, not a key lookup or a containment query, and a value that does not parse is answered 400.`)
+  .option(
+    `--orderable [value]`,
+    `Exact-match filter on \`orderable\`. The states a shop keeps selling in. \`false\` is the subset that takes the order button away.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
+    `--is-default [value]`,
+    `Exact-match filter on \`is_default\`. Whether this is the state an import falls back to when a source value maps to none of the others.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--tone <tone>`, `Exact-match filter on \`tone\`. Semantic badge colour for this state — what it MEANS, not what it looks like: 'success' for sellable, 'info' for on its way, 'warning' for not right now, 'danger' for gone for good, 'neutral' for anything else.`)
+  .option(`--position <position>`, `Exact-match filter on \`position\`. Where this state sits in a select or a legend: the set is served ASCENDING, so a lower number comes first, and states that tie fall back to their code.`, parseInteger)
+  .option(
+    `--is-system [value]`,
+    `Exact-match filter on \`is_system\`. \`true\` is the four this app seeded, \`false\` the ones this tenant added.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--created-at <created-at>`, `Exact-match filter on \`created_at\`. When the row was created.`)
+  .option(`--updated-at <updated-at>`, `Exact-match filter on \`updated_at\`. When this state was last edited — a rename, a re-tone, a corrected \`orderable\`..`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { limit, offset, order, id, code, title, description, labels, descriptions, orderable, isDefault, tone, position, isSystem, createdAt, updatedAt, filter } = await promptForMissing(
+          _options,
+          inventoriesAvailabilityStatesListSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/inventories/availability-states`;
+        const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
+        if (id !== undefined) {
+          _payload[`id`] = id;
+        }
+        if (code !== undefined) {
+          _payload[`code`] = code;
+        }
+        if (title !== undefined) {
+          _payload[`title`] = title;
+        }
+        if (description !== undefined) {
+          _payload[`description`] = description;
+        }
+        if (labels !== undefined) {
+          _payload[`labels`] = labels;
+        }
+        if (descriptions !== undefined) {
+          _payload[`descriptions`] = descriptions;
+        }
+        if (orderable !== undefined) {
+          _payload[`orderable`] = orderable;
+        }
+        if (isDefault !== undefined) {
+          _payload[`is_default`] = isDefault;
+        }
+        if (tone !== undefined) {
+          _payload[`tone`] = tone;
+        }
+        if (position !== undefined) {
+          _payload[`position`] = position;
+        }
+        if (isSystem !== undefined) {
+          _payload[`is_system`] = isSystem;
+        }
+        if (createdAt !== undefined) {
+          _payload[`created_at`] = createdAt;
+        }
+        if (updatedAt !== undefined) {
+          _payload[`updated_at`] = updatedAt;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesAvailabilityStatesListSpecs, { method: "get" });
+const inventoriesAvailabilityStatesCreateSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", description: "The value a stock row's `availability_code` stores, and the key the vocabulary serves it under. Lowercase letters, digits, '-' and '_' (CHECK `code ~ '^[a-z][a-z0-9_-]*$'`), unique per tenant. Treat it as permanent: nothing in the database points at it, so renaming it here leaves every stock row carrying the old one, and the honest move is a new code plus an update of the rows that name it.", type: "string", required: true },
+  { key: "title", option: "--title <title>", name: "title", description: "What a person reads for this state, in the tenant's working language. At least one character (CHECK `length(title) > 0`). A value nobody titled is served with its own code made readable, so this is a better label rather than the only one.", type: "string", required: true },
+  { key: "description", option: "--description <description>", name: "description", description: "One sentence a screen can put under the title, in the tenant's working language — what this state means for a buyer looking at the article. Optional; a state with none is served with a null description rather than an invented one.", type: "string", required: false },
+  { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "The description per language tag, on the same rule as `labels`: the tag if it is there, else `description`. Keys are language tags, values plain strings.", type: "object", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Whether this is the state an import falls back to when a source value maps to none of the others. Nothing in this app reads it — the fallback happens where the mapping happens — and it is served on the vocabulary so an importer can find it here instead of keeping a convention of its own. No seeded state carries it: which state an unmapped value means is the tenant's to say. Defaults to false, and nothing enforces that at most one state carries it.", type: "boolean", required: false },
+  { key: "isSystem", option: "--is-system <is-system>", name: "is_system", description: "True for the four states this app seeds on install, false for anything the tenant added. It means \"we put it there\" and nothing more: a seeded state may be renamed, re-toned, reordered, corrected or deleted exactly like an added one, and the flag is there so a screen can say where a value came from. Send false, or leave it out: it marks the states this app seeded, and setting it on your own would only make one harder to tell apart.", type: "boolean", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", description: "The title per language tag, for a shop that has to render it in the reader's language. Falls back to `title` when a tag is missing. Keys are language tags, values plain strings.", type: "object", required: false },
+  { key: "orderable", option: "--orderable <orderable>", name: "orderable", description: "Whether an item in this state may still be ordered — the reason this set is a table and not a list of names. A code on its own tells a storefront nothing it can act on: it has to be matched against a list the theme keeps, and that list is wrong the first time a merchant adds a code. This flag travels with the value, so a shop asks the vocabulary whether to offer the order button instead of asking itself. POST /inventories/availability reads it: a state that says false takes the order button away from every item the governing row puts in that state, whatever the quantity says, and that call reports it as `unorderable_reason: 'state'`. It stays the merchant's policy about the STATE — it moves no stock and books no movement, and the per-location `state_orderable` in that answer is this flag, held apart from the verdict. Defaults to true, so a state created without an answer is one a shop keeps selling in — set it deliberately.", type: "boolean", required: false },
+  { key: "position", option: "--position <position>", name: "position", description: "Where this state sits in a select or a legend: the set is served ASCENDING, so a lower number comes first, and states that tie fall back to their code. It is presentation only — nothing sorts stock by it. Defaults to 0.", type: "integer", required: false },
+  { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour for this state — what it MEANS, not what it looks like: 'success' for sellable, 'info' for on its way, 'warning' for not right now, 'danger' for gone for good, 'neutral' for anything else. The client owns the palette. One of five (CHECK `tone in ('neutral', 'info', 'success', 'warning', 'danger')`), defaulting to 'neutral'. Defaults to 'neutral'.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
+];
+inventoriesStock
+  .command(`inventories-availability-states-create`)
+  .description(`An availability state is one of the codes THIS TENANT keeps for what a source system says about an article: a stock row stores one in \`availability_code\`, and the row's \`expected_at\` says when the article is due back. The set is a table rather than a fixed list because the number a source system delivers for availability is that system's number and what it means is the merchant's to state. Each value carries \`orderable\` — whether an item in this state may still be ordered — which is the fact a storefront needs in order to offer or withhold the order button without keeping a list of its own. Reach for this when a source system distinguishes something the four seeded states do not — a partial delivery, a made-to-order line, a stock held for one customer. A create cannot omit \`code\` and \`title\`; every other column is optional or defaulted by the database. Two rows of this tenant may not share \`code\` — that is the 409, and it answers an update that moves a row onto a sibling's value exactly as it answers a second insert. Two fields decide what the state DOES rather than how it reads: \`orderable\`, which defaults to true and is what a shop acts on, and \`code\`, which is what a stock row stores and should be treated as permanent — nothing points at it, so renaming it later leaves every row carrying the old one. Creating a state changes nothing on its own: a stock row has to carry its code before it means anything, and the mapping from a source system's own values onto these codes is made where the import runs.`)
+  .option(`--code <code>`, `The value a stock row's \`availability_code\` stores, and the key the vocabulary serves it under. Lowercase letters, digits, '-' and '_' (CHECK \`code ~ '^[a-z][a-z0-9_-]*\$'\`), unique per tenant. Treat it as permanent: nothing in the database points at it, so renaming it here leaves every stock row carrying the old one, and the honest move is a new code plus an update of the rows that name it.`)
+  .option(`--title <title>`, `What a person reads for this state, in the tenant's working language. At least one character (CHECK \`length(title) > 0\`). A value nobody titled is served with its own code made readable, so this is a better label rather than the only one.`)
+  .option(`--description <description>`, `One sentence a screen can put under the title, in the tenant's working language — what this state means for a buyer looking at the article. Optional; a state with none is served with a null description rather than an invented one.`)
+  .option(`--descriptions <descriptions>`, `The description per language tag, on the same rule as \`labels\`: the tag if it is there, else \`description\`. Keys are language tags, values plain strings.`)
+  .option(
+    `--is-default [value]`,
+    `Whether this is the state an import falls back to when a source value maps to none of the others. Nothing in this app reads it — the fallback happens where the mapping happens — and it is served on the vocabulary so an importer can find it here instead of keeping a convention of its own. No seeded state carries it: which state an unmapped value means is the tenant's to say. Defaults to false, and nothing enforces that at most one state carries it.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
+    `--is-system [value]`,
+    `True for the four states this app seeds on install, false for anything the tenant added. It means "we put it there" and nothing more: a seeded state may be renamed, re-toned, reordered, corrected or deleted exactly like an added one, and the flag is there so a screen can say where a value came from. Send false, or leave it out: it marks the states this app seeded, and setting it on your own would only make one harder to tell apart.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--labels <labels>`, `The title per language tag, for a shop that has to render it in the reader's language. Falls back to \`title\` when a tag is missing. Keys are language tags, values plain strings.`)
+  .option(
+    `--orderable [value]`,
+    `Whether an item in this state may still be ordered — the reason this set is a table and not a list of names. A code on its own tells a storefront nothing it can act on: it has to be matched against a list the theme keeps, and that list is wrong the first time a merchant adds a code. This flag travels with the value, so a shop asks the vocabulary whether to offer the order button instead of asking itself. POST /inventories/availability reads it: a state that says false takes the order button away from every item the governing row puts in that state, whatever the quantity says, and that call reports it as \`unorderable_reason: 'state'\`. It stays the merchant's policy about the STATE — it moves no stock and books no movement, and the per-location \`state_orderable\` in that answer is this flag, held apart from the verdict. Defaults to true, so a state created without an answer is one a shop keeps selling in — set it deliberately.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--position <position>`, `Where this state sits in a select or a legend: the set is served ASCENDING, so a lower number comes first, and states that tie fall back to their code. It is presentation only — nothing sorts stock by it. Defaults to 0.`, parseInteger)
+  .option(`--tone <tone>`, `Semantic badge colour for this state — what it MEANS, not what it looks like: 'success' for sellable, 'info' for on its way, 'warning' for not right now, 'danger' for gone for good, 'neutral' for anything else. The client owns the palette. One of five (CHECK \`tone in ('neutral', 'info', 'success', 'warning', 'danger')\`), defaulting to 'neutral'. Defaults to 'neutral'.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { code, title, description, descriptions, isDefault, isSystem, labels, orderable, position, tone } = await promptForMissing(
+          _options,
+          inventoriesAvailabilityStatesCreateSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/inventories/availability-states`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (code !== undefined) {
+          _payload[`code`] = code;
+        }
+        if (description !== undefined) {
+          _payload[`description`] = description;
+        }
+        if (descriptions !== undefined) {
+          _payload[`descriptions`] = resolveBodyParam(descriptions);
+        }
+        if (isDefault !== undefined) {
+          _payload[`is_default`] = isDefault;
+        }
+        if (isSystem !== undefined) {
+          _payload[`is_system`] = isSystem;
+        }
+        if (labels !== undefined) {
+          _payload[`labels`] = resolveBodyParam(labels);
+        }
+        if (orderable !== undefined) {
+          _payload[`orderable`] = orderable;
+        }
+        if (position !== undefined) {
+          _payload[`position`] = position;
+        }
+        if (title !== undefined) {
+          _payload[`title`] = title;
+        }
+        if (tone !== undefined) {
+          _payload[`tone`] = tone;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesAvailabilityStatesCreateSpecs, { method: "post" });
+const inventoriesAvailabilityStatesDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The row id of the availability state to remove, as the list answered it.", type: "string", required: true, resource: { listPath: "/inventories/availability-states", hasLimit: true } },
+];
+inventoriesStock
+  .command(`inventories-availability-states-delete`)
+  .description(`Removes one of the tenant's availability codes. An availability state is one of the codes THIS TENANT keeps for what a source system says about an article: a stock row stores one in \`availability_code\`, and the row's \`expected_at\` says when the article is due back. The set is a table rather than a fixed list because the number a source system delivers for availability is that system's number and what it means is the merchant's to state. Each value carries \`orderable\` — whether an item in this state may still be ordered — which is the fact a storefront needs in order to offer or withhold the order button without keeping a list of its own. Nothing points at it by foreign key, so the database takes nothing else with it. Read that carefully before calling it, because the thing that is NOT checked is the thing that matters: a stock row stores the CODE and not this id, so nothing refuses the delete while rows still carry it, and those rows keep a code the vocabulary no longer resolves. The vocabulary is \`closed\`, so a client reads such a value as stale data rather than as a missing label — but it reads no \`orderable\` for it either, and a shop that was withholding the order button on that state stops knowing to. Move the rows onto another code first (PUT /inventories/stock/{id}), or leave the state in place and give it a \`title\` that says it is retired. Deleting all of them is undone by the next read of GET /inventories/vocabularies/availability-states, which seeds the shipped set back into an empty table.`)
+  .option(`--id <id>`, `The row id of the availability state to remove, as the list answered it.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          inventoriesAvailabilityStatesDeleteSpecs,
+          _command,
+        );
+        await confirmDestructive(`inventories-stock inventories-availability-states-delete`);
+        const _client = await sdkForProject();
+        const _apiPath = `/inventories/availability-states/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `delete`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesAvailabilityStatesDeleteSpecs, { method: "delete", destructive: true });
+const inventoriesAvailabilityStatesGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The row id of the availability state, as the list answered it. Not the code — a stock row carries the code, and this route does not accept one.", type: "string", required: true, resource: { listPath: "/inventories/availability-states", hasLimit: true } },
+];
+inventoriesStock
+  .command(`inventories-availability-states-get`)
+  .description(`An availability state is one of the codes THIS TENANT keeps for what a source system says about an article: a stock row stores one in \`availability_code\`, and the row's \`expected_at\` says when the article is due back. The set is a table rather than a fixed list because the number a source system delivers for availability is that system's number and what it means is the merchant's to state. Each value carries \`orderable\` — whether an item in this state may still be ordered — which is the fact a storefront needs in order to offer or withhold the order button without keeping a list of its own. This reads one of them by ROW ID, which is what an editor holds after listing the set and is not what anything else stores: a stock row carries the CODE. A caller holding a code cannot use this route — filter the collection with \`?code=\`, or read GET /inventories/vocabularies/availability-states, which is keyed the way the rest of the platform refers to these values.`)
+  .option(`--id <id>`, `The row id of the availability state, as the list answered it. Not the code — a stock row carries the code, and this route does not accept one.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          inventoriesAvailabilityStatesGetSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/inventories/availability-states/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesAvailabilityStatesGetSpecs, { method: "get" });
+const inventoriesAvailabilityStatesUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The row id of the availability state to change, as the list answered it.", type: "string", required: true, resource: { listPath: "/inventories/availability-states", hasLimit: true } },
+  { key: "code", option: "--code <code>", name: "code", description: "The value a stock row's `availability_code` stores, and the key the vocabulary serves it under. Lowercase letters, digits, '-' and '_' (CHECK `code ~ '^[a-z][a-z0-9_-]*$'`), unique per tenant. Treat it as permanent: nothing in the database points at it, so renaming it here leaves every stock row carrying the old one, and the honest move is a new code plus an update of the rows that name it.", type: "string", required: false },
+  { key: "description", option: "--description <description>", name: "description", description: "One sentence a screen can put under the title, in the tenant's working language — what this state means for a buyer looking at the article. Optional; a state with none is served with a null description rather than an invented one.", type: "string", required: false },
+  { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "The description per language tag, on the same rule as `labels`: the tag if it is there, else `description`. Keys are language tags, values plain strings.", type: "object", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Whether this is the state an import falls back to when a source value maps to none of the others. Nothing in this app reads it — the fallback happens where the mapping happens — and it is served on the vocabulary so an importer can find it here instead of keeping a convention of its own. No seeded state carries it: which state an unmapped value means is the tenant's to say. Defaults to false, and nothing enforces that at most one state carries it.", type: "boolean", required: false },
+  { key: "isSystem", option: "--is-system <is-system>", name: "is_system", description: "True for the four states this app seeds on install, false for anything the tenant added. It means \"we put it there\" and nothing more: a seeded state may be renamed, re-toned, reordered, corrected or deleted exactly like an added one, and the flag is there so a screen can say where a value came from. Send false, or leave it out: it marks the states this app seeded, and setting it on your own would only make one harder to tell apart.", type: "boolean", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", description: "The title per language tag, for a shop that has to render it in the reader's language. Falls back to `title` when a tag is missing. Keys are language tags, values plain strings.", type: "object", required: false },
+  { key: "orderable", option: "--orderable <orderable>", name: "orderable", description: "Whether an item in this state may still be ordered — the reason this set is a table and not a list of names. A code on its own tells a storefront nothing it can act on: it has to be matched against a list the theme keeps, and that list is wrong the first time a merchant adds a code. This flag travels with the value, so a shop asks the vocabulary whether to offer the order button instead of asking itself. POST /inventories/availability reads it: a state that says false takes the order button away from every item the governing row puts in that state, whatever the quantity says, and that call reports it as `unorderable_reason: 'state'`. It stays the merchant's policy about the STATE — it moves no stock and books no movement, and the per-location `state_orderable` in that answer is this flag, held apart from the verdict. Defaults to true, so a state created without an answer is one a shop keeps selling in — set it deliberately.", type: "boolean", required: false },
+  { key: "position", option: "--position <position>", name: "position", description: "Where this state sits in a select or a legend: the set is served ASCENDING, so a lower number comes first, and states that tie fall back to their code. It is presentation only — nothing sorts stock by it. Defaults to 0.", type: "integer", required: false },
+  { key: "title", option: "--title <title>", name: "title", description: "What a person reads for this state, in the tenant's working language. At least one character (CHECK `length(title) > 0`). A value nobody titled is served with its own code made readable, so this is a better label rather than the only one.", type: "string", required: false },
+  { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour for this state — what it MEANS, not what it looks like: 'success' for sellable, 'info' for on its way, 'warning' for not right now, 'danger' for gone for good, 'neutral' for anything else. The client owns the palette. One of five (CHECK `tone in ('neutral', 'info', 'success', 'warning', 'danger')`), defaulting to 'neutral'. Defaults to 'neutral'.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
+];
+inventoriesStock
+  .command(`inventories-availability-states-update`)
+  .description(`Partial update: send the fields that change. An availability state is one of the codes THIS TENANT keeps for what a source system says about an article: a stock row stores one in \`availability_code\`, and the row's \`expected_at\` says when the article is due back. The set is a table rather than a fixed list because the number a source system delivers for availability is that system's number and what it means is the merchant's to state. Each value carries \`orderable\` — whether an item in this state may still be ordered — which is the fact a storefront needs in order to offer or withhold the order button without keeping a list of its own. The safe edits are the readable ones — \`title\`, \`labels\`, \`description\`, \`descriptions\`, \`tone\`, \`position\` — and they reach every screen at once, which is the point of the set living here. \`orderable\` is the consequential one: flipping it to false takes the order button away from every article in this state on the next read, with no stock row touched and no movement booked. \`code\` is the one to leave alone — a stock row stores the code, nothing in the database points at it, so moving it orphans every row that names the old value. Two rows of this tenant may not share \`code\` — that is the 409, and it answers an update that moves a row onto a sibling's value exactly as it answers a second insert.`)
+  .option(`--id <id>`, `The row id of the availability state to change, as the list answered it.`)
+  .option(`--code <code>`, `The value a stock row's \`availability_code\` stores, and the key the vocabulary serves it under. Lowercase letters, digits, '-' and '_' (CHECK \`code ~ '^[a-z][a-z0-9_-]*\$'\`), unique per tenant. Treat it as permanent: nothing in the database points at it, so renaming it here leaves every stock row carrying the old one, and the honest move is a new code plus an update of the rows that name it.`)
+  .option(`--description <description>`, `One sentence a screen can put under the title, in the tenant's working language — what this state means for a buyer looking at the article. Optional; a state with none is served with a null description rather than an invented one.`)
+  .option(`--descriptions <descriptions>`, `The description per language tag, on the same rule as \`labels\`: the tag if it is there, else \`description\`. Keys are language tags, values plain strings.`)
+  .option(
+    `--is-default [value]`,
+    `Whether this is the state an import falls back to when a source value maps to none of the others. Nothing in this app reads it — the fallback happens where the mapping happens — and it is served on the vocabulary so an importer can find it here instead of keeping a convention of its own. No seeded state carries it: which state an unmapped value means is the tenant's to say. Defaults to false, and nothing enforces that at most one state carries it.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
+    `--is-system [value]`,
+    `True for the four states this app seeds on install, false for anything the tenant added. It means "we put it there" and nothing more: a seeded state may be renamed, re-toned, reordered, corrected or deleted exactly like an added one, and the flag is there so a screen can say where a value came from. Send false, or leave it out: it marks the states this app seeded, and setting it on your own would only make one harder to tell apart.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--labels <labels>`, `The title per language tag, for a shop that has to render it in the reader's language. Falls back to \`title\` when a tag is missing. Keys are language tags, values plain strings.`)
+  .option(
+    `--orderable [value]`,
+    `Whether an item in this state may still be ordered — the reason this set is a table and not a list of names. A code on its own tells a storefront nothing it can act on: it has to be matched against a list the theme keeps, and that list is wrong the first time a merchant adds a code. This flag travels with the value, so a shop asks the vocabulary whether to offer the order button instead of asking itself. POST /inventories/availability reads it: a state that says false takes the order button away from every item the governing row puts in that state, whatever the quantity says, and that call reports it as \`unorderable_reason: 'state'\`. It stays the merchant's policy about the STATE — it moves no stock and books no movement, and the per-location \`state_orderable\` in that answer is this flag, held apart from the verdict. Defaults to true, so a state created without an answer is one a shop keeps selling in — set it deliberately.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--position <position>`, `Where this state sits in a select or a legend: the set is served ASCENDING, so a lower number comes first, and states that tie fall back to their code. It is presentation only — nothing sorts stock by it. Defaults to 0.`, parseInteger)
+  .option(`--title <title>`, `What a person reads for this state, in the tenant's working language. At least one character (CHECK \`length(title) > 0\`). A value nobody titled is served with its own code made readable, so this is a better label rather than the only one.`)
+  .option(`--tone <tone>`, `Semantic badge colour for this state — what it MEANS, not what it looks like: 'success' for sellable, 'info' for on its way, 'warning' for not right now, 'danger' for gone for good, 'neutral' for anything else. The client owns the palette. One of five (CHECK \`tone in ('neutral', 'info', 'success', 'warning', 'danger')\`), defaulting to 'neutral'. Defaults to 'neutral'.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, code, description, descriptions, isDefault, isSystem, labels, orderable, position, title, tone } = await promptForMissing(
+          _options,
+          inventoriesAvailabilityStatesUpdateSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/inventories/availability-states/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (code !== undefined) {
+          _payload[`code`] = code;
+        }
+        if (description !== undefined) {
+          _payload[`description`] = description;
+        }
+        if (descriptions !== undefined) {
+          _payload[`descriptions`] = resolveBodyParam(descriptions);
+        }
+        if (isDefault !== undefined) {
+          _payload[`is_default`] = isDefault;
+        }
+        if (isSystem !== undefined) {
+          _payload[`is_system`] = isSystem;
+        }
+        if (labels !== undefined) {
+          _payload[`labels`] = resolveBodyParam(labels);
+        }
+        if (orderable !== undefined) {
+          _payload[`orderable`] = orderable;
+        }
+        if (position !== undefined) {
+          _payload[`position`] = position;
+        }
+        if (title !== undefined) {
+          _payload[`title`] = title;
+        }
+        if (tone !== undefined) {
+          _payload[`tone`] = tone;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `put`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesAvailabilityStatesUpdateSpecs, { method: "put" });
 const inventoriesMovementsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
@@ -518,7 +928,13 @@ const listSpecs: PromptSpec[] = [
   { key: "onHand", option: "--on-hand <on-hand>", name: "on_hand", description: "Exact-match filter on `on_hand`. Exact balance, which is rarely what a reader wants: `?on_hand=0` finds the rows that are empty. There is no range filter here — GET /inventories/reorder-alerts is the \"running low\" question.", type: "number", required: false },
   { key: "reserved", option: "--reserved <reserved>", name: "reserved", description: "Exact-match filter on `reserved`. Exact reserved quantity. `?reserved=0` finds the rows nothing is holding.", type: "number", required: false },
   { key: "reorderPoint", option: "--reorder-point <reorder-point>", name: "reorder_point", description: "Exact-match filter on `reorder_point`. The available quantity at or below which this row belongs on the replenishment worklist (GET /inventories/reorder-alerts).", type: "number", required: false },
+  { key: "expectedAt", option: "--expected-at <expected-at>", name: "expected_at", description: "Exact-match filter on `expected_at`. When this item is expected back in stock at this location — a DATE, not a timestamp, because a supplier promises a day and not an hour.", type: "string", required: false },
+  { key: "availabilityCode", option: "--availability-code <availability-code>", name: "availability_code", description: "Exact-match filter on `availability_code`. What the source system says about this item's availability, as one of the codes THIS TENANT keeps (GET /inventories/availability-states, or GET /inventories/vocabularies/availability-states for the same set with its words and its `orderable` flag).", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Exact-match filter on `metadata`. Free-form data the tenant keeps on this stock row, and ONE key this app reads: `backorder`. The WHOLE jsonb document is compared, serialized as JSON — this is equality, not a key lookup or a containment query, and a value that does not parse is answered 400.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact-match filter on `external_id`. The key this row has in the system that OWNS it.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact-match filter on `external_refs`. Every OTHER system that knows this row, keyed by system name. The WHOLE jsonb document is compared, serialized as JSON — this is equality, not a key lookup or a containment query, and a value that does not parse is answered 400.", type: "string", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact-match filter on `source_synced_at`. When this row was last confirmed against its source.", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "Exact-match filter on `source_data`. What the source said about this row, kept as it said it. The WHOLE jsonb document is compared, serialized as JSON — this is equality, not a key lookup or a containment query, and a value that does not parse is answered 400.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact-match filter on `created_at`. When the row was created.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact-match filter on `updated_at`. When this row was last written.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -536,7 +952,13 @@ inventoriesStock
   .option(`--on-hand <on-hand>`, `Exact-match filter on \`on_hand\`. Exact balance, which is rarely what a reader wants: \`?on_hand=0\` finds the rows that are empty. There is no range filter here — GET /inventories/reorder-alerts is the "running low" question.`, parseInteger)
   .option(`--reserved <reserved>`, `Exact-match filter on \`reserved\`. Exact reserved quantity. \`?reserved=0\` finds the rows nothing is holding.`, parseInteger)
   .option(`--reorder-point <reorder-point>`, `Exact-match filter on \`reorder_point\`. The available quantity at or below which this row belongs on the replenishment worklist (GET /inventories/reorder-alerts).`, parseInteger)
+  .option(`--expected-at <expected-at>`, `Exact-match filter on \`expected_at\`. When this item is expected back in stock at this location — a DATE, not a timestamp, because a supplier promises a day and not an hour.`)
+  .option(`--availability-code <availability-code>`, `Exact-match filter on \`availability_code\`. What the source system says about this item's availability, as one of the codes THIS TENANT keeps (GET /inventories/availability-states, or GET /inventories/vocabularies/availability-states for the same set with its words and its \`orderable\` flag).`)
   .option(`--metadata <metadata>`, `Exact-match filter on \`metadata\`. Free-form data the tenant keeps on this stock row, and ONE key this app reads: \`backorder\`. The WHOLE jsonb document is compared, serialized as JSON — this is equality, not a key lookup or a containment query, and a value that does not parse is answered 400.`)
+  .option(`--external-id <external-id>`, `Exact-match filter on \`external_id\`. The key this row has in the system that OWNS it.`)
+  .option(`--external-refs <external-refs>`, `Exact-match filter on \`external_refs\`. Every OTHER system that knows this row, keyed by system name. The WHOLE jsonb document is compared, serialized as JSON — this is equality, not a key lookup or a containment query, and a value that does not parse is answered 400.`)
+  .option(`--source-synced-at <source-synced-at>`, `Exact-match filter on \`source_synced_at\`. When this row was last confirmed against its source.`)
+  .option(`--source-data <source-data>`, `Exact-match filter on \`source_data\`. What the source said about this row, kept as it said it. The WHOLE jsonb document is compared, serialized as JSON — this is equality, not a key lookup or a containment query, and a value that does not parse is answered 400.`)
   .option(`--created-at <created-at>`, `Exact-match filter on \`created_at\`. When the row was created.`)
   .option(`--updated-at <updated-at>`, `Exact-match filter on \`updated_at\`. When this row was last written.`)
   .option(
@@ -548,7 +970,7 @@ inventoriesStock
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, locationId, productId, sku, onHand, reserved, reorderPoint, metadata, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, locationId, productId, sku, onHand, reserved, reorderPoint, expectedAt, availabilityCode, metadata, externalId, externalRefs, sourceSyncedAt, sourceData, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -586,8 +1008,26 @@ inventoriesStock
         if (reorderPoint !== undefined) {
           _payload[`reorder_point`] = reorderPoint;
         }
+        if (expectedAt !== undefined) {
+          _payload[`expected_at`] = expectedAt;
+        }
+        if (availabilityCode !== undefined) {
+          _payload[`availability_code`] = availabilityCode;
+        }
         if (metadata !== undefined) {
           _payload[`metadata`] = metadata;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = externalRefs;
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = sourceData;
         }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
@@ -618,6 +1058,8 @@ inventoriesStock
 registerPromptSpecs(inventoriesStock.commands.at(-1)!, listSpecs, { method: "get" });
 const createSpecs: PromptSpec[] = [
   { key: "locationId", option: "--location-id <location-id>", name: "location_id", description: "The location this balance is held at — a `locations` row of this tenant (GET /inventories/locations). There is ONE stock row per (location, item): the same SKU in three warehouses is three rows, and what a storefront shows is their sum (POST /inventories/availability). Deleting the location deletes its stock rows with it. It has to exist already (GET /inventories/locations); an id no location carries is answered 400 by the foreign key, not 404.", type: "string", required: true },
+  { key: "availabilityCode", option: "--availability-code <availability-code>", name: "availability_code", description: "What the source system says about this item's availability, as one of the codes THIS TENANT keeps (GET /inventories/availability-states, or GET /inventories/vocabularies/availability-states for the same set with its words and its `orderable` flag). Deliberately not free text and deliberately not an enum of this app's: a code the tenant does not keep is refused with 400 naming the codes they do, and the set itself is a table they extend, because the number a source system delivers for this is that system's number and what it means is theirs to state. Null means nothing said so — which is not the same as unavailable, and a storefront reads `available` for that. A code this tenant does not keep is refused with 400 naming the ones it does, rather than stored as a value nothing can resolve. Null clears it.", type: "string", required: false },
+  { key: "expectedAt", option: "--expected-at <expected-at>", name: "expected_at", description: "When this item is expected back in stock at this location — a DATE, not a timestamp, because a supplier promises a day and not an hour. It is the single most asked-for fact about an article that is out of stock, and the one a buyer telephones sales for: a storefront shows it on the article page next to the availability state. Nothing in this app COMPUTES it — no reorder alert, no allocation, no event: it is written by whoever knows (an ERP feed, or an operator on the stock row). It is read in one place, POST /inventories/availability, which answers it per location and rolls the earliest one up for an item that cannot be had now. A past date is stored as sent: it means the promise was missed, which is worth showing rather than hiding. Send it as YYYY-MM-DD; null clears it, which is what a receipt that arrived should do.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data the tenant keeps on this stock row, and ONE key this app reads: `backorder`. A literal boolean `true` there opts this item into backorders while `backorder_policy` is 'allow_per_sku' — anything else, including the string \"true\", does not, and the reservation is refused with 422. That is how a merchant backorders the supplier-stocked half of a catalogue without promising the rest.", type: "object", required: false },
   { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The product this row tracks, as the products app knows it. A row tracks a `product_id` or a `sku` — the database insists on at least one (CHECK `product_id is not null or sku is not null`) — and matching is exact: a row keyed by SKU is not found by product id.", type: "string", required: false },
   { key: "reorderPoint", option: "--reorder-point <reorder-point>", name: "reorder_point", description: "The available quantity at or below which this row belongs on the replenishment worklist (GET /inventories/reorder-alerts). Null falls back to the `reorder_point_default` setting, so replenishment works without a threshold per SKU; 0 never alerts, which is how one row opts out.", type: "number", required: false },
@@ -627,6 +1069,8 @@ inventoriesStock
   .command(`create`)
   .description(`Registers an item at a location. The row is born at ZERO and never gets a balance from this call: \`on_hand\` and \`reserved\` are NOT accepted, because they are the running total of the movements ledger, so an opening balance is a receipt (POST /inventories/receive) rather than a field here, and the only thing that ever moves either number afterwards is another booking. What this row carries is its identity (location + \`product_id\`/\`sku\`), its \`reorder_point\` and its metadata. \`location_id\` is the only field a create cannot omit; every other column is optional or defaulted by the database. The one rule that is a CHECK rather than a column is that a row has to identify its item, so \`product_id\` or \`sku\` has to be there as well. Mostly you do not need this route at all — every stock call creates the row it is missing — and a second row for an item this location already tracks is answered 409: no unique index enforces one row per item per location, so that row would split the item's balance across two rows the write routes cannot tell apart, each of them updating whichever the database returns first. That guard is a check before the insert and not a constraint, so it closes a double click or a re-run import and does not claim to close a race between two simultaneous creates.`)
   .option(`--location-id <location-id>`, `The location this balance is held at — a \`locations\` row of this tenant (GET /inventories/locations). There is ONE stock row per (location, item): the same SKU in three warehouses is three rows, and what a storefront shows is their sum (POST /inventories/availability). Deleting the location deletes its stock rows with it. It has to exist already (GET /inventories/locations); an id no location carries is answered 400 by the foreign key, not 404.`)
+  .option(`--availability-code <availability-code>`, `What the source system says about this item's availability, as one of the codes THIS TENANT keeps (GET /inventories/availability-states, or GET /inventories/vocabularies/availability-states for the same set with its words and its \`orderable\` flag). Deliberately not free text and deliberately not an enum of this app's: a code the tenant does not keep is refused with 400 naming the codes they do, and the set itself is a table they extend, because the number a source system delivers for this is that system's number and what it means is theirs to state. Null means nothing said so — which is not the same as unavailable, and a storefront reads \`available\` for that. A code this tenant does not keep is refused with 400 naming the ones it does, rather than stored as a value nothing can resolve. Null clears it.`)
+  .option(`--expected-at <expected-at>`, `When this item is expected back in stock at this location — a DATE, not a timestamp, because a supplier promises a day and not an hour. It is the single most asked-for fact about an article that is out of stock, and the one a buyer telephones sales for: a storefront shows it on the article page next to the availability state. Nothing in this app COMPUTES it — no reorder alert, no allocation, no event: it is written by whoever knows (an ERP feed, or an operator on the stock row). It is read in one place, POST /inventories/availability, which answers it per location and rolls the earliest one up for an item that cannot be had now. A past date is stored as sent: it means the promise was missed, which is worth showing rather than hiding. Send it as YYYY-MM-DD; null clears it, which is what a receipt that arrived should do.`)
   .option(`--metadata <metadata>`, `Free-form data the tenant keeps on this stock row, and ONE key this app reads: \`backorder\`. A literal boolean \`true\` there opts this item into backorders while \`backorder_policy\` is 'allow_per_sku' — anything else, including the string "true", does not, and the reservation is refused with 422. That is how a merchant backorders the supplier-stocked half of a catalogue without promising the rest.`)
   .option(`--product-id <product-id>`, `The product this row tracks, as the products app knows it. A row tracks a \`product_id\` or a \`sku\` — the database insists on at least one (CHECK \`product_id is not null or sku is not null\`) — and matching is exact: a row keyed by SKU is not found by product id.`)
   .option(`--reorder-point <reorder-point>`, `The available quantity at or below which this row belongs on the replenishment worklist (GET /inventories/reorder-alerts). Null falls back to the \`reorder_point_default\` setting, so replenishment works without a threshold per SKU; 0 never alerts, which is how one row opts out.`, parseInteger)
@@ -634,7 +1078,7 @@ inventoriesStock
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { locationId, metadata, productId, reorderPoint, sku } = await promptForMissing(
+        const { locationId, availabilityCode, expectedAt, metadata, productId, reorderPoint, sku } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -648,6 +1092,12 @@ inventoriesStock
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (availabilityCode !== undefined) {
+          _payload[`availability_code`] = availabilityCode;
+        }
+        if (expectedAt !== undefined) {
+          _payload[`expected_at`] = expectedAt;
         }
         if (locationId !== undefined) {
           _payload[`location_id`] = locationId;
@@ -745,6 +1195,8 @@ inventoriesStock
 registerPromptSpecs(inventoriesStock.commands.at(-1)!, getSpecs, { method: "get" });
 const updateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The stock row.", type: "string", required: true, resource: { listPath: "/inventories/stock", hasLimit: true } },
+  { key: "availabilityCode", option: "--availability-code <availability-code>", name: "availability_code", description: "What the source system says about this item's availability, as one of the codes THIS TENANT keeps (GET /inventories/availability-states, or GET /inventories/vocabularies/availability-states for the same set with its words and its `orderable` flag). Deliberately not free text and deliberately not an enum of this app's: a code the tenant does not keep is refused with 400 naming the codes they do, and the set itself is a table they extend, because the number a source system delivers for this is that system's number and what it means is theirs to state. Null means nothing said so — which is not the same as unavailable, and a storefront reads `available` for that. A code this tenant does not keep is refused with 400 naming the ones it does, rather than stored as a value nothing can resolve. Null clears it.", type: "string", required: false },
+  { key: "expectedAt", option: "--expected-at <expected-at>", name: "expected_at", description: "When this item is expected back in stock at this location — a DATE, not a timestamp, because a supplier promises a day and not an hour. It is the single most asked-for fact about an article that is out of stock, and the one a buyer telephones sales for: a storefront shows it on the article page next to the availability state. Nothing in this app COMPUTES it — no reorder alert, no allocation, no event: it is written by whoever knows (an ERP feed, or an operator on the stock row). It is read in one place, POST /inventories/availability, which answers it per location and rolls the earliest one up for an item that cannot be had now. A past date is stored as sent: it means the promise was missed, which is worth showing rather than hiding. Send it as YYYY-MM-DD; null clears it, which is what a receipt that arrived should do.", type: "string", required: false },
   { key: "locationId", option: "--location-id <location-id>", name: "location_id", description: "The location this balance is held at — a `locations` row of this tenant (GET /inventories/locations). There is ONE stock row per (location, item): the same SKU in three warehouses is three rows, and what a storefront shows is their sum (POST /inventories/availability). Deleting the location deletes its stock rows with it. It has to exist already (GET /inventories/locations); an id no location carries is answered 400 by the foreign key, not 404.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data the tenant keeps on this stock row, and ONE key this app reads: `backorder`. A literal boolean `true` there opts this item into backorders while `backorder_policy` is 'allow_per_sku' — anything else, including the string \"true\", does not, and the reservation is refused with 422. That is how a merchant backorders the supplier-stocked half of a catalogue without promising the rest.", type: "object", required: false },
   { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The product this row tracks, as the products app knows it. A row tracks a `product_id` or a `sku` — the database insists on at least one (CHECK `product_id is not null or sku is not null`) — and matching is exact: a row keyed by SKU is not found by product id.", type: "string", required: false },
@@ -755,6 +1207,8 @@ inventoriesStock
   .command(`update`)
   .description(`Partial update of everything on the row EXCEPT its balance: reorder_point, metadata, identity. on_hand and reserved are dropped from the body — every stock change is a movement, and a body carrying nothing else is answered 422 with the route that was meant (POST /inventories/stock/{id}/adjust).`)
   .option(`--id <id>`, `The stock row.`)
+  .option(`--availability-code <availability-code>`, `What the source system says about this item's availability, as one of the codes THIS TENANT keeps (GET /inventories/availability-states, or GET /inventories/vocabularies/availability-states for the same set with its words and its \`orderable\` flag). Deliberately not free text and deliberately not an enum of this app's: a code the tenant does not keep is refused with 400 naming the codes they do, and the set itself is a table they extend, because the number a source system delivers for this is that system's number and what it means is theirs to state. Null means nothing said so — which is not the same as unavailable, and a storefront reads \`available\` for that. A code this tenant does not keep is refused with 400 naming the ones it does, rather than stored as a value nothing can resolve. Null clears it.`)
+  .option(`--expected-at <expected-at>`, `When this item is expected back in stock at this location — a DATE, not a timestamp, because a supplier promises a day and not an hour. It is the single most asked-for fact about an article that is out of stock, and the one a buyer telephones sales for: a storefront shows it on the article page next to the availability state. Nothing in this app COMPUTES it — no reorder alert, no allocation, no event: it is written by whoever knows (an ERP feed, or an operator on the stock row). It is read in one place, POST /inventories/availability, which answers it per location and rolls the earliest one up for an item that cannot be had now. A past date is stored as sent: it means the promise was missed, which is worth showing rather than hiding. Send it as YYYY-MM-DD; null clears it, which is what a receipt that arrived should do.`)
   .option(`--location-id <location-id>`, `The location this balance is held at — a \`locations\` row of this tenant (GET /inventories/locations). There is ONE stock row per (location, item): the same SKU in three warehouses is three rows, and what a storefront shows is their sum (POST /inventories/availability). Deleting the location deletes its stock rows with it. It has to exist already (GET /inventories/locations); an id no location carries is answered 400 by the foreign key, not 404.`)
   .option(`--metadata <metadata>`, `Free-form data the tenant keeps on this stock row, and ONE key this app reads: \`backorder\`. A literal boolean \`true\` there opts this item into backorders while \`backorder_policy\` is 'allow_per_sku' — anything else, including the string "true", does not, and the reservation is refused with 422. That is how a merchant backorders the supplier-stocked half of a catalogue without promising the rest.`)
   .option(`--product-id <product-id>`, `The product this row tracks, as the products app knows it. A row tracks a \`product_id\` or a \`sku\` — the database insists on at least one (CHECK \`product_id is not null or sku is not null\`) — and matching is exact: a row keyed by SKU is not found by product id.`)
@@ -763,7 +1217,7 @@ inventoriesStock
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, locationId, metadata, productId, reorderPoint, sku } = await promptForMissing(
+        const { id, availabilityCode, expectedAt, locationId, metadata, productId, reorderPoint, sku } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -777,6 +1231,12 @@ inventoriesStock
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (availabilityCode !== undefined) {
+          _payload[`availability_code`] = availabilityCode;
+        }
+        if (expectedAt !== undefined) {
+          _payload[`expected_at`] = expectedAt;
         }
         if (locationId !== undefined) {
           _payload[`location_id`] = locationId;
@@ -861,7 +1321,7 @@ const inventoriesVocabulariesListSpecs: PromptSpec[] = [
 ];
 inventoriesStock
   .command(`inventories-vocabularies-list`)
-  .description(`Discovery for the vocabulary routes: the enums this app publishes, each with its name, its title and its description and deliberately WITHOUT its values, so finding out what exists costs one small call and not one per vocabulary. Names: location-types, movement-types, reservation-statuses. Fetch one with GET /inventories/vocabularies/{name}; a client holding the qualified pair 'inventories.<name>' builds that URL from the pair alone.`)
+  .description(`Discovery for the vocabulary routes: the enums this app publishes, each with its name, its title and its description and deliberately WITHOUT its values, so finding out what exists costs one small call and not one per vocabulary. Names: availability-states, location-types, movement-types, reservation-statuses. Fetch one with GET /inventories/vocabularies/{name}; a client holding the qualified pair 'inventories.<name>' builds that URL from the pair alone.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -901,12 +1361,12 @@ inventoriesStock
   );
 registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesVocabulariesListSpecs, { method: "get" });
 const inventoriesVocabulariesGetSpecs: PromptSpec[] = [
-  { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id. One of: location-types, movement-types, reservation-statuses. Anything else is a 404, so the enum is the complete set and not a suggestion.", type: "string", required: true, enum: ["location-types","movement-types","reservation-statuses"], resource: { listPath: "/inventories/vocabularies", hasLimit: false } },
+  { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id. One of: availability-states, location-types, movement-types, reservation-statuses. Anything else is a 404, so the enum is the complete set and not a suggestion.", type: "string", required: true, enum: ["availability-states","location-types","movement-types","reservation-statuses"], resource: { listPath: "/inventories/vocabularies", hasLimit: false } },
 ];
 inventoriesStock
   .command(`inventories-vocabularies-get`)
-  .description(`One vocabulary in full: every permitted value, each carrying the title and description a person reads for it and the badge tone a UI colours it with, so a client renders a status or a movement type without a hard-coded table of its own. The values are read out of the column's CHECK constraint, so the served set IS the enforced set and the two cannot drift — a value added to the constraint appears here even before anyone labels it, titled from its own key. Values come back in constraint order, which is lifecycle order for a status. 'closed' says the set is exhaustive, so a value outside it is stale data rather than a missing label. Names: location-types, movement-types, reservation-statuses.`)
-  .option(`--name <name>`, `The vocabulary name — the part after the dot in the qualified id. One of: location-types, movement-types, reservation-statuses. Anything else is a 404, so the enum is the complete set and not a suggestion.`)
+  .description(`One vocabulary in full: every permitted value, each carrying the title and description a person reads for it and the badge tone a UI colours it with, so a client renders a status or a movement type without a hard-coded table of its own. \`source\` says who OWNS the set. 'schema' — the values are read out of the column's CHECK constraint, so the served set IS the enforced set and the two cannot drift; a value added to the constraint appears here even before anyone labels it, titled from its own key, and they come back in constraint order, which is lifecycle order for a status. 'table' — the values are the TENANT's own rows, read per request and ordered by the position they gave them, so a merchant extends the set without waiting for a release of this app; those values carry \`orderable\`, \`is_default\`, \`is_system\` and their per-language labels as well, and reading the set is what seeds the shipped one into a tenant that has never had it. 'closed' is true either way: the set is exhaustive at this moment, so a value outside it is stale data rather than a missing label. Names: availability-states, location-types, movement-types, reservation-statuses.`)
+  .option(`--name <name>`, `The vocabulary name — the part after the dot in the qualified id. One of: availability-states, location-types, movement-types, reservation-statuses. Anything else is a 404, so the enum is the complete set and not a suggestion.`)
   .action(
     actionRunner(
       async (_options, _command) => {

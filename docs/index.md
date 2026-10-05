@@ -2,10 +2,8 @@
 
 # Revenexx CLI SDK
 
-![License](https://img.shields.io/github/license/revenexx-sdks/cli.svg?style=flat-square)
+![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)
 ![Version](https://img.shields.io/badge/api%20version-1.0.0-blue.svg?style=flat-square)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/revenexx-sdks/cli/ci.yml?style=flat-square)](https://github.com/revenexx-sdks/cli/actions)
-[![Twitter Account](https://img.shields.io/twitter/follow/revenexx?color=00acee&label=twitter&style=flat-square)](https://twitter.com/revenexx)
 
 Revenexx command-line interface for managing your platform.
 
@@ -28,7 +26,7 @@ Once the installation is complete, you can verify the install using
 
 ```sh
 $ revenexx -v
-0.5.0
+0.6.0
 ```
 
 ### MacOS / Linux via [Homebrew](https://brew.sh)
@@ -70,7 +68,7 @@ On Windows, use `npm` — or download the `.exe` from the same release page.
 Once the installation completes, you can verify your install using
 ```
 $ revenexx -v
-0.5.0
+0.6.0
 ```
 
 ## Getting Started

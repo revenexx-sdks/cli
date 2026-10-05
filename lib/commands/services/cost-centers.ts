@@ -20,7 +20,7 @@ import {
 export const costCenters = new Command("cost-centers")
   .description(
     commandDescriptions["costCenters"] ??
-      `Commerce Studio Cost Centers App — the money/data half of B2B procurement (ADR-0074). Cost centres (booking accounts) with restrictions and an accountable contact, budgets with a change LEDGER (sequential consumption, last budget may go negative), and per-contact personal spending limits. Has zero approval concept: the procurement app owns approval rules, purchase requests and the workflow, and calls this app for condition evaluation (the budget-aware availableBudget plus the per-contact personalLimit gate) and budget movement (reserve, adjusting a held reservation, confirm/withdraw/commit). Ports the cost-centre parts of IntelliShop V8 module-booking-accounts.`,
+      `Commerce Studio Cost Centers App — the money/data half of B2B procurement. Cost centres (booking accounts) with restrictions and an accountable contact, budgets with a change LEDGER (sequential consumption, last budget may go negative), and per-contact personal spending limits. Has zero approval concept: the procurement app owns approval rules, purchase requests and the workflow, and calls this app for condition evaluation (the budget-aware availableBudget plus the per-contact personalLimit gate) and budget movement (reserve, adjusting a held reservation, confirm/withdraw/commit). Ports the cost-centre parts of IntelliShop V8 module-booking-accounts.`,
   )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
@@ -512,23 +512,30 @@ costCenters
 registerPromptSpecs(costCenters.commands.at(-1)!, budgetsAdjustSpecs, { method: "post" });
 const commitSpecs: PromptSpec[] = [
   { key: "allocations", option: "--allocations [allocations...]", name: "allocations", type: "array", required: true },
-  { key: "orderId", option: "--order-id <order-id>", name: "order_id", type: "string", required: true },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code the amount is stated in. Omit to be read in the cost centre's (or the personal limit's) own currency; a code that differs from it is refused with 409 currency_mismatch.", type: "string", required: false },
+  { key: "dryRun", option: "--dry-run <dry-run>", name: "dry_run", description: "true runs the pre-flight (currency, no active budget, tracking-only centres) and answers as the real call would — same status, skipped and refusal — while writing nothing and claiming no key. The purchase request / order id may then be omitted.", type: "boolean", required: false },
   { key: "note", option: "--note <note>", name: "note", type: "string", required: false },
+  { key: "orderId", option: "--order-id <order-id>", name: "order_id", type: "string", required: false },
 ];
 costCenters
   .command(`commit`)
-  .description(`Commit a direct order against budgets, no reservation (idempotent on order_id)`)
+  .description(`Commit a direct order against budgets, no reservation (idempotent on order_id); tracking-only centres are skipped; dry_run answers without writing`)
   .option(`--allocations [allocations...]`, ``)
-  .option(`--order-id <order-id>`, ``)
   .option(`--contact-id <contact-id>`, ``)
   .option(`--currency <currency>`, `ISO 4217 code the amount is stated in. Omit to be read in the cost centre's (or the personal limit's) own currency; a code that differs from it is refused with 409 currency_mismatch.`)
+  .option(
+    `--dry-run [value]`,
+    `true runs the pre-flight (currency, no active budget, tracking-only centres) and answers as the real call would — same status, skipped and refusal — while writing nothing and claiming no key. The purchase request / order id may then be omitted.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--note <note>`, ``)
+  .option(`--order-id <order-id>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { allocations, orderId, contactId, currency, note } = await promptForMissing(
+        const { allocations, contactId, currency, dryRun, note, orderId } = await promptForMissing(
           _options,
           commitSpecs,
           _command,
@@ -552,6 +559,9 @@ costCenters
         if (currency !== undefined) {
           _payload[`currency`] = currency;
         }
+        if (dryRun !== undefined) {
+          _payload[`dry_run`] = dryRun;
+        }
         if (note !== undefined) {
           _payload[`note`] = note;
         }
@@ -574,6 +584,7 @@ costCenters
 registerPromptSpecs(costCenters.commands.at(-1)!, commitSpecs, { method: "post" });
 const confirmSpecs: PromptSpec[] = [
   { key: "purchaseRequestId", option: "--purchase-request-id <purchase-request-id>", name: "purchase_request_id", type: "string", required: true },
+  { key: "allocations", option: "--allocations [allocations...]", name: "allocations", description: "Optional: the request's allocations (the reserve's shape; an empty array is the same as none, and only cost_center_id is read), used only to classify its cost centres by budget type. A request holding no reservation whose every centre is tracking-only is then settled with nothing written; one naming a monetary centre, or naming none, is refused with 409 as before. Amounts are read from the ledger, never from here.", type: "array", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code the amount is stated in. Omit to be read in the cost centre's (or the personal limit's) own currency; a code that differs from it is refused with 409 currency_mismatch.", type: "string", required: false },
   { key: "note", option: "--note <note>", name: "note", type: "string", required: false },
   { key: "orderId", option: "--order-id <order-id>", name: "order_id", type: "string", required: false },
@@ -582,13 +593,14 @@ costCenters
   .command(`confirm`)
   .description(`Confirm a purchase request reservation as an order (idempotent)`)
   .option(`--purchase-request-id <purchase-request-id>`, ``)
+  .option(`--allocations [allocations...]`, `Optional: the request's allocations (the reserve's shape; an empty array is the same as none, and only cost_center_id is read), used only to classify its cost centres by budget type. A request holding no reservation whose every centre is tracking-only is then settled with nothing written; one naming a monetary centre, or naming none, is refused with 409 as before. Amounts are read from the ledger, never from here.`)
   .option(`--currency <currency>`, `ISO 4217 code the amount is stated in. Omit to be read in the cost centre's (or the personal limit's) own currency; a code that differs from it is refused with 409 currency_mismatch.`)
   .option(`--note <note>`, ``)
   .option(`--order-id <order-id>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { purchaseRequestId, currency, note, orderId } = await promptForMissing(
+        const { purchaseRequestId, allocations, currency, note, orderId } = await promptForMissing(
           _options,
           confirmSpecs,
           _command,
@@ -602,6 +614,9 @@ costCenters
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (allocations !== undefined) {
+          _payload[`allocations`] = allocations;
         }
         if (currency !== undefined) {
           _payload[`currency`] = currency;
@@ -874,6 +889,7 @@ const costCentersListSpecs: PromptSpec[] = [
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
   { key: "punchoutAccountCode", option: "--punchout-account-code <punchout-account-code>", name: "punchout_account_code", description: "Code of the punchout account the list is read for. Centres a punchout restriction keeps out of reach of that account are left out (and the total counts only what is returned). Omit for the administrative list, which holds nothing back. A value that is not a non-empty string is refused with 400.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact-match filter on the key the system that OWNS the centre knows it by — how an import finds the row it wrote last run instead of opening a second centre and splitting a budget across the two. Unique per tenant, so this answers at most one centre; a centre nobody imported matches nothing.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 costCenters
@@ -883,6 +899,7 @@ costCenters
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
   .option(`--punchout-account-code <punchout-account-code>`, `Code of the punchout account the list is read for. Centres a punchout restriction keeps out of reach of that account are left out (and the total counts only what is returned). Omit for the administrative list, which holds nothing back. A value that is not a non-empty string is refused with 400.`)
+  .option(`--external-id <external-id>`, `Exact-match filter on the key the system that OWNS the centre knows it by — how an import finds the row it wrote last run instead of opening a second centre and splitting a budget across the two. Unique per tenant, so this answers at most one centre; a centre nobody imported matches nothing.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -892,7 +909,7 @@ costCenters
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, punchoutAccountCode, filter } = await promptForMissing(
+        const { limit, offset, order, punchoutAccountCode, externalId, filter } = await promptForMissing(
           _options,
           costCentersListSpecs,
           _command,
@@ -911,6 +928,9 @@ costCenters
         }
         if (punchoutAccountCode !== undefined) {
           _payload[`punchout_account_code`] = punchoutAccountCode;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -938,9 +958,14 @@ const costCentersCreateSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", type: "string", required: true },
   { key: "accountableContactId", option: "--accountable-contact-id <accountable-contact-id>", name: "accountable_contact_id", type: "string", required: false },
   { key: "active", option: "--active <active>", name: "active", type: "boolean", required: false },
+  { key: "budgetType", option: "--budget-type <budget-type>", name: "budget_type", type: "string", required: false, enum: ["monetary","tracking_only"] },
   { key: "currency", option: "--currency <currency>", name: "currency", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this cost centre has in the system that OWNS it — the dimension value an ERP books against, which is rarely the `code` a controller types here. Unique per tenant where it is set, so a repeated import upserts on it instead of matching on a name; a centre opened in the Cockpit carries none and never will.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this cost centre, keyed by system name — a second ERP, the procurement platform a punchout session comes from, the shop this tenant migrated off. `external_id` names the leading system; this is the rest, and the next one costs no column. Answered on read and carrying no query parameter: the store compares such a field as a WHOLE document, so a filter over part of one is refused. Look the centre up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", type: "object", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this cost centre, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to send back in `If-Match`, and there is nowhere else to keep it between two runs. `raw` holds the source fields this app does not model — a responsible department, an account range — so an edit here does not silently throw them away.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this cost centre was last confirmed against its source. A delta run asks the source for what changed since it, and a controller reads it to see that a feed has gone quiet. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed — so a stale value beside a fresh `updated_at` means somebody is maintaining by hand what the ERP has stopped delivering.", type: "string", required: false },
 ];
 costCenters
   .command(`cost-centers-create`)
@@ -954,13 +979,18 @@ costCenters
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--budget-type <budget-type>`, ``)
   .option(`--currency <currency>`, ``)
+  .option(`--external-id <external-id>`, `The key this cost centre has in the system that OWNS it — the dimension value an ERP books against, which is rarely the \`code\` a controller types here. Unique per tenant where it is set, so a repeated import upserts on it instead of matching on a name; a centre opened in the Cockpit carries none and never will.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this cost centre, keyed by system name — a second ERP, the procurement platform a punchout session comes from, the shop this tenant migrated off. \`external_id\` names the leading system; this is the rest, and the next one costs no column. Answered on read and carrying no query parameter: the store compares such a field as a WHOLE document, so a filter over part of one is refused. Look the centre up by \`external_id\` and read this off the answer.`)
   .option(`--metadata <metadata>`, ``)
   .option(`--organization-id <organization-id>`, ``)
+  .option(`--source-data <source-data>`, `What the source said about this cost centre, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to send back in \`If-Match\`, and there is nowhere else to keep it between two runs. \`raw\` holds the source fields this app does not model — a responsible department, an account range — so an edit here does not silently throw them away.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this cost centre was last confirmed against its source. A delta run asks the source for what changed since it, and a controller reads it to see that a feed has gone quiet. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed — so a stale value beside a fresh \`updated_at\` means somebody is maintaining by hand what the ERP has stopped delivering.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, name, accountableContactId, active, currency, metadata, organizationId } = await promptForMissing(
+        const { code, name, accountableContactId, active, budgetType, currency, externalId, externalRefs, metadata, organizationId, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           costCentersCreateSpecs,
           _command,
@@ -981,11 +1011,20 @@ costCenters
         if (active !== undefined) {
           _payload[`active`] = active;
         }
+        if (budgetType !== undefined) {
+          _payload[`budget_type`] = budgetType;
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
         if (currency !== undefined) {
           _payload[`currency`] = currency;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
         }
         if (metadata !== undefined) {
           _payload[`metadata`] = resolveBodyParam(metadata);
@@ -995,6 +1034,12 @@ costCenters
         }
         if (organizationId !== undefined) {
           _payload[`organization_id`] = organizationId;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1079,11 +1124,16 @@ const costCentersUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/cost-centers/cost-centers", hasLimit: true } },
   { key: "accountableContactId", option: "--accountable-contact-id <accountable-contact-id>", name: "accountable_contact_id", type: "string", required: false },
   { key: "active", option: "--active <active>", name: "active", type: "boolean", required: false },
+  { key: "budgetType", option: "--budget-type <budget-type>", name: "budget_type", type: "string", required: false, enum: ["monetary","tracking_only"] },
   { key: "code", option: "--code <code>", name: "code", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this cost centre has in the system that OWNS it — the dimension value an ERP books against, which is rarely the `code` a controller types here. Unique per tenant where it is set, so a repeated import upserts on it instead of matching on a name; a centre opened in the Cockpit carries none and never will.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this cost centre, keyed by system name — a second ERP, the procurement platform a punchout session comes from, the shop this tenant migrated off. `external_id` names the leading system; this is the rest, and the next one costs no column. Answered on read and carrying no query parameter: the store compares such a field as a WHOLE document, so a filter over part of one is refused. Look the centre up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", type: "object", required: false },
   { key: "name", option: "--name <name>", name: "name", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this cost centre, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to send back in `If-Match`, and there is nowhere else to keep it between two runs. `raw` holds the source fields this app does not model — a responsible department, an account range — so an edit here does not silently throw them away.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this cost centre was last confirmed against its source. A delta run asks the source for what changed since it, and a controller reads it to see that a feed has gone quiet. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed — so a stale value beside a fresh `updated_at` means somebody is maintaining by hand what the ERP has stopped delivering.", type: "string", required: false },
 ];
 costCenters
   .command(`cost-centers-update`)
@@ -1096,15 +1146,20 @@ costCenters
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--budget-type <budget-type>`, ``)
   .option(`--code <code>`, ``)
   .option(`--currency <currency>`, ``)
+  .option(`--external-id <external-id>`, `The key this cost centre has in the system that OWNS it — the dimension value an ERP books against, which is rarely the \`code\` a controller types here. Unique per tenant where it is set, so a repeated import upserts on it instead of matching on a name; a centre opened in the Cockpit carries none and never will.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this cost centre, keyed by system name — a second ERP, the procurement platform a punchout session comes from, the shop this tenant migrated off. \`external_id\` names the leading system; this is the rest, and the next one costs no column. Answered on read and carrying no query parameter: the store compares such a field as a WHOLE document, so a filter over part of one is refused. Look the centre up by \`external_id\` and read this off the answer.`)
   .option(`--metadata <metadata>`, ``)
   .option(`--name <name>`, ``)
   .option(`--organization-id <organization-id>`, ``)
+  .option(`--source-data <source-data>`, `What the source said about this cost centre, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to send back in \`If-Match\`, and there is nowhere else to keep it between two runs. \`raw\` holds the source fields this app does not model — a responsible department, an account range — so an edit here does not silently throw them away.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this cost centre was last confirmed against its source. A delta run asks the source for what changed since it, and a controller reads it to see that a feed has gone quiet. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed — so a stale value beside a fresh \`updated_at\` means somebody is maintaining by hand what the ERP has stopped delivering.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, accountableContactId, active, code, currency, metadata, name, organizationId } = await promptForMissing(
+        const { id, accountableContactId, active, budgetType, code, currency, externalId, externalRefs, metadata, name, organizationId, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           costCentersUpdateSpecs,
           _command,
@@ -1125,11 +1180,20 @@ costCenters
         if (active !== undefined) {
           _payload[`active`] = active;
         }
+        if (budgetType !== undefined) {
+          _payload[`budget_type`] = budgetType;
+        }
         if (code !== undefined) {
           _payload[`code`] = code;
         }
         if (currency !== undefined) {
           _payload[`currency`] = currency;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
         }
         if (metadata !== undefined) {
           _payload[`metadata`] = resolveBodyParam(metadata);
@@ -1139,6 +1203,12 @@ costCenters
         }
         if (organizationId !== undefined) {
           _payload[`organization_id`] = organizationId;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1290,25 +1360,99 @@ costCenters
     ),
   );
 registerPromptSpecs(costCenters.commands.at(-1)!, evaluateSpecs, { method: "post" });
-const reserveSpecs: PromptSpec[] = [
-  { key: "allocations", option: "--allocations [allocations...]", name: "allocations", type: "array", required: true },
-  { key: "purchaseRequestId", option: "--purchase-request-id <purchase-request-id>", name: "purchase_request_id", type: "string", required: true },
+const releaseSpecs: PromptSpec[] = [
+  { key: "key", option: "--key <key>", name: "key", description: "Idempotency key of this cancellation within the order (e.g. the cancellation id, or cancellation_id:item_id for one item). A repeat under the same key gives nothing back again.", type: "string", required: true },
+  { key: "orderId", option: "--order-id <order-id>", name: "order_id", type: "string", required: true },
+  { key: "allocations", option: "--allocations [allocations...]", name: "allocations", description: "Optional: the amount to give back per cost centre, capped at what the order booked there. Omit to give back everything still booked for the order.", type: "array", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code the amount is stated in. Omit to be read in the cost centre's (or the personal limit's) own currency; a code that differs from it is refused with 409 currency_mismatch.", type: "string", required: false },
   { key: "note", option: "--note <note>", name: "note", type: "string", required: false },
 ];
 costCenters
-  .command(`reserve`)
-  .description(`Reserve budget for a purchase request (idempotent on purchase_request_id)`)
-  .option(`--allocations [allocations...]`, ``)
-  .option(`--purchase-request-id <purchase-request-id>`, ``)
+  .command(`release`)
+  .description(`Give back the budget booked for a cancelled order (idempotent on key); a closed period is skipped with a zero entry, tracking-only centres are skipped`)
+  .option(`--key <key>`, `Idempotency key of this cancellation within the order (e.g. the cancellation id, or cancellation_id:item_id for one item). A repeat under the same key gives nothing back again.`)
+  .option(`--order-id <order-id>`, ``)
+  .option(`--allocations [allocations...]`, `Optional: the amount to give back per cost centre, capped at what the order booked there. Omit to give back everything still booked for the order.`)
   .option(`--contact-id <contact-id>`, ``)
   .option(`--currency <currency>`, `ISO 4217 code the amount is stated in. Omit to be read in the cost centre's (or the personal limit's) own currency; a code that differs from it is refused with 409 currency_mismatch.`)
   .option(`--note <note>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { allocations, purchaseRequestId, contactId, currency, note } = await promptForMissing(
+        const { key, orderId, allocations, contactId, currency, note } = await promptForMissing(
+          _options,
+          releaseSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/cost-centers/release`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (allocations !== undefined) {
+          _payload[`allocations`] = allocations;
+        }
+        if (contactId !== undefined) {
+          _payload[`contact_id`] = contactId;
+        }
+        if (currency !== undefined) {
+          _payload[`currency`] = currency;
+        }
+        if (key !== undefined) {
+          _payload[`key`] = key;
+        }
+        if (note !== undefined) {
+          _payload[`note`] = note;
+        }
+        if (orderId !== undefined) {
+          _payload[`order_id`] = orderId;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(costCenters.commands.at(-1)!, releaseSpecs, { method: "post" });
+const reserveSpecs: PromptSpec[] = [
+  { key: "allocations", option: "--allocations [allocations...]", name: "allocations", type: "array", required: true },
+  { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", type: "string", required: false },
+  { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code the amount is stated in. Omit to be read in the cost centre's (or the personal limit's) own currency; a code that differs from it is refused with 409 currency_mismatch.", type: "string", required: false },
+  { key: "dryRun", option: "--dry-run <dry-run>", name: "dry_run", description: "true runs the pre-flight (currency, no active budget, tracking-only centres) and answers as the real call would — same status, skipped and refusal — while writing nothing and claiming no key. The purchase request / order id may then be omitted.", type: "boolean", required: false },
+  { key: "note", option: "--note <note>", name: "note", type: "string", required: false },
+  { key: "purchaseRequestId", option: "--purchase-request-id <purchase-request-id>", name: "purchase_request_id", type: "string", required: false },
+];
+costCenters
+  .command(`reserve`)
+  .description(`Reserve budget for a purchase request (idempotent on purchase_request_id); tracking-only centres are skipped; dry_run answers without writing`)
+  .option(`--allocations [allocations...]`, ``)
+  .option(`--contact-id <contact-id>`, ``)
+  .option(`--currency <currency>`, `ISO 4217 code the amount is stated in. Omit to be read in the cost centre's (or the personal limit's) own currency; a code that differs from it is refused with 409 currency_mismatch.`)
+  .option(
+    `--dry-run [value]`,
+    `true runs the pre-flight (currency, no active budget, tracking-only centres) and answers as the real call would — same status, skipped and refusal — while writing nothing and claiming no key. The purchase request / order id may then be omitted.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--note <note>`, ``)
+  .option(`--purchase-request-id <purchase-request-id>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { allocations, contactId, currency, dryRun, note, purchaseRequestId } = await promptForMissing(
           _options,
           reserveSpecs,
           _command,
@@ -1331,6 +1475,9 @@ costCenters
         }
         if (currency !== undefined) {
           _payload[`currency`] = currency;
+        }
+        if (dryRun !== undefined) {
+          _payload[`dry_run`] = dryRun;
         }
         if (note !== undefined) {
           _payload[`note`] = note;
@@ -1726,8 +1873,63 @@ costCenters
     ),
   );
 registerPromptSpecs(costCenters.commands.at(-1)!, usableSpecs, { method: "post" });
+costCenters
+  .command(`vocabularies`)
+  .description(`List the value sets this app enforces, without their values`)
+  .action(
+    actionRunner(
+      async () => {
+        const _client = await sdkForProject();
+        const _apiPath = `/cost-centers/vocabularies`;
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+const vocabularySpecs: PromptSpec[] = [
+  { key: "name", option: "--name <name>", name: "name", description: "Which vocabulary to read. The enum is exhaustive; anything else is a 404.", type: "string", required: true, enum: ["budget-change-reasons","budget-types","punchout-modes","restriction-types"], resource: { listPath: "/cost-centers/vocabularies", hasLimit: false } },
+];
+costCenters
+  .command(`vocabulary`)
+  .description(`Read one value set with its values, parsed from the constraint the store enforces`)
+  .option(`--name <name>`, `Which vocabulary to read. The enum is exhaustive; anything else is a 404.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { name } = await promptForMissing(
+          _options,
+          vocabularySpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/cost-centers/vocabularies/{name}`.replace(`{name}`, name);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(costCenters.commands.at(-1)!, vocabularySpecs, { method: "get" });
 const withdrawSpecs: PromptSpec[] = [
   { key: "purchaseRequestId", option: "--purchase-request-id <purchase-request-id>", name: "purchase_request_id", type: "string", required: true },
+  { key: "allocations", option: "--allocations [allocations...]", name: "allocations", description: "Optional: the request's allocations (the reserve's shape; an empty array is the same as none, and only cost_center_id is read), used only to classify its cost centres by budget type. A request holding no reservation whose every centre is tracking-only is then settled with nothing written; one naming a monetary centre, or naming none, is refused with 409 as before. Amounts are read from the ledger, never from here.", type: "array", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code the amount is stated in. Omit to be read in the cost centre's (or the personal limit's) own currency; a code that differs from it is refused with 409 currency_mismatch.", type: "string", required: false },
   { key: "note", option: "--note <note>", name: "note", type: "string", required: false },
 ];
@@ -1735,12 +1937,13 @@ costCenters
   .command(`withdraw`)
   .description(`Withdraw a purchase request reservation, crediting budgets back (idempotent)`)
   .option(`--purchase-request-id <purchase-request-id>`, ``)
+  .option(`--allocations [allocations...]`, `Optional: the request's allocations (the reserve's shape; an empty array is the same as none, and only cost_center_id is read), used only to classify its cost centres by budget type. A request holding no reservation whose every centre is tracking-only is then settled with nothing written; one naming a monetary centre, or naming none, is refused with 409 as before. Amounts are read from the ledger, never from here.`)
   .option(`--currency <currency>`, `ISO 4217 code the amount is stated in. Omit to be read in the cost centre's (or the personal limit's) own currency; a code that differs from it is refused with 409 currency_mismatch.`)
   .option(`--note <note>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { purchaseRequestId, currency, note } = await promptForMissing(
+        const { purchaseRequestId, allocations, currency, note } = await promptForMissing(
           _options,
           withdrawSpecs,
           _command,
@@ -1754,6 +1957,9 @@ costCenters
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (allocations !== undefined) {
+          _payload[`allocations`] = allocations;
         }
         if (currency !== undefined) {
           _payload[`currency`] = currency;

@@ -177,18 +177,24 @@ quotesRanges
   );
 registerPromptSpecs(quotesRanges.commands.at(-1)!, createSpecs, { method: "post" });
 const defaultsSpecs: PromptSpec[] = [
+  { key: "library", option: "--library [library...]", name: "library", description: "The reusable blocks to create. Idempotent by label among live items. One without a label or without a block tree is reported under `skipped`.", type: "array", required: false },
   { key: "menus", option: "--menus [menus...]", name: "menus", description: "The menus to create. One with no key or no label is reported under `skipped`.", type: "array", required: false },
+  { key: "mode", option: "--mode <mode>", name: "mode", description: "`fill` (the default) adds what is missing and keeps everything that exists. `reset` replaces every section that is sent — pages, menus and library items go to the trash first, site settings are removed — and must be asked for by name.", type: "string", required: false, enum: ["fill","reset"] },
   { key: "pages", option: "--pages [pages...]", name: "pages", description: "The pages to create. One that has no `slug` or no `title` is reported under `skipped` rather than refused, so one bad entry never loses the rest.", type: "array", required: false },
+  { key: "settings", option: "--settings <settings>", name: "settings", description: "Site settings by key — the same values `PUT /pages/settings/site/{key}` stores. In fill only keys the tenant has not set are written; in reset every existing key is removed first. A key that is not a valid setting name, an empty value or one over 128 KiB is reported under `skipped`.", type: "object", required: false },
 ];
 quotesRanges
   .command(`defaults`)
   .description(`Creates the \`quote\` range if it is missing. Idempotent, and what an integration calls first — the install event does not reliably fire on a marketplace install.`)
+  .option(`--library [library...]`, `The reusable blocks to create. Idempotent by label among live items. One without a label or without a block tree is reported under \`skipped\`.`)
   .option(`--menus [menus...]`, `The menus to create. One with no key or no label is reported under \`skipped\`.`)
+  .option(`--mode <mode>`, `\`fill\` (the default) adds what is missing and keeps everything that exists. \`reset\` replaces every section that is sent — pages, menus and library items go to the trash first, site settings are removed — and must be asked for by name.`)
   .option(`--pages [pages...]`, `The pages to create. One that has no \`slug\` or no \`title\` is reported under \`skipped\` rather than refused, so one bad entry never loses the rest.`)
+  .option(`--settings <settings>`, `Site settings by key — the same values \`PUT /pages/settings/site/{key}\` stores. In fill only keys the tenant has not set are written; in reset every existing key is removed first. A key that is not a valid setting name, an empty value or one over 128 KiB is reported under \`skipped\`.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { menus, pages } = await promptForMissing(
+        const { library, menus, mode, pages, settings } = await promptForMissing(
           _options,
           defaultsSpecs,
           _command,
@@ -203,11 +209,20 @@ quotesRanges
           }
           Object.assign(_payload, body as RequestParams);
         }
+        if (library !== undefined) {
+          _payload[`library`] = library;
+        }
         if (menus !== undefined) {
           _payload[`menus`] = menus;
         }
+        if (mode !== undefined) {
+          _payload[`mode`] = mode;
+        }
         if (pages !== undefined) {
           _payload[`pages`] = pages;
+        }
+        if (settings !== undefined) {
+          _payload[`settings`] = resolveBodyParam(settings);
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

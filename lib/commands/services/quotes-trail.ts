@@ -31,6 +31,7 @@ const attachSpecs: PromptSpec[] = [
   { key: "byteSize", option: "--byte-size <byte-size>", name: "byte_size", description: "How large it is, in bytes.", type: "integer", required: false },
   { key: "contentType", option: "--content-type <content-type>", name: "content_type", description: "The media type.", type: "string", required: false },
   { key: "direction", option: "--direction <direction>", name: "direction", description: "Who put it there.", type: "string", required: false, enum: ["buyer","seller"] },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data carried with the file — what a document management system needs to find it again.", type: "object", required: false },
   { key: "visibility", option: "--visibility <visibility>", name: "visibility", description: "Who sees it.", type: "string", required: false, enum: ["internal","customer"] },
 ];
 quotesTrail
@@ -42,11 +43,12 @@ quotesTrail
   .option(`--byte-size <byte-size>`, `How large it is, in bytes.`, parseInteger)
   .option(`--content-type <content-type>`, `The media type.`)
   .option(`--direction <direction>`, `Who put it there.`)
+  .option(`--metadata <metadata>`, `Free-form data carried with the file — what a document management system needs to find it again.`)
   .option(`--visibility <visibility>`, `Who sees it.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, fileRef, filename, byteSize, contentType, direction, visibility } = await promptForMissing(
+        const { id, fileRef, filename, byteSize, contentType, direction, metadata, visibility } = await promptForMissing(
           _options,
           attachSpecs,
           _command,
@@ -75,6 +77,9 @@ quotesTrail
         }
         if (filename !== undefined) {
           _payload[`filename`] = filename;
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (visibility !== undefined) {
           _payload[`visibility`] = visibility;

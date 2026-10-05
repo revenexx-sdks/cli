@@ -39,6 +39,11 @@ const listSpecs: PromptSpec[] = [
   { key: "rules", option: "--rules <rules>", name: "rules", description: "Exact match on `rules`. The selector that makes this a RULE-DRIVEN category. Null means hand-picked. Matching products are MATERIALIZED as `product_categories` rows with source `rule`, next to the hand-picked ones a recompute never touches; `POST /products/categories/{category_id}/rules/preview` dry-runs this exact document before it is stored. Conditions address the `common` bucket of a product's values — a value held per locale or per channel has no single answer for a rule to test. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "ruleMatch", option: "--rule-match <rule-match>", name: "rule_match", description: "Exact match on `rule_match`. How the conditions combine: 'all' ANDs them (the default), 'any' ORs them. It is a column of its own rather than a key of `rules` because the compiler reads the two separately.", type: "string", required: false, enum: ["all","any"] },
   { key: "rulesComputedAt", option: "--rules-computed-at <rules-computed-at>", name: "rules_computed_at", description: "Exact match on `rules_computed_at`. When the rule last ran TO COMPLETION and its memberships were synced. Null means no pass has ever finished — a recompute is chunked, so a half-finished pass leaves this untouched.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact match on `external_id`. The key this category has in the system that owns the classification — an ETIM or eCl@ss group, a BMEcat catalogue group, the ERP's own product group. Unique per tenant where set. `code` stays this app's identifier and a merchant may rename it; this is what the source calls the same node, which is what keeps the next import pointing at it.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact match on `external_refs`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact match on `source_synced_at`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "Exact match on `source_data`. What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Exact match on `metadata`. Free-form jsonb this tenant owns for the INTEGRATION's account of this node — kept apart from `values`, which is the catalog's own pocket and the one a merchant edits, so a sync and a person never overwrite each other. Nothing in this app reads either. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the row was created. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the row was last written. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -63,6 +68,11 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--rules <rules>`, `Exact match on \`rules\`. The selector that makes this a RULE-DRIVEN category. Null means hand-picked. Matching products are MATERIALIZED as \`product_categories\` rows with source \`rule\`, next to the hand-picked ones a recompute never touches; \`POST /products/categories/{category_id}/rules/preview\` dry-runs this exact document before it is stored. Conditions address the \`common\` bucket of a product's values — a value held per locale or per channel has no single answer for a rule to test. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--rule-match <rule-match>`, `Exact match on \`rule_match\`. How the conditions combine: 'all' ANDs them (the default), 'any' ORs them. It is a column of its own rather than a key of \`rules\` because the compiler reads the two separately.`)
   .option(`--rules-computed-at <rules-computed-at>`, `Exact match on \`rules_computed_at\`. When the rule last ran TO COMPLETION and its memberships were synced. Null means no pass has ever finished — a recompute is chunked, so a half-finished pass leaves this untouched.`)
+  .option(`--external-id <external-id>`, `Exact match on \`external_id\`. The key this category has in the system that owns the classification — an ETIM or eCl@ss group, a BMEcat catalogue group, the ERP's own product group. Unique per tenant where set. \`code\` stays this app's identifier and a merchant may rename it; this is what the source calls the same node, which is what keeps the next import pointing at it.`)
+  .option(`--external-refs <external-refs>`, `Exact match on \`external_refs\`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--source-synced-at <source-synced-at>`, `Exact match on \`source_synced_at\`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
+  .option(`--source-data <source-data>`, `Exact match on \`source_data\`. What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--metadata <metadata>`, `Exact match on \`metadata\`. Free-form jsonb this tenant owns for the INTEGRATION's account of this node — kept apart from \`values\`, which is the catalog's own pocket and the one a merchant edits, so a sync and a person never overwrite each other. Nothing in this app reads either. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the row was created. Server-set — it is not part of any request body.`)
   .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the row was last written. Server-set — it is not part of any request body.`)
   .option(
@@ -74,7 +84,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, code, parentId, path, position, labels, values, rules, ruleMatch, rulesComputedAt, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, code, parentId, path, position, labels, values, rules, ruleMatch, rulesComputedAt, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -121,6 +131,21 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         if (rulesComputedAt !== undefined) {
           _payload[`rules_computed_at`] = rulesComputedAt;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = externalRefs;
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = sourceData;
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = metadata;
+        }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
         }
@@ -150,13 +175,18 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsCategories.commands.at(-1)!, listSpecs, { method: "get" });
 const createSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The category's stable identifier — what an import and a storefront join on, and what survives a rename of the label. Unique per tenant.", type: "string", required: true },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this category has in the system that owns the classification — an ETIM or eCl@ss group, a BMEcat catalogue group, the ERP's own product group. Unique per tenant where set. `code` stays this app's identifier and a merchant may rename it; this is what the source calls the same node, which is what keeps the next import pointing at it.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "The category name a person sees, per language tag. The catalog reads by name, not by code — a locale left blank falls back to the next filled one.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns for the INTEGRATION's account of this node — kept apart from `values`, which is the catalog's own pocket and the one a merchant edits, so a sync and a person never overwrite each other. Nothing in this app reads either.", type: "object", required: false },
   { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", description: "The category this one hangs under. Null is a root of the tree. Deleting a parent lifts its children to the root rather than deleting them, so a mis-click never takes a subtree with it.", type: "string", required: false },
   { key: "path", option: "--path <path>", name: "path", description: "A materialized position in the tree, kept for importers that carry one (`tools/power_tools/cordless_drills`). Nothing in this app writes or reads it — `parent_id` is the structure this app navigates.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Order among the siblings under the same parent, ascending.", type: "integer", required: false },
   { key: "ruleMatch", option: "--rule-match <rule-match>", name: "rule_match", description: "How the conditions combine: 'all' ANDs them (the default), 'any' ORs them. It is a column of its own rather than a key of `rules` because the compiler reads the two separately.", type: "string", required: false, enum: ["all","any"] },
   { key: "rules", option: "--rules <rules>", name: "rules", description: "The selector that makes this a RULE-DRIVEN category. Null means hand-picked. Matching products are MATERIALIZED as `product_categories` rows with source `rule`, next to the hand-picked ones a recompute never touches; `POST /products/categories/{category_id}/rules/preview` dry-runs this exact document before it is stored. Conditions address the `common` bucket of a product's values — a value held per locale or per channel has no single answer for a rule to test.", type: "object", required: false },
   { key: "rulesComputedAt", option: "--rules-computed-at <rules-computed-at>", name: "rules_computed_at", description: "When the rule last ran TO COMPLETION and its memberships were synced. Null means no pass has ever finished — a recompute is chunked, so a half-finished pass leaves this untouched.", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
   { key: "values", option: "--values <values>", name: "values", description: "Whatever this catalog keeps on a category beyond the model — the keys belong to the tenant, not to this app, and nothing here reads them.", type: "object", required: false },
 ];
 productsCategories
@@ -167,18 +197,23 @@ One node of the category tree. \`parent_id\` is the structure this app navigates
 
 \`code\` is the only column the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
   .option(`--code <code>`, `The category's stable identifier — what an import and a storefront join on, and what survives a rename of the label. Unique per tenant.`)
+  .option(`--external-id <external-id>`, `The key this category has in the system that owns the classification — an ETIM or eCl@ss group, a BMEcat catalogue group, the ERP's own product group. Unique per tenant where set. \`code\` stays this app's identifier and a merchant may rename it; this is what the source calls the same node, which is what keeps the next import pointing at it.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--labels <labels>`, `The category name a person sees, per language tag. The catalog reads by name, not by code — a locale left blank falls back to the next filled one.`)
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns for the INTEGRATION's account of this node — kept apart from \`values\`, which is the catalog's own pocket and the one a merchant edits, so a sync and a person never overwrite each other. Nothing in this app reads either.`)
   .option(`--parent-id <parent-id>`, `The category this one hangs under. Null is a root of the tree. Deleting a parent lifts its children to the root rather than deleting them, so a mis-click never takes a subtree with it.`)
   .option(`--path <path>`, `A materialized position in the tree, kept for importers that carry one (\`tools/power_tools/cordless_drills\`). Nothing in this app writes or reads it — \`parent_id\` is the structure this app navigates.`)
   .option(`--position <position>`, `Order among the siblings under the same parent, ascending.`, parseInteger)
   .option(`--rule-match <rule-match>`, `How the conditions combine: 'all' ANDs them (the default), 'any' ORs them. It is a column of its own rather than a key of \`rules\` because the compiler reads the two separately.`)
   .option(`--rules <rules>`, `The selector that makes this a RULE-DRIVEN category. Null means hand-picked. Matching products are MATERIALIZED as \`product_categories\` rows with source \`rule\`, next to the hand-picked ones a recompute never touches; \`POST /products/categories/{category_id}/rules/preview\` dry-runs this exact document before it is stored. Conditions address the \`common\` bucket of a product's values — a value held per locale or per channel has no single answer for a rule to test.`)
   .option(`--rules-computed-at <rules-computed-at>`, `When the rule last ran TO COMPLETION and its memberships were synced. Null means no pass has ever finished — a recompute is chunked, so a half-finished pass leaves this untouched.`)
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .option(`--values <values>`, `Whatever this catalog keeps on a category beyond the model — the keys belong to the tenant, not to this app, and nothing here reads them.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, labels, parentId, path, position, ruleMatch, rules, rulesComputedAt, values } = await promptForMissing(
+        const { code, externalId, externalRefs, labels, metadata, parentId, path, position, ruleMatch, rules, rulesComputedAt, sourceData, sourceSyncedAt, values } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -196,8 +231,17 @@ One node of the category tree. \`parent_id\` is the structure this app navigates
         if (code !== undefined) {
           _payload[`code`] = code;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (parentId !== undefined) {
           _payload[`parent_id`] = parentId;
@@ -216,6 +260,12 @@ One node of the category tree. \`parent_id\` is the structure this app navigates
         }
         if (rulesComputedAt !== undefined) {
           _payload[`rules_computed_at`] = rulesComputedAt;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (values !== undefined) {
           _payload[`values`] = resolveBodyParam(values);
@@ -447,13 +497,18 @@ registerPromptSpecs(productsCategories.commands.at(-1)!, getSpecs, { method: "ge
 const updateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `categories` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/categories`. An id no categorie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/categories", hasLimit: true } },
   { key: "code", option: "--code <code>", name: "code", description: "The category's stable identifier — what an import and a storefront join on, and what survives a rename of the label. Unique per tenant.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this category has in the system that owns the classification — an ETIM or eCl@ss group, a BMEcat catalogue group, the ERP's own product group. Unique per tenant where set. `code` stays this app's identifier and a merchant may rename it; this is what the source calls the same node, which is what keeps the next import pointing at it.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "The category name a person sees, per language tag. The catalog reads by name, not by code — a locale left blank falls back to the next filled one.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns for the INTEGRATION's account of this node — kept apart from `values`, which is the catalog's own pocket and the one a merchant edits, so a sync and a person never overwrite each other. Nothing in this app reads either.", type: "object", required: false },
   { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", description: "The category this one hangs under. Null is a root of the tree. Deleting a parent lifts its children to the root rather than deleting them, so a mis-click never takes a subtree with it.", type: "string", required: false },
   { key: "path", option: "--path <path>", name: "path", description: "A materialized position in the tree, kept for importers that carry one (`tools/power_tools/cordless_drills`). Nothing in this app writes or reads it — `parent_id` is the structure this app navigates.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Order among the siblings under the same parent, ascending.", type: "integer", required: false },
   { key: "ruleMatch", option: "--rule-match <rule-match>", name: "rule_match", description: "How the conditions combine: 'all' ANDs them (the default), 'any' ORs them. It is a column of its own rather than a key of `rules` because the compiler reads the two separately.", type: "string", required: false, enum: ["all","any"] },
   { key: "rules", option: "--rules <rules>", name: "rules", description: "The selector that makes this a RULE-DRIVEN category. Null means hand-picked. Matching products are MATERIALIZED as `product_categories` rows with source `rule`, next to the hand-picked ones a recompute never touches; `POST /products/categories/{category_id}/rules/preview` dry-runs this exact document before it is stored. Conditions address the `common` bucket of a product's values — a value held per locale or per channel has no single answer for a rule to test.", type: "object", required: false },
   { key: "rulesComputedAt", option: "--rules-computed-at <rules-computed-at>", name: "rules_computed_at", description: "When the rule last ran TO COMPLETION and its memberships were synced. Null means no pass has ever finished — a recompute is chunked, so a half-finished pass leaves this untouched.", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
   { key: "values", option: "--values <values>", name: "values", description: "Whatever this catalog keeps on a category beyond the model — the keys belong to the tenant, not to this app, and nothing here reads them.", type: "object", required: false },
 ];
 productsCategories
@@ -465,18 +520,23 @@ One node of the category tree. \`parent_id\` is the structure this app navigates
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
   .option(`--id <id>`, `The \`categories\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/categories\`. An id no categorie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(`--code <code>`, `The category's stable identifier — what an import and a storefront join on, and what survives a rename of the label. Unique per tenant.`)
+  .option(`--external-id <external-id>`, `The key this category has in the system that owns the classification — an ETIM or eCl@ss group, a BMEcat catalogue group, the ERP's own product group. Unique per tenant where set. \`code\` stays this app's identifier and a merchant may rename it; this is what the source calls the same node, which is what keeps the next import pointing at it.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--labels <labels>`, `The category name a person sees, per language tag. The catalog reads by name, not by code — a locale left blank falls back to the next filled one.`)
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns for the INTEGRATION's account of this node — kept apart from \`values\`, which is the catalog's own pocket and the one a merchant edits, so a sync and a person never overwrite each other. Nothing in this app reads either.`)
   .option(`--parent-id <parent-id>`, `The category this one hangs under. Null is a root of the tree. Deleting a parent lifts its children to the root rather than deleting them, so a mis-click never takes a subtree with it.`)
   .option(`--path <path>`, `A materialized position in the tree, kept for importers that carry one (\`tools/power_tools/cordless_drills\`). Nothing in this app writes or reads it — \`parent_id\` is the structure this app navigates.`)
   .option(`--position <position>`, `Order among the siblings under the same parent, ascending.`, parseInteger)
   .option(`--rule-match <rule-match>`, `How the conditions combine: 'all' ANDs them (the default), 'any' ORs them. It is a column of its own rather than a key of \`rules\` because the compiler reads the two separately.`)
   .option(`--rules <rules>`, `The selector that makes this a RULE-DRIVEN category. Null means hand-picked. Matching products are MATERIALIZED as \`product_categories\` rows with source \`rule\`, next to the hand-picked ones a recompute never touches; \`POST /products/categories/{category_id}/rules/preview\` dry-runs this exact document before it is stored. Conditions address the \`common\` bucket of a product's values — a value held per locale or per channel has no single answer for a rule to test.`)
   .option(`--rules-computed-at <rules-computed-at>`, `When the rule last ran TO COMPLETION and its memberships were synced. Null means no pass has ever finished — a recompute is chunked, so a half-finished pass leaves this untouched.`)
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .option(`--values <values>`, `Whatever this catalog keeps on a category beyond the model — the keys belong to the tenant, not to this app, and nothing here reads them.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, labels, parentId, path, position, ruleMatch, rules, rulesComputedAt, values } = await promptForMissing(
+        const { id, code, externalId, externalRefs, labels, metadata, parentId, path, position, ruleMatch, rules, rulesComputedAt, sourceData, sourceSyncedAt, values } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -494,8 +554,17 @@ A body that names nothing writable is refused with 400 rather than answered as a
         if (code !== undefined) {
           _payload[`code`] = code;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (labels !== undefined) {
           _payload[`labels`] = resolveBodyParam(labels);
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (parentId !== undefined) {
           _payload[`parent_id`] = parentId;
@@ -514,6 +583,12 @@ A body that names nothing writable is refused with 400 rather than answered as a
         }
         if (rulesComputedAt !== undefined) {
           _payload[`rules_computed_at`] = rulesComputedAt;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (values !== undefined) {
           _payload[`values`] = resolveBodyParam(values);
@@ -542,6 +617,7 @@ const productsProductCategoriesListSpecs: PromptSpec[] = [
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Sort order of this product inside the category.", type: "integer", required: false },
   { key: "source", option: "--source <source>", name: "source", description: "Exact match on `source`. How the membership came about: 'manual' is hand-picked, 'rule' was materialized by a category rule. The two never touch each other — a recompute only ever inserts and deletes `rule` rows, so a hand-picked membership survives every pass.", type: "string", required: false, enum: ["manual","rule"] },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the row was created. Server-set — it is not part of any request body.", type: "string", required: false },
+  { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the row was last written. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsCategories
@@ -560,6 +636,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--position <position>`, `Exact match on \`position\`. Sort order of this product inside the category.`, parseInteger)
   .option(`--source <source>`, `Exact match on \`source\`. How the membership came about: 'manual' is hand-picked, 'rule' was materialized by a category rule. The two never touch each other — a recompute only ever inserts and deletes \`rule\` rows, so a hand-picked membership survives every pass.`)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the row was created. Server-set — it is not part of any request body.`)
+  .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the row was last written. Server-set — it is not part of any request body.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -569,7 +646,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, productId, categoryId, position, source, createdAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, productId, categoryId, position, source, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsProductCategoriesListSpecs,
           _command,
@@ -603,6 +680,9 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
+        }
+        if (updatedAt !== undefined) {
+          _payload[`updated_at`] = updatedAt;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");

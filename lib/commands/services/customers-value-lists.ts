@@ -20,7 +20,7 @@ import {
 export const customersValueLists = new Command("customers-value-lists")
   .description(
     commandDescriptions["customersValueLists"] ??
-      `The value sets a merchant owns, and the fixed ones they do not. Payment terms, address types, lifecycle stages and activity types were CHECK constraints until a wholesaler wanted net 45 and a pipeline step of their own — they are the tenant's ROWS now, so adding one is a call rather than a release of this app. Alongside them the vocabularies: the enums this app really does fix (status, registration status, membership source), published with the titles, descriptions and badge tones a client needs to render a value it has never seen. Plus the one call that seeds a fresh tenant with all four sets.`,
+      `The value sets a merchant owns, and the fixed ones they do not. Payment terms, address types, lifecycle stages and activity types were CHECK constraints until a wholesaler wanted net 45 and a pipeline step of their own — they are the tenant's ROWS now, so adding one is a call rather than a release of this app, and the document recipient types joined them as the fifth. Alongside them the vocabularies: the enums this app really does fix (status, registration status, membership source, shipping advice), published with the titles, descriptions and badge tones a client needs to render a value it has never seen. Plus the one call that seeds a fresh tenant with every set.`,
   )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
@@ -566,12 +566,282 @@ customersValueLists
     ),
   );
 registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactEventKindsUpdateSpecs, { method: "put" });
+const customersContactPointKindsListSpecs: PromptSpec[] = [
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+customersValueLists
+  .command(`customers-contact-point-kinds-list`)
+  .description(`Which document a contact point receives. Four is what an ERP delivers per debtor; a merchant whose own mails a credit note or a statement separately adds theirs. A fresh install is seeded with invoice, order_confirmation, shipping_notice, dunning, and the set seeds on first read too, so the page is never empty. The whole set comes back in one page in the tenant's own order — this route takes no limit/offset/order and no column filters, so \`page\` describes the full set and \`filter\` is always empty.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { filter } = await promptForMissing(
+          _options,
+          customersContactPointKindsListSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/contact-point-kinds`;
+        const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactPointKindsListSpecs, { method: "get" });
+const customersContactPointKindsCreateSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", description: "What `contact_points.kind` will store. Lowercase, starting with a letter; immutable afterwards.", type: "string", required: true },
+  { key: "title", option: "--title <title>", name: "title", description: "The fallback name shown when no locale matches.", type: "string", required: true },
+  { key: "description", option: "--description <description>", name: "description", description: "One line of help for whoever picks this value.", type: "string", required: false },
+  { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "Localized descriptions, keyed by language tag ({ \"en\": …, \"de\": … }). Null when nobody translated this value — a client then falls back to `description`.", type: "object", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this value; the previous default is demoted in the same call.", type: "boolean", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized titles, keyed by language tag ({ \"en\": …, \"de\": … }). Null when nobody translated this value — a client then falls back to `title`.", type: "object", required: false },
+  { key: "position", option: "--position <position>", name: "position", description: "Where it sits in the set, ascending. Default 0.", type: "integer", required: false },
+  { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
+];
+customersValueLists
+  .command(`customers-contact-point-kinds-create`)
+  .description(`Extends this tenant's recipient types set with a value of their own — the whole reason these four stopped being CHECK constraints. Which document a contact point receives. Four is what an ERP delivers per debtor; a merchant whose own mails a credit note or a statement separately adds theirs. The code is lowercase and becomes what \`contact_points.kind\` stores; it cannot be changed afterwards, because every record carrying it would be orphaned.`)
+  .option(`--code <code>`, `What \`contact_points.kind\` will store. Lowercase, starting with a letter; immutable afterwards.`)
+  .option(`--title <title>`, `The fallback name shown when no locale matches.`)
+  .option(`--description <description>`, `One line of help for whoever picks this value.`)
+  .option(`--descriptions <descriptions>`, `Localized descriptions, keyed by language tag ({ "en": …, "de": … }). Null when nobody translated this value — a client then falls back to \`description\`.`)
+  .option(
+    `--is-default [value]`,
+    `Promote this value; the previous default is demoted in the same call.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--labels <labels>`, `Localized titles, keyed by language tag ({ "en": …, "de": … }). Null when nobody translated this value — a client then falls back to \`title\`.`)
+  .option(`--position <position>`, `Where it sits in the set, ascending. Default 0.`, parseInteger)
+  .option(`--tone <tone>`, `Semantic badge colour.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { code, title, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
+          _options,
+          customersContactPointKindsCreateSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/contact-point-kinds`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (code !== undefined) {
+          _payload[`code`] = code;
+        }
+        if (description !== undefined) {
+          _payload[`description`] = description;
+        }
+        if (descriptions !== undefined) {
+          _payload[`descriptions`] = resolveBodyParam(descriptions);
+        }
+        if (isDefault !== undefined) {
+          _payload[`is_default`] = isDefault;
+        }
+        if (labels !== undefined) {
+          _payload[`labels`] = resolveBodyParam(labels);
+        }
+        if (position !== undefined) {
+          _payload[`position`] = position;
+        }
+        if (title !== undefined) {
+          _payload[`title`] = title;
+        }
+        if (tone !== undefined) {
+          _payload[`tone`] = tone;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactPointKindsCreateSpecs, { method: "post" });
+const customersContactPointKindsDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The recipient type to remove.", type: "string", required: true, resource: { listPath: "/customers/contact-point-kinds", hasLimit: false } },
+];
+customersValueLists
+  .command(`customers-contact-point-kinds-delete`)
+  .description(`Takes a value out of the recipient types set. There is no foreign key behind \`contact_points.kind\` — one added to a table that starts empty fails the migration of every existing tenant — so this route IS the integrity: it refuses while any record still carries the code, and it refuses to empty the set. Retiring a value that is in use is therefore a two-step job: move the records onto another value first, then remove it.`)
+  .option(`--id <id>`, `The recipient type to remove.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          customersContactPointKindsDeleteSpecs,
+          _command,
+        );
+        await confirmDestructive(`customers-value-lists customers-contact-point-kinds-delete`);
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/contact-point-kinds/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `delete`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactPointKindsDeleteSpecs, { method: "delete", destructive: true });
+const customersContactPointKindsGetSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The recipient type to read. Note that records store the CODE, not this id.", type: "string", required: true, resource: { listPath: "/customers/contact-point-kinds", hasLimit: false } },
+];
+customersValueLists
+  .command(`customers-contact-point-kinds-get`)
+  .description(`One value of the recipient types set, by its id — its code, its fallback title, the per-language \`labels\` an operator reads and the badge \`tone\` a client renders it with. Which document a contact point receives. Four is what an ERP delivers per debtor; a merchant whose own mails a credit note or a statement separately adds theirs. Reading one value is the rare path: \`GET /customers/contact-point-kinds\` answers the whole set in a single page, which is what a select needs.`)
+  .option(`--id <id>`, `The recipient type to read. Note that records store the CODE, not this id.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          customersContactPointKindsGetSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/contact-point-kinds/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactPointKindsGetSpecs, { method: "get" });
+const customersContactPointKindsUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The recipient type to edit.", type: "string", required: true, resource: { listPath: "/customers/contact-point-kinds", hasLimit: false } },
+  { key: "description", option: "--description <description>", name: "description", description: "One line of help for whoever picks this value.", type: "string", required: false },
+  { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "Localized descriptions, keyed by language tag ({ \"en\": …, \"de\": … }). Null when nobody translated this value — a client then falls back to `description`.", type: "object", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this value; the previous default is demoted.", type: "boolean", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized titles, keyed by language tag ({ \"en\": …, \"de\": … }). Null when nobody translated this value — a client then falls back to `title`.", type: "object", required: false },
+  { key: "position", option: "--position <position>", name: "position", description: "Where it sits in the set, ascending.", type: "integer", required: false },
+  { key: "title", option: "--title <title>", name: "title", description: "The fallback name shown when no locale matches.", type: "string", required: false },
+  { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
+];
+customersValueLists
+  .command(`customers-contact-point-kinds-update`)
+  .description(`Everything about a value except the value itself: its titles, its help text, its badge tone, its \`position\` in the select, and which one of the set is the default. The \`code\` is immutable, so no record carrying it is ever orphaned by an edit here — a merchant who retitles \`invoice\` to wording of their own changes what people READ and nothing about what \`contact_points.kind\` stores. Seeded values (\`is_system\`) are renameable like any other, and re-seeding leaves the rename alone.`)
+  .option(`--id <id>`, `The recipient type to edit.`)
+  .option(`--description <description>`, `One line of help for whoever picks this value.`)
+  .option(`--descriptions <descriptions>`, `Localized descriptions, keyed by language tag ({ "en": …, "de": … }). Null when nobody translated this value — a client then falls back to \`description\`.`)
+  .option(
+    `--is-default [value]`,
+    `Promote this value; the previous default is demoted.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--labels <labels>`, `Localized titles, keyed by language tag ({ "en": …, "de": … }). Null when nobody translated this value — a client then falls back to \`title\`.`)
+  .option(`--position <position>`, `Where it sits in the set, ascending.`, parseInteger)
+  .option(`--title <title>`, `The fallback name shown when no locale matches.`)
+  .option(`--tone <tone>`, `Semantic badge colour.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
+          _options,
+          customersContactPointKindsUpdateSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/contact-point-kinds/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (description !== undefined) {
+          _payload[`description`] = description;
+        }
+        if (descriptions !== undefined) {
+          _payload[`descriptions`] = resolveBodyParam(descriptions);
+        }
+        if (isDefault !== undefined) {
+          _payload[`is_default`] = isDefault;
+        }
+        if (labels !== undefined) {
+          _payload[`labels`] = resolveBodyParam(labels);
+        }
+        if (position !== undefined) {
+          _payload[`position`] = position;
+        }
+        if (title !== undefined) {
+          _payload[`title`] = title;
+        }
+        if (tone !== undefined) {
+          _payload[`tone`] = tone;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `put`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactPointKindsUpdateSpecs, { method: "put" });
 const customersDefaultsSpecs: PromptSpec[] = [
   { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 customersValueLists
   .command(`customers-defaults`)
-  .description(`What the app.installed event runs. It fills all four of the value sets a tenant needs before anything else works — the payment terms, the address types, the lifecycle stages and the activity types — in one call. Idempotent by code: a set that already has its rows is left completely alone, so a re-delivered event and a merchant's renames both survive. A tenant installed before these tables existed is seeded lazily instead, by the first read that finds one empty.`)
+  .description(`What the app.installed event runs. It fills all 5 of the value sets a tenant needs before anything else works — the payment terms, the address types, the lifecycle stages, the activity types and the recipient types — in one call. Idempotent by code: a set that already has its rows is left completely alone, so a re-delivered event and a merchant's renames both survive. A tenant installed before these tables existed is seeded lazily instead, by the first read that finds one empty.`)
   .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(
@@ -1151,7 +1421,7 @@ const customersVocabulariesListSpecs: PromptSpec[] = [
 ];
 customersValueLists
   .command(`customers-vocabularies-list`)
-  .description(`Discovery for the vocabulary routes: every enum this app publishes, each as a name, a title and a description. The VALUES are deliberately left out — this is the call that says which vocabularies exist, and the detail route is the one that answers what is in them. Names: address-types, contact-event-kinds, contact-statuses, lifecycle-stages, locales, organization-statuses, payment-terms, registration-statuses, roles, rule-matches, segment-sources. Fetch one with GET /customers/vocabularies/{name}; a client holding the qualified pair 'customers.<name>' builds that URL from the pair alone.`)
+  .description(`Discovery for the vocabulary routes: every enum this app publishes, each as a name, a title and a description. The VALUES are deliberately left out — this is the call that says which vocabularies exist, and the detail route is the one that answers what is in them. Names: address-types, contact-event-kinds, contact-point-kinds, contact-statuses, credit-limit-modes, lifecycle-stages, locales, order-approval-modes, organization-statuses, payment-terms, registration-statuses, roles, rule-matches, segment-sources, shipping-advice. Fetch one with GET /customers/vocabularies/{name}; a client holding the qualified pair 'customers.<name>' builds that URL from the pair alone.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -1191,11 +1461,11 @@ customersValueLists
   );
 registerPromptSpecs(customersValueLists.commands.at(-1)!, customersVocabulariesListSpecs, { method: "get" });
 const customersVocabulariesGetSpecs: PromptSpec[] = [
-  { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id.", type: "string", required: true, enum: ["address-types","contact-event-kinds","contact-statuses","lifecycle-stages","locales","organization-statuses","payment-terms","registration-statuses","roles","rule-matches","segment-sources"], resource: { listPath: "/customers/vocabularies", hasLimit: false } },
+  { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id.", type: "string", required: true, enum: ["address-types","contact-event-kinds","contact-point-kinds","contact-statuses","credit-limit-modes","lifecycle-stages","locales","order-approval-modes","organization-statuses","payment-terms","registration-statuses","roles","rule-matches","segment-sources","shipping-advice"], resource: { listPath: "/customers/vocabularies", hasLimit: false } },
 ];
 customersValueLists
   .command(`customers-vocabularies-get`)
-  .description(`One vocabulary in full: every permitted value, each with its title, its description and the badge tone a client renders it with — enough to build a select without a second call. Two kinds of set, and 'source' says which one answered. 'schema' — the values are read out of the column's CHECK constraint, so the served set IS the enforced set and the two cannot drift; a value added to the constraint appears here even before anyone labels it, titled from its own key. 'table' — the values are the TENANT's own rows (payment terms, address types, lifecycle stages, activity types, roles), so they carry labels/descriptions per locale, is_system and is_default, and a merchant may add to them without a release of this app. 'tenant'/'defaults' are the two answers for a set the merchant configures but may not extend. Either way 'closed' is true: the set is exhaustive at this moment, so a value outside it is stale data rather than a missing label. Values come back in the order a select should offer them — lifecycle order for a status, the merchant's own position for a table. Names: address-types, contact-event-kinds, contact-statuses, lifecycle-stages, locales, organization-statuses, payment-terms, registration-statuses, roles, rule-matches, segment-sources.`)
+  .description(`One vocabulary in full: every permitted value, each with its title, its description and the badge tone a client renders it with — enough to build a select without a second call. Two kinds of set, and 'source' says which one answered. 'schema' — the values are read out of the column's CHECK constraint, so the served set IS the enforced set and the two cannot drift; a value added to the constraint appears here even before anyone labels it, titled from its own key. 'table' — the values are the TENANT's own rows (payment terms, address types, lifecycle stages, activity types, roles), so they carry labels/descriptions per locale, is_system and is_default, and a merchant may add to them without a release of this app. 'tenant'/'defaults' are the two answers for a set the merchant configures but may not extend. Either way 'closed' is true: the set is exhaustive at this moment, so a value outside it is stale data rather than a missing label. Values come back in the order a select should offer them — lifecycle order for a status, the merchant's own position for a table. Names: address-types, contact-event-kinds, contact-point-kinds, contact-statuses, credit-limit-modes, lifecycle-stages, locales, order-approval-modes, organization-statuses, payment-terms, registration-statuses, roles, rule-matches, segment-sources, shipping-advice.`)
   .option(`--name <name>`, `The vocabulary name — the part after the dot in the qualified id.`)
   .action(
     actionRunner(

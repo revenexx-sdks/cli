@@ -76,18 +76,20 @@ customers
   );
 registerPromptSpecs(customers.commands.at(-1)!, authHandoffSpecs, { method: "post" });
 const authLoginSpecs: PromptSpec[] = [
-  { key: "email", option: "--email <email>", name: "email", description: "The buyer's login address — the same one the contact carries.", type: "string", required: true },
   { key: "password", option: "--password <password>", name: "password", description: "The password from registration or recovery. Wrong credentials are a 401; a correct one on an undecided application is a 403.", type: "string", required: true, secret: true },
+  { key: "email", option: "--email <email>", name: "email", description: "Deprecated alias of `identifier`, kept so every storefront written against the earlier contract keeps working. Read exactly like `identifier` — an address, a username or a customer number — and ignored when `identifier` is sent too.", type: "string", required: false },
+  { key: "identifier", option: "--identifier <identifier>", name: "identifier", description: "Who is signing in: the buyer's email address, their username, or their company's customer number. Which of the three a shop accepts is the merchant's choice (`login_identifier_email`, `login_identifier_username`, `login_identifier_customer_number`); a shape the shop does not accept is a 403 `identifier_not_offered`. The shape is read from the value — anything holding an `@` is an address, only digits is a customer number, anything else a username. A customer number names a COMPANY and signs in as its primary contact, which makes it a shared account.", type: "string", required: false },
 ];
 customers
   .command(`auth-login`)
-  .description(`An email and a password go in; a session and the CONTACT behind it come back, so a storefront knows in one call both that the buyer is signed in and who they are. The session is minted server-side rather than handed back from the credential check, because the account route hides the session secret from non-privileged responses and a trusted BFF needs it. \`permissions\` carries the buyer's effective grants, so a BFF does not need a second call to decide what to render.`)
-  .option(`--email <email>`, `The buyer's login address — the same one the contact carries.`)
+  .description(`An identifier — email address, username or customer number, as the shop allows — and a password go in; a session and the CONTACT behind it come back, so a storefront knows in one call both that the buyer is signed in and who they are. The session is minted server-side rather than handed back from the credential check, because the account route hides the session secret from non-privileged responses and a trusted BFF needs it. \`permissions\` carries the buyer's effective grants, so a BFF does not need a second call to decide what to render.`)
   .option(`--password <password>`, `The password from registration or recovery. Wrong credentials are a 401; a correct one on an undecided application is a 403.`)
+  .option(`--email <email>`, `Deprecated alias of \`identifier\`, kept so every storefront written against the earlier contract keeps working. Read exactly like \`identifier\` — an address, a username or a customer number — and ignored when \`identifier\` is sent too.`)
+  .option(`--identifier <identifier>`, `Who is signing in: the buyer's email address, their username, or their company's customer number. Which of the three a shop accepts is the merchant's choice (\`login_identifier_email\`, \`login_identifier_username\`, \`login_identifier_customer_number\`); a shape the shop does not accept is a 403 \`identifier_not_offered\`. The shape is read from the value — anything holding an \`@\` is an address, only digits is a customer number, anything else a username. A customer number names a COMPANY and signs in as its primary contact, which makes it a shared account.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { email, password } = await promptForMissing(
+        const { password, email, identifier } = await promptForMissing(
           _options,
           authLoginSpecs,
           _command,
@@ -104,6 +106,9 @@ customers
         }
         if (email !== undefined) {
           _payload[`email`] = email;
+        }
+        if (identifier !== undefined) {
+          _payload[`identifier`] = identifier;
         }
         if (password !== undefined) {
           _payload[`password`] = password;
@@ -170,13 +175,13 @@ customers
   );
 registerPromptSpecs(customers.commands.at(-1)!, authLogoutSpecs, { method: "post" });
 const authMagicLinkSpecs: PromptSpec[] = [
-  { key: "email", option: "--email <email>", name: "email", description: "Who to send the link to. An address that has never been seen creates an account rather than failing.", type: "string", required: true },
+  { key: "email", option: "--email <email>", name: "email", description: "Who to send the link to. An address that cannot sign in is answered exactly like one that can, and nothing is sent to it.", type: "string", required: true },
   { key: "url", option: "--url <url>", name: "url", description: "Where the mailed link points. `userId`, `secret` and `expire` are appended as query parameters; the first two are what the confirm call takes.", type: "string", required: true },
 ];
 customers
   .command(`auth-magic-link`)
-  .description(`Sign in without a password: a link goes to the address, and \`PUT /customers/auth/magic-link\` turns it into a session. Creates the account when the address is new, which makes this a registration path as much as a sign-in one — and why an address nobody holds is not distinguished in the answer. The mail is this shop's own template through the messaging service; the secret is not in this response, only in the link.`)
-  .option(`--email <email>`, `Who to send the link to. An address that has never been seen creates an account rather than failing.`)
+  .description(`Sign in without a password: a link goes to the address, and \`PUT /customers/auth/magic-link\` turns it into a session. Only a buyer this shop holds, with a login, who may sign in is sent one. For anybody else — an address nobody holds, a contact with no login, a blocked buyer or company, an undecided application — nothing is created and nothing is sent, and the answer is the same 201 in the same shape, so it cannot be used to find out who is a customer. It never founds an account. The mail is this shop's own template through the messaging service; the secret is not in this response, only in the link.`)
+  .option(`--email <email>`, `Who to send the link to. An address that cannot sign in is answered exactly like one that can, and nothing is sent to it.`)
   .option(`--url <url>`, `Where the mailed link points. \`userId\`, \`secret\` and \`expire\` are appended as query parameters; the first two are what the confirm call takes.`)
   .action(
     actionRunner(
@@ -264,18 +269,18 @@ customers
   );
 registerPromptSpecs(customers.commands.at(-1)!, authMagicLinkConfirmSpecs, { method: "put" });
 const authMeSpecs: PromptSpec[] = [
+  { key: "sessionId", option: "--session-id <session-id>", name: "session_id", description: "The session the storefront holds for that user — `session.$id` from the login. A revoked or expired one is a 401.", type: "string", required: true },
   { key: "userId", option: "--user-id <user-id>", name: "user_id", description: "The platform user to resolve — `session.userId` from the login.", type: "string", required: true },
-  { key: "sessionId", option: "--session-id <session-id>", name: "session_id", description: "Optional session to verify. Pass it to ask \"is this session still alive?\" (a revoked one is then a 401); omit it to only ask who a user is.", type: "string", required: false },
 ];
 customers
   .command(`auth-me`)
   .description(`The platform user, the customer record mirrored against it and the effective grants, in one call. The expected caller is a trusted storefront BFF holding the session on the buyer's behalf, which is why the ids travel in the body rather than in a browser-facing header. The grants are derived here on every call rather than returned from anywhere they could be cached, so a role changed a second ago is already reflected.`)
+  .option(`--session-id <session-id>`, `The session the storefront holds for that user — \`session.\$id\` from the login. A revoked or expired one is a 401.`)
   .option(`--user-id <user-id>`, `The platform user to resolve — \`session.userId\` from the login.`)
-  .option(`--session-id <session-id>`, `Optional session to verify. Pass it to ask "is this session still alive?" (a revoked one is then a 401); omit it to only ask who a user is.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { userId, sessionId } = await promptForMissing(
+        const { sessionId, userId } = await promptForMissing(
           _options,
           authMeSpecs,
           _command,
@@ -312,13 +317,13 @@ customers
 registerPromptSpecs(customers.commands.at(-1)!, authMeSpecs, { method: "post" });
 const authMfaChallengeSpecs: PromptSpec[] = [
   { key: "userId", option: "--user-id <user-id>", name: "user_id", description: "The platform user being challenged.", type: "string", required: true },
-  { key: "factor", option: "--factor <factor>", name: "factor", description: "Which factor to challenge. Defaults to `email`, the only one this route mails.", type: "string", required: false },
+  { key: "factor", option: "--factor <factor>", name: "factor", description: "Which factor to challenge. `email` (the default) is the only one this route sends; any other value is a 400 `factor_not_supported`.", type: "string", required: false, enum: ["email"] },
 ];
 customers
   .command(`auth-mfa-challenge`)
   .description(`Between the password and the finished session: the buyer has proved one thing and is asked for another. Created by user id, because the account route that creates challenges hides the code from whoever may call it — and answered with the half-finished session the sign-in is in the middle of, through \`PUT /customers/auth/mfa/challenge\`. Needs a platform build that returns the challenge code; without one there is no way to read what to send, and the call answers 502 rather than mailing an empty challenge.`)
   .option(`--user-id <user-id>`, `The platform user being challenged.`)
-  .option(`--factor <factor>`, `Which factor to challenge. Defaults to \`email\`, the only one this route mails.`)
+  .option(`--factor <factor>`, `Which factor to challenge. \`email\` (the default) is the only one this route sends; any other value is a 400 \`factor_not_supported\`.`)
   .action(
     actionRunner(
       async (_options, _command) => {
@@ -415,12 +420,12 @@ customers
   );
 registerPromptSpecs(customers.commands.at(-1)!, authMfaChallengeConfirmSpecs, { method: "put" });
 const authOtpSpecs: PromptSpec[] = [
-  { key: "email", option: "--email <email>", name: "email", description: "Who to send the code to. As with the sign-in link, an unknown address creates an account rather than failing.", type: "string", required: true },
+  { key: "email", option: "--email <email>", name: "email", description: "Who to send the code to. As with the sign-in link, an address that cannot sign in is answered exactly like one that can, and nothing is sent to it.", type: "string", required: true },
 ];
 customers
   .command(`auth-otp`)
-  .description(`The same token as the sign-in link, delivered as a short code instead — for a buyer on a phone, where leaving for a mail client and coming back loses the checkout they were in the middle of. Redeemed with \`PUT /customers/auth/otp\`.`)
-  .option(`--email <email>`, `Who to send the code to. As with the sign-in link, an unknown address creates an account rather than failing.`)
+  .description(`The same token as the sign-in link, delivered as a short code instead — for a buyer on a phone, where leaving for a mail client and coming back loses the checkout they were in the middle of. Redeemed with \`PUT /customers/auth/otp\`. Sent under the same rule as the link: only to a buyer who may sign in, and for anybody else nothing is created or sent while the answer looks exactly the same.`)
+  .option(`--email <email>`, `Who to send the code to. As with the sign-in link, an address that cannot sign in is answered exactly like one that can, and nothing is sent to it.`)
   .action(
     actionRunner(
       async (_options, _command) => {
@@ -608,7 +613,7 @@ const authRegisterSpecs: PromptSpec[] = [
   { key: "firstName", option: "--first-name <first-name>", name: "first_name", description: "Given name. Optional: an ERP import often has only a mailbox.", type: "string", required: false },
   { key: "lastName", option: "--last-name <last-name>", name: "last_name", description: "Family name. Optional for the same reason.", type: "string", required: false },
   { key: "locale", option: "--locale <locale>", name: "locale", description: "The language this person is written to in — BCP 47, and one of the store's configured locales. Null falls back to the store default. One of the store's own locales, or the call is a 400.", type: "string", required: false },
-  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "JOIN an existing company — the invite shape. Neither b2b_registration_enabled nor b2c_registration_enabled applies to it.", type: "string", required: false },
+  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "REFUSED when set: joining an existing company is an invitation, not a registration, so a value here answers 403 `join_requires_invitation` (400 `organization_ambiguous` beside `organization_name`). Send null or leave it out.", type: "string", required: false },
   { key: "organizationName", option: "--organization-name <organization-name>", name: "organization_name", description: "FOUND a new company, with this contact as its admin. This is what makes the registration a B2B one; leaving it out registers a standalone buyer.", type: "string", required: false },
   { key: "url", option: "--url <url>", name: "url", description: "Where the welcome mail's button points — the buyer's first stop in this shop. Absent, the mail still goes out and simply carries no button. Ignored when the registration is an APPLICATION: there is no account to send anybody to yet.", type: "string", required: false },
   { key: "vatId", option: "--vat-id <vat-id>", name: "vat_id", description: "VAT identification number (USt-IdNr. in Germany) — the closest thing a B2B buyer has to a legal identity. Validated against the EU VIES service when the tenant's `organization_vat_id_required` setting is on, and stored verbatim otherwise, including for buyers outside the EU. Required when the tenant's `organization_vat_id_required` is on, and checked BEFORE the company is created so a bad one leaves no half-founded organization behind.", type: "string", required: false },
@@ -622,7 +627,7 @@ customers
   .option(`--first-name <first-name>`, `Given name. Optional: an ERP import often has only a mailbox.`)
   .option(`--last-name <last-name>`, `Family name. Optional for the same reason.`)
   .option(`--locale <locale>`, `The language this person is written to in — BCP 47, and one of the store's configured locales. Null falls back to the store default. One of the store's own locales, or the call is a 400.`)
-  .option(`--organization-id <organization-id>`, `JOIN an existing company — the invite shape. Neither b2b_registration_enabled nor b2c_registration_enabled applies to it.`)
+  .option(`--organization-id <organization-id>`, `REFUSED when set: joining an existing company is an invitation, not a registration, so a value here answers 403 \`join_requires_invitation\` (400 \`organization_ambiguous\` beside \`organization_name\`). Send null or leave it out.`)
   .option(`--organization-name <organization-name>`, `FOUND a new company, with this contact as its admin. This is what makes the registration a B2B one; leaving it out registers a standalone buyer.`)
   .option(`--url <url>`, `Where the welcome mail's button points — the buyer's first stop in this shop. Absent, the mail still goes out and simply carries no button. Ignored when the registration is an APPLICATION: there is no account to send anybody to yet.`)
   .option(`--vat-id <vat-id>`, `VAT identification number (USt-IdNr. in Germany) — the closest thing a B2B buyer has to a legal identity. Validated against the EU VIES service when the tenant's \`organization_vat_id_required\` setting is on, and stored verbatim otherwise, including for buyers outside the EU. Required when the tenant's \`organization_vat_id_required\` is on, and checked BEFORE the company is created so a bad one leaves no half-founded organization behind.`)

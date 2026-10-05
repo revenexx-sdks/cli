@@ -20,7 +20,7 @@ import {
 export const orderlists = new Command("orderlists")
   .description(
     commandDescriptions["orderlists"] ??
-      `Commerce Studio Order Lists App — saved, reusable position collections (shopping & label lists) that turn back into a cart or an order in one call. A list is owned by a contact and can be shared across the organization (shared; read-only unless the tenant makes shared lists team-editable). Whole positions are stored: article (product_id/sku), quantity, unit, price, tax rate, cost center, position texts and custom SKU. GET /orderlists returns the owner's own lists union the organization's shared lists; positions are managed as a nested items resource (list / add / bulk-replace / update / remove). POST /orderlists/{id}/cart hands the positions to the carts app, POST /orderlists/{id}/order to the orders app. Both collections answer the platform envelope { items, page, filter } with limit/offset/order.`,
+      `Commerce Studio Order Lists App — saved, reusable position collections (shopping & label lists) that turn back into a cart in one call. A list is owned by a contact and can be shared across the organization (shared; read-only unless the tenant makes shared lists team-editable). Whole positions are stored: article (product_id/sku), quantity, unit, price, tax rate, cost center, position texts and custom SKU. GET /orderlists returns the owner's own lists union the organization's shared lists; positions are managed as a nested items resource (list / add / bulk-replace / update / remove). POST /orderlists/{id}/cart hands the positions to the carts app at the price the prices app quotes now; the order is placed through the normal checkout. Both collections answer the platform envelope { items, page, filter } with limit/offset/order.`,
   )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
@@ -30,6 +30,7 @@ const listSpecs: PromptSpec[] = [
   { key: "ownerId", option: "--owner-id <owner-id>", name: "owner_id", description: "Exact-match filter on `owner_id`. Every list one contact owns. Ignored when the gateway resolved an acting contact — the scope is then that contact and a query parameter cannot widen it.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Exact-match filter on `organization_id`. The SHARED lists of one organization. Combined with `owner_id` this is a union, not an intersection: own lists ∪ that organization's shared ones.", type: "string", required: false },
   { key: "kind", option: "--kind <kind>", name: "kind", description: "Filter by list kind — a `code` from GET /orderlists/kinds. A code this tenant does not keep is a 400 naming the ones it does, so this is the one filter here that can fail.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact-match filter on `external_id`. The list one foreign system owns, by the id that system knows it by — how a migration finds the list it wrote last run instead of leaving the buyer a second copy. Unique per tenant, so this answers at most one list. It NARROWS the caller's scope like every other filter here: a buyer still sees only their own lists and their organisation's shared ones.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -41,6 +42,7 @@ orderlists
   .option(`--owner-id <owner-id>`, `Exact-match filter on \`owner_id\`. Every list one contact owns. Ignored when the gateway resolved an acting contact — the scope is then that contact and a query parameter cannot widen it.`)
   .option(`--organization-id <organization-id>`, `Exact-match filter on \`organization_id\`. The SHARED lists of one organization. Combined with \`owner_id\` this is a union, not an intersection: own lists ∪ that organization's shared ones.`)
   .option(`--kind <kind>`, `Filter by list kind — a \`code\` from GET /orderlists/kinds. A code this tenant does not keep is a 400 naming the ones it does, so this is the one filter here that can fail.`)
+  .option(`--external-id <external-id>`, `Exact-match filter on \`external_id\`. The list one foreign system owns, by the id that system knows it by — how a migration finds the list it wrote last run instead of leaving the buyer a second copy. Unique per tenant, so this answers at most one list. It NARROWS the caller's scope like every other filter here: a buyer still sees only their own lists and their organisation's shared ones.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -53,7 +55,7 @@ orderlists
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { ownerId, organizationId, kind, limit, offset, order, filter } = await promptForMissing(
+        const { ownerId, organizationId, kind, externalId, limit, offset, order, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -69,6 +71,9 @@ orderlists
         }
         if (kind !== undefined) {
           _payload[`kind`] = kind;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
         }
         if (limit !== undefined) {
           _payload[`limit`] = limit;
@@ -104,32 +109,40 @@ const createSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "What the buyer calls this list. Free text, at least one character, and not unique: two contacts may both keep a \"Weekly office supplies\". It is also the name a NEW cart gets when POST /orderlists/{id}/cart creates one.", type: "string", required: true },
   { key: "ownerId", option: "--owner-id <owner-id>", name: "owner_id", description: "The contact who owns the list. Ownership IS the authorization here: a caller the gateway resolved to a contact sees their own lists plus their organization's shared ones, and may write only their own — unless `shared_lists_editable` opens a shared list to the whole owning organization. Set once at create; no route moves a list to another owner.", type: "string", required: true },
   { key: "ownerName", option: "--owner-name <owner-name>", name: "owner_name", description: "The owner's display name as it stood when the list was created — a snapshot, so renaming the contact does not rewrite it. Carried so a shared list can say whose it is without a call to the contacts app.", type: "string", required: true },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The id this list has in the system that OWNS it — the saved list as the shop this tenant migrated from numbered it. Unique per tenant where it is set, so a re-run of the migration updates the list it wrote last time instead of leaving the buyer two of them. Null for a list created here, which is every list a buyer has ever made in this shop.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this list, keyed by system name — a second shop it was carried through, a procurement platform that mirrors it. Answered on read and carrying no query parameter of its own — a jsonb field is compared as a WHOLE document, so a filter over part of one is refused. Look the list up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "items", option: "--items [items...]", name: "items", description: "Optional initial positions. Every one is validated — and article-checked where `reject_unknown_articles` is on — BEFORE the list row is written, so a rejected position never leaves an empty list behind.", type: "array", required: false },
   { key: "kind", option: "--kind <kind>", name: "kind", description: "List kind — the `code` of one of the tenant's own kinds (GET /orderlists/kinds); defaults to the flagged one, or the market's 'default_kind' setting.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data the tenant keeps on the list — an ERP requisition number, a department, whatever an integration needs to recognise the list again. Never read by this app, and never merged: a write replaces the whole document.", type: "object", required: false },
-  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The organization the sharing is scoped to. Null means the list can only ever be the owner's own: `shared` is meaningless without it, because there is no set of people to share with. It is also what the order conversion hands the orders app as the buying organization.", type: "string", required: false },
+  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The organization the sharing is scoped to. Null means the list can only ever be the owner's own: `shared` is meaningless without it, because there is no set of people to share with. It is also the buying organization the cart conversion asks the prices app to price for when no acting contact is asserted.", type: "string", required: false },
   { key: "shared", option: "--shared <shared>", name: "shared", description: "Whether the OWNING ORGANIZATION may see this list. False — the default — keeps it private to `owner_id`, and a foreign private list answers 404 rather than 403, so an outsider learns nothing from the difference. True lets every contact of `organization_id` READ it, and write it only where the tenant turned on the `shared_lists_editable` setting. A list with no `organization_id` shares with nobody however this is set.", type: "boolean", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to send back in `If-Match`, and there is nowhere else to keep it between two runs. `raw` holds the source fields this app does not model, so an edit here does not silently throw them away.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last confirmed against its source. A delta run asks the source for what changed since it, and an operator reads it to see that a feed has gone quiet. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed.", type: "string", required: false },
 ];
 orderlists
   .command(`create`)
-  .description(`Three fields are required, and they are exactly the columns the database will not fill in: \`name\`, \`owner_id\` and \`owner_name\`. Everything else has an answer already — \`kind\` resolves to the caller's value, else the market's \`default_kind\` setting, else the kind the tenant flagged; \`shared\` is false; \`organization_id\` is null, which makes \`shared\` meaningless because there is then nobody to share with. Nothing about a list is unique: one owner may keep two lists with the same name, and the same article may appear in as many lists as the buyer wants. The list may be created empty or pre-filled in the same call: an optional \`items\` array is written as the list's positions with the row, so a twenty-line list is one request rather than a create followed by twenty adds, and the array order is the position order. Those initial \`items\` are normalized and article-checked BEFORE the list row is written, and both caps are checked first as well — the tenant's \`max_items_per_list\` against the array, and its \`max_lists_per_owner\` against what this contact already keeps — so a rejected position never leaves an empty list behind and a contact at their limit is refused before anything is inserted. The owner is set once — no route moves a list to another contact.`)
+  .description(`Three fields are required, and they are exactly the columns the database will not fill in: \`name\`, \`owner_id\` and \`owner_name\`. Everything else has an answer already — \`kind\` resolves to the caller's value (which must be a kind the tenant keeps: an unknown one is a 400, never a silent fall-back), else the market's \`default_kind\` setting, else the kind the tenant flagged; \`shared\` is false; \`organization_id\` is null, which makes \`shared\` meaningless because there is then nobody to share with. Nothing about a list is unique: one owner may keep two lists with the same name, and the same article may appear in as many lists as the buyer wants. The list may be created empty or pre-filled in the same call: an optional \`items\` array is written as the list's positions with the row, so a twenty-line list is one request rather than a create followed by twenty adds, and the array order is the position order. Those initial \`items\` are normalized and article-checked BEFORE the list row is written, and both caps are checked first as well — the tenant's \`max_items_per_list\` against the array, and its \`max_lists_per_owner\` against what this contact already keeps — so a rejected position never leaves an empty list behind and a contact at their limit is refused before anything is inserted. The owner is set once — no route moves a list to another contact. With an acting contact (a storefront buyer) the list is theirs: \`owner_id\` must name that contact and \`organization_id\`, when sent, their organization — anything else is a 400, so a storefront cannot file a list under a colleague or share it into a foreign organization — and the organization is always the acting contact's. A back-office caller asserts no person and names both itself.`)
   .option(`--name <name>`, `What the buyer calls this list. Free text, at least one character, and not unique: two contacts may both keep a "Weekly office supplies". It is also the name a NEW cart gets when POST /orderlists/{id}/cart creates one.`)
   .option(`--owner-id <owner-id>`, `The contact who owns the list. Ownership IS the authorization here: a caller the gateway resolved to a contact sees their own lists plus their organization's shared ones, and may write only their own — unless \`shared_lists_editable\` opens a shared list to the whole owning organization. Set once at create; no route moves a list to another owner.`)
   .option(`--owner-name <owner-name>`, `The owner's display name as it stood when the list was created — a snapshot, so renaming the contact does not rewrite it. Carried so a shared list can say whose it is without a call to the contacts app.`)
+  .option(`--external-id <external-id>`, `The id this list has in the system that OWNS it — the saved list as the shop this tenant migrated from numbered it. Unique per tenant where it is set, so a re-run of the migration updates the list it wrote last time instead of leaving the buyer two of them. Null for a list created here, which is every list a buyer has ever made in this shop.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this list, keyed by system name — a second shop it was carried through, a procurement platform that mirrors it. Answered on read and carrying no query parameter of its own — a jsonb field is compared as a WHOLE document, so a filter over part of one is refused. Look the list up by \`external_id\` and read this off the answer.`)
   .option(`--items [items...]`, `Optional initial positions. Every one is validated — and article-checked where \`reject_unknown_articles\` is on — BEFORE the list row is written, so a rejected position never leaves an empty list behind.`)
   .option(`--kind <kind>`, `List kind — the \`code\` of one of the tenant's own kinds (GET /orderlists/kinds); defaults to the flagged one, or the market's 'default_kind' setting.`)
   .option(`--metadata <metadata>`, `Free-form data the tenant keeps on the list — an ERP requisition number, a department, whatever an integration needs to recognise the list again. Never read by this app, and never merged: a write replaces the whole document.`)
-  .option(`--organization-id <organization-id>`, `The organization the sharing is scoped to. Null means the list can only ever be the owner's own: \`shared\` is meaningless without it, because there is no set of people to share with. It is also what the order conversion hands the orders app as the buying organization.`)
+  .option(`--organization-id <organization-id>`, `The organization the sharing is scoped to. Null means the list can only ever be the owner's own: \`shared\` is meaningless without it, because there is no set of people to share with. It is also the buying organization the cart conversion asks the prices app to price for when no acting contact is asserted.`)
   .option(
     `--shared [value]`,
     `Whether the OWNING ORGANIZATION may see this list. False — the default — keeps it private to \`owner_id\`, and a foreign private list answers 404 rather than 403, so an outsider learns nothing from the difference. True lets every contact of \`organization_id\` READ it, and write it only where the tenant turned on the \`shared_lists_editable\` setting. A list with no \`organization_id\` shares with nobody however this is set.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to send back in \`If-Match\`, and there is nowhere else to keep it between two runs. \`raw\` holds the source fields this app does not model, so an edit here does not silently throw them away.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last confirmed against its source. A delta run asks the source for what changed since it, and an operator reads it to see that a feed has gone quiet. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { name, ownerId, ownerName, items, kind, metadata, organizationId, shared } = await promptForMissing(
+        const { name, ownerId, ownerName, externalId, externalRefs, items, kind, metadata, organizationId, shared, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -143,6 +156,12 @@ orderlists
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
         }
         if (items !== undefined) {
           _payload[`items`] = items;
@@ -167,6 +186,12 @@ orderlists
         }
         if (shared !== undefined) {
           _payload[`shared`] = shared;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -345,7 +370,7 @@ const kindsDeleteSpecs: PromptSpec[] = [
 ];
 orderlists
   .command(`kinds-delete`)
-  .description(`There is no foreign key behind \`lists.kind\` — it is a plain text column holding a code, and nothing in the database points at \`list_kinds\` — so this route's own 409 is the whole of the referential integrity. It reads whether any list still carries the code and refuses if one does, and refuses again when this is the last kind left, because a list must have one. Nothing cascades and no list is rewritten. Two gaps the guard leaves: it is a read followed by a delete with no lock between them, so a list written with the code in that window survives it; and the market-scoped \`default_kind\` SETTING is neither consulted nor cleared, so deleting the kind it names leaves the setting pointing at nothing while creates fall through to whichever kind holds the default flag. A list that does end up naming a code nothing defines is not broken, only stranded: it is still returned by GET /orderlists and GET /orderlists/{id} carrying the bare code, the vocabulary no longer offers that value so a UI renders the code itself, \`?kind=\` refuses it with a 400 naming the codes that remain, and the way back is PUT /orderlists/{id} with a kind the tenant keeps. Deleting the flag-holder hands the flag to the first remaining kind. The answer is the \`code\`, not the \`{deleted, id}\` the other deletes here return.`)
+  .description(`There is no foreign key behind \`lists.kind\` — it is a plain text column holding a code, and nothing in the database points at \`list_kinds\` — so this route's own 409 is the whole of the referential integrity. It reads whether any list still carries the code and refuses if one does, and refuses again when this is the last kind left, because a list must have one. Nothing cascades and no list is rewritten. Two gaps the guard leaves: it is a read followed by a delete with no lock between them, so a list written with the code in that window survives it; and the market-scoped \`default_kind\` SETTING is neither consulted nor cleared, so deleting the kind it names leaves the setting pointing at nothing while creates fall through to whichever kind holds the default flag. A list that does end up naming a code nothing defines is not broken, only stranded: it is still returned by GET /orderlists and GET /orderlists/{id} carrying the bare code, the vocabulary no longer offers that value so a UI renders the code itself, \`?kind=\` refuses it with a 400 naming the codes that remain, and the way back is PUT /orderlists/{id} with a kind the tenant keeps. Deleting the flag-holder hands the flag to the first remaining kind. The answer is \`{deleted, id}\`, like every other delete here.`)
   .option(`--id <id>`, `The list kind, by id.`)
   .action(
     actionRunner(
@@ -409,27 +434,27 @@ const kindsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The list kind, by id.", type: "string", required: true, resource: { listPath: "/orderlists/kinds", hasLimit: true } },
   { key: "description", option: "--description <description>", name: "description", description: "What this kind is for, in one sentence. Explicit null clears it.", type: "string", required: false },
   { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "Localized descriptions, keyed by language tag. Replaces the whole map rather than merging into it.", type: "object", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "True promotes this kind and demotes the previous default — the same move POST /orderlists/kinds/{id}/make-default makes on its own.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "True promotes this kind and demotes the previous default — the same move POST /orderlists/kinds/{id}/make-default makes on its own. False is accepted only on a kind that is not the default: the flag moves by promoting another kind.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized titles, keyed by language tag. Replaces the whole map rather than merging into it.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Where the kind sits in a select, ascending.", type: "integer", required: false },
-  { key: "title", option: "--title <title>", name: "title", description: "What a person reads. A blank title is ignored rather than stored — a kind with no words is unreadable in every UI.", type: "string", required: false },
+  { key: "title", option: "--title <title>", name: "title", description: "What a person reads. A blank title is a 400 — a kind with no words is unreadable in every UI.", type: "string", required: false },
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour. The client owns what each tone looks like.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 orderlists
   .command(`kinds-update`)
-  .description(`Everything a kind has except its code: the title a person reads, the sentence underneath it, the localized forms of both, the badge tone, and where it sits in a select. The code is not among them and cannot be reached from here at all: sending a different one is a 400 rather than a silent no-op, because \`lists.kind\` stores the code and a rename would orphan every list that carries it with no foreign key to stop it. So a rename is never how a list comes to name a code nothing defines — only a delete can do that. Renaming the TITLE touches no list, for the same reason. A blank title is ignored rather than stored; an explicit null clears the description; \`labels\` and \`descriptions\` replace the whole map rather than merging into it. \`is_default: true\` makes the same move POST /orderlists/kinds/{id}/make-default makes on its own. A system kind is editable like any other.`)
+  .description(`Everything a kind has except its code: the title a person reads, the sentence underneath it, the localized forms of both, the badge tone, and where it sits in a select. The code is not among them and cannot be reached from here at all: sending a different one is a 400 rather than a silent no-op, because \`lists.kind\` stores the code and a rename would orphan every list that carries it with no foreign key to stop it. So a rename is never how a list comes to name a code nothing defines — only a delete can do that. Renaming the TITLE touches no list, for the same reason. A blank title, an unknown tone and a body that changes nothing are 400s; an explicit null clears the description; \`labels\` and \`descriptions\` replace the whole map rather than merging into it. \`is_default: true\` makes the same move POST /orderlists/kinds/{id}/make-default makes on its own. A system kind is editable like any other.`)
   .option(`--id <id>`, `The list kind, by id.`)
   .option(`--description <description>`, `What this kind is for, in one sentence. Explicit null clears it.`)
   .option(`--descriptions <descriptions>`, `Localized descriptions, keyed by language tag. Replaces the whole map rather than merging into it.`)
   .option(
     `--is-default [value]`,
-    `True promotes this kind and demotes the previous default — the same move POST /orderlists/kinds/{id}/make-default makes on its own.`,
+    `True promotes this kind and demotes the previous default — the same move POST /orderlists/kinds/{id}/make-default makes on its own. False is accepted only on a kind that is not the default: the flag moves by promoting another kind.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .option(`--labels <labels>`, `Localized titles, keyed by language tag. Replaces the whole map rather than merging into it.`)
   .option(`--position <position>`, `Where the kind sits in a select, ascending.`, parseInteger)
-  .option(`--title <title>`, `What a person reads. A blank title is ignored rather than stored — a kind with no words is unreadable in every UI.`)
+  .option(`--title <title>`, `What a person reads. A blank title is a 400 — a kind with no words is unreadable in every UI.`)
   .option(`--tone <tone>`, `Semantic badge colour. The client owns what each tone looks like.`)
   .action(
     actionRunner(
@@ -607,7 +632,7 @@ const deleteSpecs: PromptSpec[] = [
 ];
 orderlists
   .command(`delete`)
-  .description(`Takes every position with it, in the database: \`items.list_id\` is the app's only foreign key and it is ON DELETE CASCADE, and the handler removes the positions explicitly first besides. Nothing survives the list, there is no soft delete and no undo — and the answer carries no count, so read the list (or its \`item_count\`) BEFORE the call if you need to know how much went. What it does NOT take is what the list has already produced: a cart line or an order position built by the conversions carries \`order_list_id\`, \`order_list_name\` and \`order_list_item_id\` in its snapshot, and those are jsonb values inside another app rather than foreign keys — ADR-0055 forbids a cross-app FK, so nothing cascades there and nothing is nulled. The cart and the order are unharmed, because every position was copied as a snapshot rather than referenced; the provenance link is what dangles, permanently.`)
+  .description(`Takes every position with it, in the database: \`items.list_id\` is the app's only foreign key and it is ON DELETE CASCADE, and the handler removes the positions explicitly first besides. Nothing survives the list, there is no soft delete and no undo — and the answer carries no count, so read the list (or its \`item_count\`) BEFORE the call if you need to know how much went. What it does NOT take is what the list has already produced: a cart line built by the cart conversion (or an order position built by the order route removed in 0.23.0) carries \`order_list_id\`, \`order_list_name\` and \`order_list_item_id\` in its snapshot, and those are jsonb values inside another app rather than foreign keys — ADR-0055 forbids a cross-app FK, so nothing cascades there and nothing is nulled. The cart and the order are unharmed, because every position was copied as a snapshot rather than referenced; the provenance link is what dangles, permanently.`)
   .option(`--id <id>`, `The order list, by id.`)
   .action(
     actionRunner(
@@ -669,28 +694,40 @@ orderlists
 registerPromptSpecs(orderlists.commands.at(-1)!, getSpecs, { method: "get" });
 const updateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The order list, by id.", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The id this list has in the system that OWNS it — the saved list as the shop this tenant migrated from numbered it. Unique per tenant where it is set, so a re-run of the migration updates the list it wrote last time instead of leaving the buyer two of them. Null for a list created here, which is every list a buyer has ever made in this shop.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this list, keyed by system name — a second shop it was carried through, a procurement platform that mirrors it. Answered on read and carrying no query parameter of its own — a jsonb field is compared as a WHOLE document, so a filter over part of one is refused. Look the list up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "kind", option: "--kind <kind>", name: "kind", description: "List kind — the `code` of one of the tenant's own kinds (GET /orderlists/kinds); defaults to the flagged one, or the market's 'default_kind' setting.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data the tenant keeps on the list — an ERP requisition number, a department, whatever an integration needs to recognise the list again. Never read by this app, and never merged: a write replaces the whole document.", type: "object", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "What the buyer calls this list. Free text, at least one character, and not unique: two contacts may both keep a \"Weekly office supplies\". It is also the name a NEW cart gets when POST /orderlists/{id}/cart creates one.", type: "string", required: false },
+  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The organization the sharing is scoped to. Null means the list can only ever be the owner's own: `shared` is meaningless without it, because there is no set of people to share with. It is also the buying organization the cart conversion asks the prices app to price for when no acting contact is asserted.", type: "string", required: false },
+  { key: "ownerId", option: "--owner-id <owner-id>", name: "owner_id", description: "The contact who owns the list. Ownership IS the authorization here: a caller the gateway resolved to a contact sees their own lists plus their organization's shared ones, and may write only their own — unless `shared_lists_editable` opens a shared list to the whole owning organization. Set once at create; no route moves a list to another owner.", type: "string", required: false },
   { key: "shared", option: "--shared <shared>", name: "shared", description: "Whether the OWNING ORGANIZATION may see this list. False — the default — keeps it private to `owner_id`, and a foreign private list answers 404 rather than 403, so an outsider learns nothing from the difference. True lets every contact of `organization_id` READ it, and write it only where the tenant turned on the `shared_lists_editable` setting. A list with no `organization_id` shares with nobody however this is set.", type: "boolean", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to send back in `If-Match`, and there is nowhere else to keep it between two runs. `raw` holds the source fields this app does not model, so an edit here does not silently throw them away.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last confirmed against its source. A delta run asks the source for what changed since it, and an operator reads it to see that a feed has gone quiet. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed.", type: "string", required: false },
 ];
 orderlists
   .command(`update`)
-  .description(`Rename, share or reclassify — the whole of what a list says about itself, plus \`metadata\`. Positions go through the items routes and the owner cannot be changed by anything. \`shared\` is what the column \`public\` was renamed to in June 2026; \`public\` is still on the wire because the provisioner is additive, is false on every row written since, and says nothing about who may see the list. One trap: a \`kind\` this tenant does not keep is IGNORED rather than refused, so the list quietly keeps the kind it had and a client that cares must read the answer back. An empty body is a 400 rather than a no-op.`)
+  .description(`Rename, share or reclassify — the whole of what a list says about itself, plus \`metadata\`. Positions go through the items routes. \`owner_id\` and \`organization_id\` are fixed at create: sending the value the list has is accepted as no change, any other value is a 400. \`shared\` is what the column \`public\` was renamed to in June 2026; \`public\` is still on the wire because the provisioner is additive, is false on every row written since, and says nothing about who may see the list. A \`kind\` this tenant does not keep is a 400, as on the create and the collection filter. An empty body, a field of the wrong type, and a body that names no field this route changes are all 400s rather than a no-op that only moves \`updated_at\`.`)
   .option(`--id <id>`, `The order list, by id.`)
+  .option(`--external-id <external-id>`, `The id this list has in the system that OWNS it — the saved list as the shop this tenant migrated from numbered it. Unique per tenant where it is set, so a re-run of the migration updates the list it wrote last time instead of leaving the buyer two of them. Null for a list created here, which is every list a buyer has ever made in this shop.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this list, keyed by system name — a second shop it was carried through, a procurement platform that mirrors it. Answered on read and carrying no query parameter of its own — a jsonb field is compared as a WHOLE document, so a filter over part of one is refused. Look the list up by \`external_id\` and read this off the answer.`)
   .option(`--kind <kind>`, `List kind — the \`code\` of one of the tenant's own kinds (GET /orderlists/kinds); defaults to the flagged one, or the market's 'default_kind' setting.`)
   .option(`--metadata <metadata>`, `Free-form data the tenant keeps on the list — an ERP requisition number, a department, whatever an integration needs to recognise the list again. Never read by this app, and never merged: a write replaces the whole document.`)
   .option(`--name <name>`, `What the buyer calls this list. Free text, at least one character, and not unique: two contacts may both keep a "Weekly office supplies". It is also the name a NEW cart gets when POST /orderlists/{id}/cart creates one.`)
+  .option(`--organization-id <organization-id>`, `The organization the sharing is scoped to. Null means the list can only ever be the owner's own: \`shared\` is meaningless without it, because there is no set of people to share with. It is also the buying organization the cart conversion asks the prices app to price for when no acting contact is asserted.`)
+  .option(`--owner-id <owner-id>`, `The contact who owns the list. Ownership IS the authorization here: a caller the gateway resolved to a contact sees their own lists plus their organization's shared ones, and may write only their own — unless \`shared_lists_editable\` opens a shared list to the whole owning organization. Set once at create; no route moves a list to another owner.`)
   .option(
     `--shared [value]`,
     `Whether the OWNING ORGANIZATION may see this list. False — the default — keeps it private to \`owner_id\`, and a foreign private list answers 404 rather than 403, so an outsider learns nothing from the difference. True lets every contact of \`organization_id\` READ it, and write it only where the tenant turned on the \`shared_lists_editable\` setting. A list with no \`organization_id\` shares with nobody however this is set.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to send back in \`If-Match\`, and there is nowhere else to keep it between two runs. \`raw\` holds the source fields this app does not model, so an edit here does not silently throw them away.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last confirmed against its source. A delta run asks the source for what changed since it, and an operator reads it to see that a feed has gone quiet. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, kind, metadata, name, shared } = await promptForMissing(
+        const { id, externalId, externalRefs, kind, metadata, name, organizationId, ownerId, shared, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -705,6 +742,12 @@ orderlists
           }
           Object.assign(_payload, body as RequestParams);
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (kind !== undefined) {
           _payload[`kind`] = kind;
         }
@@ -714,8 +757,20 @@ orderlists
         if (name !== undefined) {
           _payload[`name`] = name;
         }
+        if (organizationId !== undefined) {
+          _payload[`organization_id`] = organizationId;
+        }
+        if (ownerId !== undefined) {
+          _payload[`owner_id`] = ownerId;
+        }
         if (shared !== undefined) {
           _payload[`shared`] = shared;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -733,21 +788,23 @@ orderlists
 registerPromptSpecs(orderlists.commands.at(-1)!, updateSpecs, { method: "put" });
 const toCartSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The order list, by id.", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
-  { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "Add to this existing cart. Omit to create one for the list owner and make it their current cart.", type: "string", required: false },
-  { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code for the cart and its lines. Omit to let the carts app decide.", type: "string", required: false },
+  { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "Add to this existing cart. Omit to create one for the acting contact (from the back office: for the list owner). Whose cart this id names is not checked here — that is the carts app's rule to enforce.", type: "string", required: false },
+  { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code for the cart and its lines, and the currency the prices app is asked to price in — only price lists in it count. Omit to let the carts and prices apps apply the market default.", type: "string", required: false },
+  { key: "market", option: "--market <market>", name: "market", description: "The market CODE (markets.code) this conversion is for, sent as `X-Revenexx-Market` to the prices app (which prices and taxes in it) and to every carts call (a new cart is assigned to that market and opens in its currency). It wins over the caller's own market header; omit it to forward that header as is. A back office with several markets names one here, because without a market such a tenant's prices cannot be taxed and the call is refused. Matched case-insensitively and forwarded lower-cased.", type: "string", required: false },
   { key: "mode", option: "--mode <mode>", name: "mode", description: "'append' adds the positions (the carts app merges a line by product and price, so quantities accumulate); 'replace' makes the list the cart's entire contents. Defaults to the tenant's 'cart_merge_mode' setting.", type: "string", required: false, enum: ["append","replace"] },
 ];
 orderlists
   .command(`to-cart`)
-  .description(`The reason a buyer keeps a list at all: every position of the list goes into a cart in one call. The cart is either one the caller names or one this call makes. Sending 'cart_id' adds to that existing cart; omitting it creates a cart for the LIST'S OWNER — not for whoever called — names it after the list, and makes it that owner's current cart, because a cart the buyer cannot see is not 'added to cart'. Which of the two happened is not left to be inferred: \`cart_created\` says so and \`cart_id\` names the cart either way. 'append' (the default, tenant-configurable through \`cart_merge_mode\`) lets the carts app merge each line by product and price so quantities accumulate, and is sent one line at a time precisely because that merge happens on add; 'replace' makes the list the cart's whole contents in one call. What the cart has no column for — cost centre, custom SKU, position texts — rides in each line's snapshot together with the list it came from. The list itself is never touched: it is read, not emptied, so the same list converts again next month. Cross-app: carts.create, carts.items.create, carts.items.replace.`)
+  .description(`The reason a buyer keeps a list at all: every position of the list goes into a cart in one call. The cart is either one the caller names or one this call makes. Sending 'cart_id' adds to that existing cart — whose cart it is, is the carts app's rule, not checked here; omitting it creates a cart named after the list for the BUYER. With an acting contact (a storefront buyer) that is the acting contact — a colleague converting a shared list gets the cart, not the list's owner — and it becomes their current cart, because a cart the buyer cannot see is not 'added to cart'; without one (a back-office caller) the cart is the list owner's and is not made current, so staff never displace the cart the customer is working in. Which of the two happened is not left to be inferred: \`cart_created\` says so and \`cart_id\` names the cart either way. 'append' (the default, tenant-configurable through \`cart_merge_mode\`) lets the carts app merge each line by product and price so quantities accumulate, and is sent one line at a time precisely because that merge happens on add; 'replace' makes the list the cart's whole contents in one call. Every line is priced NOW: the positions go to the prices app first (one prices.resolve call per 200 positions, for the acting contact or else the list's owner and organization, in \`currency\` when given), and each line carries the unit price and tax rate it quotes — always the current ones. When the prices app cannot tax the call (\`tax.resolved: false\`: several markets and none named, an unknown market, no markets or tax classes set up) the conversion is refused before any cart write, never sent at the saved rate or without one (which the carts app reads as 0 %). Name the market with \`market\` where the caller has no market header; it is sent to the prices app and to every carts call, so the cart sits in the market its lines were priced for. The price a position was saved with is informational and rides in the snapshot as \`saved_price\`, never as the line's price: a line the prices app cannot price (on request) is left out and named in \`skipped\` with reason \`no_current_price\` — or, when \`on_missing_article\` is 'fail', the call is refused. A prices app that fails is a 502, never a silent fall-back to the saved price. What the cart has no column for — cost centre, custom SKU, position texts — rides in each line's snapshot together with the list it came from. The list itself is never touched: it is read, not emptied, so the same list converts again next month. There is no direct list → order route: the cart goes through the normal checkout, where approval and the cost-centre budget apply. Cross-app: prices.resolve, carts.create, carts.items.create, carts.items.replace.`)
   .option(`--id <id>`, `The order list, by id.`)
-  .option(`--cart-id <cart-id>`, `Add to this existing cart. Omit to create one for the list owner and make it their current cart.`)
-  .option(`--currency <currency>`, `ISO 4217 code for the cart and its lines. Omit to let the carts app decide.`)
+  .option(`--cart-id <cart-id>`, `Add to this existing cart. Omit to create one for the acting contact (from the back office: for the list owner). Whose cart this id names is not checked here — that is the carts app's rule to enforce.`)
+  .option(`--currency <currency>`, `ISO 4217 code for the cart and its lines, and the currency the prices app is asked to price in — only price lists in it count. Omit to let the carts and prices apps apply the market default.`)
+  .option(`--market <market>`, `The market CODE (markets.code) this conversion is for, sent as \`X-Revenexx-Market\` to the prices app (which prices and taxes in it) and to every carts call (a new cart is assigned to that market and opens in its currency). It wins over the caller's own market header; omit it to forward that header as is. A back office with several markets names one here, because without a market such a tenant's prices cannot be taxed and the call is refused. Matched case-insensitively and forwarded lower-cased.`)
   .option(`--mode <mode>`, `'append' adds the positions (the carts app merges a line by product and price, so quantities accumulate); 'replace' makes the list the cart's entire contents. Defaults to the tenant's 'cart_merge_mode' setting.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, cartId, currency, mode } = await promptForMissing(
+        const { id, cartId, currency, market, mode } = await promptForMissing(
           _options,
           toCartSpecs,
           _command,
@@ -768,6 +825,9 @@ orderlists
         if (currency !== undefined) {
           _payload[`currency`] = currency;
         }
+        if (market !== undefined) {
+          _payload[`market`] = market;
+        }
         if (mode !== undefined) {
           _payload[`mode`] = mode;
         }
@@ -785,55 +845,6 @@ orderlists
     ),
   );
 registerPromptSpecs(orderlists.commands.at(-1)!, toCartSpecs, { method: "post" });
-const toOrderSpecs: PromptSpec[] = [
-  { key: "id", option: "--id <id>", name: "id", description: "The order list, by id.", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
-  { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code. Omit to let the orders app apply the market default.", type: "string", required: false },
-  { key: "customerOrderNumber", option: "--customer-order-number <customer-order-number>", name: "customer_order_number", description: "The BUYER's own order or purchase-order number, forwarded to the orders app verbatim. Free text and never generated here: it exists so the paperwork can carry the number the buyer's accounts payable will look for.", type: "string", required: false },
-];
-orderlists
-  .command(`to-order`)
-  .description(`The other half of the reason a list exists — and it is the ORDERS app that does it, over the gateway rather than over a shared table, so everything an order means is that app's answer and not this one's. Places the list's positions as an order: buyer and organization come from the list, the cost centre and the position texts land on the order's own columns, and the list is left exactly as it stands so it can be ordered again next month. The acting contact is re-asserted on the call, so the orders app applies ITS rules to the BUYER rather than to this app — a contact holding only orders.request, or an order above the tenant's approval threshold, comes back with status 'pending' and no placed_at instead of being refused. That pending order is the platform's nearest thing to a draft; the orders app owns the state and this one cannot override it, which is why \`status\` is reported rather than chosen and why the created order is handed back verbatim under \`order\` beside the three fields lifted out of it. Cross-app: orders.place.`)
-  .option(`--id <id>`, `The order list, by id.`)
-  .option(`--currency <currency>`, `ISO 4217 code. Omit to let the orders app apply the market default.`)
-  .option(`--customer-order-number <customer-order-number>`, `The BUYER's own order or purchase-order number, forwarded to the orders app verbatim. Free text and never generated here: it exists so the paperwork can carry the number the buyer's accounts payable will look for.`)
-  .action(
-    actionRunner(
-      async (_options, _command) => {
-        const { id, currency, customerOrderNumber } = await promptForMissing(
-          _options,
-          toOrderSpecs,
-          _command,
-        );
-        const _client = await sdkForProject();
-        const _apiPath = `/orderlists/{id}/order`.replace(`{id}`, id);
-        const _payload: RequestParams = {};
-        if (cliConfig.data !== undefined) {
-          const body = resolveBodyParam(cliConfig.data);
-          if (typeof body !== "object" || body === null || Array.isArray(body)) {
-            throw new Error("--data must be a JSON object");
-          }
-          Object.assign(_payload, body as RequestParams);
-        }
-        if (currency !== undefined) {
-          _payload[`currency`] = currency;
-        }
-        if (customerOrderNumber !== undefined) {
-          _payload[`customer_order_number`] = customerOrderNumber;
-        }
-        const _headers: Record<string, string> = {
-          "content-type": "application/json",
-        };
-        const _response = await _client.call(
-          `post`,
-          _apiPath,
-          _headers,
-          _payload,
-        );
-        parse(_response as Record<string, unknown>);
-      },
-    ),
-  );
-registerPromptSpecs(orderlists.commands.at(-1)!, toOrderSpecs, { method: "post" });
 const itemsListSpecs: PromptSpec[] = [
   { key: "listId", option: "--list-id <list-id>", name: "list_id", description: "The list the position belongs to. An id no list in this tenant has — or one the caller may not read — answers 404.", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
   { key: "id", option: "--id <id>", name: "id", description: "Exact-match filter on `id`. The position's own id — the same row GET /orderlists/{list_id}/items/{id} answers, reached through the collection.", type: "string", required: false },
@@ -852,6 +863,10 @@ const itemsListSpecs: PromptSpec[] = [
   { key: "subcategorySlug", option: "--subcategory-slug <subcategory-slug>", name: "subcategory_slug", description: "Exact-match filter on `subcategory_slug`. One catalogue subcategory, as a slug.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Exact-match filter on `position`. The exact sort position within the list.", type: "integer", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Exact-match filter on `metadata`. The WHOLE metadata document, serialized as JSON — equality, not a key lookup and not a containment query.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact-match filter on `external_id`. The position one foreign system owns, by the id that system knows it by — how a migration finds the line it wrote last run instead of appending a second one. Unique per tenant, so this answers at most one position.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact-match filter on `external_refs`. The WHOLE map of other systems, serialized as JSON — equality on the document, not a lookup of one system's key. Look the position up by `external_id` and read this off the answer instead.", type: "string", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact-match filter on `source_synced_at`. The exact instant a position was last confirmed against its source. An equality on a microsecond, which nobody holds — the question a delta run asks is a range, and this collection has none. Sort with `order=source_synced_at.desc` instead.", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "Exact-match filter on `source_data`. The WHOLE document the source delivered, serialized as JSON — equality, and therefore a reconciliation tool rather than something anybody types.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact-match filter on `created_at`. The exact creation timestamp. There is no range filter here; sort with `order=created_at.desc` instead.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact-match filter on `updated_at`. The exact timestamp of the last change.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
@@ -861,7 +876,7 @@ const itemsListSpecs: PromptSpec[] = [
 ];
 orderlists
   .command(`items-list`)
-  .description(`Every column of a position is an exact-match filter — eighteen of them, which is the whole row — and they combine as AND. \`list_id\` is not among them: it comes from the path and overwrites anything the query says. The default sort is \`position.asc\`, and \`position\` is neither dense nor unique: removing a position leaves its number behind while the next add takes the list's current COUNT, so a delete from the middle followed by an add produces two rows sharing a number and the tie falls to whatever the database returns first. Sort by \`created_at\` where the order has to be unambiguous.`)
+  .description(`Every column of a position is an exact-match filter — eighteen of them, which is the whole row — and they combine as AND. \`list_id\` is not among them: it comes from the path and overwrites anything the query says. The list must be one the caller may READ — a colleague's private list answers 404 here exactly as it does on GET /orderlists/{id}, so an acting contact cannot reach its positions through this collection. The default sort is \`position.asc\`, and \`position\` is neither dense nor unique: removing a position leaves its number behind while the next add takes the list's current COUNT, so a delete from the middle followed by an add produces two rows sharing a number and the tie falls to whatever the database returns first. Sort by \`created_at\` where the order has to be unambiguous.`)
   .option(`--list-id <list-id>`, `The list the position belongs to. An id no list in this tenant has — or one the caller may not read — answers 404.`)
   .option(`--id <id>`, `Exact-match filter on \`id\`. The position's own id — the same row GET /orderlists/{list_id}/items/{id} answers, reached through the collection.`)
   .option(`--product-id <product-id>`, `Exact-match filter on \`product_id\`. Every position for one catalogue product.`)
@@ -879,6 +894,10 @@ orderlists
   .option(`--subcategory-slug <subcategory-slug>`, `Exact-match filter on \`subcategory_slug\`. One catalogue subcategory, as a slug.`)
   .option(`--position <position>`, `Exact-match filter on \`position\`. The exact sort position within the list.`, parseInteger)
   .option(`--metadata <metadata>`, `Exact-match filter on \`metadata\`. The WHOLE metadata document, serialized as JSON — equality, not a key lookup and not a containment query.`)
+  .option(`--external-id <external-id>`, `Exact-match filter on \`external_id\`. The position one foreign system owns, by the id that system knows it by — how a migration finds the line it wrote last run instead of appending a second one. Unique per tenant, so this answers at most one position.`)
+  .option(`--external-refs <external-refs>`, `Exact-match filter on \`external_refs\`. The WHOLE map of other systems, serialized as JSON — equality on the document, not a lookup of one system's key. Look the position up by \`external_id\` and read this off the answer instead.`)
+  .option(`--source-synced-at <source-synced-at>`, `Exact-match filter on \`source_synced_at\`. The exact instant a position was last confirmed against its source. An equality on a microsecond, which nobody holds — the question a delta run asks is a range, and this collection has none. Sort with \`order=source_synced_at.desc\` instead.`)
+  .option(`--source-data <source-data>`, `Exact-match filter on \`source_data\`. The WHOLE document the source delivered, serialized as JSON — equality, and therefore a reconciliation tool rather than something anybody types.`)
   .option(`--created-at <created-at>`, `Exact-match filter on \`created_at\`. The exact creation timestamp. There is no range filter here; sort with \`order=created_at.desc\` instead.`)
   .option(`--updated-at <updated-at>`, `Exact-match filter on \`updated_at\`. The exact timestamp of the last change.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
@@ -893,7 +912,7 @@ orderlists
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { listId, id, productId, sku, name, image, quantity, unit, price, taxRate, costCenterId, positionTexts, customSku, categorySlug, subcategorySlug, position, metadata, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { listId, id, productId, sku, name, image, quantity, unit, price, taxRate, costCenterId, positionTexts, customSku, categorySlug, subcategorySlug, position, metadata, externalId, externalRefs, sourceSyncedAt, sourceData, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           itemsListSpecs,
           _command,
@@ -949,6 +968,18 @@ orderlists
         if (metadata !== undefined) {
           _payload[`metadata`] = metadata;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = externalRefs;
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = sourceData;
+        }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
         }
@@ -989,18 +1020,22 @@ const itemsCreateSpecs: PromptSpec[] = [
   { key: "listId", option: "--list-id <list-id>", name: "list_id", description: "The list the position belongs to. An id no list in this tenant has — or one the caller may not read — answers 404.", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
   { key: "name", option: "--name <name>", name: "name", description: "The article name AS IT WAS when the position was saved. A snapshot on purpose: the list is the buyer's own record, so a renamed or withdrawn article still reads the way they wrote it down.", type: "string", required: true },
   { key: "categorySlug", option: "--category-slug <category-slug>", name: "category_slug", description: "The catalogue category the article sat in when the position was saved, as a slug. Kept so a long list can be grouped the way the shop groups it without a call to the catalogue.", type: "string", required: false },
-  { key: "costCenterId", option: "--cost-center-id <cost-center-id>", name: "cost_center_id", description: "The cost centre this position books to, as the tenant's ERP names it. Free text and not our enum. It survives into the ORDER position, which has a `cost_center` column; a CART line has none, so the cart conversion carries it in the line snapshot instead.", type: "string", required: false },
+  { key: "costCenterId", option: "--cost-center-id <cost-center-id>", name: "cost_center_id", description: "The cost centre this position books to, as the tenant's ERP names it. Free text and not our enum. A cart line has no column for it, so the cart conversion carries it in the line snapshot.", type: "string", required: false },
   { key: "customSku", option: "--custom-sku <custom-sku>", name: "custom_sku", description: "The buyer's OWN article number for this article — what their purchasing system calls it, which is rarely what the shop calls it. Free text, and the field a B2B buyer searches their own lists by.", type: "string", required: false },
-  { key: "image", option: "--image <image>", name: "image", description: "The article image at the time the position was saved, as a URL or a path — a snapshot like `name`, and nothing here refreshes it. It rides into the cart line and the order position in their snapshot, because neither has a column for it.", type: "string", required: false },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data the tenant keeps on the position. Never read by this app; it travels into the cart line / order position snapshot untouched. A write replaces the whole document rather than merging into it.", type: "object", required: false },
-  { key: "position", option: "--position <position>", name: "position", description: "Sort order within the list, ascending — the order the positions collection returns by default and the order the conversions hand the lines over in. Neither dense nor unique: an add with no `position` of its own takes the list's current position COUNT, so removing a position from the middle and adding another leaves two rows sharing a number. A bulk replace assigns the array index the same way, so it renumbers only the positions it is not given explicitly.", type: "integer", required: false },
-  { key: "positionTexts", option: "--position-texts [position-texts...]", name: "position_texts", description: "Per-position notes the buyer wrote — an engraving, a delivery instruction, a reference for the picker. An ARRAY OF STRINGS, one entry per line; the order conversion joins them with newlines into the order position's single `position_text`, and the cart conversion carries the array in the line snapshot.", type: "array", required: false },
-  { key: "price", option: "--price <price>", name: "price", description: "Unit price snapshot — what the buyer saw when they saved the position, in whatever way the catalogue quoted it. It is a record, not a live price: the cart and the order reprice on their own terms, so this never becomes what somebody is charged.", type: "number", required: false },
-  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The catalogue product this position stands for. One of `product_id` / `sku` must be set (the database enforces it); this is the identity the products app answers to, and the one `reject_unknown_articles` and the conversions check against.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The id this position has in the system that OWNS it — the line as the shop this tenant migrated from numbered it, usually the old list id and the line number. Unique per tenant where it is set. It is what makes a re-run of the migration update the line rather than append a second one, which on a list of two hundred positions is the difference between a correction and a mess.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this position, keyed by system name. Answered on read and carrying no query parameter of its own — a jsonb field is compared as a WHOLE document, so a filter over part of one is refused. Look the position up by `external_id` and read this off the answer.", type: "object", required: false },
+  { key: "image", option: "--image <image>", name: "image", description: "The article image at the time the position was saved, as a URL or a path — a snapshot like `name`, and nothing here refreshes it. It rides into the cart line's snapshot, because a cart line has no column for it.", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data the tenant keeps on the position. Never read by this app; it is never copied into a cart line. A write replaces the whole document rather than merging into it.", type: "object", required: false },
+  { key: "position", option: "--position <position>", name: "position", description: "Sort order within the list, ascending — the order the positions collection returns by default and the order the cart conversion hands the lines over in. Neither dense nor unique: an add with no `position` of its own takes the list's current position COUNT, so removing a position from the middle and adding another leaves two rows sharing a number. A bulk replace assigns the array index the same way, so it renumbers only the positions it is not given explicitly.", type: "integer", required: false },
+  { key: "positionTexts", option: "--position-texts [position-texts...]", name: "position_texts", description: "Per-position notes the buyer wrote — an engraving, a delivery instruction, a reference for the picker. An ARRAY OF STRINGS, one entry per line; a single string is accepted on a write and stored as a one-line array, anything else is a 400. The cart conversion carries the array in the line snapshot.", type: "array", required: false },
+  { key: "price", option: "--price <price>", name: "price", description: "The price when saved — what the buyer saw when they saved the position, in whatever way the catalogue quoted it. Informational only and never binding: the cart conversion prices every line through the prices app at the current price, and carries this one in the line snapshot as `saved_price`. A line the prices app cannot price is left out rather than sent at this price.", type: "number", required: false },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The catalogue product this position stands for. One of `product_id` / `sku` must be set (the database enforces it); this is the identity the products app answers to, and the one `reject_unknown_articles` and the cart conversion check against.", type: "string", required: false },
   { key: "quantity", option: "--quantity <quantity>", name: "quantity", description: "How much of the article the list holds. Greater than zero — the database refuses the rest — and fractional to three decimals, because a B2B position may be 2.5 metres or 0.75 kilos.", type: "number", required: false },
   { key: "sku", option: "--sku <sku>", name: "sku", description: "The article number as the catalogue knows it — the alternative identity to `product_id`, and the one an ERP integration usually joins on.", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to send back in `If-Match`, and there is nowhere else to keep it between two runs. `raw` holds the source fields this app does not model, so an edit here does not silently throw them away.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last confirmed against its source. A delta run asks the source for what changed since it, and an operator reads it to see that a feed has gone quiet. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed.", type: "string", required: false },
   { key: "subcategorySlug", option: "--subcategory-slug <subcategory-slug>", name: "subcategory_slug", description: "The catalogue subcategory, as a slug. Same purpose as `category_slug`, one level down.", type: "string", required: false },
-  { key: "taxRate", option: "--tax-rate <tax-rate>", name: "tax_rate", description: "The VAT rate that applied when the position was saved, as a PERCENT (19 = 19 %). Four decimals so a rate like 8.25 % survives; carts and orders document the same field the same way, and the conversion forwards the number unchanged.", type: "number", required: false },
+  { key: "taxRate", option: "--tax-rate <tax-rate>", name: "tax_rate", description: "The VAT rate that applied when the position was saved, as a PERCENT (19 = 19 %). Four decimals so a rate like 8.25 % survives; carts and orders document the same field the same way. Informational like `price`: the cart line always takes the rate the prices app quotes, and carries this one in its snapshot as `saved_tax_rate`; where the prices app cannot tax the call, the conversion is refused rather than falling back to it.", type: "number", required: false },
   { key: "unit", option: "--unit <unit>", name: "unit", description: "The unit `quantity` counts in, in the tenant's own words. Deliberately open text and deliberately NOT a vocabulary: a B2B catalogue units in pieces, metres, kilos, rolls and pallets, and any closed list published here would be a guess.", type: "string", required: false },
 ];
 orderlists
@@ -1009,23 +1044,27 @@ orderlists
   .option(`--list-id <list-id>`, `The list the position belongs to. An id no list in this tenant has — or one the caller may not read — answers 404.`)
   .option(`--name <name>`, `The article name AS IT WAS when the position was saved. A snapshot on purpose: the list is the buyer's own record, so a renamed or withdrawn article still reads the way they wrote it down.`)
   .option(`--category-slug <category-slug>`, `The catalogue category the article sat in when the position was saved, as a slug. Kept so a long list can be grouped the way the shop groups it without a call to the catalogue.`)
-  .option(`--cost-center-id <cost-center-id>`, `The cost centre this position books to, as the tenant's ERP names it. Free text and not our enum. It survives into the ORDER position, which has a \`cost_center\` column; a CART line has none, so the cart conversion carries it in the line snapshot instead.`)
+  .option(`--cost-center-id <cost-center-id>`, `The cost centre this position books to, as the tenant's ERP names it. Free text and not our enum. A cart line has no column for it, so the cart conversion carries it in the line snapshot.`)
   .option(`--custom-sku <custom-sku>`, `The buyer's OWN article number for this article — what their purchasing system calls it, which is rarely what the shop calls it. Free text, and the field a B2B buyer searches their own lists by.`)
-  .option(`--image <image>`, `The article image at the time the position was saved, as a URL or a path — a snapshot like \`name\`, and nothing here refreshes it. It rides into the cart line and the order position in their snapshot, because neither has a column for it.`)
-  .option(`--metadata <metadata>`, `Free-form data the tenant keeps on the position. Never read by this app; it travels into the cart line / order position snapshot untouched. A write replaces the whole document rather than merging into it.`)
-  .option(`--position <position>`, `Sort order within the list, ascending — the order the positions collection returns by default and the order the conversions hand the lines over in. Neither dense nor unique: an add with no \`position\` of its own takes the list's current position COUNT, so removing a position from the middle and adding another leaves two rows sharing a number. A bulk replace assigns the array index the same way, so it renumbers only the positions it is not given explicitly.`, parseInteger)
-  .option(`--position-texts [position-texts...]`, `Per-position notes the buyer wrote — an engraving, a delivery instruction, a reference for the picker. An ARRAY OF STRINGS, one entry per line; the order conversion joins them with newlines into the order position's single \`position_text\`, and the cart conversion carries the array in the line snapshot.`)
-  .option(`--price <price>`, `Unit price snapshot — what the buyer saw when they saved the position, in whatever way the catalogue quoted it. It is a record, not a live price: the cart and the order reprice on their own terms, so this never becomes what somebody is charged.`, parseInteger)
-  .option(`--product-id <product-id>`, `The catalogue product this position stands for. One of \`product_id\` / \`sku\` must be set (the database enforces it); this is the identity the products app answers to, and the one \`reject_unknown_articles\` and the conversions check against.`)
+  .option(`--external-id <external-id>`, `The id this position has in the system that OWNS it — the line as the shop this tenant migrated from numbered it, usually the old list id and the line number. Unique per tenant where it is set. It is what makes a re-run of the migration update the line rather than append a second one, which on a list of two hundred positions is the difference between a correction and a mess.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this position, keyed by system name. Answered on read and carrying no query parameter of its own — a jsonb field is compared as a WHOLE document, so a filter over part of one is refused. Look the position up by \`external_id\` and read this off the answer.`)
+  .option(`--image <image>`, `The article image at the time the position was saved, as a URL or a path — a snapshot like \`name\`, and nothing here refreshes it. It rides into the cart line's snapshot, because a cart line has no column for it.`)
+  .option(`--metadata <metadata>`, `Free-form data the tenant keeps on the position. Never read by this app; it is never copied into a cart line. A write replaces the whole document rather than merging into it.`)
+  .option(`--position <position>`, `Sort order within the list, ascending — the order the positions collection returns by default and the order the cart conversion hands the lines over in. Neither dense nor unique: an add with no \`position\` of its own takes the list's current position COUNT, so removing a position from the middle and adding another leaves two rows sharing a number. A bulk replace assigns the array index the same way, so it renumbers only the positions it is not given explicitly.`, parseInteger)
+  .option(`--position-texts [position-texts...]`, `Per-position notes the buyer wrote — an engraving, a delivery instruction, a reference for the picker. An ARRAY OF STRINGS, one entry per line; a single string is accepted on a write and stored as a one-line array, anything else is a 400. The cart conversion carries the array in the line snapshot.`)
+  .option(`--price <price>`, `The price when saved — what the buyer saw when they saved the position, in whatever way the catalogue quoted it. Informational only and never binding: the cart conversion prices every line through the prices app at the current price, and carries this one in the line snapshot as \`saved_price\`. A line the prices app cannot price is left out rather than sent at this price.`, parseInteger)
+  .option(`--product-id <product-id>`, `The catalogue product this position stands for. One of \`product_id\` / \`sku\` must be set (the database enforces it); this is the identity the products app answers to, and the one \`reject_unknown_articles\` and the cart conversion check against.`)
   .option(`--quantity <quantity>`, `How much of the article the list holds. Greater than zero — the database refuses the rest — and fractional to three decimals, because a B2B position may be 2.5 metres or 0.75 kilos.`, parseInteger)
   .option(`--sku <sku>`, `The article number as the catalogue knows it — the alternative identity to \`product_id\`, and the one an ERP integration usually joins on.`)
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to send back in \`If-Match\`, and there is nowhere else to keep it between two runs. \`raw\` holds the source fields this app does not model, so an edit here does not silently throw them away.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last confirmed against its source. A delta run asks the source for what changed since it, and an operator reads it to see that a feed has gone quiet. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed.`)
   .option(`--subcategory-slug <subcategory-slug>`, `The catalogue subcategory, as a slug. Same purpose as \`category_slug\`, one level down.`)
-  .option(`--tax-rate <tax-rate>`, `The VAT rate that applied when the position was saved, as a PERCENT (19 = 19 %). Four decimals so a rate like 8.25 % survives; carts and orders document the same field the same way, and the conversion forwards the number unchanged.`, parseInteger)
+  .option(`--tax-rate <tax-rate>`, `The VAT rate that applied when the position was saved, as a PERCENT (19 = 19 %). Four decimals so a rate like 8.25 % survives; carts and orders document the same field the same way. Informational like \`price\`: the cart line always takes the rate the prices app quotes, and carries this one in its snapshot as \`saved_tax_rate\`; where the prices app cannot tax the call, the conversion is refused rather than falling back to it.`, parseInteger)
   .option(`--unit <unit>`, `The unit \`quantity\` counts in, in the tenant's own words. Deliberately open text and deliberately NOT a vocabulary: a B2B catalogue units in pieces, metres, kilos, rolls and pallets, and any closed list published here would be a guess.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { listId, name, categorySlug, costCenterId, customSku, image, metadata, position, positionTexts, price, productId, quantity, sku, subcategorySlug, taxRate, unit } = await promptForMissing(
+        const { listId, name, categorySlug, costCenterId, customSku, externalId, externalRefs, image, metadata, position, positionTexts, price, productId, quantity, sku, sourceData, sourceSyncedAt, subcategorySlug, taxRate, unit } = await promptForMissing(
           _options,
           itemsCreateSpecs,
           _command,
@@ -1048,6 +1087,12 @@ orderlists
         }
         if (customSku !== undefined) {
           _payload[`custom_sku`] = customSku;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
         }
         if (image !== undefined) {
           _payload[`image`] = image;
@@ -1075,6 +1120,12 @@ orderlists
         }
         if (sku !== undefined) {
           _payload[`sku`] = sku;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (subcategorySlug !== undefined) {
           _payload[`subcategory_slug`] = subcategorySlug;
@@ -1216,19 +1267,23 @@ const itemsUpdateSpecs: PromptSpec[] = [
   { key: "listId", option: "--list-id <list-id>", name: "list_id", description: "The list the position belongs to. An id no list in this tenant has — or one the caller may not read — answers 404.", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
   { key: "id", option: "--id <id>", name: "id", description: "The position, by id. A position that belongs to another list answers 404.", type: "string", required: true, resource: { listPath: "/orderlists/{list_id}/items", hasLimit: true } },
   { key: "categorySlug", option: "--category-slug <category-slug>", name: "category_slug", description: "The catalogue category the article sat in when the position was saved, as a slug. Kept so a long list can be grouped the way the shop groups it without a call to the catalogue.", type: "string", required: false },
-  { key: "costCenterId", option: "--cost-center-id <cost-center-id>", name: "cost_center_id", description: "The cost centre this position books to, as the tenant's ERP names it. Free text and not our enum. It survives into the ORDER position, which has a `cost_center` column; a CART line has none, so the cart conversion carries it in the line snapshot instead.", type: "string", required: false },
+  { key: "costCenterId", option: "--cost-center-id <cost-center-id>", name: "cost_center_id", description: "The cost centre this position books to, as the tenant's ERP names it. Free text and not our enum. A cart line has no column for it, so the cart conversion carries it in the line snapshot.", type: "string", required: false },
   { key: "customSku", option: "--custom-sku <custom-sku>", name: "custom_sku", description: "The buyer's OWN article number for this article — what their purchasing system calls it, which is rarely what the shop calls it. Free text, and the field a B2B buyer searches their own lists by.", type: "string", required: false },
-  { key: "image", option: "--image <image>", name: "image", description: "The article image at the time the position was saved, as a URL or a path — a snapshot like `name`, and nothing here refreshes it. It rides into the cart line and the order position in their snapshot, because neither has a column for it.", type: "string", required: false },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data the tenant keeps on the position. Never read by this app; it travels into the cart line / order position snapshot untouched. A write replaces the whole document rather than merging into it.", type: "object", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The id this position has in the system that OWNS it — the line as the shop this tenant migrated from numbered it, usually the old list id and the line number. Unique per tenant where it is set. It is what makes a re-run of the migration update the line rather than append a second one, which on a list of two hundred positions is the difference between a correction and a mess.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this position, keyed by system name. Answered on read and carrying no query parameter of its own — a jsonb field is compared as a WHOLE document, so a filter over part of one is refused. Look the position up by `external_id` and read this off the answer.", type: "object", required: false },
+  { key: "image", option: "--image <image>", name: "image", description: "The article image at the time the position was saved, as a URL or a path — a snapshot like `name`, and nothing here refreshes it. It rides into the cart line's snapshot, because a cart line has no column for it.", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data the tenant keeps on the position. Never read by this app; it is never copied into a cart line. A write replaces the whole document rather than merging into it.", type: "object", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "The article name AS IT WAS when the position was saved. A snapshot on purpose: the list is the buyer's own record, so a renamed or withdrawn article still reads the way they wrote it down.", type: "string", required: false },
-  { key: "position", option: "--position <position>", name: "position", description: "Sort order within the list, ascending — the order the positions collection returns by default and the order the conversions hand the lines over in. Neither dense nor unique: an add with no `position` of its own takes the list's current position COUNT, so removing a position from the middle and adding another leaves two rows sharing a number. A bulk replace assigns the array index the same way, so it renumbers only the positions it is not given explicitly.", type: "integer", required: false },
-  { key: "positionTexts", option: "--position-texts [position-texts...]", name: "position_texts", description: "Per-position notes the buyer wrote — an engraving, a delivery instruction, a reference for the picker. An ARRAY OF STRINGS, one entry per line; the order conversion joins them with newlines into the order position's single `position_text`, and the cart conversion carries the array in the line snapshot.", type: "array", required: false },
-  { key: "price", option: "--price <price>", name: "price", description: "Unit price snapshot — what the buyer saw when they saved the position, in whatever way the catalogue quoted it. It is a record, not a live price: the cart and the order reprice on their own terms, so this never becomes what somebody is charged.", type: "number", required: false },
-  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The catalogue product this position stands for. One of `product_id` / `sku` must be set (the database enforces it); this is the identity the products app answers to, and the one `reject_unknown_articles` and the conversions check against.", type: "string", required: false },
+  { key: "position", option: "--position <position>", name: "position", description: "Sort order within the list, ascending — the order the positions collection returns by default and the order the cart conversion hands the lines over in. Neither dense nor unique: an add with no `position` of its own takes the list's current position COUNT, so removing a position from the middle and adding another leaves two rows sharing a number. A bulk replace assigns the array index the same way, so it renumbers only the positions it is not given explicitly.", type: "integer", required: false },
+  { key: "positionTexts", option: "--position-texts [position-texts...]", name: "position_texts", description: "Per-position notes the buyer wrote — an engraving, a delivery instruction, a reference for the picker. An ARRAY OF STRINGS, one entry per line; a single string is accepted on a write and stored as a one-line array, anything else is a 400. The cart conversion carries the array in the line snapshot.", type: "array", required: false },
+  { key: "price", option: "--price <price>", name: "price", description: "The price when saved — what the buyer saw when they saved the position, in whatever way the catalogue quoted it. Informational only and never binding: the cart conversion prices every line through the prices app at the current price, and carries this one in the line snapshot as `saved_price`. A line the prices app cannot price is left out rather than sent at this price.", type: "number", required: false },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The catalogue product this position stands for. One of `product_id` / `sku` must be set (the database enforces it); this is the identity the products app answers to, and the one `reject_unknown_articles` and the cart conversion check against.", type: "string", required: false },
   { key: "quantity", option: "--quantity <quantity>", name: "quantity", description: "How much of the article the list holds. Greater than zero — the database refuses the rest — and fractional to three decimals, because a B2B position may be 2.5 metres or 0.75 kilos.", type: "number", required: false },
   { key: "sku", option: "--sku <sku>", name: "sku", description: "The article number as the catalogue knows it — the alternative identity to `product_id`, and the one an ERP integration usually joins on.", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to send back in `If-Match`, and there is nowhere else to keep it between two runs. `raw` holds the source fields this app does not model, so an edit here does not silently throw them away.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last confirmed against its source. A delta run asks the source for what changed since it, and an operator reads it to see that a feed has gone quiet. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed.", type: "string", required: false },
   { key: "subcategorySlug", option: "--subcategory-slug <subcategory-slug>", name: "subcategory_slug", description: "The catalogue subcategory, as a slug. Same purpose as `category_slug`, one level down.", type: "string", required: false },
-  { key: "taxRate", option: "--tax-rate <tax-rate>", name: "tax_rate", description: "The VAT rate that applied when the position was saved, as a PERCENT (19 = 19 %). Four decimals so a rate like 8.25 % survives; carts and orders document the same field the same way, and the conversion forwards the number unchanged.", type: "number", required: false },
+  { key: "taxRate", option: "--tax-rate <tax-rate>", name: "tax_rate", description: "The VAT rate that applied when the position was saved, as a PERCENT (19 = 19 %). Four decimals so a rate like 8.25 % survives; carts and orders document the same field the same way. Informational like `price`: the cart line always takes the rate the prices app quotes, and carries this one in its snapshot as `saved_tax_rate`; where the prices app cannot tax the call, the conversion is refused rather than falling back to it.", type: "number", required: false },
   { key: "unit", option: "--unit <unit>", name: "unit", description: "The unit `quantity` counts in, in the tenant's own words. Deliberately open text and deliberately NOT a vocabulary: a B2B catalogue units in pieces, metres, kilos, rolls and pallets, and any closed list published here would be a guess.", type: "string", required: false },
 ];
 orderlists
@@ -1237,24 +1292,28 @@ orderlists
   .option(`--list-id <list-id>`, `The list the position belongs to. An id no list in this tenant has — or one the caller may not read — answers 404.`)
   .option(`--id <id>`, `The position, by id. A position that belongs to another list answers 404.`)
   .option(`--category-slug <category-slug>`, `The catalogue category the article sat in when the position was saved, as a slug. Kept so a long list can be grouped the way the shop groups it without a call to the catalogue.`)
-  .option(`--cost-center-id <cost-center-id>`, `The cost centre this position books to, as the tenant's ERP names it. Free text and not our enum. It survives into the ORDER position, which has a \`cost_center\` column; a CART line has none, so the cart conversion carries it in the line snapshot instead.`)
+  .option(`--cost-center-id <cost-center-id>`, `The cost centre this position books to, as the tenant's ERP names it. Free text and not our enum. A cart line has no column for it, so the cart conversion carries it in the line snapshot.`)
   .option(`--custom-sku <custom-sku>`, `The buyer's OWN article number for this article — what their purchasing system calls it, which is rarely what the shop calls it. Free text, and the field a B2B buyer searches their own lists by.`)
-  .option(`--image <image>`, `The article image at the time the position was saved, as a URL or a path — a snapshot like \`name\`, and nothing here refreshes it. It rides into the cart line and the order position in their snapshot, because neither has a column for it.`)
-  .option(`--metadata <metadata>`, `Free-form data the tenant keeps on the position. Never read by this app; it travels into the cart line / order position snapshot untouched. A write replaces the whole document rather than merging into it.`)
+  .option(`--external-id <external-id>`, `The id this position has in the system that OWNS it — the line as the shop this tenant migrated from numbered it, usually the old list id and the line number. Unique per tenant where it is set. It is what makes a re-run of the migration update the line rather than append a second one, which on a list of two hundred positions is the difference between a correction and a mess.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this position, keyed by system name. Answered on read and carrying no query parameter of its own — a jsonb field is compared as a WHOLE document, so a filter over part of one is refused. Look the position up by \`external_id\` and read this off the answer.`)
+  .option(`--image <image>`, `The article image at the time the position was saved, as a URL or a path — a snapshot like \`name\`, and nothing here refreshes it. It rides into the cart line's snapshot, because a cart line has no column for it.`)
+  .option(`--metadata <metadata>`, `Free-form data the tenant keeps on the position. Never read by this app; it is never copied into a cart line. A write replaces the whole document rather than merging into it.`)
   .option(`--name <name>`, `The article name AS IT WAS when the position was saved. A snapshot on purpose: the list is the buyer's own record, so a renamed or withdrawn article still reads the way they wrote it down.`)
-  .option(`--position <position>`, `Sort order within the list, ascending — the order the positions collection returns by default and the order the conversions hand the lines over in. Neither dense nor unique: an add with no \`position\` of its own takes the list's current position COUNT, so removing a position from the middle and adding another leaves two rows sharing a number. A bulk replace assigns the array index the same way, so it renumbers only the positions it is not given explicitly.`, parseInteger)
-  .option(`--position-texts [position-texts...]`, `Per-position notes the buyer wrote — an engraving, a delivery instruction, a reference for the picker. An ARRAY OF STRINGS, one entry per line; the order conversion joins them with newlines into the order position's single \`position_text\`, and the cart conversion carries the array in the line snapshot.`)
-  .option(`--price <price>`, `Unit price snapshot — what the buyer saw when they saved the position, in whatever way the catalogue quoted it. It is a record, not a live price: the cart and the order reprice on their own terms, so this never becomes what somebody is charged.`, parseInteger)
-  .option(`--product-id <product-id>`, `The catalogue product this position stands for. One of \`product_id\` / \`sku\` must be set (the database enforces it); this is the identity the products app answers to, and the one \`reject_unknown_articles\` and the conversions check against.`)
+  .option(`--position <position>`, `Sort order within the list, ascending — the order the positions collection returns by default and the order the cart conversion hands the lines over in. Neither dense nor unique: an add with no \`position\` of its own takes the list's current position COUNT, so removing a position from the middle and adding another leaves two rows sharing a number. A bulk replace assigns the array index the same way, so it renumbers only the positions it is not given explicitly.`, parseInteger)
+  .option(`--position-texts [position-texts...]`, `Per-position notes the buyer wrote — an engraving, a delivery instruction, a reference for the picker. An ARRAY OF STRINGS, one entry per line; a single string is accepted on a write and stored as a one-line array, anything else is a 400. The cart conversion carries the array in the line snapshot.`)
+  .option(`--price <price>`, `The price when saved — what the buyer saw when they saved the position, in whatever way the catalogue quoted it. Informational only and never binding: the cart conversion prices every line through the prices app at the current price, and carries this one in the line snapshot as \`saved_price\`. A line the prices app cannot price is left out rather than sent at this price.`, parseInteger)
+  .option(`--product-id <product-id>`, `The catalogue product this position stands for. One of \`product_id\` / \`sku\` must be set (the database enforces it); this is the identity the products app answers to, and the one \`reject_unknown_articles\` and the cart conversion check against.`)
   .option(`--quantity <quantity>`, `How much of the article the list holds. Greater than zero — the database refuses the rest — and fractional to three decimals, because a B2B position may be 2.5 metres or 0.75 kilos.`, parseInteger)
   .option(`--sku <sku>`, `The article number as the catalogue knows it — the alternative identity to \`product_id\`, and the one an ERP integration usually joins on.`)
+  .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to send back in \`If-Match\`, and there is nowhere else to keep it between two runs. \`raw\` holds the source fields this app does not model, so an edit here does not silently throw them away.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this row was last confirmed against its source. A delta run asks the source for what changed since it, and an operator reads it to see that a feed has gone quiet. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed.`)
   .option(`--subcategory-slug <subcategory-slug>`, `The catalogue subcategory, as a slug. Same purpose as \`category_slug\`, one level down.`)
-  .option(`--tax-rate <tax-rate>`, `The VAT rate that applied when the position was saved, as a PERCENT (19 = 19 %). Four decimals so a rate like 8.25 % survives; carts and orders document the same field the same way, and the conversion forwards the number unchanged.`, parseInteger)
+  .option(`--tax-rate <tax-rate>`, `The VAT rate that applied when the position was saved, as a PERCENT (19 = 19 %). Four decimals so a rate like 8.25 % survives; carts and orders document the same field the same way. Informational like \`price\`: the cart line always takes the rate the prices app quotes, and carries this one in its snapshot as \`saved_tax_rate\`; where the prices app cannot tax the call, the conversion is refused rather than falling back to it.`, parseInteger)
   .option(`--unit <unit>`, `The unit \`quantity\` counts in, in the tenant's own words. Deliberately open text and deliberately NOT a vocabulary: a B2B catalogue units in pieces, metres, kilos, rolls and pallets, and any closed list published here would be a guess.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { listId, id, categorySlug, costCenterId, customSku, image, metadata, name, position, positionTexts, price, productId, quantity, sku, subcategorySlug, taxRate, unit } = await promptForMissing(
+        const { listId, id, categorySlug, costCenterId, customSku, externalId, externalRefs, image, metadata, name, position, positionTexts, price, productId, quantity, sku, sourceData, sourceSyncedAt, subcategorySlug, taxRate, unit } = await promptForMissing(
           _options,
           itemsUpdateSpecs,
           _command,
@@ -1277,6 +1336,12 @@ orderlists
         }
         if (customSku !== undefined) {
           _payload[`custom_sku`] = customSku;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
         }
         if (image !== undefined) {
           _payload[`image`] = image;
@@ -1304,6 +1369,12 @@ orderlists
         }
         if (sku !== undefined) {
           _payload[`sku`] = sku;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (subcategorySlug !== undefined) {
           _payload[`subcategory_slug`] = subcategorySlug;
