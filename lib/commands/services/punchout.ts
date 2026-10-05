@@ -96,14 +96,19 @@ const accountsCreateSpecs: PromptSpec[] = [
   { key: "credentialIdentity", option: "--credential-identity <credential-identity>", name: "credential_identity", type: "string", required: false },
   { key: "credentialSecret", option: "--credential-secret <credential-secret>", name: "credential_secret", type: "string", required: false, secret: true },
   { key: "enabled", option: "--enabled <enabled>", name: "enabled", type: "boolean", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this punchout account has in the system that OWNS it. An account is a partner identity, and the procurement platform on the other side knows the relationship by an id of its own — a supplier id, a vendor number, an IDS customer name. Unique per tenant where it is set, so a repeated import updates the account it wrote last time instead of adding a second one. `code` is what this shop calls the partner; this is what the partner calls itself. Null for an account an operator typed in, which is the ordinary case.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this partner, keyed by system name — the ERP's vendor number beside the procurement platform's supplier id, because one customer commonly reaches this shop through both. `external_id` is the leading system; this is the rest, and the next one costs no column. Not something to search on: this contract publishes no column filter at all, and the store compares such a field as a whole document — look the account up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "fallbackContactId", option: "--fallback-contact-id <fallback-contact-id>", name: "fallback_contact_id", type: "string", required: false },
   { key: "idsCustomerName", option: "--ids-customer-name <ids-customer-name>", name: "ids_customer_name", type: "string", required: false },
   { key: "loginToken", option: "--login-token <login-token>", name: "login_token", type: "string", required: false, secret: true },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: `behaviour` is what the app acts on, `source_data` is what the source said, and this is what you say.", type: "object", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: false },
   { key: "protocolVersion", option: "--protocol-version <protocol-version>", name: "protocol_version", type: "string", required: false },
   { key: "secureOci", option: "--secure-oci <secure-oci>", name: "secure_oci", type: "boolean", required: false },
   { key: "sessionTtlMinutes", option: "--session-ttl-minutes <session-ttl-minutes>", name: "session_ttl_minutes", type: "integer", required: false },
   { key: "sharedSecret", option: "--shared-secret <shared-secret>", name: "shared_secret", type: "string", required: false, secret: true },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this account, kept as it said it. Carries the ETag a write-back has to hand back in `If-Match`, and the source fields this app does not model — without it those are lost on the first edit made here. Not a place for anything the partner authenticates with: what an ERP sends to get in is written to the account's own write-only fields, which no route answers.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this account was last confirmed against its source. A delta run asks for changes since it, and an operator reads it to see that a feed has gone quiet. Editing the account here does not touch it: it says when the SOURCE was last seen, not when the row changed. Null for an account no source owns.", type: "string", required: false },
   { key: "startPageUrl", option: "--start-page-url <start-page-url>", name: "start_page_url", type: "string", required: false },
   { key: "unknownUserPolicy", option: "--unknown-user-policy <unknown-user-policy>", name: "unknown_user_policy", type: "string", required: false },
   { key: "urlThreading", option: "--url-threading <url-threading>", name: "url_threading", type: "boolean", required: false },
@@ -126,9 +131,12 @@ punchout
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--external-id <external-id>`, `The key this punchout account has in the system that OWNS it. An account is a partner identity, and the procurement platform on the other side knows the relationship by an id of its own — a supplier id, a vendor number, an IDS customer name. Unique per tenant where it is set, so a repeated import updates the account it wrote last time instead of adding a second one. \`code\` is what this shop calls the partner; this is what the partner calls itself. Null for an account an operator typed in, which is the ordinary case.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this partner, keyed by system name — the ERP's vendor number beside the procurement platform's supplier id, because one customer commonly reaches this shop through both. \`external_id\` is the leading system; this is the rest, and the next one costs no column. Not something to search on: this contract publishes no column filter at all, and the store compares such a field as a whole document — look the account up by \`external_id\` and read this off the answer.`)
   .option(`--fallback-contact-id <fallback-contact-id>`, ``)
   .option(`--ids-customer-name <ids-customer-name>`, ``)
   .option(`--login-token <login-token>`, ``)
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: \`behaviour\` is what the app acts on, \`source_data\` is what the source said, and this is what you say.`)
   .option(`--organization-id <organization-id>`, ``)
   .option(`--protocol-version <protocol-version>`, ``)
   .option(
@@ -139,6 +147,8 @@ punchout
   )
   .option(`--session-ttl-minutes <session-ttl-minutes>`, ``, parseInteger)
   .option(`--shared-secret <shared-secret>`, ``)
+  .option(`--source-data <source-data>`, `What the source said about this account, kept as it said it. Carries the ETag a write-back has to hand back in \`If-Match\`, and the source fields this app does not model — without it those are lost on the first edit made here. Not a place for anything the partner authenticates with: what an ERP sends to get in is written to the account's own write-only fields, which no route answers.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this account was last confirmed against its source. A delta run asks for changes since it, and an operator reads it to see that a feed has gone quiet. Editing the account here does not touch it: it says when the SOURCE was last seen, not when the row changed. Null for an account no source owns.`)
   .option(`--start-page-url <start-page-url>`, ``)
   .option(`--unknown-user-policy <unknown-user-policy>`, ``)
   .option(
@@ -150,7 +160,7 @@ punchout
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { channelCode, code, name, protocol, authStrategy, behaviour, credentialDomain, credentialIdentity, credentialSecret, enabled, fallbackContactId, idsCustomerName, loginToken, organizationId, protocolVersion, secureOci, sessionTtlMinutes, sharedSecret, startPageUrl, unknownUserPolicy, urlThreading } = await promptForMissing(
+        const { channelCode, code, name, protocol, authStrategy, behaviour, credentialDomain, credentialIdentity, credentialSecret, enabled, externalId, externalRefs, fallbackContactId, idsCustomerName, loginToken, metadata, organizationId, protocolVersion, secureOci, sessionTtlMinutes, sharedSecret, sourceData, sourceSyncedAt, startPageUrl, unknownUserPolicy, urlThreading } = await promptForMissing(
           _options,
           accountsCreateSpecs,
           _command,
@@ -189,6 +199,12 @@ punchout
         if (enabled !== undefined) {
           _payload[`enabled`] = enabled;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (fallbackContactId !== undefined) {
           _payload[`fallback_contact_id`] = fallbackContactId;
         }
@@ -197,6 +213,9 @@ punchout
         }
         if (loginToken !== undefined) {
           _payload[`login_token`] = loginToken;
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -218,6 +237,12 @@ punchout
         }
         if (sharedSecret !== undefined) {
           _payload[`shared_secret`] = sharedSecret;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (startPageUrl !== undefined) {
           _payload[`start_page_url`] = startPageUrl;
@@ -317,9 +342,12 @@ const accountsUpdateSpecs: PromptSpec[] = [
   { key: "credentialIdentity", option: "--credential-identity <credential-identity>", name: "credential_identity", type: "string", required: false },
   { key: "credentialSecret", option: "--credential-secret <credential-secret>", name: "credential_secret", type: "string", required: false, secret: true },
   { key: "enabled", option: "--enabled <enabled>", name: "enabled", type: "boolean", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this punchout account has in the system that OWNS it. An account is a partner identity, and the procurement platform on the other side knows the relationship by an id of its own — a supplier id, a vendor number, an IDS customer name. Unique per tenant where it is set, so a repeated import updates the account it wrote last time instead of adding a second one. `code` is what this shop calls the partner; this is what the partner calls itself. Null for an account an operator typed in, which is the ordinary case.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this partner, keyed by system name — the ERP's vendor number beside the procurement platform's supplier id, because one customer commonly reaches this shop through both. `external_id` is the leading system; this is the rest, and the next one costs no column. Not something to search on: this contract publishes no column filter at all, and the store compares such a field as a whole document — look the account up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "fallbackContactId", option: "--fallback-contact-id <fallback-contact-id>", name: "fallback_contact_id", type: "string", required: false },
   { key: "idsCustomerName", option: "--ids-customer-name <ids-customer-name>", name: "ids_customer_name", type: "string", required: false },
   { key: "loginToken", option: "--login-token <login-token>", name: "login_token", type: "string", required: false, secret: true },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: `behaviour` is what the app acts on, `source_data` is what the source said, and this is what you say.", type: "object", required: false },
   { key: "name", option: "--name <name>", name: "name", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: false },
   { key: "protocol", option: "--protocol <protocol>", name: "protocol", type: "string", required: false },
@@ -327,6 +355,8 @@ const accountsUpdateSpecs: PromptSpec[] = [
   { key: "secureOci", option: "--secure-oci <secure-oci>", name: "secure_oci", type: "boolean", required: false },
   { key: "sessionTtlMinutes", option: "--session-ttl-minutes <session-ttl-minutes>", name: "session_ttl_minutes", type: "integer", required: false },
   { key: "sharedSecret", option: "--shared-secret <shared-secret>", name: "shared_secret", type: "string", required: false, secret: true },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this account, kept as it said it. Carries the ETag a write-back has to hand back in `If-Match`, and the source fields this app does not model — without it those are lost on the first edit made here. Not a place for anything the partner authenticates with: what an ERP sends to get in is written to the account's own write-only fields, which no route answers.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this account was last confirmed against its source. A delta run asks for changes since it, and an operator reads it to see that a feed has gone quiet. Editing the account here does not touch it: it says when the SOURCE was last seen, not when the row changed. Null for an account no source owns.", type: "string", required: false },
   { key: "startPageUrl", option: "--start-page-url <start-page-url>", name: "start_page_url", type: "string", required: false },
   { key: "unknownUserPolicy", option: "--unknown-user-policy <unknown-user-policy>", name: "unknown_user_policy", type: "string", required: false },
   { key: "urlThreading", option: "--url-threading <url-threading>", name: "url_threading", type: "boolean", required: false },
@@ -348,9 +378,12 @@ punchout
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--external-id <external-id>`, `The key this punchout account has in the system that OWNS it. An account is a partner identity, and the procurement platform on the other side knows the relationship by an id of its own — a supplier id, a vendor number, an IDS customer name. Unique per tenant where it is set, so a repeated import updates the account it wrote last time instead of adding a second one. \`code\` is what this shop calls the partner; this is what the partner calls itself. Null for an account an operator typed in, which is the ordinary case.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this partner, keyed by system name — the ERP's vendor number beside the procurement platform's supplier id, because one customer commonly reaches this shop through both. \`external_id\` is the leading system; this is the rest, and the next one costs no column. Not something to search on: this contract publishes no column filter at all, and the store compares such a field as a whole document — look the account up by \`external_id\` and read this off the answer.`)
   .option(`--fallback-contact-id <fallback-contact-id>`, ``)
   .option(`--ids-customer-name <ids-customer-name>`, ``)
   .option(`--login-token <login-token>`, ``)
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: \`behaviour\` is what the app acts on, \`source_data\` is what the source said, and this is what you say.`)
   .option(`--name <name>`, ``)
   .option(`--organization-id <organization-id>`, ``)
   .option(`--protocol <protocol>`, ``)
@@ -363,6 +396,8 @@ punchout
   )
   .option(`--session-ttl-minutes <session-ttl-minutes>`, ``, parseInteger)
   .option(`--shared-secret <shared-secret>`, ``)
+  .option(`--source-data <source-data>`, `What the source said about this account, kept as it said it. Carries the ETag a write-back has to hand back in \`If-Match\`, and the source fields this app does not model — without it those are lost on the first edit made here. Not a place for anything the partner authenticates with: what an ERP sends to get in is written to the account's own write-only fields, which no route answers.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this account was last confirmed against its source. A delta run asks for changes since it, and an operator reads it to see that a feed has gone quiet. Editing the account here does not touch it: it says when the SOURCE was last seen, not when the row changed. Null for an account no source owns.`)
   .option(`--start-page-url <start-page-url>`, ``)
   .option(`--unknown-user-policy <unknown-user-policy>`, ``)
   .option(
@@ -374,7 +409,7 @@ punchout
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, authStrategy, behaviour, channelCode, code, credentialDomain, credentialIdentity, credentialSecret, enabled, fallbackContactId, idsCustomerName, loginToken, name, organizationId, protocol, protocolVersion, secureOci, sessionTtlMinutes, sharedSecret, startPageUrl, unknownUserPolicy, urlThreading } = await promptForMissing(
+        const { id, authStrategy, behaviour, channelCode, code, credentialDomain, credentialIdentity, credentialSecret, enabled, externalId, externalRefs, fallbackContactId, idsCustomerName, loginToken, metadata, name, organizationId, protocol, protocolVersion, secureOci, sessionTtlMinutes, sharedSecret, sourceData, sourceSyncedAt, startPageUrl, unknownUserPolicy, urlThreading } = await promptForMissing(
           _options,
           accountsUpdateSpecs,
           _command,
@@ -413,6 +448,12 @@ punchout
         if (enabled !== undefined) {
           _payload[`enabled`] = enabled;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (fallbackContactId !== undefined) {
           _payload[`fallback_contact_id`] = fallbackContactId;
         }
@@ -421,6 +462,9 @@ punchout
         }
         if (loginToken !== undefined) {
           _payload[`login_token`] = loginToken;
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -442,6 +486,12 @@ punchout
         }
         if (sharedSecret !== undefined) {
           _payload[`shared_secret`] = sharedSecret;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (startPageUrl !== undefined) {
           _payload[`start_page_url`] = startPageUrl;
@@ -1751,7 +1801,7 @@ const sessionsClaimSpecs: PromptSpec[] = [
 ];
 punchout
   .command(`sessions-claim`)
-  .description(`The start of a punchout visit in the shop. Resolves the buyer the external system named to an ordinary contact — the named one, else the account's fallback contact, else whatever the account's policy for an unknown name says — asks the app that owns buyer authentication to sign that contact in, and answers the secret together with the channel, the action and the cart the visit names. The secret is single-use and short-lived: redeem it server-side, and keep it out of a redirect URL, a browser history and a Referer. Answered exactly ONCE — the handle travelled through the external system in the clear. A second claim, an expired or revoked visit, one already handed back and a handle nobody minted all get the same answer, deliberately.`)
+  .description(`The start of a punchout visit in the shop. Resolves the buyer the external system named to an ordinary contact — the named one, else the account's fallback contact, else whatever the account's policy for an unknown name says — gives the visit a cart of its own if it brought none (a new, empty one, owned by the visit's handle rather than by the contact, because one contact may carry several ERP users' visits at once), asks the app that owns buyer authentication to sign that contact in, and answers the secret together with the channel, the action and that cart. The secret is single-use and short-lived: redeem it server-side, and keep it out of a redirect URL, a browser history and a Referer. Answered exactly ONCE — the handle travelled through the external system in the clear. A second claim, an expired or revoked visit, one already handed back and a handle nobody minted all get the same answer, deliberately.`)
   .option(`--psid <psid>`, ``)
   .option(`--body <body>`, `Request body`)
   .action(
@@ -2094,11 +2144,15 @@ const transfersCreateSpecs: PromptSpec[] = [
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The id the receiving system has for this hand-back — a cXML `PayloadID`, the reference an ERP answers the posted cart with. It is the idempotency key of the protocol rather than of this app: unique per tenant where it is set, so a hand-back a buyer's browser replays cannot leave a second transfer on record. Distinct from `correlation_key`, which this app mints and stamps on the visit before the mapping runs — that one is ours and is always there, this one is theirs and is filled by whoever records the receipt.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every other system that knows this hand-back, keyed by system name — the procurement platform's own id beside the order number the ERP later gives it. `external_id` is the leading system; this is the rest. Not something to search on: this contract publishes no column filter at all, and the store compares such a field as a whole document.", type: "object", required: false },
   { key: "itemCount", option: "--item-count <item-count>", name: "item_count", type: "integer", required: false },
   { key: "matchedAt", option: "--matched-at <matched-at>", name: "matched_at", type: "string", required: false },
   { key: "matchedOrderId", option: "--matched-order-id <matched-order-id>", name: "matched_order_id", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: false },
   { key: "payload", option: "--payload <payload>", name: "payload", type: "object", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the receiving system said back, kept as it said it — the acknowledgement, its ETag, and the fields of it this app does not model. A transfer is evidence and is added to but never rewritten, so this is where a later answer about it goes rather than over `payload`, which is what was handed over and must stay as it was handed over.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this transfer was last confirmed against the system that received it — what an acknowledgement run stamps, and what tells an operator that the receipts have stopped arriving. Null while nobody has confirmed it, which is every transfer this app writes on its own: a hand-back answers a payload for a browser to submit, and whether it arrived is somebody else's answer.", type: "string", required: false },
   { key: "targetUrl", option: "--target-url <target-url>", name: "target_url", type: "string", required: false },
   { key: "totalGross", option: "--total-gross <total-gross>", name: "total_gross", type: "number", required: false },
   { key: "totalNet", option: "--total-net <total-net>", name: "total_net", type: "number", required: false },
@@ -2114,11 +2168,15 @@ punchout
   .option(`--cart-id <cart-id>`, ``)
   .option(`--contact-id <contact-id>`, ``)
   .option(`--currency <currency>`, ``)
+  .option(`--external-id <external-id>`, `The id the receiving system has for this hand-back — a cXML \`PayloadID\`, the reference an ERP answers the posted cart with. It is the idempotency key of the protocol rather than of this app: unique per tenant where it is set, so a hand-back a buyer's browser replays cannot leave a second transfer on record. Distinct from \`correlation_key\`, which this app mints and stamps on the visit before the mapping runs — that one is ours and is always there, this one is theirs and is filled by whoever records the receipt.`)
+  .option(`--external-refs <external-refs>`, `Every other system that knows this hand-back, keyed by system name — the procurement platform's own id beside the order number the ERP later gives it. \`external_id\` is the leading system; this is the rest. Not something to search on: this contract publishes no column filter at all, and the store compares such a field as a whole document.`)
   .option(`--item-count <item-count>`, ``, parseInteger)
   .option(`--matched-at <matched-at>`, ``)
   .option(`--matched-order-id <matched-order-id>`, ``)
   .option(`--organization-id <organization-id>`, ``)
   .option(`--payload <payload>`, ``)
+  .option(`--source-data <source-data>`, `What the receiving system said back, kept as it said it — the acknowledgement, its ETag, and the fields of it this app does not model. A transfer is evidence and is added to but never rewritten, so this is where a later answer about it goes rather than over \`payload\`, which is what was handed over and must stay as it was handed over.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this transfer was last confirmed against the system that received it — what an acknowledgement run stamps, and what tells an operator that the receipts have stopped arriving. Null while nobody has confirmed it, which is every transfer this app writes on its own: a hand-back answers a payload for a browser to submit, and whether it arrived is somebody else's answer.`)
   .option(`--target-url <target-url>`, ``)
   .option(`--total-gross <total-gross>`, ``, parseInteger)
   .option(`--total-net <total-net>`, ``, parseInteger)
@@ -2126,7 +2184,7 @@ punchout
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { accountId, correlationKey, protocol, sessionId, cartId, contactId, currency, itemCount, matchedAt, matchedOrderId, organizationId, payload, targetUrl, totalGross, totalNet, transferredAt } = await promptForMissing(
+        const { accountId, correlationKey, protocol, sessionId, cartId, contactId, currency, externalId, externalRefs, itemCount, matchedAt, matchedOrderId, organizationId, payload, sourceData, sourceSyncedAt, targetUrl, totalGross, totalNet, transferredAt } = await promptForMissing(
           _options,
           transfersCreateSpecs,
           _command,
@@ -2156,6 +2214,12 @@ punchout
         if (currency !== undefined) {
           _payload[`currency`] = currency;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (itemCount !== undefined) {
           _payload[`item_count`] = itemCount;
         }
@@ -2176,6 +2240,12 @@ punchout
         }
         if (sessionId !== undefined) {
           _payload[`session_id`] = sessionId;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (targetUrl !== undefined) {
           _payload[`target_url`] = targetUrl;
@@ -2242,6 +2312,8 @@ const transfersUpdateSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", type: "string", required: false },
   { key: "correlationKey", option: "--correlation-key <correlation-key>", name: "correlation_key", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The id the receiving system has for this hand-back — a cXML `PayloadID`, the reference an ERP answers the posted cart with. It is the idempotency key of the protocol rather than of this app: unique per tenant where it is set, so a hand-back a buyer's browser replays cannot leave a second transfer on record. Distinct from `correlation_key`, which this app mints and stamps on the visit before the mapping runs — that one is ours and is always there, this one is theirs and is filled by whoever records the receipt.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every other system that knows this hand-back, keyed by system name — the procurement platform's own id beside the order number the ERP later gives it. `external_id` is the leading system; this is the rest. Not something to search on: this contract publishes no column filter at all, and the store compares such a field as a whole document.", type: "object", required: false },
   { key: "itemCount", option: "--item-count <item-count>", name: "item_count", type: "integer", required: false },
   { key: "matchedAt", option: "--matched-at <matched-at>", name: "matched_at", type: "string", required: false },
   { key: "matchedOrderId", option: "--matched-order-id <matched-order-id>", name: "matched_order_id", type: "string", required: false },
@@ -2249,6 +2321,8 @@ const transfersUpdateSpecs: PromptSpec[] = [
   { key: "payload", option: "--payload <payload>", name: "payload", type: "object", required: false },
   { key: "protocol", option: "--protocol <protocol>", name: "protocol", type: "string", required: false },
   { key: "sessionId", option: "--session-id <session-id>", name: "session_id", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the receiving system said back, kept as it said it — the acknowledgement, its ETag, and the fields of it this app does not model. A transfer is evidence and is added to but never rewritten, so this is where a later answer about it goes rather than over `payload`, which is what was handed over and must stay as it was handed over.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this transfer was last confirmed against the system that received it — what an acknowledgement run stamps, and what tells an operator that the receipts have stopped arriving. Null while nobody has confirmed it, which is every transfer this app writes on its own: a hand-back answers a payload for a browser to submit, and whether it arrived is somebody else's answer.", type: "string", required: false },
   { key: "targetUrl", option: "--target-url <target-url>", name: "target_url", type: "string", required: false },
   { key: "totalGross", option: "--total-gross <total-gross>", name: "total_gross", type: "number", required: false },
   { key: "totalNet", option: "--total-net <total-net>", name: "total_net", type: "number", required: false },
@@ -2263,6 +2337,8 @@ punchout
   .option(`--contact-id <contact-id>`, ``)
   .option(`--correlation-key <correlation-key>`, ``)
   .option(`--currency <currency>`, ``)
+  .option(`--external-id <external-id>`, `The id the receiving system has for this hand-back — a cXML \`PayloadID\`, the reference an ERP answers the posted cart with. It is the idempotency key of the protocol rather than of this app: unique per tenant where it is set, so a hand-back a buyer's browser replays cannot leave a second transfer on record. Distinct from \`correlation_key\`, which this app mints and stamps on the visit before the mapping runs — that one is ours and is always there, this one is theirs and is filled by whoever records the receipt.`)
+  .option(`--external-refs <external-refs>`, `Every other system that knows this hand-back, keyed by system name — the procurement platform's own id beside the order number the ERP later gives it. \`external_id\` is the leading system; this is the rest. Not something to search on: this contract publishes no column filter at all, and the store compares such a field as a whole document.`)
   .option(`--item-count <item-count>`, ``, parseInteger)
   .option(`--matched-at <matched-at>`, ``)
   .option(`--matched-order-id <matched-order-id>`, ``)
@@ -2270,6 +2346,8 @@ punchout
   .option(`--payload <payload>`, ``)
   .option(`--protocol <protocol>`, ``)
   .option(`--session-id <session-id>`, ``)
+  .option(`--source-data <source-data>`, `What the receiving system said back, kept as it said it — the acknowledgement, its ETag, and the fields of it this app does not model. A transfer is evidence and is added to but never rewritten, so this is where a later answer about it goes rather than over \`payload\`, which is what was handed over and must stay as it was handed over.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this transfer was last confirmed against the system that received it — what an acknowledgement run stamps, and what tells an operator that the receipts have stopped arriving. Null while nobody has confirmed it, which is every transfer this app writes on its own: a hand-back answers a payload for a browser to submit, and whether it arrived is somebody else's answer.`)
   .option(`--target-url <target-url>`, ``)
   .option(`--total-gross <total-gross>`, ``, parseInteger)
   .option(`--total-net <total-net>`, ``, parseInteger)
@@ -2277,7 +2355,7 @@ punchout
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, accountId, cartId, contactId, correlationKey, currency, itemCount, matchedAt, matchedOrderId, organizationId, payload, protocol, sessionId, targetUrl, totalGross, totalNet, transferredAt } = await promptForMissing(
+        const { id, accountId, cartId, contactId, correlationKey, currency, externalId, externalRefs, itemCount, matchedAt, matchedOrderId, organizationId, payload, protocol, sessionId, sourceData, sourceSyncedAt, targetUrl, totalGross, totalNet, transferredAt } = await promptForMissing(
           _options,
           transfersUpdateSpecs,
           _command,
@@ -2307,6 +2385,12 @@ punchout
         if (currency !== undefined) {
           _payload[`currency`] = currency;
         }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
+        }
         if (itemCount !== undefined) {
           _payload[`item_count`] = itemCount;
         }
@@ -2327,6 +2411,12 @@ punchout
         }
         if (sessionId !== undefined) {
           _payload[`session_id`] = sessionId;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (targetUrl !== undefined) {
           _payload[`target_url`] = targetUrl;
@@ -2359,7 +2449,7 @@ const vocabulariesListSpecs: PromptSpec[] = [
 ];
 punchout
   .command(`vocabularies-list`)
-  .description(`Discovery for the vocabulary routes: the enums this app enforces, each with its name, its title and its description — and deliberately WITHOUT its values, so a UI can cache this one small answer and fetch only the value sets it renders. Names: entry-probe-outcome, mapping-mutators, mapping-sources. Fetch one with GET /punchout/vocabularies/{name}.`)
+  .description(`Discovery for the vocabulary routes: the enums this app enforces, each with its name, its title and its description — and deliberately WITHOUT its values, so a UI can cache this one small answer and fetch only the value sets it renders. Names: entry-probe-outcome, mapping-mutators, mapping-scopes, mapping-sources. Fetch one with GET /punchout/vocabularies/{name}.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -2399,11 +2489,11 @@ punchout
   );
 registerPromptSpecs(punchout.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
 const vocabulariesGetSpecs: PromptSpec[] = [
-  { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id.", type: "string", required: true, enum: ["entry-probe-outcome","mapping-mutators","mapping-sources"], resource: { listPath: "/punchout/vocabularies", hasLimit: false } },
+  { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id.", type: "string", required: true, enum: ["entry-probe-outcome","mapping-mutators","mapping-scopes","mapping-sources"], resource: { listPath: "/punchout/vocabularies", hasLimit: false } },
 ];
 punchout
   .command(`vocabularies-get`)
-  .description(`One vocabulary in full: every permitted value with its title, its description and the badge tone a UI colours it with. The values are read out of the column's CHECK constraint, so the served set IS the set the database accepts and the set the mapping engine understands — a mapping editor offering anything else would produce silently empty fields. \`mapping-sources\` carries the 24 sources of ADR-0003 (three of them namespaced \`cxml.*\`, offered only for a cXML account) and \`mapping-mutators\` the 17 chainable mutators; each value's description names the config keys it reads and which of them are required. Answers 404 for an unknown name.`)
+  .description(`One vocabulary in full: every permitted value with its title, its description and the badge tone a UI colours it with. The values are read out of the column's CHECK constraint, so the served set IS the set the database accepts and the set the mapping engine understands — a mapping editor offering anything else would produce silently empty fields. \`mapping-sources\` carries the 25 sources of ADR-0003 (three of them namespaced \`cxml.*\`, offered only for a cXML account) and \`mapping-mutators\` the 17 chainable mutators; each value's description names the config keys it reads and which of them are required. Answers 404 for an unknown name.`)
   .option(`--name <name>`, `The vocabulary name — the part after the dot in the qualified id.`)
   .action(
     actionRunner(

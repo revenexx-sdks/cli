@@ -1,3 +1,6 @@
+## v0.6.2
+- Regenerated from the latest API specification
+
 ## v0.6.1
 - Added a tenant picker to tenants use; fixed tenants current returning empty output in the TUI and under --json/--quiet
 

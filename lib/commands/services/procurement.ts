@@ -1864,6 +1864,58 @@ procurement
     ),
   );
 registerPromptSpecs(procurement.commands.at(-1)!, submitSpecs, { method: "post" });
+const submitCartSpecs: PromptSpec[] = [
+  { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "The cart to check out. It must be active (409 `cart_not_active` otherwise); a re-submit answers the order or request already made for it.", type: "string", required: true },
+  { key: "costCenterId", option: "--cost-center-id <cost-center-id>", name: "cost_center_id", description: "The cost centre every line books to. A cart line names none, so without one no budget moves.", type: "string", required: false },
+  { key: "customerOrderNumber", option: "--customer-order-number <customer-order-number>", name: "customer_order_number", type: "string", required: false },
+];
+procurement
+  .command(`submit-cart`)
+  .description(`Check out a stored cart by id — read it from carts and submit it as /procurement/submit does, then mark the cart ordered once an Order exists`)
+  .option(`--cart-id <cart-id>`, `The cart to check out. It must be active (409 \`cart_not_active\` otherwise); a re-submit answers the order or request already made for it.`)
+  .option(`--cost-center-id <cost-center-id>`, `The cost centre every line books to. A cart line names none, so without one no budget moves.`)
+  .option(`--customer-order-number <customer-order-number>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { cartId, costCenterId, customerOrderNumber } = await promptForMissing(
+          _options,
+          submitCartSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/procurement/submit-cart`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (cartId !== undefined) {
+          _payload[`cart_id`] = cartId;
+        }
+        if (costCenterId !== undefined) {
+          _payload[`cost_center_id`] = costCenterId;
+        }
+        if (customerOrderNumber !== undefined) {
+          _payload[`customer_order_number`] = customerOrderNumber;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(procurement.commands.at(-1)!, submitCartSpecs, { method: "post" });
 const vocabulariesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];

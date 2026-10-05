@@ -23,7 +23,7 @@ import * as path from "path";
  */
 
 const DEFAULT_VENDOR = "revenexx";
-const APP_SDK_VERSION = "^0.10.0";
+const APP_SDK_VERSION = "^1.1.0";
 const SCHEMAS_BASE = "https://schemas.revenexx.com";
 
 const titleize = (name: string): string =>

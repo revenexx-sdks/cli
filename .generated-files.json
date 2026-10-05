@@ -617,6 +617,7 @@
     "docs/examples/procurement/purchase-requests-order.md",
     "docs/examples/procurement/purchase-requests-update.md",
     "docs/examples/procurement/reconcile.md",
+    "docs/examples/procurement/submit-cart.md",
     "docs/examples/procurement/submit.md",
     "docs/examples/procurement/vocabularies-get.md",
     "docs/examples/procurement/vocabularies-list.md",
