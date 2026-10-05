@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import inquirer from "inquirer";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -18,6 +19,7 @@ import { loadProjectConfig } from "../project-config.js";
 import { DEFAULT_ENDPOINT, EXECUTABLE_NAME } from "../constants.js";
 import { decodeJwtClaims, tenantsFromClaims } from "../oauth.js";
 import { resolveSsoJwt } from "../sdks.js";
+import { isInteractive, registerPositionalChoices } from "../interactive.js";
 import {
   validateApiKey,
   validateSsoJwt,
@@ -192,6 +194,56 @@ const noCredentialNote = (credential: ProbeCredential): string =>
     ? credential.reason
     : `Not signed in — run \`${EXECUTABLE_NAME} login\` first to validate tenant access.`;
 
+/**
+ * The slugs `tenants use` can offer: the account's own memberships when the
+ * SSO token carries any (the gateway enforces exactly that list), otherwise
+ * every slug this machine knows about.
+ */
+export const selectableTenants = (
+  accountTenants: string[],
+  known: KnownTenant[],
+): string[] => {
+  const fromAccount = accountTenants.map((t) => t.trim()).filter(Boolean);
+  return fromAccount.length > 0
+    ? Array.from(new Set(fromAccount))
+    : known.map((t) => t.slug);
+};
+
+/** Picker entries for the slugs, with the active one marked and preselected. */
+export const tenantChoices = (
+  slugs: string[],
+  active: string,
+): Array<{ name: string; value: string }> =>
+  slugs.map((slug) => ({
+    name: slug === active ? `${slug} (active)` : slug,
+    value: slug,
+  }));
+
+/**
+ * `tenants use` writes ~/.revenexx/tenant, which outranks REVENEXX_TENANT and
+ * `tenant:` in .revenexx.yaml. When either names a different tenant the switch
+ * silently disagrees with it, so say so (DX-460).
+ */
+export const tenantOverrideNotes = (
+  slug: string,
+  ambient: { env?: string; projectFile?: string },
+): string[] => {
+  const notes: string[] = [];
+  const env = ambient.env?.trim();
+  if (env && env !== slug) {
+    notes.push(
+      `REVENEXX_TENANT is '${env}' but the tenant you just set ('${slug}') takes precedence over it.`,
+    );
+  }
+  const projectFile = ambient.projectFile?.trim();
+  if (projectFile && projectFile !== slug) {
+    notes.push(
+      `.revenexx.yaml sets tenant '${projectFile}' but the tenant you just set ('${slug}') takes precedence over it.`,
+    );
+  }
+  return notes;
+};
+
 export const tenants = new Command("tenants")
   .description(commandDescriptions["tenants"] ?? "Manage Revenexx tenants")
   .configureHelp({
@@ -285,44 +337,136 @@ tenants
     }),
   );
 
+/**
+ * The result of `use` / `current` as data. Status lines (`log`, `success`) go
+ * to stderr in every non-table output mode and vanish under --quiet, so the
+ * full-screen TUI (which forces JSON and reads stdout) and `$(… current -q)`
+ * would otherwise get nothing back (DX-460).
+ */
+const emitActiveTenant = (
+  slug: string,
+  extra: Record<string, string> = {},
+): boolean => {
+  if (cliConfig.output !== "table") {
+    console.log([{ Tenant: slug, Active: true, ...extra }]);
+    return true;
+  }
+  if (cliConfig.quiet) {
+    console.log(slug);
+    return true;
+  }
+  return false;
+};
+
+/**
+ * Let the user choose among the tenants they can reach. On a terminal that is
+ * a picker; everywhere else (pipes, CI, --json) it is the plain list and no
+ * choice is made, so automation never blocks on a prompt.
+ */
+const listSelectableTenants = (): string[] => {
+  const accountTenants = discoverAccountTenants();
+  const known = collectKnownTenants({
+    env: process.env.REVENEXX_TENANT,
+    flag: cliConfig.tenant,
+    projectFile: loadProjectConfig().tenant,
+    accountTenants,
+    sessionEmails: globalConfig
+      .getSessions()
+      .map((session) => session.email ?? ""),
+    active: readActiveTenant(),
+  });
+  return selectableTenants(accountTenants, known);
+};
+
+const chooseTenant = async (): Promise<string | undefined> => {
+  const slugs = listSelectableTenants();
+  if (slugs.length === 0) {
+    error(
+      `No tenants found. Run \`${EXECUTABLE_NAME} login\` to sign in, or pass a slug: \`${EXECUTABLE_NAME} tenants use <slug>\`.`,
+    );
+    process.exitCode = 1;
+    return undefined;
+  }
+  const active = readActiveTenant();
+  if (isInteractive() && !cliConfig.json) {
+    const answer = await inquirer.prompt([
+      {
+        type: "list",
+        name: "slug",
+        message: "Switch to which tenant?",
+        choices: tenantChoices(slugs, active),
+        default: slugs.indexOf(active) >= 0 ? slugs.indexOf(active) : 0,
+      },
+    ]);
+    return answer.slug as string;
+  }
+  if (cliConfig.json) {
+    console.log(slugs.map((slug) => ({ Tenant: slug, Active: slug === active })));
+  } else {
+    drawTable(
+      slugs.map((slug) => ({ Tenant: slug, Active: slug === active ? "yes" : "" })),
+    );
+    hint(`Run \`${EXECUTABLE_NAME} tenants use <slug>\` with one of these.`);
+  }
+  process.exitCode = 1;
+  return undefined;
+};
+
+/** Validate `slug` against the gateway and persist it. False when refused. */
+const switchTenant = async (slug: string): Promise<boolean> => {
+  const credential = await resolveProbeCredential();
+  const result = await probeTenant(slug, credential);
+  if (result === null) {
+    warn(
+      `${noCredentialNote(credential)} Switching tenant without gateway validation.`,
+    );
+  } else if (!result.ok) {
+    if (result.kind === "invalid-tenant" && !cliConfig.force) {
+      error(`Cannot switch: ${result.reason}. Pass --force to set it anyway.`);
+      return false;
+    }
+    warn(`Could not verify tenant '${slug}': ${result.reason}.`);
+  }
+
+  writeActiveTenant(slug);
+  if (!emitActiveTenant(slug)) success(`Active tenant set to '${slug}'`);
+  for (const note of tenantOverrideNotes(slug, {
+    env: process.env.REVENEXX_TENANT,
+    projectFile: loadProjectConfig().tenant,
+  })) {
+    warn(note);
+  }
+  return true;
+};
+
 tenants
-  .command("use <slug>")
+  .command("use [slug]")
   .description(
-    "Switch the active tenant context (validated against the gateway with your API key or browser session)",
+    "Switch the active tenant context (validated against the gateway with your API key or browser session). Without a slug, choose from the tenants you can access.",
   )
   .action(
-    actionRunner(async (slug: string) => {
-      if (!slug) {
-        error("Tenant slug is required");
+    actionRunner(async (slug?: string) => {
+      if (!slug?.trim()) {
+        const chosen = await chooseTenant();
+        if (chosen) await switchTenant(chosen);
         return;
       }
 
-      const credential = await resolveProbeCredential();
-      const result = await probeTenant(slug, credential);
-      if (result === null) {
-        warn(
-          `${noCredentialNote(credential)} Switching tenant without gateway validation.`,
-        );
-      } else if (!result.ok) {
-        if (result.kind === "invalid-tenant" && !cliConfig.force) {
-          error(
-            `Cannot switch: ${result.reason}. Pass --force to set it anyway.`,
-          );
-          const accountTenants = discoverAccountTenants();
-          if (credential.kind === "sso" && accountTenants.length > 0) {
-            hint(
-              `Your account can access: ${accountTenants.join(", ")} (\`${EXECUTABLE_NAME} tenants list\`).`,
-            );
-          }
-          return;
-        }
-        warn(`Could not verify tenant '${slug}': ${result.reason}.`);
+      if (!(await switchTenant(slug.trim()))) {
+        // Refused: show what would have worked, and on a terminal let the
+        // user pick it right away instead of retyping the command.
+        const chosen = await chooseTenant();
+        if (chosen) await switchTenant(chosen);
       }
-
-      writeActiveTenant(slug);
-      success(`Active tenant set to '${slug}'`);
     }),
   );
+
+// The full-screen TUI runs commands with captured output (no TTY, so no
+// inquirer picker); give its form the tenant list as a selectable field.
+registerPositionalChoices(
+  tenants.commands.find((c) => c.name() === "use")!,
+  listSelectableTenants,
+);
 
 tenants
   .command("current")
@@ -332,24 +476,46 @@ tenants
     actionRunner(async ({ check }: { check?: boolean }) => {
       const slug = readActiveTenant();
       if (!slug) {
+        if (cliConfig.output !== "table") {
+          console.log([]);
+          return;
+        }
+        if (cliConfig.quiet) return;
         log(
           `No active tenant set. Run \`${EXECUTABLE_NAME} tenants list\` to see your tenants, then \`${EXECUTABLE_NAME} tenants use <slug>\`.`,
         );
         return;
       }
-      log(slug);
 
+      let access: string | undefined;
+      let credential: ProbeCredential | undefined;
       if (check) {
-        const credential = await resolveProbeCredential();
+        credential = await resolveProbeCredential();
         const result = await probeTenant(slug, credential);
-        if (result === null) {
+        access =
+          result === null
+            ? "(cannot verify)"
+            : result.ok
+              ? "ok"
+              : result.reason;
+        if (result === null && cliConfig.output === "table") {
+          log(slug);
           warn(`${noCredentialNote(credential)} Cannot verify tenant access.`);
-        } else if (result.ok) {
+          return;
+        }
+      }
+
+      if (emitActiveTenant(slug, access === undefined ? {} : { Access: access })) {
+        return;
+      }
+      log(slug);
+      if (check && credential !== undefined) {
+        if (access === "ok") {
           success(
             `Tenant '${slug}' is accessible with the current ${credential.kind === "apikey" ? "API key" : "session"}`,
           );
         } else {
-          error(`Tenant check failed: ${result.reason}`);
+          error(`Tenant check failed: ${access}`);
         }
       }
     }),

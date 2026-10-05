@@ -1,11 +1,16 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import { cliConfig } from "../lib/parser.js";
 import {
   readActiveTenant,
   writeActiveTenant,
   collectKnownTenants,
+  selectableTenants,
+  tenantChoices,
+  tenantOverrideNotes,
+  tenants,
   ACCOUNT_SOURCE,
 } from "../lib/commands/tenants.js";
 
@@ -127,5 +132,90 @@ describe("collectKnownTenants", () => {
     const bySlug = Object.fromEntries(result.map((t) => [t.slug, t]));
     expect(bySlug["globex"].active).toBe(true);
     expect(bySlug["acme"].active).toBe(false);
+  });
+});
+
+describe("tenants use (DX-460)", () => {
+  it("takes the slug as optional so a bare `tenants use` can list tenants", () => {
+    const use = tenants.commands.find((c) => c.name() === "use");
+    expect(use).toBeDefined();
+    expect(use!.usage()).toBe("[options] [slug]");
+  });
+
+  it("offers the account's memberships when the SSO token has any", () => {
+    const known = collectKnownTenants({
+      accountTenants: ["revenexx", "revenexx-test"],
+      tenantFile: "stale-local",
+    });
+    expect(selectableTenants(["revenexx", "revenexx-test"], known)).toEqual([
+      "revenexx",
+      "revenexx-test",
+    ]);
+  });
+
+  it("falls back to every known slug without SSO memberships", () => {
+    const known = collectKnownTenants({ env: "acme", tenantFile: "globex" });
+    expect(selectableTenants([], known)).toEqual(["acme", "globex"]);
+  });
+
+  it("marks and de-duplicates picker entries", () => {
+    expect(tenantChoices(["a", "b"], "b")).toEqual([
+      { name: "a", value: "a" },
+      { name: "b (active)", value: "b" },
+    ]);
+    expect(selectableTenants(["a", "a", " "], [])).toEqual(["a"]);
+  });
+
+  it("warns when the new tenant overrides REVENEXX_TENANT or .revenexx.yaml", () => {
+    const notes = tenantOverrideNotes("revenexx-test", {
+      env: "revenexx",
+      projectFile: "revenexx",
+    });
+    expect(notes).toHaveLength(2);
+    expect(notes[0]).toContain("REVENEXX_TENANT");
+    expect(notes[1]).toContain(".revenexx.yaml");
+  });
+
+  it("stays quiet when the ambient sources agree or are unset", () => {
+    expect(
+      tenantOverrideNotes("acme", { env: "acme", projectFile: " " }),
+    ).toEqual([]);
+    expect(tenantOverrideNotes("acme", {})).toEqual([]);
+  });
+});
+
+describe("tenants current returns data in every output mode (DX-460)", () => {
+  const runCurrent = async (): Promise<unknown[][]> => {
+    const lines: unknown[][] = [];
+    const spy = vi
+      .spyOn(console, "log")
+      .mockImplementation((...args: unknown[]) => void lines.push(args));
+    try {
+      const current = tenants.commands.find((c) => c.name() === "current")!;
+      await current.parseAsync([], { from: "user" });
+    } finally {
+      spy.mockRestore();
+    }
+    return lines;
+  };
+
+  const saved = { output: cliConfig.output, quiet: cliConfig.quiet };
+  afterEach(() => {
+    cliConfig.output = saved.output;
+    cliConfig.quiet = saved.quiet;
+  });
+
+  it("emits the slug as JSON rows, which the TUI reads from stdout", async () => {
+    process.env.REVENEXX_TENANT = "acme";
+    cliConfig.output = "json";
+    const slug = readActiveTenant();
+    expect(await runCurrent()).toEqual([[[{ Tenant: slug, Active: true }]]]);
+  });
+
+  it("prints the bare slug under --quiet so $(… current) works", async () => {
+    process.env.REVENEXX_TENANT = "acme";
+    cliConfig.output = "table";
+    cliConfig.quiet = true;
+    expect(await runCurrent()).toEqual([[readActiveTenant()]]);
   });
 });

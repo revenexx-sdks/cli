@@ -81,6 +81,25 @@ export const registerPromptSpecs = (
   }
 };
 
+/**
+ * Choices for a hand-written command's first positional argument, resolved
+ * when the TUI builds its form so the list reflects the current session
+ * (e.g. the tenants an account can switch to). Generated service commands
+ * carry enums in their PromptSpecs instead; this is for plugin/utility
+ * commands whose specs the TUI synthesizes from commander.
+ */
+const positionalChoiceRegistry = new WeakMap<object, () => string[]>();
+
+export const registerPositionalChoices = (
+  command: object,
+  choices: () => string[],
+): void => {
+  positionalChoiceRegistry.set(command, choices);
+};
+
+export const getPositionalChoices = (command: object): string[] =>
+  positionalChoiceRegistry.get(command)?.() ?? [];
+
 export const getPromptSpecs = (command: object): PromptSpec[] =>
   promptSpecRegistry.get(command) ?? [];
 

@@ -3,6 +3,7 @@ import { actionRunner, commandDescriptions, error } from "../parser.js";
 import {
   getPromptSpecs,
   getCommandMeta,
+  getPositionalChoices,
   type PromptSpec,
 } from "../interactive.js";
 import { EXECUTABLE_NAME } from "../constants.js";
@@ -41,13 +42,17 @@ const positionalSpecs = (command: Command): PromptSpec[] => {
         description?: string;
       }>;
     })._args ?? [];
+  const choices = getPositionalChoices(command);
   return args.map((arg, index) => ({
     key: `_arg${index}`,
+    enum: index === 0 && choices.length > 0 ? choices : undefined,
     option: `<${arg.name()}>`,
     name: arg.name(),
     description: arg.description || undefined,
     type: "string",
-    required: arg.required,
+    // A positional with known choices must stop at the form: an optional one
+    // would auto-run with nothing chosen and just print the list (DX-460).
+    required: arg.required || (index === 0 && choices.length > 0),
     positional: true,
     variadic: arg.variadic,
   }));

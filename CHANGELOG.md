@@ -1,3 +1,6 @@
+## v0.6.1
+- Added a tenant picker to tenants use; fixed tenants current returning empty output in the TUI and under --json/--quiet
+
 ## v0.6.0
 - orderlists to-order and some flags were removed (for example --vat-id, --tax-class, --filter on several lists); new consent-manager, tag-manager, documents and sales-reps commands; flags that clash with global options are now prefixed, for example --delivery-token
 

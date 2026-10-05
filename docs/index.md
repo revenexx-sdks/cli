@@ -26,7 +26,7 @@ Once the installation is complete, you can verify the install using
 
 ```sh
 $ revenexx -v
-0.6.0
+0.6.1
 ```
 
 ### MacOS / Linux via [Homebrew](https://brew.sh)
@@ -68,7 +68,7 @@ On Windows, use `npm` — or download the `.exe` from the same release page.
 Once the installation completes, you can verify your install using
 ```
 $ revenexx -v
-0.6.0
+0.6.1
 ```
 
 ## Getting Started
