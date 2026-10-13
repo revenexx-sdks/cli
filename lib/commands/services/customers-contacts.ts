@@ -649,13 +649,13 @@ customersContacts
 registerPromptSpecs(customersContacts.commands.at(-1)!, permissionsSpecs, { method: "get" });
 const customersRegistrationsApproveSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The applicant. It is the CONTACT that is approved — the organization it founded is unblocked with it.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
-  { key: "decidedBy", option: "--decided-by <decided-by>", name: "decided_by", description: "Who approved it — recorded on the contact and carried in the event. Free text (operator id or email); this app does not resolve it.", type: "string", required: false },
+  { key: "decidedBy", option: "--decided-by <decided-by>", name: "decided_by", description: "Who approved it — recorded on the contact and carried in the event. Free text (operator id or email). An operator the gateway authenticated is recorded as themselves instead, so the Cockpit sends none.", type: "string", required: false },
 ];
 customersContacts
   .command(`customers-registrations-approve`)
   .description(`Only reachable for a contact whose registration_status is 'pending' or 'rejected' (approving a rejection reinstates it). Enables the platform user FIRST — the password the applicant chose at submit time works immediately, no new credential is issued — then sets registration_status='approved' and status='active', and un-blocks the organization this registration itself founded. Approving an already-approved registration is a no-op that emits nothing, so a retry is safe. Writes a contact_events row named 'registration.approved'.`)
   .option(`--contact-id <contact-id>`, `The applicant. It is the CONTACT that is approved — the organization it founded is unblocked with it.`)
-  .option(`--decided-by <decided-by>`, `Who approved it — recorded on the contact and carried in the event. Free text (operator id or email); this app does not resolve it.`)
+  .option(`--decided-by <decided-by>`, `Who approved it — recorded on the contact and carried in the event. Free text (operator id or email). An operator the gateway authenticated is recorded as themselves instead, so the Cockpit sends none.`)
   .action(
     actionRunner(
       async (_options, _command) => {
@@ -694,14 +694,14 @@ registerPromptSpecs(customersContacts.commands.at(-1)!, customersRegistrationsAp
 const customersRegistrationsRejectSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The applicant being declined.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
   { key: "reason", option: "--reason <reason>", name: "reason", description: "Why the application was declined. Always stored on the contact. It only reaches the APPLICANT when the tenant's registration_reason_disclosed setting is on — the event payload then carries it, and so does the 403 the login answers.", type: "string", required: true },
-  { key: "decidedBy", option: "--decided-by <decided-by>", name: "decided_by", description: "Who rejected it — recorded on the contact and carried in the event.", type: "string", required: false },
+  { key: "decidedBy", option: "--decided-by <decided-by>", name: "decided_by", description: "Who rejected it — recorded on the contact and carried in the event. An operator the gateway authenticated is recorded as themselves instead.", type: "string", required: false },
 ];
 customersContacts
   .command(`customers-registrations-reject`)
   .description(`Only reachable from 'pending'. Sets registration_status='rejected' and status='blocked', keeps the platform user in place but disabled — the email must not fall free for a silent second identity, and the merchant keeps the record. Delete the contact to remove both. 'reason' is mandatory and is stored on the contact plus carried in the event payload, so the applicant can be told why. Rejecting an already-rejected registration is a no-op. Writes a contact_events row named 'registration.rejected'.`)
   .option(`--contact-id <contact-id>`, `The applicant being declined.`)
   .option(`--reason <reason>`, `Why the application was declined. Always stored on the contact. It only reaches the APPLICANT when the tenant's registration_reason_disclosed setting is on — the event payload then carries it, and so does the 403 the login answers.`)
-  .option(`--decided-by <decided-by>`, `Who rejected it — recorded on the contact and carried in the event.`)
+  .option(`--decided-by <decided-by>`, `Who rejected it — recorded on the contact and carried in the event. An operator the gateway authenticated is recorded as themselves instead.`)
   .action(
     actionRunner(
       async (_options, _command) => {

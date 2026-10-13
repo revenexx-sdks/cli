@@ -139,7 +139,7 @@ const promotionsBatchesCreateSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "What the batch is called — the unit a mailing is accounted for by afterwards.", type: "string", required: true },
   { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: true },
   { key: "alphabet", option: "--alphabet <alphabet>", name: "alphabet", description: "The characters generated codes may use. The default omits the ones people confuse reading a code off paper.", type: "string", required: false },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
   { key: "pattern", option: "--pattern <pattern>", name: "pattern", description: "The shape generated codes take. `#` draws a character from the alphabet; every other character is kept.", type: "string", required: false },
   { key: "requestRef", option: "--request-ref <request-ref>", name: "request_ref", description: "A reference the caller chose, so a retried generation makes no second batch. A timed-out call is retried by whoever sent it, and a retry that doubled a mailing is discovered when the codes are in the post.", type: "string", required: false },
   { key: "requested", option: "--requested <requested>", name: "requested", description: "How many codes have been asked for.", type: "integer", required: false },
@@ -178,7 +178,7 @@ promotionsVouchers
           _payload[`alphabet`] = alphabet;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = resolveBodyParam(metadata);
+          _payload[`metadata`] = metadata;
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -279,11 +279,11 @@ promotionsVouchers
 registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesGetSpecs, { method: "get" });
 const promotionsBatchesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/batches", hasLimit: true } },
-  { key: "name", option: "--name <name>", name: "name", description: "What the batch is called — the unit a mailing is accounted for by afterwards.", type: "string", required: true },
-  { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: true },
   { key: "alphabet", option: "--alphabet <alphabet>", name: "alphabet", description: "The characters generated codes may use. The default omits the ones people confuse reading a code off paper.", type: "string", required: false },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
+  { key: "name", option: "--name <name>", name: "name", description: "What the batch is called — the unit a mailing is accounted for by afterwards.", type: "string", required: false },
   { key: "pattern", option: "--pattern <pattern>", name: "pattern", description: "The shape generated codes take. `#` draws a character from the alphabet; every other character is kept.", type: "string", required: false },
+  { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: false },
   { key: "requestRef", option: "--request-ref <request-ref>", name: "request_ref", description: "A reference the caller chose, so a retried generation makes no second batch. A timed-out call is retried by whoever sent it, and a retry that doubled a mailing is discovered when the codes are in the post.", type: "string", required: false },
   { key: "requested", option: "--requested <requested>", name: "requested", description: "How many codes have been asked for.", type: "integer", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "A leaked batch is `disabled`, which refuses every code in it at once — a leak is discovered as a batch and has to be stopped as one.", type: "string", required: false, enum: ["active","disabled"] },
@@ -292,18 +292,18 @@ promotionsVouchers
   .command(`promotions-batches-update`)
   .description(`Correct a batch`)
   .option(`--id <id>`, `The row id, as it came back from the list.`)
-  .option(`--name <name>`, `What the batch is called — the unit a mailing is accounted for by afterwards.`)
-  .option(`--promotion-id <promotion-id>`, `The promotion this row belongs to. Deleting the promotion deletes it.`)
   .option(`--alphabet <alphabet>`, `The characters generated codes may use. The default omits the ones people confuse reading a code off paper.`)
   .option(`--metadata <metadata>`, `Free-form JSON a caller may keep on the row. Nothing here reads it.`)
+  .option(`--name <name>`, `What the batch is called — the unit a mailing is accounted for by afterwards.`)
   .option(`--pattern <pattern>`, `The shape generated codes take. \`#\` draws a character from the alphabet; every other character is kept.`)
+  .option(`--promotion-id <promotion-id>`, `The promotion this row belongs to. Deleting the promotion deletes it.`)
   .option(`--request-ref <request-ref>`, `A reference the caller chose, so a retried generation makes no second batch. A timed-out call is retried by whoever sent it, and a retry that doubled a mailing is discovered when the codes are in the post.`)
   .option(`--requested <requested>`, `How many codes have been asked for.`, parseInteger)
   .option(`--status <status>`, `A leaked batch is \`disabled\`, which refuses every code in it at once — a leak is discovered as a batch and has to be stopped as one.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, name, promotionId, alphabet, metadata, pattern, requestRef, requested, status } = await promptForMissing(
+        const { id, alphabet, metadata, name, pattern, promotionId, requestRef, requested, status } = await promptForMissing(
           _options,
           promotionsBatchesUpdateSpecs,
           _command,
@@ -322,7 +322,7 @@ promotionsVouchers
           _payload[`alphabet`] = alphabet;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = resolveBodyParam(metadata);
+          _payload[`metadata`] = metadata;
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -748,23 +748,23 @@ promotionsVouchers
 registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsVoucherReservationsGetSpecs, { method: "get" });
 const promotionsVoucherReservationsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/voucher-reservations", hasLimit: true } },
-  { key: "voucherId", option: "--voucher-id <voucher-id>", name: "voucher_id", description: "The code being held.", type: "string", required: true },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Who it is held for.", type: "string", required: false },
   { key: "expiresAt", option: "--expires-at <expires-at>", name: "expires_at", description: "When the hold stops counting. Empty is held until it is used or deleted.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Which company it is held for.", type: "string", required: false },
+  { key: "voucherId", option: "--voucher-id <voucher-id>", name: "voucher_id", description: "The code being held.", type: "string", required: false },
 ];
 promotionsVouchers
   .command(`promotions-voucher-reservations-update`)
   .description(`Correct a reservation`)
   .option(`--id <id>`, `The row id, as it came back from the list.`)
-  .option(`--voucher-id <voucher-id>`, `The code being held.`)
   .option(`--contact-id <contact-id>`, `Who it is held for.`)
   .option(`--expires-at <expires-at>`, `When the hold stops counting. Empty is held until it is used or deleted.`)
   .option(`--organization-id <organization-id>`, `Which company it is held for.`)
+  .option(`--voucher-id <voucher-id>`, `The code being held.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, voucherId, contactId, expiresAt, organizationId } = await promptForMissing(
+        const { id, contactId, expiresAt, organizationId, voucherId } = await promptForMissing(
           _options,
           promotionsVoucherReservationsUpdateSpecs,
           _command,
@@ -931,7 +931,7 @@ const createSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person the code was issued to. Anybody else is refused — a personal apology code is worthless if it can be forwarded.", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "The currency a residual value is stated in.", type: "string", required: false },
   { key: "endsAt", option: "--ends-at <ends-at>", name: "ends_at", description: "When it expires. A merchant runs one promotion for a quarter and hands out codes that expire in a fortnight.", type: "string", required: false },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The company it was issued to. Any of its contacts may redeem it.", type: "string", required: false },
   { key: "reservationLimit", option: "--reservation-limit <reservation-limit>", name: "reservation_limit", description: "How many reservations may be held at once. A reservation that never ran out would promise a limited code to everybody who asked.", type: "integer", required: false },
   { key: "reservationRequired", option: "--reservation-required <reservation-required>", name: "reservation_required", description: "When true the code works only for a buyer who has reserved it — which is what makes a code printed in a public place usable at all.", type: "boolean", required: false },
@@ -996,7 +996,7 @@ promotionsVouchers
           _payload[`ends_at`] = endsAt;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = resolveBodyParam(metadata);
+          _payload[`metadata`] = metadata;
         }
         if (organizationId !== undefined) {
           _payload[`organization_id`] = organizationId;
@@ -1103,14 +1103,14 @@ promotionsVouchers
 registerPromptSpecs(promotionsVouchers.commands.at(-1)!, getSpecs, { method: "get" });
 const updateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/vouchers", hasLimit: true } },
-  { key: "code", option: "--code <code>", name: "code", description: "The code as it is printed and as a buyer types it.", type: "string", required: true },
-  { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: true },
   { key: "batchId", option: "--batch-id <batch-id>", name: "batch_id", description: "The batch this code was made in, when it was made in one.", type: "string", required: false },
+  { key: "code", option: "--code <code>", name: "code", description: "The code as it is printed and as a buyer types it.", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person the code was issued to. Anybody else is refused — a personal apology code is worthless if it can be forwarded.", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "The currency a residual value is stated in.", type: "string", required: false },
   { key: "endsAt", option: "--ends-at <ends-at>", name: "ends_at", description: "When it expires. A merchant runs one promotion for a quarter and hands out codes that expire in a fortnight.", type: "string", required: false },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The company it was issued to. Any of its contacts may redeem it.", type: "string", required: false },
+  { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: false },
   { key: "reservationLimit", option: "--reservation-limit <reservation-limit>", name: "reservation_limit", description: "How many reservations may be held at once. A reservation that never ran out would promise a limited code to everybody who asked.", type: "integer", required: false },
   { key: "reservationRequired", option: "--reservation-required <reservation-required>", name: "reservation_required", description: "When true the code works only for a buyer who has reserved it — which is what makes a code printed in a public place usable at all.", type: "boolean", required: false },
   { key: "residualValue", option: "--residual-value <residual-value>", name: "residual_value", description: "An amount the code is worth, spent down rather than used up — how a goodwill amount survives a smaller first purchase.", type: "number", required: false },
@@ -1122,14 +1122,14 @@ promotionsVouchers
   .command(`update`)
   .description(`Correct a voucher`)
   .option(`--id <id>`, `The row id, as it came back from the list.`)
-  .option(`--code <code>`, `The code as it is printed and as a buyer types it.`)
-  .option(`--promotion-id <promotion-id>`, `The promotion this row belongs to. Deleting the promotion deletes it.`)
   .option(`--batch-id <batch-id>`, `The batch this code was made in, when it was made in one.`)
+  .option(`--code <code>`, `The code as it is printed and as a buyer types it.`)
   .option(`--contact-id <contact-id>`, `The person the code was issued to. Anybody else is refused — a personal apology code is worthless if it can be forwarded.`)
   .option(`--currency <currency>`, `The currency a residual value is stated in.`)
   .option(`--ends-at <ends-at>`, `When it expires. A merchant runs one promotion for a quarter and hands out codes that expire in a fortnight.`)
   .option(`--metadata <metadata>`, `Free-form JSON a caller may keep on the row. Nothing here reads it.`)
   .option(`--organization-id <organization-id>`, `The company it was issued to. Any of its contacts may redeem it.`)
+  .option(`--promotion-id <promotion-id>`, `The promotion this row belongs to. Deleting the promotion deletes it.`)
   .option(`--reservation-limit <reservation-limit>`, `How many reservations may be held at once. A reservation that never ran out would promise a limited code to everybody who asked.`, parseInteger)
   .option(
     `--reservation-required [value]`,
@@ -1144,7 +1144,7 @@ promotionsVouchers
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, promotionId, batchId, contactId, currency, endsAt, metadata, organizationId, reservationLimit, reservationRequired, residualValue, startsAt, status, usageLimit } = await promptForMissing(
+        const { id, batchId, code, contactId, currency, endsAt, metadata, organizationId, promotionId, reservationLimit, reservationRequired, residualValue, startsAt, status, usageLimit } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -1175,7 +1175,7 @@ promotionsVouchers
           _payload[`ends_at`] = endsAt;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = resolveBodyParam(metadata);
+          _payload[`metadata`] = metadata;
         }
         if (organizationId !== undefined) {
           _payload[`organization_id`] = organizationId;

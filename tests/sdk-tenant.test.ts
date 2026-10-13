@@ -10,6 +10,7 @@ vi.mock("../lib/config.js", () => ({
     getKey: () => "",
     getJWT: () => "",
     getSelfSigned: () => false,
+    getEmail: () => "",
   },
   localConfig: {
     getEndpoint: () => "",
@@ -19,6 +20,7 @@ vi.mock("../lib/config.js", () => ({
 
 import { sdkForProject } from "../lib/sdks.js";
 import { cliConfig } from "../lib/parser.js";
+import { whoami } from "../lib/commands/generic.js";
 
 // resolveTenant() reads ~/.revenexx/tenant through os.homedir(), which follows
 // $HOME on POSIX — point it at a tmpdir so the real file is never touched.
@@ -51,6 +53,8 @@ afterEach(() => {
   restore("REVENEXX_TENANT", originalTenant);
   restore("REVENEXX_API_KEY", originalKey);
   cliConfig.tenant = undefined;
+  cliConfig.json = false;
+  vi.restoreAllMocks();
 });
 
 describe("sdkForProject tenant header", () => {
@@ -73,5 +77,23 @@ describe("sdkForProject tenant header", () => {
     process.env.REVENEXX_TENANT = "from-env";
     const client = await sdkForProject();
     expect(client.headers["x-revenexx-tenant"]).toBe("from-file");
+  });
+});
+
+describe("whoami tenant", () => {
+  // whoami is where a caller looks when the gateway rejects a key for a
+  // tenant; it must name the tenant the request actually carries.
+  it("reports --tenant, not the file written by `tenants use`", async () => {
+    writeTenantFile("prod");
+    cliConfig.tenant = "staging";
+    cliConfig.json = true;
+    const logged: unknown[] = [];
+    vi.spyOn(console, "log").mockImplementation((v) => {
+      logged.push(v);
+    });
+    await whoami.parseAsync([], { from: "user" });
+    expect(logged).toEqual([
+      [expect.objectContaining({ Tenant: "staging" })],
+    ]);
   });
 });

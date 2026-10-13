@@ -384,6 +384,7 @@ const returnsSpecs: PromptSpec[] = [
   { key: "all", option: "--all <all>", name: "all", description: "Everything came back. The same result as a cancellation, so a merchant watching campaign figures sees one answer either way.", type: "boolean", required: false },
   { key: "lines", option: "--lines [lines...]", name: "lines", description: "Which lines came back.", type: "array", required: false },
   { key: "remainingAmounts", option: "--remaining-amounts <remaining-amounts>", name: "remaining_amounts", description: "Per promotion, what the kept goods are owed — for a promotion that re-decides rather than reversing in proportion.", type: "object", required: false },
+  { key: "remainingLines", option: "--remaining-lines [remaining-lines...]", name: "remaining_lines", description: "What the buyer kept. Given these, the answer says which bundles no longer form; without them it says nothing rather than guessing, because this app holds the redemption and order management holds the order.", type: "array", required: false },
   { key: "returnRef", option: "--return-ref <return-ref>", name: "return_ref", description: "The return identifier, so a repeated report credits nothing further.", type: "string", required: false },
 ];
 promotionsRedemptions
@@ -398,11 +399,12 @@ promotionsRedemptions
   )
   .option(`--lines [lines...]`, `Which lines came back.`)
   .option(`--remaining-amounts <remaining-amounts>`, `Per promotion, what the kept goods are owed — for a promotion that re-decides rather than reversing in proportion.`)
+  .option(`--remaining-lines [remaining-lines...]`, `What the buyer kept. Given these, the answer says which bundles no longer form; without them it says nothing rather than guessing, because this app holds the redemption and order management holds the order.`)
   .option(`--return-ref <return-ref>`, `The return identifier, so a repeated report credits nothing further.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { orderId, all, lines, remainingAmounts, returnRef } = await promptForMissing(
+        const { orderId, all, lines, remainingAmounts, remainingLines, returnRef } = await promptForMissing(
           _options,
           returnsSpecs,
           _command,
@@ -428,6 +430,9 @@ promotionsRedemptions
         }
         if (remainingAmounts !== undefined) {
           _payload[`remaining_amounts`] = resolveBodyParam(remainingAmounts);
+        }
+        if (remainingLines !== undefined) {
+          _payload[`remaining_lines`] = remainingLines;
         }
         if (returnRef !== undefined) {
           _payload[`return_ref`] = returnRef;

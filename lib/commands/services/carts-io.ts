@@ -26,6 +26,88 @@ export const cartsIo = new Command("carts-io")
     helpWidth: process.stdout.columns || 80,
   });
 
+const cartsExportAllSpecs: PromptSpec[] = [
+  { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Only the carts this contact owns.", type: "string", required: false },
+  { key: "createdFrom", option: "--created-from <created-from>", name: "created_from", description: "Only carts opened at or after this ISO date or timestamp.", type: "string", required: false },
+  { key: "createdTo", option: "--created-to <created-to>", name: "created_to", description: "Only carts opened at or before this ISO date or timestamp. A bare date includes the whole day.", type: "string", required: false },
+  { key: "cursor", option: "--cursor <cursor>", name: "cursor", description: "The `next_cursor` the previous page answered. Omit it for the first page.", type: "string", required: false },
+  { key: "format", option: "--format <format>", name: "format", description: "Format when no profile_id is sent. Default 'json'.", type: "string", required: false, enum: ["json","csv"] },
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Carts scanned per call. Default 50.", type: "integer", required: false },
+  { key: "market", option: "--market <market>", name: "market", description: "Only carts assigned to this market, by its code (case does not matter). A cart in no market is left out.", type: "string", required: false },
+  { key: "profileId", option: "--profile-id <profile-id>", name: "profile_id", description: "The export profile every cart runs through — one of the ids `GET /carts/io/profiles?direction=export` lists, the same profile carts.export takes. Omit it for the canonical shape in `format`.", type: "string", required: false },
+  { key: "status", option: "--status <status>", name: "status", description: "Only carts in these states — one status, an array, or a comma-separated list. An unknown status is a 400.", type: "any", required: false },
+];
+cartsIo
+  .command(`carts-export-all`)
+  .description(`Renders every cart a filter selects, through one export profile, a page at a time. Each cart's document is exactly what carts.export answers for it through the same profile — as JSON \`{carts: [{cart, items}, …]}\`, every element importable on its own through carts.import; as CSV the lines of every cart under one header, each row led by \`cart_id\`. Owner, status, a creation-date range and a market narrow the selection; \`filter\` echoes what was applied. The call never answers "all": it scans at most \`limit\` carts in id order and hands back \`next_cursor\` until the scan is through. Because the end of the date range and the market are held against each scanned cart, a page can carry fewer carts than \`limit\`, even none, and still have a next one — keep calling until \`next_cursor\` is null. Nothing is stored and nothing about any cart changes.`)
+  .option(`--contact-id <contact-id>`, `Only the carts this contact owns.`)
+  .option(`--created-from <created-from>`, `Only carts opened at or after this ISO date or timestamp.`)
+  .option(`--created-to <created-to>`, `Only carts opened at or before this ISO date or timestamp. A bare date includes the whole day.`)
+  .option(`--cursor <cursor>`, `The \`next_cursor\` the previous page answered. Omit it for the first page.`)
+  .option(`--format <format>`, `Format when no profile_id is sent. Default 'json'.`)
+  .option(`--limit <limit>`, `Carts scanned per call. Default 50.`, parseInteger)
+  .option(`--market <market>`, `Only carts assigned to this market, by its code (case does not matter). A cart in no market is left out.`)
+  .option(`--profile-id <profile-id>`, `The export profile every cart runs through — one of the ids \`GET /carts/io/profiles?direction=export\` lists, the same profile carts.export takes. Omit it for the canonical shape in \`format\`.`)
+  .option(`--status <status>`, `Only carts in these states — one status, an array, or a comma-separated list. An unknown status is a 400.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { contactId, createdFrom, createdTo, cursor, format, limit, market, profileId, status } = await promptForMissing(
+          _options,
+          cartsExportAllSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/carts/export`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (contactId !== undefined) {
+          _payload[`contact_id`] = contactId;
+        }
+        if (createdFrom !== undefined) {
+          _payload[`created_from`] = createdFrom;
+        }
+        if (createdTo !== undefined) {
+          _payload[`created_to`] = createdTo;
+        }
+        if (cursor !== undefined) {
+          _payload[`cursor`] = cursor;
+        }
+        if (format !== undefined) {
+          _payload[`format`] = format;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (market !== undefined) {
+          _payload[`market`] = market;
+        }
+        if (profileId !== undefined) {
+          _payload[`profile_id`] = profileId;
+        }
+        if (status !== undefined) {
+          _payload[`status`] = status;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(cartsIo.commands.at(-1)!, cartsExportAllSpecs, { method: "post" });
 const cartsImportSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Owner of the cart this import creates. Ignored when target_cart_id is sent.", type: "string", required: false },
   { key: "csvRows", option: "--csv-rows <csv-rows>", name: "csv", description: "The CSV rows, when that is easier than putting them in `payload`. First line is the header, and its names are the ones the profile's mapping expects (the bundled quick-order template reads sku, name, quantity, unit_price). Numbers are coerced; a JSON column survives as a JSON string.", type: "string", required: false },

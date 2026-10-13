@@ -496,7 +496,9 @@ export const whoami = new Command("whoami")
         return;
       }
 
-      const tenant = resolveTenant() || "(none)";
+      // --tenant first, as sdkForProject() sends it: showing the stored tenant
+      // here would report a different tenant than the request carries.
+      const tenant = cliConfig.tenant || resolveTenant() || "(none)";
 
       // An API key (flag/env/yaml/config) takes precedence over a stored JWT,
       // mirroring sdkForProject()'s resolution order. Report where the key came

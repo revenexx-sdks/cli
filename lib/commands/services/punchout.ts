@@ -90,28 +90,28 @@ const accountsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
   { key: "name", option: "--name <name>", name: "name", type: "string", required: true },
   { key: "protocol", option: "--protocol <protocol>", name: "protocol", type: "string", required: true },
-  { key: "authStrategy", option: "--auth-strategy <auth-strategy>", name: "auth_strategy", type: "string", required: false },
-  { key: "behaviour", option: "--behaviour <behaviour>", name: "behaviour", type: "object", required: false },
+  { key: "authStrategy", option: "--auth-strategy <auth-strategy>", name: "auth_strategy", description: "Null is ignored: a new account takes the default, a corrected one keeps its value.", type: "string", required: false },
   { key: "credentialDomain", option: "--credential-domain <credential-domain>", name: "credential_domain", type: "string", required: false },
   { key: "credentialIdentity", option: "--credential-identity <credential-identity>", name: "credential_identity", type: "string", required: false },
   { key: "credentialSecret", option: "--credential-secret <credential-secret>", name: "credential_secret", type: "string", required: false, secret: true },
-  { key: "enabled", option: "--enabled <enabled>", name: "enabled", type: "boolean", required: false },
+  { key: "echoEntryParameters", option: "--echo-entry-parameters <echo-entry-parameters>", name: "echo_entry_parameters", description: "OCI only: send the entry call's own query parameters back with the hand-back, for an SRM that expects them. Credential parameters are never sent back. Null is ignored: a new account takes the default, a corrected one keeps its value.", type: "boolean", required: false },
+  { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Null is ignored: a new account takes the default, a corrected one keeps its value.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this punchout account has in the system that OWNS it. An account is a partner identity, and the procurement platform on the other side knows the relationship by an id of its own — a supplier id, a vendor number, an IDS customer name. Unique per tenant where it is set, so a repeated import updates the account it wrote last time instead of adding a second one. `code` is what this shop calls the partner; this is what the partner calls itself. Null for an account an operator typed in, which is the ordinary case.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this partner, keyed by system name — the ERP's vendor number beside the procurement platform's supplier id, because one customer commonly reaches this shop through both. `external_id` is the leading system; this is the rest, and the next one costs no column. Not something to search on: this contract publishes no column filter at all, and the store compares such a field as a whole document — look the account up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "fallbackContactId", option: "--fallback-contact-id <fallback-contact-id>", name: "fallback_contact_id", type: "string", required: false },
   { key: "idsCustomerName", option: "--ids-customer-name <ids-customer-name>", name: "ids_customer_name", type: "string", required: false },
   { key: "loginToken", option: "--login-token <login-token>", name: "login_token", type: "string", required: false, secret: true },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: `behaviour` is what the app acts on, `source_data` is what the source said, and this is what you say.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: the account's own columns are what the app acts on, `source_data` is what the source said, and this is what you say.", type: "object", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: false },
-  { key: "protocolVersion", option: "--protocol-version <protocol-version>", name: "protocol_version", type: "string", required: false },
-  { key: "secureOci", option: "--secure-oci <secure-oci>", name: "secure_oci", type: "boolean", required: false },
-  { key: "sessionTtlMinutes", option: "--session-ttl-minutes <session-ttl-minutes>", name: "session_ttl_minutes", type: "integer", required: false },
+  { key: "protocolVersion", option: "--protocol-version <protocol-version>", name: "protocol_version", description: "The version of its protocol the account speaks — one of GET /punchout/vocabularies/protocol-versions for that protocol: OCI 4.0 or 5.0 (it decides which fields a hand-back carries), an IDS version this shop answers `SV` with. A cXML account states none; each cXML document carries its own. Any other value is refused. Omitted means the protocol's default.", type: "string", required: false },
+  { key: "purchaseMode", option: "--purchase-mode <purchase-mode>", name: "purchase_mode", description: "Null is ignored: a new account takes the default, a corrected one keeps its value.", type: "string", required: false },
+  { key: "secureOci", option: "--secure-oci <secure-oci>", name: "secure_oci", description: "Null is ignored: a new account takes the default, a corrected one keeps its value.", type: "boolean", required: false },
+  { key: "sessionTtlOverrideMinutes", option: "--session-ttl-override-minutes <session-ttl-override-minutes>", name: "session_ttl_override_minutes", description: "How long a visit of this account stays open, overriding the tenant's `session_ttl_minutes` setting. Null — the ordinary case — means the tenant's lifetime.", type: "integer", required: false },
   { key: "sharedSecret", option: "--shared-secret <shared-secret>", name: "shared_secret", type: "string", required: false, secret: true },
   { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this account, kept as it said it. Carries the ETag a write-back has to hand back in `If-Match`, and the source fields this app does not model — without it those are lost on the first edit made here. Not a place for anything the partner authenticates with: what an ERP sends to get in is written to the account's own write-only fields, which no route answers.", type: "object", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this account was last confirmed against its source. A delta run asks for changes since it, and an operator reads it to see that a feed has gone quiet. Editing the account here does not touch it: it says when the SOURCE was last seen, not when the row changed. Null for an account no source owns.", type: "string", required: false },
-  { key: "startPageUrl", option: "--start-page-url <start-page-url>", name: "start_page_url", type: "string", required: false },
-  { key: "unknownUserPolicy", option: "--unknown-user-policy <unknown-user-policy>", name: "unknown_user_policy", type: "string", required: false },
-  { key: "urlThreading", option: "--url-threading <url-threading>", name: "url_threading", type: "boolean", required: false },
+  { key: "startPageUrl", option: "--start-page-url <start-page-url>", name: "start_page_url", description: "Where a buyer of THIS account lands after entry, overriding the tenant's `storefront_url` setting. Leave it empty: the entry URL is derived from the storefront address (`entry_url`), and an override is for a buyer who should land on a page of their own. Its host is the host the entry URL is derived from.", type: "string", required: false },
+  { key: "unknownUserPolicy", option: "--unknown-user-policy <unknown-user-policy>", name: "unknown_user_policy", description: "Null is ignored: a new account takes the default, a corrected one keeps its value.", type: "string", required: false },
 ];
 punchout
   .command(`accounts-create`)
@@ -120,14 +120,19 @@ punchout
   .option(`--code <code>`, ``)
   .option(`--name <name>`, ``)
   .option(`--protocol <protocol>`, ``)
-  .option(`--auth-strategy <auth-strategy>`, ``)
-  .option(`--behaviour <behaviour>`, ``)
+  .option(`--auth-strategy <auth-strategy>`, `Null is ignored: a new account takes the default, a corrected one keeps its value.`)
   .option(`--credential-domain <credential-domain>`, ``)
   .option(`--credential-identity <credential-identity>`, ``)
   .option(`--credential-secret <credential-secret>`, ``)
   .option(
+    `--echo-entry-parameters [value]`,
+    `OCI only: send the entry call's own query parameters back with the hand-back, for an SRM that expects them. Credential parameters are never sent back. Null is ignored: a new account takes the default, a corrected one keeps its value.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
     `--enabled [value]`,
-    ``,
+    `Null is ignored: a new account takes the default, a corrected one keeps its value.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -136,31 +141,26 @@ punchout
   .option(`--fallback-contact-id <fallback-contact-id>`, ``)
   .option(`--ids-customer-name <ids-customer-name>`, ``)
   .option(`--login-token <login-token>`, ``)
-  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: \`behaviour\` is what the app acts on, \`source_data\` is what the source said, and this is what you say.`)
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: the account's own columns are what the app acts on, \`source_data\` is what the source said, and this is what you say.`)
   .option(`--organization-id <organization-id>`, ``)
-  .option(`--protocol-version <protocol-version>`, ``)
+  .option(`--protocol-version <protocol-version>`, `The version of its protocol the account speaks — one of GET /punchout/vocabularies/protocol-versions for that protocol: OCI 4.0 or 5.0 (it decides which fields a hand-back carries), an IDS version this shop answers \`SV\` with. A cXML account states none; each cXML document carries its own. Any other value is refused. Omitted means the protocol's default.`)
+  .option(`--purchase-mode <purchase-mode>`, `Null is ignored: a new account takes the default, a corrected one keeps its value.`)
   .option(
     `--secure-oci [value]`,
-    ``,
+    `Null is ignored: a new account takes the default, a corrected one keeps its value.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
-  .option(`--session-ttl-minutes <session-ttl-minutes>`, ``, parseInteger)
+  .option(`--session-ttl-override-minutes <session-ttl-override-minutes>`, `How long a visit of this account stays open, overriding the tenant's \`session_ttl_minutes\` setting. Null — the ordinary case — means the tenant's lifetime.`, parseInteger)
   .option(`--shared-secret <shared-secret>`, ``)
   .option(`--source-data <source-data>`, `What the source said about this account, kept as it said it. Carries the ETag a write-back has to hand back in \`If-Match\`, and the source fields this app does not model — without it those are lost on the first edit made here. Not a place for anything the partner authenticates with: what an ERP sends to get in is written to the account's own write-only fields, which no route answers.`)
   .option(`--source-synced-at <source-synced-at>`, `When this account was last confirmed against its source. A delta run asks for changes since it, and an operator reads it to see that a feed has gone quiet. Editing the account here does not touch it: it says when the SOURCE was last seen, not when the row changed. Null for an account no source owns.`)
-  .option(`--start-page-url <start-page-url>`, ``)
-  .option(`--unknown-user-policy <unknown-user-policy>`, ``)
-  .option(
-    `--url-threading [value]`,
-    ``,
-    (value: string | undefined) =>
-      value === undefined ? true : parseBool(value),
-  )
+  .option(`--start-page-url <start-page-url>`, `Where a buyer of THIS account lands after entry, overriding the tenant's \`storefront_url\` setting. Leave it empty: the entry URL is derived from the storefront address (\`entry_url\`), and an override is for a buyer who should land on a page of their own. Its host is the host the entry URL is derived from.`)
+  .option(`--unknown-user-policy <unknown-user-policy>`, `Null is ignored: a new account takes the default, a corrected one keeps its value.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { channelCode, code, name, protocol, authStrategy, behaviour, credentialDomain, credentialIdentity, credentialSecret, enabled, externalId, externalRefs, fallbackContactId, idsCustomerName, loginToken, metadata, organizationId, protocolVersion, secureOci, sessionTtlMinutes, sharedSecret, sourceData, sourceSyncedAt, startPageUrl, unknownUserPolicy, urlThreading } = await promptForMissing(
+        const { channelCode, code, name, protocol, authStrategy, credentialDomain, credentialIdentity, credentialSecret, echoEntryParameters, enabled, externalId, externalRefs, fallbackContactId, idsCustomerName, loginToken, metadata, organizationId, protocolVersion, purchaseMode, secureOci, sessionTtlOverrideMinutes, sharedSecret, sourceData, sourceSyncedAt, startPageUrl, unknownUserPolicy } = await promptForMissing(
           _options,
           accountsCreateSpecs,
           _command,
@@ -178,9 +178,6 @@ punchout
         if (authStrategy !== undefined) {
           _payload[`auth_strategy`] = authStrategy;
         }
-        if (behaviour !== undefined) {
-          _payload[`behaviour`] = resolveBodyParam(behaviour);
-        }
         if (channelCode !== undefined) {
           _payload[`channel_code`] = channelCode;
         }
@@ -195,6 +192,9 @@ punchout
         }
         if (credentialSecret !== undefined) {
           _payload[`credential_secret`] = credentialSecret;
+        }
+        if (echoEntryParameters !== undefined) {
+          _payload[`echo_entry_parameters`] = echoEntryParameters;
         }
         if (enabled !== undefined) {
           _payload[`enabled`] = enabled;
@@ -229,11 +229,14 @@ punchout
         if (protocolVersion !== undefined) {
           _payload[`protocol_version`] = protocolVersion;
         }
+        if (purchaseMode !== undefined) {
+          _payload[`purchase_mode`] = purchaseMode;
+        }
         if (secureOci !== undefined) {
           _payload[`secure_oci`] = secureOci;
         }
-        if (sessionTtlMinutes !== undefined) {
-          _payload[`session_ttl_minutes`] = sessionTtlMinutes;
+        if (sessionTtlOverrideMinutes !== undefined) {
+          _payload[`session_ttl_override_minutes`] = sessionTtlOverrideMinutes;
         }
         if (sharedSecret !== undefined) {
           _payload[`shared_secret`] = sharedSecret;
@@ -249,9 +252,6 @@ punchout
         }
         if (unknownUserPolicy !== undefined) {
           _payload[`unknown_user_policy`] = unknownUserPolicy;
-        }
-        if (urlThreading !== undefined) {
-          _payload[`url_threading`] = urlThreading;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -334,47 +334,52 @@ punchout
 registerPromptSpecs(punchout.commands.at(-1)!, accountsGetSpecs, { method: "get" });
 const accountsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/punchout/accounts", hasLimit: true } },
-  { key: "authStrategy", option: "--auth-strategy <auth-strategy>", name: "auth_strategy", type: "string", required: false },
-  { key: "behaviour", option: "--behaviour <behaviour>", name: "behaviour", type: "object", required: false },
+  { key: "authStrategy", option: "--auth-strategy <auth-strategy>", name: "auth_strategy", description: "Null is ignored: a new account takes the default, a corrected one keeps its value.", type: "string", required: false },
   { key: "channelCode", option: "--channel-code <channel-code>", name: "channel_code", type: "string", required: false },
   { key: "code", option: "--code <code>", name: "code", type: "string", required: false },
   { key: "credentialDomain", option: "--credential-domain <credential-domain>", name: "credential_domain", type: "string", required: false },
   { key: "credentialIdentity", option: "--credential-identity <credential-identity>", name: "credential_identity", type: "string", required: false },
   { key: "credentialSecret", option: "--credential-secret <credential-secret>", name: "credential_secret", type: "string", required: false, secret: true },
-  { key: "enabled", option: "--enabled <enabled>", name: "enabled", type: "boolean", required: false },
+  { key: "echoEntryParameters", option: "--echo-entry-parameters <echo-entry-parameters>", name: "echo_entry_parameters", description: "OCI only: send the entry call's own query parameters back with the hand-back, for an SRM that expects them. Credential parameters are never sent back. Null is ignored: a new account takes the default, a corrected one keeps its value.", type: "boolean", required: false },
+  { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Null is ignored: a new account takes the default, a corrected one keeps its value.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this punchout account has in the system that OWNS it. An account is a partner identity, and the procurement platform on the other side knows the relationship by an id of its own — a supplier id, a vendor number, an IDS customer name. Unique per tenant where it is set, so a repeated import updates the account it wrote last time instead of adding a second one. `code` is what this shop calls the partner; this is what the partner calls itself. Null for an account an operator typed in, which is the ordinary case.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this partner, keyed by system name — the ERP's vendor number beside the procurement platform's supplier id, because one customer commonly reaches this shop through both. `external_id` is the leading system; this is the rest, and the next one costs no column. Not something to search on: this contract publishes no column filter at all, and the store compares such a field as a whole document — look the account up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "fallbackContactId", option: "--fallback-contact-id <fallback-contact-id>", name: "fallback_contact_id", type: "string", required: false },
   { key: "idsCustomerName", option: "--ids-customer-name <ids-customer-name>", name: "ids_customer_name", type: "string", required: false },
   { key: "loginToken", option: "--login-token <login-token>", name: "login_token", type: "string", required: false, secret: true },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: `behaviour` is what the app acts on, `source_data` is what the source said, and this is what you say.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: the account's own columns are what the app acts on, `source_data` is what the source said, and this is what you say.", type: "object", required: false },
   { key: "name", option: "--name <name>", name: "name", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: false },
   { key: "protocol", option: "--protocol <protocol>", name: "protocol", type: "string", required: false },
-  { key: "protocolVersion", option: "--protocol-version <protocol-version>", name: "protocol_version", type: "string", required: false },
-  { key: "secureOci", option: "--secure-oci <secure-oci>", name: "secure_oci", type: "boolean", required: false },
-  { key: "sessionTtlMinutes", option: "--session-ttl-minutes <session-ttl-minutes>", name: "session_ttl_minutes", type: "integer", required: false },
+  { key: "protocolVersion", option: "--protocol-version <protocol-version>", name: "protocol_version", description: "The version of its protocol the account speaks — one of GET /punchout/vocabularies/protocol-versions for that protocol: OCI 4.0 or 5.0 (it decides which fields a hand-back carries), an IDS version this shop answers `SV` with. A cXML account states none; each cXML document carries its own. Any other value is refused. Omitted means the protocol's default.", type: "string", required: false },
+  { key: "purchaseMode", option: "--purchase-mode <purchase-mode>", name: "purchase_mode", description: "Null is ignored: a new account takes the default, a corrected one keeps its value.", type: "string", required: false },
+  { key: "secureOci", option: "--secure-oci <secure-oci>", name: "secure_oci", description: "Null is ignored: a new account takes the default, a corrected one keeps its value.", type: "boolean", required: false },
+  { key: "sessionTtlOverrideMinutes", option: "--session-ttl-override-minutes <session-ttl-override-minutes>", name: "session_ttl_override_minutes", description: "How long a visit of this account stays open, overriding the tenant's `session_ttl_minutes` setting. Null — the ordinary case — means the tenant's lifetime.", type: "integer", required: false },
   { key: "sharedSecret", option: "--shared-secret <shared-secret>", name: "shared_secret", type: "string", required: false, secret: true },
   { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this account, kept as it said it. Carries the ETag a write-back has to hand back in `If-Match`, and the source fields this app does not model — without it those are lost on the first edit made here. Not a place for anything the partner authenticates with: what an ERP sends to get in is written to the account's own write-only fields, which no route answers.", type: "object", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this account was last confirmed against its source. A delta run asks for changes since it, and an operator reads it to see that a feed has gone quiet. Editing the account here does not touch it: it says when the SOURCE was last seen, not when the row changed. Null for an account no source owns.", type: "string", required: false },
-  { key: "startPageUrl", option: "--start-page-url <start-page-url>", name: "start_page_url", type: "string", required: false },
-  { key: "unknownUserPolicy", option: "--unknown-user-policy <unknown-user-policy>", name: "unknown_user_policy", type: "string", required: false },
-  { key: "urlThreading", option: "--url-threading <url-threading>", name: "url_threading", type: "boolean", required: false },
+  { key: "startPageUrl", option: "--start-page-url <start-page-url>", name: "start_page_url", description: "Where a buyer of THIS account lands after entry, overriding the tenant's `storefront_url` setting. Leave it empty: the entry URL is derived from the storefront address (`entry_url`), and an override is for a buyer who should land on a page of their own. Its host is the host the entry URL is derived from.", type: "string", required: false },
+  { key: "unknownUserPolicy", option: "--unknown-user-policy <unknown-user-policy>", name: "unknown_user_policy", description: "Null is ignored: a new account takes the default, a corrected one keeps its value.", type: "string", required: false },
 ];
 punchout
   .command(`accounts-update`)
   .description(`Update a punchout account by id — send only the fields that change`)
   .option(`--id <id>`, ``)
-  .option(`--auth-strategy <auth-strategy>`, ``)
-  .option(`--behaviour <behaviour>`, ``)
+  .option(`--auth-strategy <auth-strategy>`, `Null is ignored: a new account takes the default, a corrected one keeps its value.`)
   .option(`--channel-code <channel-code>`, ``)
   .option(`--code <code>`, ``)
   .option(`--credential-domain <credential-domain>`, ``)
   .option(`--credential-identity <credential-identity>`, ``)
   .option(`--credential-secret <credential-secret>`, ``)
   .option(
+    `--echo-entry-parameters [value]`,
+    `OCI only: send the entry call's own query parameters back with the hand-back, for an SRM that expects them. Credential parameters are never sent back. Null is ignored: a new account takes the default, a corrected one keeps its value.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
     `--enabled [value]`,
-    ``,
+    `Null is ignored: a new account takes the default, a corrected one keeps its value.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -383,33 +388,28 @@ punchout
   .option(`--fallback-contact-id <fallback-contact-id>`, ``)
   .option(`--ids-customer-name <ids-customer-name>`, ``)
   .option(`--login-token <login-token>`, ``)
-  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: \`behaviour\` is what the app acts on, \`source_data\` is what the source said, and this is what you say.`)
+  .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: the account's own columns are what the app acts on, \`source_data\` is what the source said, and this is what you say.`)
   .option(`--name <name>`, ``)
   .option(`--organization-id <organization-id>`, ``)
   .option(`--protocol <protocol>`, ``)
-  .option(`--protocol-version <protocol-version>`, ``)
+  .option(`--protocol-version <protocol-version>`, `The version of its protocol the account speaks — one of GET /punchout/vocabularies/protocol-versions for that protocol: OCI 4.0 or 5.0 (it decides which fields a hand-back carries), an IDS version this shop answers \`SV\` with. A cXML account states none; each cXML document carries its own. Any other value is refused. Omitted means the protocol's default.`)
+  .option(`--purchase-mode <purchase-mode>`, `Null is ignored: a new account takes the default, a corrected one keeps its value.`)
   .option(
     `--secure-oci [value]`,
-    ``,
+    `Null is ignored: a new account takes the default, a corrected one keeps its value.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
-  .option(`--session-ttl-minutes <session-ttl-minutes>`, ``, parseInteger)
+  .option(`--session-ttl-override-minutes <session-ttl-override-minutes>`, `How long a visit of this account stays open, overriding the tenant's \`session_ttl_minutes\` setting. Null — the ordinary case — means the tenant's lifetime.`, parseInteger)
   .option(`--shared-secret <shared-secret>`, ``)
   .option(`--source-data <source-data>`, `What the source said about this account, kept as it said it. Carries the ETag a write-back has to hand back in \`If-Match\`, and the source fields this app does not model — without it those are lost on the first edit made here. Not a place for anything the partner authenticates with: what an ERP sends to get in is written to the account's own write-only fields, which no route answers.`)
   .option(`--source-synced-at <source-synced-at>`, `When this account was last confirmed against its source. A delta run asks for changes since it, and an operator reads it to see that a feed has gone quiet. Editing the account here does not touch it: it says when the SOURCE was last seen, not when the row changed. Null for an account no source owns.`)
-  .option(`--start-page-url <start-page-url>`, ``)
-  .option(`--unknown-user-policy <unknown-user-policy>`, ``)
-  .option(
-    `--url-threading [value]`,
-    ``,
-    (value: string | undefined) =>
-      value === undefined ? true : parseBool(value),
-  )
+  .option(`--start-page-url <start-page-url>`, `Where a buyer of THIS account lands after entry, overriding the tenant's \`storefront_url\` setting. Leave it empty: the entry URL is derived from the storefront address (\`entry_url\`), and an override is for a buyer who should land on a page of their own. Its host is the host the entry URL is derived from.`)
+  .option(`--unknown-user-policy <unknown-user-policy>`, `Null is ignored: a new account takes the default, a corrected one keeps its value.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, authStrategy, behaviour, channelCode, code, credentialDomain, credentialIdentity, credentialSecret, enabled, externalId, externalRefs, fallbackContactId, idsCustomerName, loginToken, metadata, name, organizationId, protocol, protocolVersion, secureOci, sessionTtlMinutes, sharedSecret, sourceData, sourceSyncedAt, startPageUrl, unknownUserPolicy, urlThreading } = await promptForMissing(
+        const { id, authStrategy, channelCode, code, credentialDomain, credentialIdentity, credentialSecret, echoEntryParameters, enabled, externalId, externalRefs, fallbackContactId, idsCustomerName, loginToken, metadata, name, organizationId, protocol, protocolVersion, purchaseMode, secureOci, sessionTtlOverrideMinutes, sharedSecret, sourceData, sourceSyncedAt, startPageUrl, unknownUserPolicy } = await promptForMissing(
           _options,
           accountsUpdateSpecs,
           _command,
@@ -427,9 +427,6 @@ punchout
         if (authStrategy !== undefined) {
           _payload[`auth_strategy`] = authStrategy;
         }
-        if (behaviour !== undefined) {
-          _payload[`behaviour`] = resolveBodyParam(behaviour);
-        }
         if (channelCode !== undefined) {
           _payload[`channel_code`] = channelCode;
         }
@@ -444,6 +441,9 @@ punchout
         }
         if (credentialSecret !== undefined) {
           _payload[`credential_secret`] = credentialSecret;
+        }
+        if (echoEntryParameters !== undefined) {
+          _payload[`echo_entry_parameters`] = echoEntryParameters;
         }
         if (enabled !== undefined) {
           _payload[`enabled`] = enabled;
@@ -478,11 +478,14 @@ punchout
         if (protocolVersion !== undefined) {
           _payload[`protocol_version`] = protocolVersion;
         }
+        if (purchaseMode !== undefined) {
+          _payload[`purchase_mode`] = purchaseMode;
+        }
         if (secureOci !== undefined) {
           _payload[`secure_oci`] = secureOci;
         }
-        if (sessionTtlMinutes !== undefined) {
-          _payload[`session_ttl_minutes`] = sessionTtlMinutes;
+        if (sessionTtlOverrideMinutes !== undefined) {
+          _payload[`session_ttl_override_minutes`] = sessionTtlOverrideMinutes;
         }
         if (sharedSecret !== undefined) {
           _payload[`shared_secret`] = sharedSecret;
@@ -498,9 +501,6 @@ punchout
         }
         if (unknownUserPolicy !== undefined) {
           _payload[`unknown_user_policy`] = unknownUserPolicy;
-        }
-        if (urlThreading !== undefined) {
-          _payload[`url_threading`] = urlThreading;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1439,8 +1439,13 @@ const sessionsCreateSpecs: PromptSpec[] = [
   { key: "entryIntent", option: "--entry-intent <entry-intent>", name: "entry_intent", type: "object", required: false },
   { key: "entryPayload", option: "--entry-payload <entry-payload>", name: "entry_payload", type: "object", required: false },
   { key: "externalUserId", option: "--external-user-id <external-user-id>", name: "external_user_id", type: "string", required: false },
+  { key: "orderId", option: "--order-id <order-id>", name: "order_id", type: "string", required: false },
+  { key: "orderNumber", option: "--order-number <order-number>", name: "order_number", type: "string", required: false },
+  { key: "orderStatus", option: "--order-status <order-status>", name: "order_status", type: "string", required: false },
+  { key: "orderedAt", option: "--ordered-at <ordered-at>", name: "ordered_at", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: false },
   { key: "origin", option: "--origin <origin>", name: "origin", type: "string", required: false },
+  { key: "purchaseMode", option: "--purchase-mode <purchase-mode>", name: "purchase_mode", type: "string", required: false },
   { key: "returnMethod", option: "--return-method <return-method>", name: "return_method", type: "string", required: false },
   { key: "returnUrl", option: "--return-url <return-url>", name: "return_url", type: "string", required: false },
   { key: "secureSessionId", option: "--secure-session-id <secure-session-id>", name: "secure_session_id", type: "string", required: false },
@@ -1466,8 +1471,13 @@ punchout
   .option(`--entry-intent <entry-intent>`, ``)
   .option(`--entry-payload <entry-payload>`, ``)
   .option(`--external-user-id <external-user-id>`, ``)
+  .option(`--order-id <order-id>`, ``)
+  .option(`--order-number <order-number>`, ``)
+  .option(`--order-status <order-status>`, ``)
+  .option(`--ordered-at <ordered-at>`, ``)
   .option(`--organization-id <organization-id>`, ``)
   .option(`--origin <origin>`, ``)
+  .option(`--purchase-mode <purchase-mode>`, ``)
   .option(`--return-method <return-method>`, ``)
   .option(`--return-url <return-url>`, ``)
   .option(`--secure-session-id <secure-session-id>`, ``)
@@ -1478,7 +1488,7 @@ punchout
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { accountId, channelCode, expiresAt, protocol, psid, cartId, claimedAt, closedReason, contactId, correlationKey, entryAction, entryIntent, entryPayload, externalUserId, organizationId, origin, returnMethod, returnUrl, secureSessionId, secureSessionUsedAt, secureTransmissionId, status, transferredAt } = await promptForMissing(
+        const { accountId, channelCode, expiresAt, protocol, psid, cartId, claimedAt, closedReason, contactId, correlationKey, entryAction, entryIntent, entryPayload, externalUserId, orderId, orderNumber, orderStatus, orderedAt, organizationId, origin, purchaseMode, returnMethod, returnUrl, secureSessionId, secureSessionUsedAt, secureTransmissionId, status, transferredAt } = await promptForMissing(
           _options,
           sessionsCreateSpecs,
           _command,
@@ -1529,6 +1539,18 @@ punchout
         if (externalUserId !== undefined) {
           _payload[`external_user_id`] = externalUserId;
         }
+        if (orderId !== undefined) {
+          _payload[`order_id`] = orderId;
+        }
+        if (orderNumber !== undefined) {
+          _payload[`order_number`] = orderNumber;
+        }
+        if (orderStatus !== undefined) {
+          _payload[`order_status`] = orderStatus;
+        }
+        if (orderedAt !== undefined) {
+          _payload[`ordered_at`] = orderedAt;
+        }
         if (organizationId !== undefined) {
           _payload[`organization_id`] = organizationId;
         }
@@ -1540,6 +1562,9 @@ punchout
         }
         if (psid !== undefined) {
           _payload[`psid`] = psid;
+        }
+        if (purchaseMode !== undefined) {
+          _payload[`purchase_mode`] = purchaseMode;
         }
         if (returnMethod !== undefined) {
           _payload[`return_method`] = returnMethod;
@@ -1655,10 +1680,15 @@ const sessionsUpdateSpecs: PromptSpec[] = [
   { key: "entryPayload", option: "--entry-payload <entry-payload>", name: "entry_payload", type: "object", required: false },
   { key: "expiresAt", option: "--expires-at <expires-at>", name: "expires_at", type: "string", required: false },
   { key: "externalUserId", option: "--external-user-id <external-user-id>", name: "external_user_id", type: "string", required: false },
+  { key: "orderId", option: "--order-id <order-id>", name: "order_id", type: "string", required: false },
+  { key: "orderNumber", option: "--order-number <order-number>", name: "order_number", type: "string", required: false },
+  { key: "orderStatus", option: "--order-status <order-status>", name: "order_status", type: "string", required: false },
+  { key: "orderedAt", option: "--ordered-at <ordered-at>", name: "ordered_at", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: false },
   { key: "origin", option: "--origin <origin>", name: "origin", type: "string", required: false },
   { key: "protocol", option: "--protocol <protocol>", name: "protocol", type: "string", required: false },
   { key: "psid", option: "--psid <psid>", name: "psid", type: "string", required: false },
+  { key: "purchaseMode", option: "--purchase-mode <purchase-mode>", name: "purchase_mode", type: "string", required: false },
   { key: "returnMethod", option: "--return-method <return-method>", name: "return_method", type: "string", required: false },
   { key: "returnUrl", option: "--return-url <return-url>", name: "return_url", type: "string", required: false },
   { key: "secureSessionId", option: "--secure-session-id <secure-session-id>", name: "secure_session_id", type: "string", required: false },
@@ -1683,10 +1713,15 @@ punchout
   .option(`--entry-payload <entry-payload>`, ``)
   .option(`--expires-at <expires-at>`, ``)
   .option(`--external-user-id <external-user-id>`, ``)
+  .option(`--order-id <order-id>`, ``)
+  .option(`--order-number <order-number>`, ``)
+  .option(`--order-status <order-status>`, ``)
+  .option(`--ordered-at <ordered-at>`, ``)
   .option(`--organization-id <organization-id>`, ``)
   .option(`--origin <origin>`, ``)
   .option(`--protocol <protocol>`, ``)
   .option(`--psid <psid>`, ``)
+  .option(`--purchase-mode <purchase-mode>`, ``)
   .option(`--return-method <return-method>`, ``)
   .option(`--return-url <return-url>`, ``)
   .option(`--secure-session-id <secure-session-id>`, ``)
@@ -1697,7 +1732,7 @@ punchout
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, accountId, cartId, channelCode, claimedAt, closedReason, contactId, correlationKey, entryAction, entryIntent, entryPayload, expiresAt, externalUserId, organizationId, origin, protocol, psid, returnMethod, returnUrl, secureSessionId, secureSessionUsedAt, secureTransmissionId, status, transferredAt } = await promptForMissing(
+        const { id, accountId, cartId, channelCode, claimedAt, closedReason, contactId, correlationKey, entryAction, entryIntent, entryPayload, expiresAt, externalUserId, orderId, orderNumber, orderStatus, orderedAt, organizationId, origin, protocol, psid, purchaseMode, returnMethod, returnUrl, secureSessionId, secureSessionUsedAt, secureTransmissionId, status, transferredAt } = await promptForMissing(
           _options,
           sessionsUpdateSpecs,
           _command,
@@ -1748,6 +1783,18 @@ punchout
         if (externalUserId !== undefined) {
           _payload[`external_user_id`] = externalUserId;
         }
+        if (orderId !== undefined) {
+          _payload[`order_id`] = orderId;
+        }
+        if (orderNumber !== undefined) {
+          _payload[`order_number`] = orderNumber;
+        }
+        if (orderStatus !== undefined) {
+          _payload[`order_status`] = orderStatus;
+        }
+        if (orderedAt !== undefined) {
+          _payload[`ordered_at`] = orderedAt;
+        }
         if (organizationId !== undefined) {
           _payload[`organization_id`] = organizationId;
         }
@@ -1759,6 +1806,9 @@ punchout
         }
         if (psid !== undefined) {
           _payload[`psid`] = psid;
+        }
+        if (purchaseMode !== undefined) {
+          _payload[`purchase_mode`] = purchaseMode;
         }
         if (returnMethod !== undefined) {
           _payload[`return_method`] = returnMethod;
@@ -1843,7 +1893,7 @@ const sessionsReturnSpecs: PromptSpec[] = [
 ];
 punchout
   .command(`sessions-return`)
-  .description(`The end of a punchout visit. Answers where the cart goes, by which method and encoding, and the mapped fields to submit — one shape for all three protocols, whether that means dozens of named fields (OCI) or one field holding a whole document (cXML, IDS). The payload is ANSWERED, never posted from here: a request from this app carries none of the buyer's ERP session, and the protocols that expect a browser form post would reject it even if it did. Records a transfer with its normalised lines and the exact payload, mints a correlation key into that payload so an order arriving weeks later can be matched to it, and closes the visit as transferred. Creates NO order and reserves NO stock — the procurement system has decided nothing. A retried call answers the same payload and records no second transfer; a visit that expired or was revoked is refused, with the same answer a handle that never existed gets.`)
+  .description(`The end of a punchout visit. Answers where the cart goes, by which method and encoding, and the mapped fields to submit — one shape for all three protocols, whether that means dozens of named fields (OCI) or one field holding a whole document (cXML, IDS). The payload is ANSWERED, never posted from here: a request from this app carries none of the buyer's ERP session, and the protocols that expect a browser form post would reject it even if it did. Records a transfer with its normalised lines and the exact payload, mints a correlation key into that payload so an order arriving weeks later can be matched to it, and closes the visit as transferred. Creates NO order and reserves NO stock — the procurement system has decided nothing. On an IDS account whose purchase mode is order_and_transfer the cart was already ordered through the ordinary checkout: the hand-back requires that order, reads it from the orders app, names it in the document (RueckgabeKZ, OrderConfNo) and on the transfer, and closes the visit as transferred. A retried call answers the same payload and records no second transfer; a visit that expired or was revoked is refused, with the same answer a handle that never existed gets.`)
   .option(`--psid <psid>`, ``)
   .option(`--body <body>`, `Request body`)
   .action(
@@ -2151,6 +2201,7 @@ const transfersCreateSpecs: PromptSpec[] = [
   { key: "matchedOrderId", option: "--matched-order-id <matched-order-id>", name: "matched_order_id", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: false },
   { key: "payload", option: "--payload <payload>", name: "payload", type: "object", required: false },
+  { key: "problems", option: "--problems [problems...]", name: "problems", description: "Every field the payload is missing, and why: a mapping that failed, or a value the protocol's type could not take. Empty when nothing is missing. `transfer.degraded` announces the same, once.", type: "array", required: false },
   { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the receiving system said back, kept as it said it — the acknowledgement, its ETag, and the fields of it this app does not model. A transfer is evidence and is added to but never rewritten, so this is where a later answer about it goes rather than over `payload`, which is what was handed over and must stay as it was handed over.", type: "object", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this transfer was last confirmed against the system that received it — what an acknowledgement run stamps, and what tells an operator that the receipts have stopped arriving. Null while nobody has confirmed it, which is every transfer this app writes on its own: a hand-back answers a payload for a browser to submit, and whether it arrived is somebody else's answer.", type: "string", required: false },
   { key: "targetUrl", option: "--target-url <target-url>", name: "target_url", type: "string", required: false },
@@ -2175,6 +2226,7 @@ punchout
   .option(`--matched-order-id <matched-order-id>`, ``)
   .option(`--organization-id <organization-id>`, ``)
   .option(`--payload <payload>`, ``)
+  .option(`--problems [problems...]`, `Every field the payload is missing, and why: a mapping that failed, or a value the protocol's type could not take. Empty when nothing is missing. \`transfer.degraded\` announces the same, once.`)
   .option(`--source-data <source-data>`, `What the receiving system said back, kept as it said it — the acknowledgement, its ETag, and the fields of it this app does not model. A transfer is evidence and is added to but never rewritten, so this is where a later answer about it goes rather than over \`payload\`, which is what was handed over and must stay as it was handed over.`)
   .option(`--source-synced-at <source-synced-at>`, `When this transfer was last confirmed against the system that received it — what an acknowledgement run stamps, and what tells an operator that the receipts have stopped arriving. Null while nobody has confirmed it, which is every transfer this app writes on its own: a hand-back answers a payload for a browser to submit, and whether it arrived is somebody else's answer.`)
   .option(`--target-url <target-url>`, ``)
@@ -2184,7 +2236,7 @@ punchout
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { accountId, correlationKey, protocol, sessionId, cartId, contactId, currency, externalId, externalRefs, itemCount, matchedAt, matchedOrderId, organizationId, payload, sourceData, sourceSyncedAt, targetUrl, totalGross, totalNet, transferredAt } = await promptForMissing(
+        const { accountId, correlationKey, protocol, sessionId, cartId, contactId, currency, externalId, externalRefs, itemCount, matchedAt, matchedOrderId, organizationId, payload, problems, sourceData, sourceSyncedAt, targetUrl, totalGross, totalNet, transferredAt } = await promptForMissing(
           _options,
           transfersCreateSpecs,
           _command,
@@ -2234,6 +2286,9 @@ punchout
         }
         if (payload !== undefined) {
           _payload[`payload`] = resolveBodyParam(payload);
+        }
+        if (problems !== undefined) {
+          _payload[`problems`] = problems;
         }
         if (protocol !== undefined) {
           _payload[`protocol`] = protocol;
@@ -2319,6 +2374,7 @@ const transfersUpdateSpecs: PromptSpec[] = [
   { key: "matchedOrderId", option: "--matched-order-id <matched-order-id>", name: "matched_order_id", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: false },
   { key: "payload", option: "--payload <payload>", name: "payload", type: "object", required: false },
+  { key: "problems", option: "--problems [problems...]", name: "problems", description: "Every field the payload is missing, and why: a mapping that failed, or a value the protocol's type could not take. Empty when nothing is missing. `transfer.degraded` announces the same, once.", type: "array", required: false },
   { key: "protocol", option: "--protocol <protocol>", name: "protocol", type: "string", required: false },
   { key: "sessionId", option: "--session-id <session-id>", name: "session_id", type: "string", required: false },
   { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the receiving system said back, kept as it said it — the acknowledgement, its ETag, and the fields of it this app does not model. A transfer is evidence and is added to but never rewritten, so this is where a later answer about it goes rather than over `payload`, which is what was handed over and must stay as it was handed over.", type: "object", required: false },
@@ -2344,6 +2400,7 @@ punchout
   .option(`--matched-order-id <matched-order-id>`, ``)
   .option(`--organization-id <organization-id>`, ``)
   .option(`--payload <payload>`, ``)
+  .option(`--problems [problems...]`, `Every field the payload is missing, and why: a mapping that failed, or a value the protocol's type could not take. Empty when nothing is missing. \`transfer.degraded\` announces the same, once.`)
   .option(`--protocol <protocol>`, ``)
   .option(`--session-id <session-id>`, ``)
   .option(`--source-data <source-data>`, `What the receiving system said back, kept as it said it — the acknowledgement, its ETag, and the fields of it this app does not model. A transfer is evidence and is added to but never rewritten, so this is where a later answer about it goes rather than over \`payload\`, which is what was handed over and must stay as it was handed over.`)
@@ -2355,7 +2412,7 @@ punchout
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, accountId, cartId, contactId, correlationKey, currency, externalId, externalRefs, itemCount, matchedAt, matchedOrderId, organizationId, payload, protocol, sessionId, sourceData, sourceSyncedAt, targetUrl, totalGross, totalNet, transferredAt } = await promptForMissing(
+        const { id, accountId, cartId, contactId, correlationKey, currency, externalId, externalRefs, itemCount, matchedAt, matchedOrderId, organizationId, payload, problems, protocol, sessionId, sourceData, sourceSyncedAt, targetUrl, totalGross, totalNet, transferredAt } = await promptForMissing(
           _options,
           transfersUpdateSpecs,
           _command,
@@ -2406,6 +2463,9 @@ punchout
         if (payload !== undefined) {
           _payload[`payload`] = resolveBodyParam(payload);
         }
+        if (problems !== undefined) {
+          _payload[`problems`] = problems;
+        }
         if (protocol !== undefined) {
           _payload[`protocol`] = protocol;
         }
@@ -2449,7 +2509,7 @@ const vocabulariesListSpecs: PromptSpec[] = [
 ];
 punchout
   .command(`vocabularies-list`)
-  .description(`Discovery for the vocabulary routes: the enums this app enforces, each with its name, its title and its description — and deliberately WITHOUT its values, so a UI can cache this one small answer and fetch only the value sets it renders. Names: entry-probe-outcome, mapping-mutators, mapping-scopes, mapping-sources. Fetch one with GET /punchout/vocabularies/{name}.`)
+  .description(`Discovery for the vocabulary routes: the enums this app enforces, each with its name, its title and its description — and deliberately WITHOUT its values, so a UI can cache this one small answer and fetch only the value sets it renders. Names: auth-strategies, entry-actions, entry-probe-outcome, mapping-documents, mapping-emit, mapping-mutators, mapping-scopes, mapping-sources, mapping-target-kinds, origins, protocol-versions, protocols, purchase-modes, refusal-reasons, return-methods, session-statuses, unknown-user-policies. Fetch one with GET /punchout/vocabularies/{name}.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -2489,11 +2549,11 @@ punchout
   );
 registerPromptSpecs(punchout.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
 const vocabulariesGetSpecs: PromptSpec[] = [
-  { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id.", type: "string", required: true, enum: ["entry-probe-outcome","mapping-mutators","mapping-scopes","mapping-sources"], resource: { listPath: "/punchout/vocabularies", hasLimit: false } },
+  { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id.", type: "string", required: true, enum: ["auth-strategies","entry-actions","entry-probe-outcome","mapping-documents","mapping-emit","mapping-mutators","mapping-scopes","mapping-sources","mapping-target-kinds","origins","protocol-versions","protocols","purchase-modes","refusal-reasons","return-methods","session-statuses","unknown-user-policies"], resource: { listPath: "/punchout/vocabularies", hasLimit: false } },
 ];
 punchout
   .command(`vocabularies-get`)
-  .description(`One vocabulary in full: every permitted value with its title, its description and the badge tone a UI colours it with. The values are read out of the column's CHECK constraint, so the served set IS the set the database accepts and the set the mapping engine understands — a mapping editor offering anything else would produce silently empty fields. \`mapping-sources\` carries the 25 sources of ADR-0003 (three of them namespaced \`cxml.*\`, offered only for a cXML account) and \`mapping-mutators\` the 17 chainable mutators; each value's description names the config keys it reads and which of them are required. Answers 404 for an unknown name.`)
+  .description(`One vocabulary in full: every permitted value with its title, its description and the badge tone a UI colours it with. The values are read out of the column's CHECK constraint, so the served set IS the set the database accepts and the set the mapping engine understands — a mapping editor offering anything else would produce silently empty fields. \`mapping-sources\` carries the 25 sources of ADR-0003 (three of them namespaced \`cxml.*\`, offered only for a cXML account) and \`mapping-mutators\` the 19 chainable mutators; each value's description names the config keys it reads and which of them are required. Answers 404 for an unknown name.`)
   .option(`--name <name>`, `The vocabulary name — the part after the dot in the qualified id.`)
   .action(
     actionRunner(

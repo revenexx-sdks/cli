@@ -40,6 +40,7 @@ const paymentsListSpecs: PromptSpec[] = [
   { key: "dunningStage", option: "--dunning-stage <dunning-stage>", name: "dunning_stage", description: "Restrict to one dunning stage — what the daily scan wrote.", type: "string", required: false, enum: ["none","reminder","overdue"] },
   { key: "idempotencyKey", option: "--idempotency-key <idempotency-key>", name: "idempotency_key", description: "Exact idempotency key. Unique per tenant, so this answers at most one row.", type: "string", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact key of the system that booked the payment — the ERP's document number, not the provider's own transaction id. This is the reconciliation lookup. Not unique: a payment cannot be updated here, so several rows may legitimately carry one key, and this may answer more than one.", type: "string", required: false },
+  { key: "reference", option: "--reference <reference>", name: "reference", description: "Exact reference — what the payment is called by: the provider transaction id, else the external id, else the order reference, else the method code. Indexed; the same value other apps' payment pickers show.", type: "string", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact instant a payment was last confirmed against its source. The index behind it is what makes a delta run cheap, and a delta run SORTS (`?order=source_synced_at.desc`) rather than naming one instant — `external_refs` and `source_data` carry no parameter at all, because such a column is compared as a whole document.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
@@ -60,6 +61,7 @@ paymentsLedger
   .option(`--dunning-stage <dunning-stage>`, `Restrict to one dunning stage — what the daily scan wrote.`)
   .option(`--idempotency-key <idempotency-key>`, `Exact idempotency key. Unique per tenant, so this answers at most one row.`)
   .option(`--external-id <external-id>`, `Exact key of the system that booked the payment — the ERP's document number, not the provider's own transaction id. This is the reconciliation lookup. Not unique: a payment cannot be updated here, so several rows may legitimately carry one key, and this may answer more than one.`)
+  .option(`--reference <reference>`, `Exact reference — what the payment is called by: the provider transaction id, else the external id, else the order reference, else the method code. Indexed; the same value other apps' payment pickers show.`)
   .option(`--source-synced-at <source-synced-at>`, `Exact instant a payment was last confirmed against its source. The index behind it is what makes a delta run cheap, and a delta run SORTS (\`?order=source_synced_at.desc\`) rather than naming one instant — \`external_refs\` and \`source_data\` carry no parameter at all, because such a column is compared as a whole document.`)
   .option(
     `--filter <column=value>`,
@@ -70,7 +72,7 @@ paymentsLedger
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, cartId, contactId, orderId, status, orderRef, methodCode, kind, provider, dunningStage, idempotencyKey, externalId, sourceSyncedAt, filter } = await promptForMissing(
+        const { limit, offset, order, cartId, contactId, orderId, status, orderRef, methodCode, kind, provider, dunningStage, idempotencyKey, externalId, reference, sourceSyncedAt, filter } = await promptForMissing(
           _options,
           paymentsListSpecs,
           _command,
@@ -119,6 +121,9 @@ paymentsLedger
         }
         if (externalId !== undefined) {
           _payload[`external_id`] = externalId;
+        }
+        if (reference !== undefined) {
+          _payload[`reference`] = reference;
         }
         if (sourceSyncedAt !== undefined) {
           _payload[`source_synced_at`] = sourceSyncedAt;
@@ -407,7 +412,7 @@ paymentsLedger
   );
 registerPromptSpecs(paymentsLedger.commands.at(-1)!, paymentsVocabulariesListSpecs, { method: "get" });
 const paymentsVocabulariesGetSpecs: PromptSpec[] = [
-  { key: "name", option: "--name <name>", name: "name", description: "Which vocabulary to read. The set is closed: GET /payments/vocabularies lists exactly these.", type: "string", required: true, enum: ["dunning-stages","fee-types","method-kinds","statuses"], resource: { listPath: "/payments/vocabularies", hasLimit: false } },
+  { key: "name", option: "--name <name>", name: "name", description: "Which vocabulary to read. The set is closed: GET /payments/vocabularies lists exactly these.", type: "string", required: true, enum: ["dunning-stages","fee-types","method-kinds","providers","statuses"], resource: { listPath: "/payments/vocabularies", hasLimit: false } },
 ];
 paymentsLedger
   .command(`payments-vocabularies-get`)

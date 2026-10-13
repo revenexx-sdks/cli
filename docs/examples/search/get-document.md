@@ -1,5 +1,5 @@
 ```bash
 revenexx search get-document \
-    --collection products \
+    --collection categories \
     --document-id ''
 ```

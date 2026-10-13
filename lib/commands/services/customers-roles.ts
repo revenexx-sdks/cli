@@ -7,6 +7,8 @@ import {
   commandDescriptions,
   cliConfig,
   parse,
+  parseBool,
+  parseInteger,
 } from "../../parser.js";
 import {
   promptForMissing,
@@ -67,6 +69,88 @@ customersRoles
     ),
   );
 registerPromptSpecs(customersRoles.commands.at(-1)!, listSpecs, { method: "get" });
+const createSpecs: PromptSpec[] = [
+  { key: "title", option: "--title <title>", name: "title", description: "The name a merchant reads.", type: "string", required: true },
+  { key: "description", option: "--description <description>", name: "description", description: "One line on what the role is for.", type: "string", required: false },
+  { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "The one line per locale.", type: "object", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Make this the role a contact created without one gets. The previous default stops being one.", type: "boolean", required: false },
+  { key: "key", option: "--key <key>", name: "key", description: "Optional. Made from `title` when left out.", type: "string", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", description: "The name per locale.", type: "object", required: false },
+  { key: "permissions", option: "--permissions [permissions...]", name: "permissions", description: "What the role grants. Duplicates and blanks are ignored; left out, it grants nothing yet.", type: "array", required: false },
+  { key: "position", option: "--position <position>", name: "position", description: "Optional. Defaults to after every existing role.", type: "integer", required: false },
+];
+customersRoles
+  .command(`create`)
+  .description(`One call for a whole new role: its name, and the permissions it grants. The key is made from the name when none is sent — 'Einkauf Zentrale' becomes \`einkauf-zentrale\`, German letters spelled out — and it is fixed from then on, because every contact holding the role stores it. Seeds the built-in roles first when the tenant never wrote them down, so the first role of a tenant's own leaves what every existing contact may do exactly as it was.`)
+  .option(`--title <title>`, `The name a merchant reads.`)
+  .option(`--description <description>`, `One line on what the role is for.`)
+  .option(`--descriptions <descriptions>`, `The one line per locale.`)
+  .option(
+    `--is-default [value]`,
+    `Make this the role a contact created without one gets. The previous default stops being one.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--key <key>`, `Optional. Made from \`title\` when left out.`)
+  .option(`--labels <labels>`, `The name per locale.`)
+  .option(`--permissions [permissions...]`, `What the role grants. Duplicates and blanks are ignored; left out, it grants nothing yet.`)
+  .option(`--position <position>`, `Optional. Defaults to after every existing role.`, parseInteger)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { title, description, descriptions, isDefault, key, labels, permissions, position } = await promptForMissing(
+          _options,
+          createSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/roles`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (description !== undefined) {
+          _payload[`description`] = description;
+        }
+        if (descriptions !== undefined) {
+          _payload[`descriptions`] = resolveBodyParam(descriptions);
+        }
+        if (isDefault !== undefined) {
+          _payload[`is_default`] = isDefault;
+        }
+        if (key !== undefined) {
+          _payload[`key`] = key;
+        }
+        if (labels !== undefined) {
+          _payload[`labels`] = resolveBodyParam(labels);
+        }
+        if (permissions !== undefined) {
+          _payload[`permissions`] = permissions;
+        }
+        if (position !== undefined) {
+          _payload[`position`] = position;
+        }
+        if (title !== undefined) {
+          _payload[`title`] = title;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customersRoles.commands.at(-1)!, createSpecs, { method: "post" });
 const defaultsSpecs: PromptSpec[] = [
   { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
@@ -107,14 +191,68 @@ customersRoles
     ),
   );
 registerPromptSpecs(customersRoles.commands.at(-1)!, defaultsSpecs, { method: "post" });
+const copySpecs: PromptSpec[] = [
+  { key: "key", option: "--key <key>", name: "key", description: "The role to copy, by key or by id.", type: "string", required: true, resource: { listPath: "/customers/roles", hasLimit: false } },
+  { key: "title", option: "--title <title>", name: "title", description: "The name of the new role.", type: "string", required: true },
+  { key: "description", option: "--description <description>", name: "description", description: "Optional. The source's description when left out.", type: "string", required: false },
+  { key: "keyBody", option: "--key-body <key-body>", name: "key_body", description: "Optional. Made from `title` when left out.", type: "string", required: false },
+];
+customersRoles
+  .command(`copy`)
+  .description(`A new role with the permissions of \`key\` and a name of its own — the quick way to a role that differs from a built-in by one grant. The source may be a built-in the tenant never wrote down; the built-ins are seeded first, exactly as a create does. The copy is the tenant's own role, never a built-in, and it is not the default.`)
+  .option(`--key <key>`, `The role to copy, by key or by id.`)
+  .option(`--title <title>`, `The name of the new role.`)
+  .option(`--description <description>`, `Optional. The source's description when left out.`)
+  .option(`--key-body <key-body>`, `Optional. Made from \`title\` when left out.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { key, title, description, keyBody } = await promptForMissing(
+          _options,
+          copySpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/roles/{key}/copy`.replace(`{key}`, key);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (description !== undefined) {
+          _payload[`description`] = description;
+        }
+        if (keyBody !== undefined) {
+          _payload[`key`] = keyBody;
+        }
+        if (title !== undefined) {
+          _payload[`title`] = title;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customersRoles.commands.at(-1)!, copySpecs, { method: "post" });
 const permissionsReplaceSpecs: PromptSpec[] = [
-  { key: "key", option: "--key <key>", name: "key", description: "The role key — one of the tenant's own roles (GET /customers/roles).", type: "string", required: true, resource: { listPath: "/customers/roles", hasLimit: false } },
+  { key: "key", option: "--key <key>", name: "key", description: "The role key — one of the tenant's own roles (GET /customers/roles) — or the role's id, which is what a record page holds.", type: "string", required: true, resource: { listPath: "/customers/roles", hasLimit: false } },
   { key: "permissions", option: "--permissions [permissions...]", name: "permissions", description: "The complete new set. Duplicates and blanks are ignored; an empty array revokes everything.", type: "array", required: true },
 ];
 customersRoles
   .command(`permissions-replace`)
-  .description(`The whole new set in one call — the shape a role editor actually produces, and the one that cannot leave a half-applied grant behind if a second call fails. Seeds the built-in roles first when the tenant has none, so editing works without calling /defaults. Permission keys are free text on purpose: they belong to whichever app declared them, and a grant for an app that is not installed simply has nothing to act on.`)
-  .option(`--key <key>`, `The role key — one of the tenant's own roles (GET /customers/roles).`)
+  .description(`The whole new set in one call — the shape a role editor actually produces, and the one that cannot leave a half-applied grant behind if a second call fails. Seeds the built-in roles first when the tenant never wrote them down, so editing works without calling /defaults. Permission keys are free text on purpose: they belong to whichever app declared them, and a grant for an app that is not installed simply has nothing to act on.`)
+  .option(`--key <key>`, `The role key — one of the tenant's own roles (GET /customers/roles) — or the role's id, which is what a record page holds.`)
   .option(`--permissions [permissions...]`, `The complete new set. Duplicates and blanks are ignored; an empty array revokes everything.`)
   .action(
     actionRunner(

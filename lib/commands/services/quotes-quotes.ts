@@ -470,3 +470,35 @@ quotesQuotes
       },
     ),
   );
+const vocabularySpecs: PromptSpec[] = [
+  { key: "name", option: "--name <name>", name: "name", description: "Which list.", type: "string", required: true, enum: ["actor","attachment-direction","event-kind","item-decision","price-reason","quote-origin","quote-status","visibility"], resource: { listPath: "/quotes/vocabularies", hasLimit: false } },
+];
+quotesQuotes
+  .command(`vocabulary`)
+  .description(`One list, value by value, with the title a person reads in English and German, a badge tone and whether the value ends a quote. The lists backed by a database constraint are closed and carry exactly the values the database accepts; the trail's entry kinds and actors are written only by this app and are served as known values, not as a promise that nothing else appears.`)
+  .option(`--name <name>`, `Which list.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { name } = await promptForMissing(
+          _options,
+          vocabularySpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/quotes/vocabularies/{name}`.replace(`{name}`, name);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(quotesQuotes.commands.at(-1)!, vocabularySpecs, { method: "get" });

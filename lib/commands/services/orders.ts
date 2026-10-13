@@ -1840,6 +1840,38 @@ orders
     ),
   );
 registerPromptSpecs(orders.commands.at(-1)!, returnSpecs, { method: "post" });
+const returnableSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+];
+orders
+  .command(`returnable`)
+  .description(`What a return dialog needs before it can offer anything: per position, what shipped, what came back, what open returns already claim and what is left to take back, plus one boolean saying whether a return would be accepted at all. Reach for it to offer a line and quantity selection for a partial return instead of subtracting the quantities client-side. It changes nothing and books nothing — it is the question POST /orders/{id}/return answers with an action. The read half of orders.return: the budget per position (shipped − returned − claimed by registered or received returns) and the two guards (cancelled order, pending approval) are the SAME code the return route runs, so what this answers and what that accepts cannot drift. A completed order still answers positions, because goods come back after the sale is over. A discount placed as a position of its own is money, not goods, and is not listed.`)
+  .option(`--id <id>`, `The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          returnableSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/orders/{id}/returnable`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(orders.commands.at(-1)!, returnableSpecs, { method: "get" });
 const returnsCompleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
   { key: "rid", option: "--rid <rid>", name: "rid", description: "The return id (uuid). It must belong to the order in {id} — a return of another order is a 404, not a cross-order write.", type: "string", required: true },
@@ -1983,7 +2015,8 @@ orders
 registerPromptSpecs(orders.commands.at(-1)!, returnsRejectSpecs, { method: "post" });
 const shipSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-  { key: "carrier", option: "--carrier <carrier>", name: "carrier", description: "Who is carrying it, in the merchant's own words. Free text — this app neither validates it nor knows the carrier's API.", type: "string", required: false },
+  { key: "carrier", option: "--carrier <carrier>", name: "carrier", description: "Who is carrying it, by name — what an ERP or a customer notification reads. Free text: this app neither validates it nor knows the carrier's API. Older and imported shipments carry only this.", type: "string", required: false },
+  { key: "carrierCode", option: "--carrier-code <carrier-code>", name: "carrier_code", description: "The carrier's code as the shipping app keeps it (its carriers' `code`), so shipments can be grouped and named by carrier however the name was spelled. Stored as given: this app does not read the shipping app, so it cannot check that the code exists. Null on shipments booked before the code was recorded, and on any a caller booked with a name only. Send it beside `carrier`: the code is what groups shipments by carrier, the name is what a person and an external system read.", type: "string", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this shipment has in the system that issued it — the ERP's or the warehouse's handle on the delivery. `number` beside it is the DELIVERY NOTE number, which is what a customer asking after their parcel quotes; this is what a write-back addresses. Unique per tenant where set. Null for a shipment booked here. Send it when the delivery was issued elsewhere — `number` then carries that system's delivery-note number and this carries its key. A key another shipment of this tenant holds is a 409.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this shipment, keyed by system name — a second ERP, a procurement platform, a portal. `external_id` is the leading system; this is the rest. Not a query parameter: a jsonb column is compared as a whole document, so look the row up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data for the caller — the warehouse system's own reference for this handover. Stored and returned untouched.", type: "object", required: false },
@@ -1999,7 +2032,8 @@ orders
   .command(`ship`)
   .description(`Book goods out: which positions and how much of each, with the carrier and the tracking code that go to the customer. It draws a delivery-note number from the tenant's delivery range, books quantity_shipped onto every named position, re-derives the order's fulfillment_status from the arithmetic (unfulfilled → partial → fulfilled) and emits order.shipment.created. Omitting \`positions\` means everything still open, in full, which is the ordinary 'send the rest' case and the only one a UI without a line editor can express; the answer always names the quantities that actually went out. It does not print a label, buy postage or notify anybody — a shipping workflow reacts to the event. Whether a full shipment CLOSES the order is the tenant's call (setting auto_complete_on): 'shipment' completes it here, 'payment' leaves it in_fulfillment until payment_status becomes paid, 'manual' waits for orders.complete. The order.completed event follows the order, so it is only emitted when the order actually completed.`)
   .option(`--id <id>`, `The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.`)
-  .option(`--carrier <carrier>`, `Who is carrying it, in the merchant's own words. Free text — this app neither validates it nor knows the carrier's API.`)
+  .option(`--carrier <carrier>`, `Who is carrying it, by name — what an ERP or a customer notification reads. Free text: this app neither validates it nor knows the carrier's API. Older and imported shipments carry only this.`)
+  .option(`--carrier-code <carrier-code>`, `The carrier's code as the shipping app keeps it (its carriers' \`code\`), so shipments can be grouped and named by carrier however the name was spelled. Stored as given: this app does not read the shipping app, so it cannot check that the code exists. Null on shipments booked before the code was recorded, and on any a caller booked with a name only. Send it beside \`carrier\`: the code is what groups shipments by carrier, the name is what a person and an external system read.`)
   .option(`--external-id <external-id>`, `The key this shipment has in the system that issued it — the ERP's or the warehouse's handle on the delivery. \`number\` beside it is the DELIVERY NOTE number, which is what a customer asking after their parcel quotes; this is what a write-back addresses. Unique per tenant where set. Null for a shipment booked here. Send it when the delivery was issued elsewhere — \`number\` then carries that system's delivery-note number and this carries its key. A key another shipment of this tenant holds is a 409.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this shipment, keyed by system name — a second ERP, a procurement platform, a portal. \`external_id\` is the leading system; this is the rest. Not a query parameter: a jsonb column is compared as a whole document, so look the row up by \`external_id\` and read this off the answer.`)
   .option(`--metadata <metadata>`, `Free-form data for the caller — the warehouse system's own reference for this handover. Stored and returned untouched.`)
@@ -2013,7 +2047,7 @@ orders
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, carrier, externalId, externalRefs, metadata, number, positions, shippedAt, sourceData, sourceSyncedAt, trackingCode, trackingUrl } = await promptForMissing(
+        const { id, carrier, carrierCode, externalId, externalRefs, metadata, number, positions, shippedAt, sourceData, sourceSyncedAt, trackingCode, trackingUrl } = await promptForMissing(
           _options,
           shipSpecs,
           _command,
@@ -2030,6 +2064,9 @@ orders
         }
         if (carrier !== undefined) {
           _payload[`carrier`] = carrier;
+        }
+        if (carrierCode !== undefined) {
+          _payload[`carrier_code`] = carrierCode;
         }
         if (externalId !== undefined) {
           _payload[`external_id`] = externalId;

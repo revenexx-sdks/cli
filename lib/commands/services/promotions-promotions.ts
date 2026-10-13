@@ -120,7 +120,7 @@ const promotionsBundlesCreateSpecs: PromptSpec[] = [
   { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: true },
   { key: "allocation", option: "--allocation <allocation>", name: "allocation", description: "How the units that form a bundle are picked: `best_for_buyer` ranks them by price so whichever unit the effect discounts is worth as much as the cart permits, `cart_order` takes the first it finds. Empty follows the tenant default.", type: "string", required: false, enum: ["best_for_buyer","cart_order"] },
   { key: "maxPerCart", option: "--max-per-cart <max-per-cart>", name: "max_per_cart", description: "How often the bundle may repeat in one cart. Empty repeats as often as the cart allows.", type: "integer", required: false },
-  { key: "selectors", option: "--selectors <selectors>", name: "selectors", description: "What counts towards the bundle, as a list of `{match, quantity}` — which is what expresses \"one machine and one packet of coffee\" rather than two units of anything.", type: "object", required: false },
+  { key: "selectors", option: "--selectors <selectors>", name: "selectors", description: "What counts towards the bundle, as a list of `{match, quantity}` — which is what expresses \"one machine and one packet of coffee\" rather than two units of anything.", type: "any", required: false },
   { key: "unitsRequired", option: "--units-required <units-required>", name: "units_required", description: "How many units make one bundle, when no selectors are stated.", type: "integer", required: false },
 ];
 promotionsPromotions
@@ -163,7 +163,7 @@ promotionsPromotions
           _payload[`promotion_id`] = promotionId;
         }
         if (selectors !== undefined) {
-          _payload[`selectors`] = resolveBodyParam(selectors);
+          _payload[`selectors`] = selectors;
         }
         if (unitsRequired !== undefined) {
           _payload[`units_required`] = unitsRequired;
@@ -249,27 +249,27 @@ promotionsPromotions
 registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsBundlesGetSpecs, { method: "get" });
 const promotionsBundlesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/bundles", hasLimit: true } },
-  { key: "name", option: "--name <name>", name: "name", description: "What the bundle is called, and what every discount it produces is attributed to.", type: "string", required: true },
-  { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: true },
   { key: "allocation", option: "--allocation <allocation>", name: "allocation", description: "How the units that form a bundle are picked: `best_for_buyer` ranks them by price so whichever unit the effect discounts is worth as much as the cart permits, `cart_order` takes the first it finds. Empty follows the tenant default.", type: "string", required: false, enum: ["best_for_buyer","cart_order"] },
   { key: "maxPerCart", option: "--max-per-cart <max-per-cart>", name: "max_per_cart", description: "How often the bundle may repeat in one cart. Empty repeats as often as the cart allows.", type: "integer", required: false },
-  { key: "selectors", option: "--selectors <selectors>", name: "selectors", description: "What counts towards the bundle, as a list of `{match, quantity}` — which is what expresses \"one machine and one packet of coffee\" rather than two units of anything.", type: "object", required: false },
+  { key: "name", option: "--name <name>", name: "name", description: "What the bundle is called, and what every discount it produces is attributed to.", type: "string", required: false },
+  { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: false },
+  { key: "selectors", option: "--selectors <selectors>", name: "selectors", description: "What counts towards the bundle, as a list of `{match, quantity}` — which is what expresses \"one machine and one packet of coffee\" rather than two units of anything.", type: "any", required: false },
   { key: "unitsRequired", option: "--units-required <units-required>", name: "units_required", description: "How many units make one bundle, when no selectors are stated.", type: "integer", required: false },
 ];
 promotionsPromotions
   .command(`promotions-bundles-update`)
   .description(`Correct a bundle`)
   .option(`--id <id>`, `The row id, as it came back from the list.`)
-  .option(`--name <name>`, `What the bundle is called, and what every discount it produces is attributed to.`)
-  .option(`--promotion-id <promotion-id>`, `The promotion this row belongs to. Deleting the promotion deletes it.`)
   .option(`--allocation <allocation>`, `How the units that form a bundle are picked: \`best_for_buyer\` ranks them by price so whichever unit the effect discounts is worth as much as the cart permits, \`cart_order\` takes the first it finds. Empty follows the tenant default.`)
   .option(`--max-per-cart <max-per-cart>`, `How often the bundle may repeat in one cart. Empty repeats as often as the cart allows.`, parseInteger)
+  .option(`--name <name>`, `What the bundle is called, and what every discount it produces is attributed to.`)
+  .option(`--promotion-id <promotion-id>`, `The promotion this row belongs to. Deleting the promotion deletes it.`)
   .option(`--selectors <selectors>`, `What counts towards the bundle, as a list of \`{match, quantity}\` — which is what expresses "one machine and one packet of coffee" rather than two units of anything.`)
   .option(`--units-required <units-required>`, `How many units make one bundle, when no selectors are stated.`, parseInteger)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, name, promotionId, allocation, maxPerCart, selectors, unitsRequired } = await promptForMissing(
+        const { id, allocation, maxPerCart, name, promotionId, selectors, unitsRequired } = await promptForMissing(
           _options,
           promotionsBundlesUpdateSpecs,
           _command,
@@ -297,7 +297,7 @@ promotionsPromotions
           _payload[`promotion_id`] = promotionId;
         }
         if (selectors !== undefined) {
-          _payload[`selectors`] = resolveBodyParam(selectors);
+          _payload[`selectors`] = selectors;
         }
         if (unitsRequired !== undefined) {
           _payload[`units_required`] = unitsRequired;
@@ -428,8 +428,8 @@ registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsConditionsL
 const promotionsConditionsCreateSpecs: PromptSpec[] = [
   { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: true },
   { key: "addend", option: "--addend <addend>", name: "addend", description: "Added to the right-hand subject after the factor.", type: "number", required: false },
-  { key: "compareValue", option: "--compare-value <compare-value>", name: "compare_value", description: "What the subject is compared against.", type: "object", required: false },
-  { key: "compareValueTo", option: "--compare-value-to <compare-value-to>", name: "compare_value_to", description: "The upper end of a `between` comparison.", type: "object", required: false },
+  { key: "compareValue", option: "--compare-value <compare-value>", name: "compare_value", description: "What the subject is compared against.", type: "any", required: false },
+  { key: "compareValueTo", option: "--compare-value-to <compare-value-to>", name: "compare_value_to", description: "The upper end of a `between` comparison.", type: "any", required: false },
   { key: "comparison", option: "--comparison <comparison>", name: "comparison", description: "How the subject is compared: eq, neq, gt, gte, lt, lte, between, in, not_in, is_true, is_false.", type: "string", required: false },
   { key: "factor", option: "--factor <factor>", name: "factor", description: "Multiplies the right-hand subject before the comparison.", type: "number", required: false },
   { key: "kind", option: "--kind <kind>", name: "kind", description: "Whether this row is a `group` (which holds others) or a `question` (which asks one thing).", type: "string", required: false, enum: ["group","question"] },
@@ -483,10 +483,10 @@ promotionsPromotions
           _payload[`addend`] = addend;
         }
         if (compareValue !== undefined) {
-          _payload[`compare_value`] = resolveBodyParam(compareValue);
+          _payload[`compare_value`] = compareValue;
         }
         if (compareValueTo !== undefined) {
-          _payload[`compare_value_to`] = resolveBodyParam(compareValueTo);
+          _payload[`compare_value_to`] = compareValueTo;
         }
         if (comparison !== undefined) {
           _payload[`comparison`] = comparison;
@@ -621,10 +621,9 @@ promotionsPromotions
 registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsConditionsGetSpecs, { method: "get" });
 const promotionsConditionsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/conditions", hasLimit: true } },
-  { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: true },
   { key: "addend", option: "--addend <addend>", name: "addend", description: "Added to the right-hand subject after the factor.", type: "number", required: false },
-  { key: "compareValue", option: "--compare-value <compare-value>", name: "compare_value", description: "What the subject is compared against.", type: "object", required: false },
-  { key: "compareValueTo", option: "--compare-value-to <compare-value-to>", name: "compare_value_to", description: "The upper end of a `between` comparison.", type: "object", required: false },
+  { key: "compareValue", option: "--compare-value <compare-value>", name: "compare_value", description: "What the subject is compared against.", type: "any", required: false },
+  { key: "compareValueTo", option: "--compare-value-to <compare-value-to>", name: "compare_value_to", description: "The upper end of a `between` comparison.", type: "any", required: false },
   { key: "comparison", option: "--comparison <comparison>", name: "comparison", description: "How the subject is compared: eq, neq, gt, gte, lt, lte, between, in, not_in, is_true, is_false.", type: "string", required: false },
   { key: "factor", option: "--factor <factor>", name: "factor", description: "Multiplies the right-hand subject before the comparison.", type: "number", required: false },
   { key: "kind", option: "--kind <kind>", name: "kind", description: "Whether this row is a `group` (which holds others) or a `question` (which asks one thing).", type: "string", required: false, enum: ["group","question"] },
@@ -632,6 +631,7 @@ const promotionsConditionsUpdateSpecs: PromptSpec[] = [
   { key: "negate", option: "--negate <negate>", name: "negate", description: "Turns the row around. Excluding a range from an offer is how a merchant protects their margin.", type: "boolean", required: false },
   { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", description: "The group this row sits inside. Rows with no parent are the outermost level.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Order among siblings, ascending. Two rows with the same position are ordered by their id, so a list never shuffles between reads.", type: "integer", required: false },
+  { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: false },
   { key: "rightSubject", option: "--right-subject <right-subject>", name: "right_subject", description: "Compare against another subject instead of a literal — \"a fifth more than they usually spend\", which no fixed threshold can express for a thousand buyers.", type: "string", required: false },
   { key: "subject", option: "--subject <subject>", name: "subject", description: "What a question asks about — one of a closed vocabulary. A subject accepted at write time and unrecognised at checkout is a promotion that silently never fires, so an unknown one is refused here.", type: "string", required: false },
 ];
@@ -639,7 +639,6 @@ promotionsPromotions
   .command(`promotions-conditions-update`)
   .description(`Correct a condition`)
   .option(`--id <id>`, `The row id, as it came back from the list.`)
-  .option(`--promotion-id <promotion-id>`, `The promotion this row belongs to. Deleting the promotion deletes it.`)
   .option(`--addend <addend>`, `Added to the right-hand subject after the factor.`, parseInteger)
   .option(`--compare-value <compare-value>`, `What the subject is compared against.`)
   .option(`--compare-value-to <compare-value-to>`, `The upper end of a \`between\` comparison.`)
@@ -655,12 +654,13 @@ promotionsPromotions
   )
   .option(`--parent-id <parent-id>`, `The group this row sits inside. Rows with no parent are the outermost level.`)
   .option(`--position <position>`, `Order among siblings, ascending. Two rows with the same position are ordered by their id, so a list never shuffles between reads.`, parseInteger)
+  .option(`--promotion-id <promotion-id>`, `The promotion this row belongs to. Deleting the promotion deletes it.`)
   .option(`--right-subject <right-subject>`, `Compare against another subject instead of a literal — "a fifth more than they usually spend", which no fixed threshold can express for a thousand buyers.`)
   .option(`--subject <subject>`, `What a question asks about — one of a closed vocabulary. A subject accepted at write time and unrecognised at checkout is a promotion that silently never fires, so an unknown one is refused here.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, promotionId, addend, compareValue, compareValueTo, comparison, factor, kind, matchMode, negate, parentId, position, rightSubject, subject } = await promptForMissing(
+        const { id, addend, compareValue, compareValueTo, comparison, factor, kind, matchMode, negate, parentId, position, promotionId, rightSubject, subject } = await promptForMissing(
           _options,
           promotionsConditionsUpdateSpecs,
           _command,
@@ -679,10 +679,10 @@ promotionsPromotions
           _payload[`addend`] = addend;
         }
         if (compareValue !== undefined) {
-          _payload[`compare_value`] = resolveBodyParam(compareValue);
+          _payload[`compare_value`] = compareValue;
         }
         if (compareValueTo !== undefined) {
-          _payload[`compare_value_to`] = resolveBodyParam(compareValueTo);
+          _payload[`compare_value_to`] = compareValueTo;
         }
         if (comparison !== undefined) {
           _payload[`comparison`] = comparison;
@@ -810,10 +810,10 @@ registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsCustomEffec
 const promotionsCustomEffectTypesCreateSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "The identifier whatever consumes this effect dispatches on. Unique per tenant.", type: "string", required: true },
   { key: "carriesAmount", option: "--carries-amount <carries-amount>", name: "carries_amount", description: "When true, an effect of this type must also name an amount shape and a target scope, and then goes through exactly the caps, budgets, stacking and rounding a discount does. When false it carries no money at all.", type: "boolean", required: false },
-  { key: "description", option: "--description <description>", name: "description", description: "What the type is for, for the person configuring a promotion — rarely the person who registered it.", type: "object", required: false },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "object", required: false },
-  { key: "payloadShape", option: "--payload-shape <payload-shape>", name: "payload_shape", description: "The JSON Schema an effect payload of this type is checked against, when the promotion is WRITTEN rather than at a till. It may grow and may not shrink while effects exist against it.", type: "object", required: false },
-  { key: "title", option: "--title <title>", name: "title", description: "What the type is called where an effect is written. Per locale.", type: "object", required: false },
+  { key: "description", option: "--description <description>", name: "description", description: "What the type is for, for the person configuring a promotion — rarely the person who registered it.", type: "any", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
+  { key: "payloadShape", option: "--payload-shape <payload-shape>", name: "payload_shape", description: "The JSON Schema an effect payload of this type is checked against, when the promotion is WRITTEN rather than at a till. It may grow and may not shrink while effects exist against it.", type: "any", required: false },
+  { key: "title", option: "--title <title>", name: "title", description: "What the type is called where an effect is written. Per locale.", type: "any", required: false },
 ];
 promotionsPromotions
   .command(`promotions-custom-effect-types-create`)
@@ -851,19 +851,19 @@ promotionsPromotions
           _payload[`carries_amount`] = carriesAmount;
         }
         if (description !== undefined) {
-          _payload[`description`] = resolveBodyParam(description);
+          _payload[`description`] = description;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = resolveBodyParam(metadata);
+          _payload[`metadata`] = metadata;
         }
         if (name !== undefined) {
           _payload[`name`] = name;
         }
         if (payloadShape !== undefined) {
-          _payload[`payload_shape`] = resolveBodyParam(payloadShape);
+          _payload[`payload_shape`] = payloadShape;
         }
         if (title !== undefined) {
-          _payload[`title`] = resolveBodyParam(title);
+          _payload[`title`] = title;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -946,18 +946,17 @@ promotionsPromotions
 registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsCustomEffectTypesGetSpecs, { method: "get" });
 const promotionsCustomEffectTypesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/custom-effect-types", hasLimit: true } },
-  { key: "name", option: "--name <name>", name: "name", description: "The identifier whatever consumes this effect dispatches on. Unique per tenant.", type: "string", required: true },
   { key: "carriesAmount", option: "--carries-amount <carries-amount>", name: "carries_amount", description: "When true, an effect of this type must also name an amount shape and a target scope, and then goes through exactly the caps, budgets, stacking and rounding a discount does. When false it carries no money at all.", type: "boolean", required: false },
-  { key: "description", option: "--description <description>", name: "description", description: "What the type is for, for the person configuring a promotion — rarely the person who registered it.", type: "object", required: false },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "object", required: false },
-  { key: "payloadShape", option: "--payload-shape <payload-shape>", name: "payload_shape", description: "The JSON Schema an effect payload of this type is checked against, when the promotion is WRITTEN rather than at a till. It may grow and may not shrink while effects exist against it.", type: "object", required: false },
-  { key: "title", option: "--title <title>", name: "title", description: "What the type is called where an effect is written. Per locale.", type: "object", required: false },
+  { key: "description", option: "--description <description>", name: "description", description: "What the type is for, for the person configuring a promotion — rarely the person who registered it.", type: "any", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
+  { key: "name", option: "--name <name>", name: "name", description: "The identifier whatever consumes this effect dispatches on. Unique per tenant.", type: "string", required: false },
+  { key: "payloadShape", option: "--payload-shape <payload-shape>", name: "payload_shape", description: "The JSON Schema an effect payload of this type is checked against, when the promotion is WRITTEN rather than at a till. It may grow and may not shrink while effects exist against it.", type: "any", required: false },
+  { key: "title", option: "--title <title>", name: "title", description: "What the type is called where an effect is written. Per locale.", type: "any", required: false },
 ];
 promotionsPromotions
   .command(`promotions-custom-effect-types-update`)
   .description(`Change an effect type`)
   .option(`--id <id>`, `The row id, as it came back from the list.`)
-  .option(`--name <name>`, `The identifier whatever consumes this effect dispatches on. Unique per tenant.`)
   .option(
     `--carries-amount [value]`,
     `When true, an effect of this type must also name an amount shape and a target scope, and then goes through exactly the caps, budgets, stacking and rounding a discount does. When false it carries no money at all.`,
@@ -966,12 +965,13 @@ promotionsPromotions
   )
   .option(`--description <description>`, `What the type is for, for the person configuring a promotion — rarely the person who registered it.`)
   .option(`--metadata <metadata>`, `Free-form JSON a caller may keep on the row. Nothing here reads it.`)
+  .option(`--name <name>`, `The identifier whatever consumes this effect dispatches on. Unique per tenant.`)
   .option(`--payload-shape <payload-shape>`, `The JSON Schema an effect payload of this type is checked against, when the promotion is WRITTEN rather than at a till. It may grow and may not shrink while effects exist against it.`)
   .option(`--title <title>`, `What the type is called where an effect is written. Per locale.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, name, carriesAmount, description, metadata, payloadShape, title } = await promptForMissing(
+        const { id, carriesAmount, description, metadata, name, payloadShape, title } = await promptForMissing(
           _options,
           promotionsCustomEffectTypesUpdateSpecs,
           _command,
@@ -990,19 +990,19 @@ promotionsPromotions
           _payload[`carries_amount`] = carriesAmount;
         }
         if (description !== undefined) {
-          _payload[`description`] = resolveBodyParam(description);
+          _payload[`description`] = description;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = resolveBodyParam(metadata);
+          _payload[`metadata`] = metadata;
         }
         if (name !== undefined) {
           _payload[`name`] = name;
         }
         if (payloadShape !== undefined) {
-          _payload[`payload_shape`] = resolveBodyParam(payloadShape);
+          _payload[`payload_shape`] = payloadShape;
         }
         if (title !== undefined) {
-          _payload[`title`] = resolveBodyParam(title);
+          _payload[`title`] = title;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1140,17 +1140,17 @@ registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsEffectsList
 const promotionsEffectsCreateSpecs: PromptSpec[] = [
   { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: true },
   { key: "amount", option: "--amount <amount>", name: "amount", description: "The figure the value type is read with.", type: "number", required: false },
-  { key: "appliesTo", option: "--applies-to <applies-to>", name: "applies_to", description: "Which goods the effect touches, as `{skus, product_ids, categories, attribute}`. Empty touches every line.", type: "object", required: false },
+  { key: "appliesTo", option: "--applies-to <applies-to>", name: "applies_to", description: "Which goods the effect touches, as `{skus, product_ids, categories, attribute}`. Empty touches every line.", type: "any", required: false },
   { key: "bundleId", option: "--bundle-id <bundle-id>", name: "bundle_id", description: "The bundle a bundle effect discounts.", type: "string", required: false },
-  { key: "customPayload", option: "--custom-payload <custom-payload>", name: "custom_payload", description: "What a custom effect carries. Checked against the type shape when the promotion is written, and handed back unchanged when it applies.", type: "object", required: false },
+  { key: "customPayload", option: "--custom-payload <custom-payload>", name: "custom_payload", description: "What a custom effect carries. Checked against the type shape when the promotion is written, and handed back unchanged when it applies.", type: "any", required: false },
   { key: "customShapeVersion", option: "--custom-shape-version <custom-shape-version>", name: "custom_shape_version", description: "The shape version the payload was checked against.", type: "integer", required: false },
   { key: "customTypeId", option: "--custom-type-id <custom-type-id>", name: "custom_type_id", description: "The registered type a custom effect is of.", type: "string", required: false },
   { key: "freeItemQuantity", option: "--free-item-quantity <free-item-quantity>", name: "free_item_quantity", description: "How many of the free item.", type: "integer", required: false },
-  { key: "freeItems", option: "--free-items <free-items>", name: "free_items", description: "The items a free-item effect adds, or offers a choice between.", type: "object", required: false },
+  { key: "freeItems", option: "--free-items <free-items>", name: "free_items", description: "The items a free-item effect adds, or offers a choice between.", type: "any", required: false },
   { key: "kind", option: "--kind <kind>", name: "kind", description: "What the effect does: `discount`, `free_item`, `surcharge`, `notice`, `bundle` or `custom`.", type: "string", required: false, enum: ["discount","free_item","surcharge","notice","bundle","custom"] },
   { key: "maxDiscount", option: "--max-discount <max-discount>", name: "max_discount", description: "A ceiling on a percentage effect. \"20% off, up to 50 euro\" is an ordinary offer, and a merchant who cannot express the cap writes the percentage smaller.", type: "number", required: false },
-  { key: "message", option: "--message <message>", name: "message", description: "What a notice says, per locale. A notice carries no amount.", type: "object", required: false },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "object", required: false },
+  { key: "message", option: "--message <message>", name: "message", description: "What a notice says, per locale. A notice carries no amount.", type: "any", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Order among siblings, ascending. Two rows with the same position are ordered by their id, so a list never shuffles between reads.", type: "integer", required: false },
   { key: "requiresChoice", option: "--requires-choice <requires-choice>", name: "requires_choice", description: "When true, the buyer picks one of the items and the chosen one is what is held and committed.", type: "boolean", required: false },
   { key: "spread", option: "--spread <spread>", name: "spread", description: "Whether the discount is distributed across the bundle units in proportion to price. A bill showing one line at minus thirty and three at full price cannot be returned line by line.", type: "boolean", required: false },
@@ -1214,13 +1214,13 @@ promotionsPromotions
           _payload[`amount`] = amount;
         }
         if (appliesTo !== undefined) {
-          _payload[`applies_to`] = resolveBodyParam(appliesTo);
+          _payload[`applies_to`] = appliesTo;
         }
         if (bundleId !== undefined) {
           _payload[`bundle_id`] = bundleId;
         }
         if (customPayload !== undefined) {
-          _payload[`custom_payload`] = resolveBodyParam(customPayload);
+          _payload[`custom_payload`] = customPayload;
         }
         if (customShapeVersion !== undefined) {
           _payload[`custom_shape_version`] = customShapeVersion;
@@ -1232,7 +1232,7 @@ promotionsPromotions
           _payload[`free_item_quantity`] = freeItemQuantity;
         }
         if (freeItems !== undefined) {
-          _payload[`free_items`] = resolveBodyParam(freeItems);
+          _payload[`free_items`] = freeItems;
         }
         if (kind !== undefined) {
           _payload[`kind`] = kind;
@@ -1241,10 +1241,10 @@ promotionsPromotions
           _payload[`max_discount`] = maxDiscount;
         }
         if (message !== undefined) {
-          _payload[`message`] = resolveBodyParam(message);
+          _payload[`message`] = message;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = resolveBodyParam(metadata);
+          _payload[`metadata`] = metadata;
         }
         if (position !== undefined) {
           _payload[`position`] = position;
@@ -1351,20 +1351,20 @@ promotionsPromotions
 registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsEffectsGetSpecs, { method: "get" });
 const promotionsEffectsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/effects", hasLimit: true } },
-  { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: true },
   { key: "amount", option: "--amount <amount>", name: "amount", description: "The figure the value type is read with.", type: "number", required: false },
-  { key: "appliesTo", option: "--applies-to <applies-to>", name: "applies_to", description: "Which goods the effect touches, as `{skus, product_ids, categories, attribute}`. Empty touches every line.", type: "object", required: false },
+  { key: "appliesTo", option: "--applies-to <applies-to>", name: "applies_to", description: "Which goods the effect touches, as `{skus, product_ids, categories, attribute}`. Empty touches every line.", type: "any", required: false },
   { key: "bundleId", option: "--bundle-id <bundle-id>", name: "bundle_id", description: "The bundle a bundle effect discounts.", type: "string", required: false },
-  { key: "customPayload", option: "--custom-payload <custom-payload>", name: "custom_payload", description: "What a custom effect carries. Checked against the type shape when the promotion is written, and handed back unchanged when it applies.", type: "object", required: false },
+  { key: "customPayload", option: "--custom-payload <custom-payload>", name: "custom_payload", description: "What a custom effect carries. Checked against the type shape when the promotion is written, and handed back unchanged when it applies.", type: "any", required: false },
   { key: "customShapeVersion", option: "--custom-shape-version <custom-shape-version>", name: "custom_shape_version", description: "The shape version the payload was checked against.", type: "integer", required: false },
   { key: "customTypeId", option: "--custom-type-id <custom-type-id>", name: "custom_type_id", description: "The registered type a custom effect is of.", type: "string", required: false },
   { key: "freeItemQuantity", option: "--free-item-quantity <free-item-quantity>", name: "free_item_quantity", description: "How many of the free item.", type: "integer", required: false },
-  { key: "freeItems", option: "--free-items <free-items>", name: "free_items", description: "The items a free-item effect adds, or offers a choice between.", type: "object", required: false },
+  { key: "freeItems", option: "--free-items <free-items>", name: "free_items", description: "The items a free-item effect adds, or offers a choice between.", type: "any", required: false },
   { key: "kind", option: "--kind <kind>", name: "kind", description: "What the effect does: `discount`, `free_item`, `surcharge`, `notice`, `bundle` or `custom`.", type: "string", required: false, enum: ["discount","free_item","surcharge","notice","bundle","custom"] },
   { key: "maxDiscount", option: "--max-discount <max-discount>", name: "max_discount", description: "A ceiling on a percentage effect. \"20% off, up to 50 euro\" is an ordinary offer, and a merchant who cannot express the cap writes the percentage smaller.", type: "number", required: false },
-  { key: "message", option: "--message <message>", name: "message", description: "What a notice says, per locale. A notice carries no amount.", type: "object", required: false },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "object", required: false },
+  { key: "message", option: "--message <message>", name: "message", description: "What a notice says, per locale. A notice carries no amount.", type: "any", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Order among siblings, ascending. Two rows with the same position are ordered by their id, so a list never shuffles between reads.", type: "integer", required: false },
+  { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: false },
   { key: "requiresChoice", option: "--requires-choice <requires-choice>", name: "requires_choice", description: "When true, the buyer picks one of the items and the chosen one is what is held and committed.", type: "boolean", required: false },
   { key: "spread", option: "--spread <spread>", name: "spread", description: "Whether the discount is distributed across the bundle units in proportion to price. A bill showing one line at minus thirty and three at full price cannot be returned line by line.", type: "boolean", required: false },
   { key: "targetScope", option: "--target-scope <target-scope>", name: "target_scope", description: "Which amount the effect is measured against: the unit price, the line total, the cart subtotal, the grand total, the shipping cost or the payment fee.", type: "string", required: false, enum: ["unit_price","line_total","cart_subtotal","grand_total","shipping","payment_fee"] },
@@ -1376,7 +1376,6 @@ promotionsPromotions
   .command(`promotions-effects-update`)
   .description(`Correct an effect`)
   .option(`--id <id>`, `The row id, as it came back from the list.`)
-  .option(`--promotion-id <promotion-id>`, `The promotion this row belongs to. Deleting the promotion deletes it.`)
   .option(`--amount <amount>`, `The figure the value type is read with.`, parseInteger)
   .option(`--applies-to <applies-to>`, `Which goods the effect touches, as \`{skus, product_ids, categories, attribute}\`. Empty touches every line.`)
   .option(`--bundle-id <bundle-id>`, `The bundle a bundle effect discounts.`)
@@ -1390,6 +1389,7 @@ promotionsPromotions
   .option(`--message <message>`, `What a notice says, per locale. A notice carries no amount.`)
   .option(`--metadata <metadata>`, `Free-form JSON a caller may keep on the row. Nothing here reads it.`)
   .option(`--position <position>`, `Order among siblings, ascending. Two rows with the same position are ordered by their id, so a list never shuffles between reads.`, parseInteger)
+  .option(`--promotion-id <promotion-id>`, `The promotion this row belongs to. Deleting the promotion deletes it.`)
   .option(
     `--requires-choice [value]`,
     `When true, the buyer picks one of the items and the chosen one is what is held and committed.`,
@@ -1409,7 +1409,7 @@ promotionsPromotions
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, promotionId, amount, appliesTo, bundleId, customPayload, customShapeVersion, customTypeId, freeItemQuantity, freeItems, kind, maxDiscount, message, metadata, position, requiresChoice, spread, targetScope, unitChoice, unitPosition, valueType } = await promptForMissing(
+        const { id, amount, appliesTo, bundleId, customPayload, customShapeVersion, customTypeId, freeItemQuantity, freeItems, kind, maxDiscount, message, metadata, position, promotionId, requiresChoice, spread, targetScope, unitChoice, unitPosition, valueType } = await promptForMissing(
           _options,
           promotionsEffectsUpdateSpecs,
           _command,
@@ -1428,13 +1428,13 @@ promotionsPromotions
           _payload[`amount`] = amount;
         }
         if (appliesTo !== undefined) {
-          _payload[`applies_to`] = resolveBodyParam(appliesTo);
+          _payload[`applies_to`] = appliesTo;
         }
         if (bundleId !== undefined) {
           _payload[`bundle_id`] = bundleId;
         }
         if (customPayload !== undefined) {
-          _payload[`custom_payload`] = resolveBodyParam(customPayload);
+          _payload[`custom_payload`] = customPayload;
         }
         if (customShapeVersion !== undefined) {
           _payload[`custom_shape_version`] = customShapeVersion;
@@ -1446,7 +1446,7 @@ promotionsPromotions
           _payload[`free_item_quantity`] = freeItemQuantity;
         }
         if (freeItems !== undefined) {
-          _payload[`free_items`] = resolveBodyParam(freeItems);
+          _payload[`free_items`] = freeItems;
         }
         if (kind !== undefined) {
           _payload[`kind`] = kind;
@@ -1455,10 +1455,10 @@ promotionsPromotions
           _payload[`max_discount`] = maxDiscount;
         }
         if (message !== undefined) {
-          _payload[`message`] = resolveBodyParam(message);
+          _payload[`message`] = message;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = resolveBodyParam(metadata);
+          _payload[`metadata`] = metadata;
         }
         if (position !== undefined) {
           _payload[`position`] = position;
@@ -1590,8 +1590,8 @@ registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsGroupsListS
 const promotionsGroupsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The stable identifier a merchant refers to the group by. Unique per tenant.", type: "string", required: true },
   { key: "name", option: "--name <name>", name: "name", description: "What the group is called in the Cockpit.", type: "string", required: true },
-  { key: "labels", option: "--labels <labels>", name: "labels", description: "Display text per locale, e.g. `{\"de\": \"Sommeraktion\", \"en\": \"Summer sale\"}`. What a storefront shows; `name` is what a merchant searches by.", type: "object", required: false },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "object", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", description: "Display text per locale, e.g. `{\"de\": \"Sommeraktion\", \"en\": \"Summer sale\"}`. What a storefront shows; `name` is what a merchant searches by.", type: "any", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
   { key: "mode", option: "--mode <mode>", name: "mode", description: "How the promotions in this group are weighed: `stack` (all of them add up), `highest_value` (only the one worth most) or `first_match` (only the first that matches, by priority).", type: "string", required: false, enum: ["stack","highest_value","first_match"] },
   { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", description: "The group this one sits inside. A nested group is weighed among its own members first, then competes in its parent as ONE entry worth what it gives in total.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Order among siblings, ascending. Two rows with the same position are ordered by their id, so a list never shuffles between reads.", type: "integer", required: false },
@@ -1628,10 +1628,10 @@ promotionsPromotions
           _payload[`code`] = code;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = resolveBodyParam(labels);
+          _payload[`labels`] = labels;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = resolveBodyParam(metadata);
+          _payload[`metadata`] = metadata;
         }
         if (mode !== undefined) {
           _payload[`mode`] = mode;
@@ -1726,11 +1726,11 @@ promotionsPromotions
 registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsGroupsGetSpecs, { method: "get" });
 const promotionsGroupsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/groups", hasLimit: true } },
-  { key: "code", option: "--code <code>", name: "code", description: "The stable identifier a merchant refers to the group by. Unique per tenant.", type: "string", required: true },
-  { key: "name", option: "--name <name>", name: "name", description: "What the group is called in the Cockpit.", type: "string", required: true },
-  { key: "labels", option: "--labels <labels>", name: "labels", description: "Display text per locale, e.g. `{\"de\": \"Sommeraktion\", \"en\": \"Summer sale\"}`. What a storefront shows; `name` is what a merchant searches by.", type: "object", required: false },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "object", required: false },
+  { key: "code", option: "--code <code>", name: "code", description: "The stable identifier a merchant refers to the group by. Unique per tenant.", type: "string", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", description: "Display text per locale, e.g. `{\"de\": \"Sommeraktion\", \"en\": \"Summer sale\"}`. What a storefront shows; `name` is what a merchant searches by.", type: "any", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
   { key: "mode", option: "--mode <mode>", name: "mode", description: "How the promotions in this group are weighed: `stack` (all of them add up), `highest_value` (only the one worth most) or `first_match` (only the first that matches, by priority).", type: "string", required: false, enum: ["stack","highest_value","first_match"] },
+  { key: "name", option: "--name <name>", name: "name", description: "What the group is called in the Cockpit.", type: "string", required: false },
   { key: "parentId", option: "--parent-id <parent-id>", name: "parent_id", description: "The group this one sits inside. A nested group is weighed among its own members first, then competes in its parent as ONE entry worth what it gives in total.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Order among siblings, ascending. Two rows with the same position are ordered by their id, so a list never shuffles between reads.", type: "integer", required: false },
 ];
@@ -1739,16 +1739,16 @@ promotionsPromotions
   .description(`Correct a stacking group`)
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .option(`--code <code>`, `The stable identifier a merchant refers to the group by. Unique per tenant.`)
-  .option(`--name <name>`, `What the group is called in the Cockpit.`)
   .option(`--labels <labels>`, `Display text per locale, e.g. \`{"de": "Sommeraktion", "en": "Summer sale"}\`. What a storefront shows; \`name\` is what a merchant searches by.`)
   .option(`--metadata <metadata>`, `Free-form JSON a caller may keep on the row. Nothing here reads it.`)
   .option(`--mode <mode>`, `How the promotions in this group are weighed: \`stack\` (all of them add up), \`highest_value\` (only the one worth most) or \`first_match\` (only the first that matches, by priority).`)
+  .option(`--name <name>`, `What the group is called in the Cockpit.`)
   .option(`--parent-id <parent-id>`, `The group this one sits inside. A nested group is weighed among its own members first, then competes in its parent as ONE entry worth what it gives in total.`)
   .option(`--position <position>`, `Order among siblings, ascending. Two rows with the same position are ordered by their id, so a list never shuffles between reads.`, parseInteger)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, name, labels, metadata, mode, parentId, position } = await promptForMissing(
+        const { id, code, labels, metadata, mode, name, parentId, position } = await promptForMissing(
           _options,
           promotionsGroupsUpdateSpecs,
           _command,
@@ -1767,10 +1767,10 @@ promotionsPromotions
           _payload[`code`] = code;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = resolveBodyParam(labels);
+          _payload[`labels`] = labels;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = resolveBodyParam(metadata);
+          _payload[`metadata`] = metadata;
         }
         if (mode !== undefined) {
           _payload[`mode`] = mode;
@@ -1930,22 +1930,22 @@ const createSpecs: PromptSpec[] = [
   { key: "endsAt", option: "--ends-at <ends-at>", name: "ends_at", description: "When it stops. Empty means it runs until somebody stops it.", type: "string", required: false },
   { key: "exclusive", option: "--exclusive <exclusive>", name: "exclusive", description: "When true, this promotion applying ends the whole evaluation across every group — the \"cannot be combined with anything\" printed on a voucher.", type: "boolean", required: false },
   { key: "groupId", option: "--group-id <group-id>", name: "group_id", description: "The stacking group this promotion is weighed in. A promotion in no group follows the tenant default.", type: "string", required: false },
-  { key: "labels", option: "--labels <labels>", name: "labels", description: "Display text per locale, e.g. `{\"de\": \"Sommeraktion\", \"en\": \"Summer sale\"}`. What a storefront shows; `name` is what a merchant searches by.", type: "object", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", description: "Display text per locale, e.g. `{\"de\": \"Sommeraktion\", \"en\": \"Summer sale\"}`. What a storefront shows; `name` is what a merchant searches by.", type: "any", required: false },
   { key: "limitPerContact", option: "--limit-per-contact <limit-per-contact>", name: "limit_per_contact", description: "How often one person may redeem it.", type: "integer", required: false },
   { key: "limitPerOrganization", option: "--limit-per-organization <limit-per-organization>", name: "limit_per_organization", description: "How often one company may redeem it. In B2B this is usually what a merchant means by \"once per customer\".", type: "integer", required: false },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
   { key: "priority", option: "--priority <priority>", name: "priority", description: "Higher goes first. The order decides the money as soon as two effects touch the same amount, and a tie is settled by creation time so one cart never produces two different bills.", type: "integer", required: false },
   { key: "reach", option: "--reach <reach>", name: "reach", description: "How a buyer arrives at it: `automatic` applies on its own, `code` applies only to a buyer who entered one of its vouchers.", type: "string", required: false, enum: ["automatic","code"] },
-  { key: "recurrenceDays", option: "--recurrence-days <recurrence-days>", name: "recurrence_days", description: "Days of the month it runs on: numbers from 1 to 31, or the word `last`. A day a month does not have simply does not occur that month.", type: "object", required: false },
+  { key: "recurrenceDays", option: "--recurrence-days <recurrence-days>", name: "recurrence_days", description: "Days of the month it runs on: numbers from 1 to 31, or the word `last`. A day a month does not have simply does not occur that month.", type: "any", required: false },
   { key: "recurrenceFrom", option: "--recurrence-from <recurrence-from>", name: "recurrence_from", description: "Time of day it starts, as HH:MM. A range that crosses midnight is honoured as one range.", type: "string", required: false },
   { key: "recurrenceKind", option: "--recurrence-kind <recurrence-kind>", name: "recurrence_kind", description: "Whether it recurs inside its window, and how: `none`, `weekdays` or `days_of_month`. Never both shapes at once.", type: "string", required: false, enum: ["none","weekdays","days_of_month"] },
   { key: "recurrenceUntil", option: "--recurrence-until <recurrence-until>", name: "recurrence_until", description: "Time of day it stops, as HH:MM.", type: "string", required: false },
-  { key: "recurrenceWeekdays", option: "--recurrence-weekdays <recurrence-weekdays>", name: "recurrence_weekdays", description: "Day numbers from 1 (Monday) to 7 (Sunday) the promotion runs on.", type: "object", required: false },
+  { key: "recurrenceWeekdays", option: "--recurrence-weekdays <recurrence-weekdays>", name: "recurrence_weekdays", description: "Day numbers from 1 (Monday) to 7 (Sunday) the promotion runs on.", type: "any", required: false },
   { key: "returnBehaviour", option: "--return-behaviour <return-behaviour>", name: "return_behaviour", description: "What a return does to this promotion discounts: `reverse_proportionally` gives back what the returned lines carried, `reevaluate` decides again on the goods that were kept. Empty follows the tenant default.", type: "string", required: false, enum: ["reverse_proportionally","reevaluate"] },
   { key: "searchBestCombination", option: "--search-best-combination <search-best-combination>", name: "search_best_combination", description: "When true, this promotion is searched against the others that asked for it, and the order giving the buyer most is used. Bounded by a tenant setting; beyond it the stated order is used and the answer says so.", type: "boolean", required: false },
   { key: "startsAt", option: "--starts-at <starts-at>", name: "starts_at", description: "When the promotion becomes live. Empty means it is live as soon as it is active.", type: "string", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "What the merchant set: `draft`, `active`, `paused` or `archived`. What the promotion IS right now also depends on the clock — read `effective_state`.", type: "string", required: false, enum: ["draft","active","paused","archived"] },
-  { key: "tags", option: "--tags <tags>", name: "tags", description: "Free labels a merchant groups promotions by. Carried onto every fact this app publishes.", type: "object", required: false },
+  { key: "tags", option: "--tags <tags>", name: "tags", description: "Free labels a merchant groups promotions by. Carried onto every fact this app publishes.", type: "any", required: false },
   { key: "timezone", option: "--timezone <timezone>", name: "timezone", description: "The IANA timezone the window and the recurrence are read in. Empty follows the market, then the tenant setting — a merchant means their own midnight.", type: "string", required: false },
 ];
 promotionsPromotions
@@ -2042,7 +2042,7 @@ promotionsPromotions
           _payload[`group_id`] = groupId;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = resolveBodyParam(labels);
+          _payload[`labels`] = labels;
         }
         if (limitPerContact !== undefined) {
           _payload[`limit_per_contact`] = limitPerContact;
@@ -2051,7 +2051,7 @@ promotionsPromotions
           _payload[`limit_per_organization`] = limitPerOrganization;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = resolveBodyParam(metadata);
+          _payload[`metadata`] = metadata;
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -2063,7 +2063,7 @@ promotionsPromotions
           _payload[`reach`] = reach;
         }
         if (recurrenceDays !== undefined) {
-          _payload[`recurrence_days`] = resolveBodyParam(recurrenceDays);
+          _payload[`recurrence_days`] = recurrenceDays;
         }
         if (recurrenceFrom !== undefined) {
           _payload[`recurrence_from`] = recurrenceFrom;
@@ -2075,7 +2075,7 @@ promotionsPromotions
           _payload[`recurrence_until`] = recurrenceUntil;
         }
         if (recurrenceWeekdays !== undefined) {
-          _payload[`recurrence_weekdays`] = resolveBodyParam(recurrenceWeekdays);
+          _payload[`recurrence_weekdays`] = recurrenceWeekdays;
         }
         if (returnBehaviour !== undefined) {
           _payload[`return_behaviour`] = returnBehaviour;
@@ -2090,7 +2090,7 @@ promotionsPromotions
           _payload[`status`] = status;
         }
         if (tags !== undefined) {
-          _payload[`tags`] = resolveBodyParam(tags);
+          _payload[`tags`] = tags;
         }
         if (timezone !== undefined) {
           _payload[`timezone`] = timezone;
@@ -2176,46 +2176,45 @@ promotionsPromotions
 registerPromptSpecs(promotionsPromotions.commands.at(-1)!, getSpecs, { method: "get" });
 const updateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/promotions", hasLimit: true } },
-  { key: "code", option: "--code <code>", name: "code", description: "The short identifier a merchant recognises the promotion by. Unique per tenant.", type: "string", required: true },
-  { key: "name", option: "--name <name>", name: "name", description: "What the promotion is called.", type: "string", required: true },
   { key: "budgetDiscount", option: "--budget-discount <budget-discount>", name: "budget_discount", description: "The most this promotion may give away in total. Reaching it stops the promotion rather than refusing the cart.", type: "number", required: false },
   { key: "budgetRedemptions", option: "--budget-redemptions <budget-redemptions>", name: "budget_redemptions", description: "The most times it may be redeemed in total.", type: "integer", required: false },
   { key: "campaignRef", option: "--campaign-ref <campaign-ref>", name: "campaign_ref", description: "A loose reference to a campaign. Nothing here reads it, and a reference to a campaign that does not exist changes nothing.", type: "string", required: false },
   { key: "channelId", option: "--channel-id <channel-id>", name: "channel_id", description: "The sales channel this promotion is limited to. Empty applies in every channel.", type: "string", required: false },
+  { key: "code", option: "--code <code>", name: "code", description: "The short identifier a merchant recognises the promotion by. Unique per tenant.", type: "string", required: false },
   { key: "conditionMatch", option: "--condition-match <condition-match>", name: "condition_match", description: "How the outermost conditions are held together when they are a flat list: `all` or `any`.", type: "string", required: false, enum: ["all","any"] },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "The currency this promotion is stated in. A cart in another currency skips it rather than inventing an exchange rate. Empty applies in every currency.", type: "string", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "What the promotion is for, in the merchant own words.", type: "string", required: false },
   { key: "endsAt", option: "--ends-at <ends-at>", name: "ends_at", description: "When it stops. Empty means it runs until somebody stops it.", type: "string", required: false },
   { key: "exclusive", option: "--exclusive <exclusive>", name: "exclusive", description: "When true, this promotion applying ends the whole evaluation across every group — the \"cannot be combined with anything\" printed on a voucher.", type: "boolean", required: false },
   { key: "groupId", option: "--group-id <group-id>", name: "group_id", description: "The stacking group this promotion is weighed in. A promotion in no group follows the tenant default.", type: "string", required: false },
-  { key: "labels", option: "--labels <labels>", name: "labels", description: "Display text per locale, e.g. `{\"de\": \"Sommeraktion\", \"en\": \"Summer sale\"}`. What a storefront shows; `name` is what a merchant searches by.", type: "object", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", description: "Display text per locale, e.g. `{\"de\": \"Sommeraktion\", \"en\": \"Summer sale\"}`. What a storefront shows; `name` is what a merchant searches by.", type: "any", required: false },
   { key: "limitPerContact", option: "--limit-per-contact <limit-per-contact>", name: "limit_per_contact", description: "How often one person may redeem it.", type: "integer", required: false },
   { key: "limitPerOrganization", option: "--limit-per-organization <limit-per-organization>", name: "limit_per_organization", description: "How often one company may redeem it. In B2B this is usually what a merchant means by \"once per customer\".", type: "integer", required: false },
-  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "object", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
+  { key: "name", option: "--name <name>", name: "name", description: "What the promotion is called.", type: "string", required: false },
   { key: "priority", option: "--priority <priority>", name: "priority", description: "Higher goes first. The order decides the money as soon as two effects touch the same amount, and a tie is settled by creation time so one cart never produces two different bills.", type: "integer", required: false },
   { key: "reach", option: "--reach <reach>", name: "reach", description: "How a buyer arrives at it: `automatic` applies on its own, `code` applies only to a buyer who entered one of its vouchers.", type: "string", required: false, enum: ["automatic","code"] },
-  { key: "recurrenceDays", option: "--recurrence-days <recurrence-days>", name: "recurrence_days", description: "Days of the month it runs on: numbers from 1 to 31, or the word `last`. A day a month does not have simply does not occur that month.", type: "object", required: false },
+  { key: "recurrenceDays", option: "--recurrence-days <recurrence-days>", name: "recurrence_days", description: "Days of the month it runs on: numbers from 1 to 31, or the word `last`. A day a month does not have simply does not occur that month.", type: "any", required: false },
   { key: "recurrenceFrom", option: "--recurrence-from <recurrence-from>", name: "recurrence_from", description: "Time of day it starts, as HH:MM. A range that crosses midnight is honoured as one range.", type: "string", required: false },
   { key: "recurrenceKind", option: "--recurrence-kind <recurrence-kind>", name: "recurrence_kind", description: "Whether it recurs inside its window, and how: `none`, `weekdays` or `days_of_month`. Never both shapes at once.", type: "string", required: false, enum: ["none","weekdays","days_of_month"] },
   { key: "recurrenceUntil", option: "--recurrence-until <recurrence-until>", name: "recurrence_until", description: "Time of day it stops, as HH:MM.", type: "string", required: false },
-  { key: "recurrenceWeekdays", option: "--recurrence-weekdays <recurrence-weekdays>", name: "recurrence_weekdays", description: "Day numbers from 1 (Monday) to 7 (Sunday) the promotion runs on.", type: "object", required: false },
+  { key: "recurrenceWeekdays", option: "--recurrence-weekdays <recurrence-weekdays>", name: "recurrence_weekdays", description: "Day numbers from 1 (Monday) to 7 (Sunday) the promotion runs on.", type: "any", required: false },
   { key: "returnBehaviour", option: "--return-behaviour <return-behaviour>", name: "return_behaviour", description: "What a return does to this promotion discounts: `reverse_proportionally` gives back what the returned lines carried, `reevaluate` decides again on the goods that were kept. Empty follows the tenant default.", type: "string", required: false, enum: ["reverse_proportionally","reevaluate"] },
   { key: "searchBestCombination", option: "--search-best-combination <search-best-combination>", name: "search_best_combination", description: "When true, this promotion is searched against the others that asked for it, and the order giving the buyer most is used. Bounded by a tenant setting; beyond it the stated order is used and the answer says so.", type: "boolean", required: false },
   { key: "startsAt", option: "--starts-at <starts-at>", name: "starts_at", description: "When the promotion becomes live. Empty means it is live as soon as it is active.", type: "string", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "What the merchant set: `draft`, `active`, `paused` or `archived`. What the promotion IS right now also depends on the clock — read `effective_state`.", type: "string", required: false, enum: ["draft","active","paused","archived"] },
-  { key: "tags", option: "--tags <tags>", name: "tags", description: "Free labels a merchant groups promotions by. Carried onto every fact this app publishes.", type: "object", required: false },
+  { key: "tags", option: "--tags <tags>", name: "tags", description: "Free labels a merchant groups promotions by. Carried onto every fact this app publishes.", type: "any", required: false },
   { key: "timezone", option: "--timezone <timezone>", name: "timezone", description: "The IANA timezone the window and the recurrence are read in. Empty follows the market, then the tenant setting — a merchant means their own midnight.", type: "string", required: false },
 ];
 promotionsPromotions
   .command(`update`)
   .description(`Correct a promotion`)
   .option(`--id <id>`, `The row id, as it came back from the list.`)
-  .option(`--code <code>`, `The short identifier a merchant recognises the promotion by. Unique per tenant.`)
-  .option(`--name <name>`, `What the promotion is called.`)
   .option(`--budget-discount <budget-discount>`, `The most this promotion may give away in total. Reaching it stops the promotion rather than refusing the cart.`, parseInteger)
   .option(`--budget-redemptions <budget-redemptions>`, `The most times it may be redeemed in total.`, parseInteger)
   .option(`--campaign-ref <campaign-ref>`, `A loose reference to a campaign. Nothing here reads it, and a reference to a campaign that does not exist changes nothing.`)
   .option(`--channel-id <channel-id>`, `The sales channel this promotion is limited to. Empty applies in every channel.`)
+  .option(`--code <code>`, `The short identifier a merchant recognises the promotion by. Unique per tenant.`)
   .option(`--condition-match <condition-match>`, `How the outermost conditions are held together when they are a flat list: \`all\` or \`any\`.`)
   .option(`--currency <currency>`, `The currency this promotion is stated in. A cart in another currency skips it rather than inventing an exchange rate. Empty applies in every currency.`)
   .option(`--description <description>`, `What the promotion is for, in the merchant own words.`)
@@ -2231,6 +2230,7 @@ promotionsPromotions
   .option(`--limit-per-contact <limit-per-contact>`, `How often one person may redeem it.`, parseInteger)
   .option(`--limit-per-organization <limit-per-organization>`, `How often one company may redeem it. In B2B this is usually what a merchant means by "once per customer".`, parseInteger)
   .option(`--metadata <metadata>`, `Free-form JSON a caller may keep on the row. Nothing here reads it.`)
+  .option(`--name <name>`, `What the promotion is called.`)
   .option(`--priority <priority>`, `Higher goes first. The order decides the money as soon as two effects touch the same amount, and a tie is settled by creation time so one cart never produces two different bills.`, parseInteger)
   .option(`--reach <reach>`, `How a buyer arrives at it: \`automatic\` applies on its own, \`code\` applies only to a buyer who entered one of its vouchers.`)
   .option(`--recurrence-days <recurrence-days>`, `Days of the month it runs on: numbers from 1 to 31, or the word \`last\`. A day a month does not have simply does not occur that month.`)
@@ -2252,7 +2252,7 @@ promotionsPromotions
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, name, budgetDiscount, budgetRedemptions, campaignRef, channelId, conditionMatch, currency, description, endsAt, exclusive, groupId, labels, limitPerContact, limitPerOrganization, metadata, priority, reach, recurrenceDays, recurrenceFrom, recurrenceKind, recurrenceUntil, recurrenceWeekdays, returnBehaviour, searchBestCombination, startsAt, status, tags, timezone } = await promptForMissing(
+        const { id, budgetDiscount, budgetRedemptions, campaignRef, channelId, code, conditionMatch, currency, description, endsAt, exclusive, groupId, labels, limitPerContact, limitPerOrganization, metadata, name, priority, reach, recurrenceDays, recurrenceFrom, recurrenceKind, recurrenceUntil, recurrenceWeekdays, returnBehaviour, searchBestCombination, startsAt, status, tags, timezone } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -2301,7 +2301,7 @@ promotionsPromotions
           _payload[`group_id`] = groupId;
         }
         if (labels !== undefined) {
-          _payload[`labels`] = resolveBodyParam(labels);
+          _payload[`labels`] = labels;
         }
         if (limitPerContact !== undefined) {
           _payload[`limit_per_contact`] = limitPerContact;
@@ -2310,7 +2310,7 @@ promotionsPromotions
           _payload[`limit_per_organization`] = limitPerOrganization;
         }
         if (metadata !== undefined) {
-          _payload[`metadata`] = resolveBodyParam(metadata);
+          _payload[`metadata`] = metadata;
         }
         if (name !== undefined) {
           _payload[`name`] = name;
@@ -2322,7 +2322,7 @@ promotionsPromotions
           _payload[`reach`] = reach;
         }
         if (recurrenceDays !== undefined) {
-          _payload[`recurrence_days`] = resolveBodyParam(recurrenceDays);
+          _payload[`recurrence_days`] = recurrenceDays;
         }
         if (recurrenceFrom !== undefined) {
           _payload[`recurrence_from`] = recurrenceFrom;
@@ -2334,7 +2334,7 @@ promotionsPromotions
           _payload[`recurrence_until`] = recurrenceUntil;
         }
         if (recurrenceWeekdays !== undefined) {
-          _payload[`recurrence_weekdays`] = resolveBodyParam(recurrenceWeekdays);
+          _payload[`recurrence_weekdays`] = recurrenceWeekdays;
         }
         if (returnBehaviour !== undefined) {
           _payload[`return_behaviour`] = returnBehaviour;
@@ -2349,7 +2349,7 @@ promotionsPromotions
           _payload[`status`] = status;
         }
         if (tags !== undefined) {
-          _payload[`tags`] = resolveBodyParam(tags);
+          _payload[`tags`] = tags;
         }
         if (timezone !== undefined) {
           _payload[`timezone`] = timezone;

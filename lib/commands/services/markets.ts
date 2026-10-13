@@ -519,7 +519,7 @@ const cloneSpecs: PromptSpec[] = [
   { key: "copyTaxClasses", option: "--copy-tax-classes <copy-tax-classes>", name: "copy_tax_classes", description: "Copy the source's tax classes, rates and all. Default true. False leaves the market unable to tax anything, which readiness reports as blocking.", type: "boolean", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "Base currency of the new market, upper-case ISO 4217 (400 `invalid_currency` — it is not uppercased for you). Defaults to the source market's, and is registered and marked default on the new one either way.", type: "string", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Display name of the new market. Defaults to its code.", type: "string", required: false },
-  { key: "status", option: "--status <status>", name: "status", description: "Status of the new market. Defaults to 'active'; clone it 'inactive' to build it out before it serves anyone.", type: "string", required: false, enum: ["active","inactive"] },
+  { key: "status", option: "--status <status>", name: "status", description: "Status of the new market. Defaults to 'inactive', so it is checked and built out before it serves anyone; send 'active' to put it live with the call.", type: "string", required: false, enum: ["active","inactive"] },
 ];
 markets
   .command(`clone`)
@@ -546,7 +546,7 @@ markets
   )
   .option(`--currency <currency>`, `Base currency of the new market, upper-case ISO 4217 (400 \`invalid_currency\` — it is not uppercased for you). Defaults to the source market's, and is registered and marked default on the new one either way.`)
   .option(`--name <name>`, `Display name of the new market. Defaults to its code.`)
-  .option(`--status <status>`, `Status of the new market. Defaults to 'active'; clone it 'inactive' to build it out before it serves anyone.`)
+  .option(`--status <status>`, `Status of the new market. Defaults to 'inactive', so it is checked and built out before it serves anyone; send 'active' to put it live with the call.`)
   .action(
     actionRunner(
       async (_options, _command) => {
@@ -999,11 +999,12 @@ const localesListSpecs: PromptSpec[] = [
   { key: "country", option: "--country <country>", name: "country", description: "Exact match on `country`. ISO 3166-1 alpha-2 country code — the region half of `code`. It is a spelling of the language, not a shipping destination: a market may register de-AT without trading in Austria.", type: "string", required: false },
   { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Exact match on `is_default`. The locale a storefront renders this market in when the request asks for none. At most one per market — a write flagging one takes it from the others; where none carries the flag the first by position is used, and `default_locale.source` on the context says which of the two happened.", type: "boolean", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Sort position among this market's locales, ascending, default 0 — and the tie-break that picks a default when no locale is flagged.", type: "integer", required: false },
+  { key: "status", option: "--status <status>", name: "status", description: "Exact match on `status`. 'preparing' while the search index for this language is still being built, 'active' once a storefront may offer it. A storefront offers active locales only, and a preparing locale is never the one `default_locale` renders in. Defaults to active.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the locale was registered on this market. Set by the database; never writable.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the locale registration was last written. Set by the database on every update; never writable. A locale is changed in place — its default flag and its position move — so this is the column that says when that last happened.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). Out of range is CLAMPED, not refused — ?limit=999 answers 200 with 200 rows, and `page.limit` says so.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). A negative offset is clamped to 0 rather than refused.", type: "integer", required: false },
-  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, language, country, is_default, position, created_at, updated_at.", type: "string", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, language, country, is_default, position, status, created_at, updated_at.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 markets
@@ -1021,11 +1022,12 @@ markets
       value === undefined ? true : parseBool(value),
   )
   .option(`--position <position>`, `Exact match on \`position\`. Sort position among this market's locales, ascending, default 0 — and the tie-break that picks a default when no locale is flagged.`, parseInteger)
+  .option(`--status <status>`, `Exact match on \`status\`. 'preparing' while the search index for this language is still being built, 'active' once a storefront may offer it. A storefront offers active locales only, and a preparing locale is never the one \`default_locale\` renders in. Defaults to active.`)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the locale was registered on this market. Set by the database; never writable.`)
   .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the locale registration was last written. Set by the database on every update; never writable. A locale is changed in place — its default flag and its position move — so this is the column that says when that last happened.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200). Out of range is CLAMPED, not refused — ?limit=999 answers 200 with 200 rows, and \`page.limit\` says so.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). A negative offset is clamped to 0 rather than refused.`, parseInteger)
-  .option(`--order <order>`, `Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, language, country, is_default, position, created_at, updated_at.`)
+  .option(`--order <order>`, `Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, language, country, is_default, position, status, created_at, updated_at.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -1035,7 +1037,7 @@ markets
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { marketId, id, code, language, country, isDefault, position, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { marketId, id, code, language, country, isDefault, position, status, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           localesListSpecs,
           _command,
@@ -1060,6 +1062,9 @@ markets
         }
         if (position !== undefined) {
           _payload[`position`] = position;
+        }
+        if (status !== undefined) {
+          _payload[`status`] = status;
         }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
@@ -1104,6 +1109,7 @@ const localesCreateSpecs: PromptSpec[] = [
   { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this locale as the market's default. The flag MOVES: every other locale of the market loses it in the same call.", type: "boolean", required: false },
   { key: "language", option: "--language <language>", name: "language", description: "The language half of `code`. Omit it and it is derived from the code; state it and it must agree (400 `locale_code_mismatch`).", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among this market's locales, ascending, default 0 — and the tie-break that picks a default when no locale is flagged.", type: "integer", required: false },
+  { key: "status", option: "--status <status>", name: "status", description: "'preparing' or 'active' (400 `invalid_locale_status` otherwise); active when a new locale names none. Add a language as preparing, and switch it to active once its search index is ready.", type: "string", required: false, enum: ["preparing","active"] },
 ];
 markets
   .command(`locales-create`)
@@ -1119,10 +1125,11 @@ markets
   )
   .option(`--language <language>`, `The language half of \`code\`. Omit it and it is derived from the code; state it and it must agree (400 \`locale_code_mismatch\`).`)
   .option(`--position <position>`, `Sort position among this market's locales, ascending, default 0 — and the tie-break that picks a default when no locale is flagged.`, parseInteger)
+  .option(`--status <status>`, `'preparing' or 'active' (400 \`invalid_locale_status\` otherwise); active when a new locale names none. Add a language as preparing, and switch it to active once its search index is ready.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { marketId, code, country, isDefault, language, position } = await promptForMissing(
+        const { marketId, code, country, isDefault, language, position, status } = await promptForMissing(
           _options,
           localesCreateSpecs,
           _command,
@@ -1151,6 +1158,9 @@ markets
         }
         if (position !== undefined) {
           _payload[`position`] = position;
+        }
+        if (status !== undefined) {
+          _payload[`status`] = status;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1243,6 +1253,7 @@ const localesUpdateSpecs: PromptSpec[] = [
   { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this locale as the market's default. The flag MOVES: every other locale of the market loses it in the same call.", type: "boolean", required: false },
   { key: "language", option: "--language <language>", name: "language", description: "The language half of `code`. Omit it and it is derived from the code; state it and it must agree (400 `locale_code_mismatch`).", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among this market's locales, ascending, default 0 — and the tie-break that picks a default when no locale is flagged.", type: "integer", required: false },
+  { key: "status", option: "--status <status>", name: "status", description: "'preparing' or 'active' (400 `invalid_locale_status` otherwise); active when a new locale names none. Add a language as preparing, and switch it to active once its search index is ready.", type: "string", required: false },
 ];
 markets
   .command(`locales-update`)
@@ -1259,10 +1270,11 @@ markets
   )
   .option(`--language <language>`, `The language half of \`code\`. Omit it and it is derived from the code; state it and it must agree (400 \`locale_code_mismatch\`).`)
   .option(`--position <position>`, `Sort position among this market's locales, ascending, default 0 — and the tie-break that picks a default when no locale is flagged.`, parseInteger)
+  .option(`--status <status>`, `'preparing' or 'active' (400 \`invalid_locale_status\` otherwise); active when a new locale names none. Add a language as preparing, and switch it to active once its search index is ready.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { marketId, id, code, country, isDefault, language, position } = await promptForMissing(
+        const { marketId, id, code, country, isDefault, language, position, status } = await promptForMissing(
           _options,
           localesUpdateSpecs,
           _command,
@@ -1291,6 +1303,9 @@ markets
         }
         if (position !== undefined) {
           _payload[`position`] = position;
+        }
+        if (status !== undefined) {
+          _payload[`status`] = status;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

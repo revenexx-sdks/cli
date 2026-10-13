@@ -64,6 +64,62 @@ quotesPricing
     ),
   );
 registerPromptSpecs(quotesPricing.commands.at(-1)!, expireSpecs, { method: "post" });
+const itemSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The quote.", type: "string", required: true },
+  { key: "itemId", option: "--item-id <item-id>", name: "item_id", description: "The position.", type: "string", required: true },
+  { key: "leadTimeDays", option: "--lead-time-days <lead-time-days>", name: "lead_time_days", description: "Quoted delivery time in days.", type: "integer", required: false },
+  { key: "priceReason", option: "--price-reason <price-reason>", name: "price_reason", description: "Why that price.", type: "string", required: false, enum: ["volume","competition","relationship","clearance","cost_change","other"] },
+  { key: "quotedPrice", option: "--quoted-price <quoted-price>", name: "quoted_price", description: "The negotiated price per unit, net. `null` falls back to the list price.", type: "number", required: false },
+];
+quotesPricing
+  .command(`item`)
+  .description(`The desk calculating line by line. Sets the negotiated price, its reason and the lead time of one position, re-totals the line and the quote, and tells nobody: no event, no trail entry, no status change. Allowed while the quote is \`requested\`, \`in_review\` or \`quoted\`; the buyer learns of it when the quote is sent through \`POST /quotes/quotes/{id}/price\`. A key left out keeps what it has; \`null\` clears it, and a position without a negotiated price counts at its list price.`)
+  .option(`--id <id>`, `The quote.`)
+  .option(`--item-id <item-id>`, `The position.`)
+  .option(`--lead-time-days <lead-time-days>`, `Quoted delivery time in days.`, parseInteger)
+  .option(`--price-reason <price-reason>`, `Why that price.`)
+  .option(`--quoted-price <quoted-price>`, `The negotiated price per unit, net. \`null\` falls back to the list price.`, parseInteger)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, itemId, leadTimeDays, priceReason, quotedPrice } = await promptForMissing(
+          _options,
+          itemSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/quotes/quotes/{id}/items/{item_id}`.replace(`{id}`, id).replace(`{item_id}`, itemId);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (leadTimeDays !== undefined) {
+          _payload[`lead_time_days`] = leadTimeDays;
+        }
+        if (priceReason !== undefined) {
+          _payload[`price_reason`] = priceReason;
+        }
+        if (quotedPrice !== undefined) {
+          _payload[`quoted_price`] = quotedPrice;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `patch`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(quotesPricing.commands.at(-1)!, itemSpecs, { method: "patch" });
 const priceSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The quote.", type: "string", required: true },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this quote has in the system that owns it. Left out on anything this shop raised itself.", type: "string", required: false },
