@@ -71,6 +71,8 @@ const pageSpecs: PromptSpec[] = [
   { key: "slug", option: "--slug <slug>", name: "slug", description: "The page slug, or the slug of one of its translations, without a leading slash — the path segment the storefront routes. Either this or `id`.", type: "string", required: false },
   { key: "id", option: "--id <id>", name: "id", description: "The page id, for a storefront that already holds one (from `GET /pages/delivery/pages`). Either this or `slug`.", type: "string", required: false },
   { key: "langcode", option: "--langcode <langcode>", name: "langcode", description: "Language to resolve the tree for, e.g. `de`. Falls back to the page's source language per field, so a partly translated page still renders whole.", type: "string", required: false },
+  { key: "audiences", option: "--audiences <audiences>", name: "audiences", description: "Comma-separated audience codes the visitor belongs to, as the storefront resolved them for a signed-in contact (`POST /v1/audiences/memberships`). Absent means an anonymous visitor: only blocks naming no audience are shown.", type: "string", required: false },
+  { key: "consents", option: "--consents <consents>", name: "consents", description: "Comma-separated consent purposes the consent manager holds for the visitor. A block or pop-up that names a `consent_purpose` is shown only when it is in this list.", type: "string", required: false },
 ];
 pagesDelivery
   .command(`page`)
@@ -78,10 +80,12 @@ pagesDelivery
   .option(`--slug <slug>`, `The page slug, or the slug of one of its translations, without a leading slash — the path segment the storefront routes. Either this or \`id\`.`)
   .option(`--id <id>`, `The page id, for a storefront that already holds one (from \`GET /pages/delivery/pages\`). Either this or \`slug\`.`)
   .option(`--langcode <langcode>`, `Language to resolve the tree for, e.g. \`de\`. Falls back to the page's source language per field, so a partly translated page still renders whole.`)
+  .option(`--audiences <audiences>`, `Comma-separated audience codes the visitor belongs to, as the storefront resolved them for a signed-in contact (\`POST /v1/audiences/memberships\`). Absent means an anonymous visitor: only blocks naming no audience are shown.`)
+  .option(`--consents <consents>`, `Comma-separated consent purposes the consent manager holds for the visitor. A block or pop-up that names a \`consent_purpose\` is shown only when it is in this list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { slug, id, langcode } = await promptForMissing(
+        const { slug, id, langcode, audiences, consents } = await promptForMissing(
           _options,
           pageSpecs,
           _command,
@@ -97,6 +101,12 @@ pagesDelivery
         }
         if (langcode !== undefined) {
           _payload[`langcode`] = langcode;
+        }
+        if (audiences !== undefined) {
+          _payload[`audiences`] = audiences;
+        }
+        if (consents !== undefined) {
+          _payload[`consents`] = consents;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -162,6 +172,51 @@ pagesDelivery
     ),
   );
 registerPromptSpecs(pagesDelivery.commands.at(-1)!, pagesSpecs, { method: "get" });
+const popupsSpecs: PromptSpec[] = [
+  { key: "langcode", option: "--langcode <langcode>", name: "langcode", description: "Language to resolve the content for. Falls back to the source language.", type: "string", required: false },
+  { key: "audiences", option: "--audiences <audiences>", name: "audiences", description: "Comma-separated audience codes the visitor belongs to, as the storefront resolved them for a signed-in contact (`POST /v1/audiences/memberships`). Absent means an anonymous visitor: only blocks naming no audience are shown.", type: "string", required: false },
+  { key: "consents", option: "--consents <consents>", name: "consents", description: "Comma-separated consent purposes the consent manager holds for the visitor. A block or pop-up that names a `consent_purpose` is shown only when it is in this list.", type: "string", required: false },
+];
+pagesDelivery
+  .command(`popups`)
+  .description(`What a storefront asks on every page: the pop-ups switched on, inside their window and visible to this visitor — \`audiences\` and \`consents\` as for a page; anonymous sees only those naming no audience — with their content resolved in \`langcode\`. The storefront applies the trigger and the frequency and posts impressions and clicks to the campaigns app (\`POST /v1/campaigns/touches\`).`)
+  .option(`--langcode <langcode>`, `Language to resolve the content for. Falls back to the source language.`)
+  .option(`--audiences <audiences>`, `Comma-separated audience codes the visitor belongs to, as the storefront resolved them for a signed-in contact (\`POST /v1/audiences/memberships\`). Absent means an anonymous visitor: only blocks naming no audience are shown.`)
+  .option(`--consents <consents>`, `Comma-separated consent purposes the consent manager holds for the visitor. A block or pop-up that names a \`consent_purpose\` is shown only when it is in this list.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { langcode, audiences, consents } = await promptForMissing(
+          _options,
+          popupsSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/delivery/popups`;
+        const _payload: RequestParams = {};
+        if (langcode !== undefined) {
+          _payload[`langcode`] = langcode;
+        }
+        if (audiences !== undefined) {
+          _payload[`audiences`] = audiences;
+        }
+        if (consents !== undefined) {
+          _payload[`consents`] = consents;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pagesDelivery.commands.at(-1)!, popupsSpecs, { method: "get" });
 const previewSpecs: PromptSpec[] = [
   { key: "previewToken", option: "--preview-token <preview-token>", name: "token", description: "The token handed out by POST /pages/editor/{page_id}/preview-grant.", type: "string", required: true, secret: true },
   { key: "langcode", option: "--langcode <langcode>", name: "langcode", description: "Language to resolve the tree for. Falls back to the page's source language, per field.", type: "string", required: false },

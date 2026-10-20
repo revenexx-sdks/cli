@@ -287,13 +287,20 @@ channels
 const typesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "The one filter this list honours (RAD-255): true answers the types still offered for new channels, false the retired ones. Any other value is a 400 `invalid_value`. Every other column filter is ignored.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 channels
   .command(`types-list`)
-  .description(`What a channel may BE. This used to be a CHECK constraint over five values, which meant the merchant who runs a feed channel or a print channel needed a release of this app to say so — and nothing in the app ever branched on the value, only on membership. The set is the tenant's rows now. Seeds itself on first read, so the list is never empty and a channel can always carry a type. Rows come back in \`position\` order, always: this route is not the generic list mount and takes no \`order\` — \`limit\` and \`offset\` are the whole of its query, and it takes no filters, so a caller looking for one code reads the list and matches. The set is bounded: a tenant keeps at most 200 types, which is the size this app can check a channel's type against in one query, and POST /channels/types refuses the 201st rather than build a set it could not read back. \`page.total\` counts the rows that exist, not the ones this answer carries, and the order is total — \`position\` then \`code\`, because \`position\` is not unique and an order that leaves rows tied is one the database is free to answer differently on the next page, which is how a walk serves a row twice and skips another.`)
+  .description(`What a channel may BE. This used to be a CHECK constraint over five values, which meant the merchant who runs a feed channel or a print channel needed a release of this app to say so — and nothing in the app ever branched on the value, only on membership. The set is the tenant's rows now. Seeds itself on first read, so the list is never empty and a channel can always carry a type. Rows come back in \`position\` order, always: this route is not the generic list mount and takes no \`order\` — \`limit\` and \`offset\` are the whole of its query, and it takes one filter, \`active\`, and no other, so a caller looking for one code reads the list and matches. The set is bounded: a tenant keeps at most 200 types, which is the size this app can check a channel's type against in one query, and POST /channels/types refuses the 201st rather than build a set it could not read back. \`page.total\` counts the rows that exist, not the ones this answer carries, and the order is total — \`position\` then \`code\`, because \`position\` is not unique and an order that leaves rows tied is one the database is free to answer differently on the next page, which is how a walk serves a row twice and skips another.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(
+    `--active [value]`,
+    `The one filter this list honours (RAD-255): true answers the types still offered for new channels, false the retired ones. Any other value is a 400 \`invalid_value\`. Every other column filter is ignored.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -303,7 +310,7 @@ channels
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, filter } = await promptForMissing(
+        const { limit, offset, active, filter } = await promptForMissing(
           _options,
           typesListSpecs,
           _command,
@@ -316,6 +323,9 @@ channels
         }
         if (offset !== undefined) {
           _payload[`offset`] = offset;
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -341,9 +351,10 @@ registerPromptSpecs(channels.commands.at(-1)!, typesListSpecs, { method: "get" }
 const typesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "What `channels.type` will store. Lowercased and trimmed before it is written, and fixed from then on — a rename would orphan every channel carrying it.", type: "string", required: true },
   { key: "title", option: "--title <title>", name: "title", description: "The fallback name. `labels` carries the per-locale ones.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "Whether the type is offered for new channels (default true). Anything but a boolean is a 400 `invalid_active`.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "One sentence on what kind of place this type of channel is, for the merchant choosing between them. Plain text, in the tenant's primary language; `descriptions` carries the per-locale ones.", type: "string", required: false },
   { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "A locale map keyed by language tag: {\"en\": …, \"de\": …}. Read the requested tag and fall back to the plain column beside it.", type: "object", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this type; the previous default is demoted. The default is the type a channel created without one gets.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this type; the previous default is demoted. The default is the type a channel created without one gets. An inactive type cannot be the default (409 `inactive_cannot_be_default`).", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "A locale map keyed by language tag: {\"en\": …, \"de\": …}. Read the requested tag and fall back to the plain column beside it.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position (default 0). GET /channels/types answers in this order; ties fall back to the code.", type: "integer", required: false },
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Badge colour (default 'neutral'). A value outside the palette is ignored rather than refused.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
@@ -353,11 +364,17 @@ channels
   .description(`What lets a merchant name a kind of channel this app never thought of — a feed, a print catalogue, a kiosk — without waiting for a release. \`code\` and \`title\` are the only two the database will not fill in; everything else has a default. The code is trimmed and lowercased and becomes exactly what \`channels.type\` stores, and it is fixed from then on, because there is no foreign key behind that column to carry a rename: every channel holding the old string would be left pointing at nothing. The title is the part a merchant renames later. A duplicate code is a 409, and it is worth knowing that the collision is wider than this tenant — \`channel_types.code\` is unique on the column alone, so a code held by another tenant collides too and the read this route does before inserting cannot see it. A tenant keeps at most 200 types; the 201st is a 409 \`type_limit_reached\` rather than a row the app would then be unable to read back. Creating a type changes nothing about existing channels: it is a name that becomes available, not one that gets applied. Adding a type does not make it the default either — pass \`is_default: true\` for that, which demotes the current holder.`)
   .option(`--code <code>`, `What \`channels.type\` will store. Lowercased and trimmed before it is written, and fixed from then on — a rename would orphan every channel carrying it.`)
   .option(`--title <title>`, `The fallback name. \`labels\` carries the per-locale ones.`)
+  .option(
+    `--active [value]`,
+    `Whether the type is offered for new channels (default true). Anything but a boolean is a 400 \`invalid_active\`.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--description <description>`, `One sentence on what kind of place this type of channel is, for the merchant choosing between them. Plain text, in the tenant's primary language; \`descriptions\` carries the per-locale ones.`)
   .option(`--descriptions <descriptions>`, `A locale map keyed by language tag: {"en": …, "de": …}. Read the requested tag and fall back to the plain column beside it.`)
   .option(
     `--is-default [value]`,
-    `Promote this type; the previous default is demoted. The default is the type a channel created without one gets.`,
+    `Promote this type; the previous default is demoted. The default is the type a channel created without one gets. An inactive type cannot be the default (409 \`inactive_cannot_be_default\`).`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -367,7 +384,7 @@ channels
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, title, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
+        const { code, title, active, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
           _options,
           typesCreateSpecs,
           _command,
@@ -381,6 +398,9 @@ channels
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -425,7 +445,7 @@ const typesDeleteSpecs: PromptSpec[] = [
 ];
 channels
   .command(`types-delete`)
-  .description(`Retiring a type IS deleting the row — there is no retired flag on \`channel_types\` — which is why the two things that would make a deletion destructive are refused instead of allowed: a type at least one channel still carries is a 409, and so is the last remaining type. There is no foreign key behind \`channels.type\`, so those two checks are not a convenience on top of the database, they ARE the integrity. Move the channels to another type first and the delete goes through. Nothing else goes with it. A type has no dependents once no channel names it: no rows in this app point at it and none in Baseline do either, since assignments are made against a channel \`code\`, never a type. Deleting the type the tenant had flagged as default is allowed, and the flag is handed to the next type by position rather than left unheld, so a channel created afterwards still has something to fall back to. Because the guard is a read followed by a write with no transaction between them, and no constraint underneath it, a channel created against this type in the same instant can survive it. Worth knowing what that leaves, since it is not what "orphaned" usually means: the channel keeps working. \`channels.type\` is a stored string that nothing joins on, so the channel still reads, still filters under \`?type=\` by that same string, and still resolves in /channels/context and POST /channels/visibility — neither of which consults \`type\` at all. What it loses is its label, because the types vocabulary is built from the rows and there is no longer one to render a badge from. An update that does not mention \`type\` leaves the value alone; naming it is refused, which is how the channel is moved to a type that exists. One thing the deletion frees is wider than the tenant: \`channel_types.code\` is unique on the column alone, so the code becomes available platform-wide, not just here. And the seed does not know the row is gone — POST /channels/defaults and a re-install both put a deleted SEEDED type back, by design; see that operation.`)
+  .description(`Retiring a type is \`active: false\` on an update (RAD-255); deleting removes the row, which is why the two things that would make a deletion destructive are refused instead of allowed: a type at least one channel still carries is a 409, and so is the last remaining type. There is no foreign key behind \`channels.type\`, so those two checks are not a convenience on top of the database, they ARE the integrity. Move the channels to another type first and the delete goes through. Nothing else goes with it. A type has no dependents once no channel names it: no rows in this app point at it and none in Baseline do either, since assignments are made against a channel \`code\`, never a type. Deleting the type the tenant had flagged as default is allowed, and the flag is handed to the next ACTIVE type by position rather than left unheld, so a channel created afterwards still has something to fall back to; with no other active type the delete is refused. Because the guard is a read followed by a write with no transaction between them, and no constraint underneath it, a channel created against this type in the same instant can survive it. Worth knowing what that leaves, since it is not what "orphaned" usually means: the channel keeps working. \`channels.type\` is a stored string that nothing joins on, so the channel still reads, still filters under \`?type=\` by that same string, and still resolves in /channels/context and POST /channels/visibility — neither of which consults \`type\` at all. What it loses is its label, because the types vocabulary is built from the rows and there is no longer one to render a badge from. An update that does not mention \`type\` leaves the value alone; naming it is refused, which is how the channel is moved to a type that exists. One thing the deletion frees is wider than the tenant: \`channel_types.code\` is unique on the column alone, so the code becomes available platform-wide, not just here. And the seed does not know the row is gone — POST /channels/defaults and a re-install both put a deleted SEEDED type back, by design; see that operation.`)
   .option(`--id <id>`, `The channel type, by id. This is the uuid, not the type \`code\`.`)
   .action(
     actionRunner(
@@ -487,9 +507,10 @@ channels
 registerPromptSpecs(channels.commands.at(-1)!, typesGetSpecs, { method: "get" });
 const typesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The channel type, by id. This is the uuid, not the type `code`.", type: "string", required: true, resource: { listPath: "/channels/types", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "Retire the type (false) or bring it back (true). A retired type stays on the channels that carry it and is no longer offered for new ones. The default type cannot be retired (409 `default_must_stay_active`) — make another type the default first.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "Replace the one-sentence description. Sent as null it is cleared; omitted it is kept. `descriptions` carries the per-locale ones.", type: "string", required: false },
   { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "A locale map keyed by language tag: {\"en\": …, \"de\": …}. Read the requested tag and fall back to the plain column beside it.", type: "object", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this type; the previous default is demoted. Only `true` does anything — sending false does not demote this type, because some type must hold the flag.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this type; the previous default is demoted. Only `true` does anything — sending false does not demote this type, because some type must hold the flag. An inactive type cannot be promoted (409 `inactive_cannot_be_default`).", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "A locale map keyed by language tag: {\"en\": …, \"de\": …}. Read the requested tag and fall back to the plain column beside it.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Move the type in the order GET /channels/types answers in.", type: "integer", required: false },
   { key: "title", option: "--title <title>", name: "title", description: "Rename the type. A blank or non-string title is ignored, not refused — the stored one is kept.", type: "string", required: false },
@@ -499,11 +520,17 @@ channels
   .command(`types-update`)
   .description(`Everything but the code. This is where a merchant renames a seeded type into their own words, gives it its German, moves it in the list a person picks from, or hands it the default flag. Seeded types are as editable as ones the merchant added — \`is_system\` records where a row came from and grants it nothing. Sending a different \`code\` is a 400 rather than a silent no-op: it is what \`channels.type\` stores, there is no foreign key behind that column to carry the change — the database has none at all on these tables — and a rename would therefore move nothing. Every channel holding the old string would keep holding it, still working but with no type row to draw its name from. This refusal is the whole of the protection; to move channels to a new code, create the type and update the channels, in that order. Two fields are quietly forgiving rather than strict — a blank \`title\` and a \`tone\` outside the palette are both ignored and the stored value kept, so a client that sends a half-filled form does not clear what is there. \`is_default\` is one-way: true promotes this type and demotes the previous holder, false does nothing at all, because some type has to be the one a channel created without one gets.`)
   .option(`--id <id>`, `The channel type, by id. This is the uuid, not the type \`code\`.`)
+  .option(
+    `--active [value]`,
+    `Retire the type (false) or bring it back (true). A retired type stays on the channels that carry it and is no longer offered for new ones. The default type cannot be retired (409 \`default_must_stay_active\`) — make another type the default first.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--description <description>`, `Replace the one-sentence description. Sent as null it is cleared; omitted it is kept. \`descriptions\` carries the per-locale ones.`)
   .option(`--descriptions <descriptions>`, `A locale map keyed by language tag: {"en": …, "de": …}. Read the requested tag and fall back to the plain column beside it.`)
   .option(
     `--is-default [value]`,
-    `Promote this type; the previous default is demoted. Only \`true\` does anything — sending false does not demote this type, because some type must hold the flag.`,
+    `Promote this type; the previous default is demoted. Only \`true\` does anything — sending false does not demote this type, because some type must hold the flag. An inactive type cannot be promoted (409 \`inactive_cannot_be_default\`).`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -514,7 +541,7 @@ channels
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
+        const { id, active, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
           _options,
           typesUpdateSpecs,
           _command,
@@ -528,6 +555,9 @@ channels
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (description !== undefined) {
           _payload[`description`] = description;

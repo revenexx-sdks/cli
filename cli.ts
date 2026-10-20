@@ -33,8 +33,30 @@ import { tui } from './lib/commands/tui.js';
 import { watch } from './lib/commands/watch.js';
 
 import { health } from './lib/commands/services/health.js';
+import { adsAccounts } from './lib/commands/services/ads-accounts.js';
+import { adsSpend } from './lib/commands/services/ads-spend.js';
+import { adsSyncs } from './lib/commands/services/ads-syncs.js';
+import { adsLinks } from './lib/commands/services/ads-links.js';
+import { adsRules } from './lib/commands/services/ads-rules.js';
+import { adsConversions } from './lib/commands/services/ads-conversions.js';
+import { adsFeeds } from './lib/commands/services/ads-feeds.js';
+import { adsJobs } from './lib/commands/services/ads-jobs.js';
+import { adsVocabularies } from './lib/commands/services/ads-vocabularies.js';
 import { apps } from './lib/commands/services/apps.js';
+import { audiencesAudiences } from './lib/commands/services/audiences-audiences.js';
+import { audiencesMembers } from './lib/commands/services/audiences-members.js';
+import { audiencesRules } from './lib/commands/services/audiences-rules.js';
+import { audit } from './lib/commands/services/audit.js';
 import { avatars } from './lib/commands/services/avatars.js';
+import { campaignsAssets } from './lib/commands/services/campaigns-assets.js';
+import { campaignsAttribution } from './lib/commands/services/campaigns-attribution.js';
+import { campaignsBudgets } from './lib/commands/services/campaigns-budgets.js';
+import { campaignsCalendar } from './lib/commands/services/campaigns-calendar.js';
+import { campaignsCampaigns } from './lib/commands/services/campaigns-campaigns.js';
+import { campaignsSpend } from './lib/commands/services/campaigns-spend.js';
+import { campaignsTasks } from './lib/commands/services/campaigns-tasks.js';
+import { campaignsTouches } from './lib/commands/services/campaigns-touches.js';
+import { campaignsVocabularies } from './lib/commands/services/campaigns-vocabularies.js';
 import { carts } from './lib/commands/services/carts.js';
 import { cartsIo } from './lib/commands/services/carts-io.js';
 import { cartsItems } from './lib/commands/services/carts-items.js';
@@ -44,10 +66,12 @@ import { consentManagerRegistry } from './lib/commands/services/consent-manager-
 import { consentManagerDelivery } from './lib/commands/services/consent-manager-delivery.js';
 import { consentManagerRecords } from './lib/commands/services/consent-manager-records.js';
 import { costCenters } from './lib/commands/services/cost-centers.js';
-import { customersValueLists } from './lib/commands/services/customers-value-lists.js';
 import { customersOrganizations } from './lib/commands/services/customers-organizations.js';
+import { customersValueLists } from './lib/commands/services/customers-value-lists.js';
 import { customers } from './lib/commands/services/customers.js';
+import { customersLeads } from './lib/commands/services/customers-leads.js';
 import { customersContacts } from './lib/commands/services/customers-contacts.js';
+import { customersFollowUps } from './lib/commands/services/customers-follow-ups.js';
 import { customersRoles } from './lib/commands/services/customers-roles.js';
 import { customersSegments } from './lib/commands/services/customers-segments.js';
 import { documentsRegister } from './lib/commands/services/documents-register.js';
@@ -58,7 +82,37 @@ import { inventoriesStock } from './lib/commands/services/inventories-stock.js';
 import { inventoriesReservations } from './lib/commands/services/inventories-reservations.js';
 import { inventoriesLocations } from './lib/commands/services/inventories-locations.js';
 import { io } from './lib/commands/services/io.js';
+import { journeysTimeline } from './lib/commands/services/journeys-timeline.js';
+import { journeysEnrollments } from './lib/commands/services/journeys-enrollments.js';
+import { journeysJourneys } from './lib/commands/services/journeys-journeys.js';
+import { journeysStats } from './lib/commands/services/journeys-stats.js';
+import { journeysSteps } from './lib/commands/services/journeys-steps.js';
+import { journeysJobs } from './lib/commands/services/journeys-jobs.js';
+import { journeysWatches } from './lib/commands/services/journeys-watches.js';
+import { journeysTemplates } from './lib/commands/services/journeys-templates.js';
+import { journeysVersions } from './lib/commands/services/journeys-versions.js';
+import { journeysVocabularies } from './lib/commands/services/journeys-vocabularies.js';
 import { locale } from './lib/commands/services/locale.js';
+import { loyaltyBonus } from './lib/commands/services/loyalty-bonus.js';
+import { loyaltyMemberships } from './lib/commands/services/loyalty-memberships.js';
+import { loyaltyPoints } from './lib/commands/services/loyalty-points.js';
+import { loyaltyPrograms } from './lib/commands/services/loyalty-programs.js';
+import { loyaltyJobs } from './lib/commands/services/loyalty-jobs.js';
+import { loyaltyReferrals } from './lib/commands/services/loyalty-referrals.js';
+import { loyaltyRewards } from './lib/commands/services/loyalty-rewards.js';
+import { loyaltyTiers } from './lib/commands/services/loyalty-tiers.js';
+import { loyaltyVocabularies } from './lib/commands/services/loyalty-vocabularies.js';
+import { mailingsBlocks } from './lib/commands/services/mailings-blocks.js';
+import { mailingsAnalysis } from './lib/commands/services/mailings-analysis.js';
+import { mailingsHealth } from './lib/commands/services/mailings-health.js';
+import { mailingsMailings } from './lib/commands/services/mailings-mailings.js';
+import { mailingsRecipients } from './lib/commands/services/mailings-recipients.js';
+import { mailingsSend } from './lib/commands/services/mailings-send.js';
+import { mailingsVariants } from './lib/commands/services/mailings-variants.js';
+import { mailingsVocabularies } from './lib/commands/services/mailings-vocabularies.js';
+import { marketingConsentsSubscriptions } from './lib/commands/services/marketing-consents-subscriptions.js';
+import { marketingConsentsEvidence } from './lib/commands/services/marketing-consents-evidence.js';
+import { marketingConsentsTypes } from './lib/commands/services/marketing-consents-types.js';
 import { markets } from './lib/commands/services/markets.js';
 import { messaging } from './lib/commands/services/messaging.js';
 import { orderlists } from './lib/commands/services/orderlists.js';
@@ -76,6 +130,7 @@ import { products } from './lib/commands/services/products.js';
 import { productsDataModel } from './lib/commands/services/products-data-model.js';
 import { productsAssets } from './lib/commands/services/products-assets.js';
 import { productsCategories } from './lib/commands/services/products-categories.js';
+import { productsManufacturers } from './lib/commands/services/products-manufacturers.js';
 import { productsReferences } from './lib/commands/services/products-references.js';
 import { promotionsEvaluation } from './lib/commands/services/promotions-evaluation.js';
 import { promotionsVouchers } from './lib/commands/services/promotions-vouchers.js';
@@ -87,6 +142,14 @@ import { quotesRanges } from './lib/commands/services/quotes-ranges.js';
 import { quotesQuotes } from './lib/commands/services/quotes-quotes.js';
 import { quotesAcceptance } from './lib/commands/services/quotes-acceptance.js';
 import { quotesTrail } from './lib/commands/services/quotes-trail.js';
+import { reviewsAggregates } from './lib/commands/services/reviews-aggregates.js';
+import { reviewsPrivacy } from './lib/commands/services/reviews-privacy.js';
+import { reviewsJobs } from './lib/commands/services/reviews-jobs.js';
+import { reviewsProducts } from './lib/commands/services/reviews-products.js';
+import { reviewsRequests } from './lib/commands/services/reviews-requests.js';
+import { reviewsReviews } from './lib/commands/services/reviews-reviews.js';
+import { reviewsModeration } from './lib/commands/services/reviews-moderation.js';
+import { reviewsVocabularies } from './lib/commands/services/reviews-vocabularies.js';
 import { salesRepsCoverage } from './lib/commands/services/sales-reps-coverage.js';
 import { salesRepsActingFor } from './lib/commands/services/sales-reps-acting-for.js';
 import { salesRepsRoster } from './lib/commands/services/sales-reps-roster.js';
@@ -289,8 +352,30 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(tui)
         .addCommand(watch)
         .addCommand(health)
+        .addCommand(adsAccounts)
+        .addCommand(adsSpend)
+        .addCommand(adsSyncs)
+        .addCommand(adsLinks)
+        .addCommand(adsRules)
+        .addCommand(adsConversions)
+        .addCommand(adsFeeds)
+        .addCommand(adsJobs)
+        .addCommand(adsVocabularies)
         .addCommand(apps)
+        .addCommand(audiencesAudiences)
+        .addCommand(audiencesMembers)
+        .addCommand(audiencesRules)
+        .addCommand(audit)
         .addCommand(avatars)
+        .addCommand(campaignsAssets)
+        .addCommand(campaignsAttribution)
+        .addCommand(campaignsBudgets)
+        .addCommand(campaignsCalendar)
+        .addCommand(campaignsCampaigns)
+        .addCommand(campaignsSpend)
+        .addCommand(campaignsTasks)
+        .addCommand(campaignsTouches)
+        .addCommand(campaignsVocabularies)
         .addCommand(carts)
         .addCommand(cartsIo)
         .addCommand(cartsItems)
@@ -300,10 +385,12 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(consentManagerDelivery)
         .addCommand(consentManagerRecords)
         .addCommand(costCenters)
-        .addCommand(customersValueLists)
         .addCommand(customersOrganizations)
+        .addCommand(customersValueLists)
         .addCommand(customers)
+        .addCommand(customersLeads)
         .addCommand(customersContacts)
+        .addCommand(customersFollowUps)
         .addCommand(customersRoles)
         .addCommand(customersSegments)
         .addCommand(documentsRegister)
@@ -314,7 +401,37 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(inventoriesReservations)
         .addCommand(inventoriesLocations)
         .addCommand(io)
+        .addCommand(journeysTimeline)
+        .addCommand(journeysEnrollments)
+        .addCommand(journeysJourneys)
+        .addCommand(journeysStats)
+        .addCommand(journeysSteps)
+        .addCommand(journeysJobs)
+        .addCommand(journeysWatches)
+        .addCommand(journeysTemplates)
+        .addCommand(journeysVersions)
+        .addCommand(journeysVocabularies)
         .addCommand(locale)
+        .addCommand(loyaltyBonus)
+        .addCommand(loyaltyMemberships)
+        .addCommand(loyaltyPoints)
+        .addCommand(loyaltyPrograms)
+        .addCommand(loyaltyJobs)
+        .addCommand(loyaltyReferrals)
+        .addCommand(loyaltyRewards)
+        .addCommand(loyaltyTiers)
+        .addCommand(loyaltyVocabularies)
+        .addCommand(mailingsBlocks)
+        .addCommand(mailingsAnalysis)
+        .addCommand(mailingsHealth)
+        .addCommand(mailingsMailings)
+        .addCommand(mailingsRecipients)
+        .addCommand(mailingsSend)
+        .addCommand(mailingsVariants)
+        .addCommand(mailingsVocabularies)
+        .addCommand(marketingConsentsSubscriptions)
+        .addCommand(marketingConsentsEvidence)
+        .addCommand(marketingConsentsTypes)
         .addCommand(markets)
         .addCommand(messaging)
         .addCommand(orderlists)
@@ -332,6 +449,7 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(productsDataModel)
         .addCommand(productsAssets)
         .addCommand(productsCategories)
+        .addCommand(productsManufacturers)
         .addCommand(productsReferences)
         .addCommand(promotionsEvaluation)
         .addCommand(promotionsVouchers)
@@ -343,6 +461,14 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(quotesQuotes)
         .addCommand(quotesAcceptance)
         .addCommand(quotesTrail)
+        .addCommand(reviewsAggregates)
+        .addCommand(reviewsPrivacy)
+        .addCommand(reviewsJobs)
+        .addCommand(reviewsProducts)
+        .addCommand(reviewsRequests)
+        .addCommand(reviewsReviews)
+        .addCommand(reviewsModeration)
+        .addCommand(reviewsVocabularies)
         .addCommand(salesRepsCoverage)
         .addCommand(salesRepsActingFor)
         .addCommand(salesRepsRoster)

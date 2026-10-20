@@ -7,6 +7,7 @@ import {
   commandDescriptions,
   cliConfig,
   parse,
+  parseBool,
   parseInteger,
 } from "../../parser.js";
 import {
@@ -33,6 +34,7 @@ const productsReferenceEntitiesListSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "Exact match on `code`. The entity's stable identifier — a domain of records the catalog POINTS AT instead of duplicating, so a brand is edited once and not on nine thousand products. Unique per tenant.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. What the entity is called, per language tag — the heading over its record list. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "image", option: "--image <image>", name: "image", description: "Exact match on `image`. A delivery path or URL for the entity's own icon. Cosmetic — nothing in this app resolves it.", type: "string", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "Exact match on `active`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact match on `external_id`. The key this domain has in the system that owns it — the register a brand or manufacturer list is maintained in. Unique per tenant where set.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact match on `external_refs`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact match on `source_synced_at`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
@@ -56,6 +58,12 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--code <code>`, `Exact match on \`code\`. The entity's stable identifier — a domain of records the catalog POINTS AT instead of duplicating, so a brand is edited once and not on nine thousand products. Unique per tenant.`)
   .option(`--labels <labels>`, `Exact match on \`labels\`. What the entity is called, per language tag — the heading over its record list. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--image <image>`, `Exact match on \`image\`. A delivery path or URL for the entity's own icon. Cosmetic — nothing in this app resolves it.`)
+  .option(
+    `--active [value]`,
+    `Exact match on \`active\`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--external-id <external-id>`, `Exact match on \`external_id\`. The key this domain has in the system that owns it — the register a brand or manufacturer list is maintained in. Unique per tenant where set.`)
   .option(`--external-refs <external-refs>`, `Exact match on \`external_refs\`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--source-synced-at <source-synced-at>`, `Exact match on \`source_synced_at\`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
@@ -72,7 +80,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, code, labels, image, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, code, labels, image, active, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsReferenceEntitiesListSpecs,
           _command,
@@ -100,6 +108,9 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         }
         if (image !== undefined) {
           _payload[`image`] = image;
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (externalId !== undefined) {
           _payload[`external_id`] = externalId;
@@ -145,6 +156,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsReferences.commands.at(-1)!, productsReferenceEntitiesListSpecs, { method: "get" });
 const productsReferenceEntitiesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The entity's stable identifier — a domain of records the catalog POINTS AT instead of duplicating, so a brand is edited once and not on nine thousand products. Unique per tenant.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this domain has in the system that owns it — the register a brand or manufacturer list is maintained in. Unique per tenant where set.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "image", option: "--image <image>", name: "image", description: "A delivery path or URL for the entity's own icon. Cosmetic — nothing in this app resolves it.", type: "string", required: false },
@@ -161,6 +173,12 @@ A domain of records the catalog POINTS AT instead of duplicating — brands, man
 
 \`code\` is the only column the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
   .option(`--code <code>`, `The entity's stable identifier — a domain of records the catalog POINTS AT instead of duplicating, so a brand is edited once and not on nine thousand products. Unique per tenant.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--external-id <external-id>`, `The key this domain has in the system that owns it — the register a brand or manufacturer list is maintained in. Unique per tenant where set.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--image <image>`, `A delivery path or URL for the entity's own icon. Cosmetic — nothing in this app resolves it.`)
@@ -171,7 +189,7 @@ A domain of records the catalog POINTS AT instead of duplicating — brands, man
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, externalId, externalRefs, image, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
+        const { code, active, externalId, externalRefs, image, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsReferenceEntitiesCreateSpecs,
           _command,
@@ -185,6 +203,9 @@ A domain of records the catalog POINTS AT instead of duplicating — brands, man
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -301,6 +322,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsReferences.commands.at(-1)!, productsReferenceEntitiesGetSpecs, { method: "get" });
 const productsReferenceEntitiesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `reference_entities` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/reference_entities`. An id no reference entitie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/reference_entities", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The entity's stable identifier — a domain of records the catalog POINTS AT instead of duplicating, so a brand is edited once and not on nine thousand products. Unique per tenant.", type: "string", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this domain has in the system that owns it — the register a brand or manufacturer list is maintained in. Unique per tenant where set.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
@@ -318,6 +340,12 @@ A domain of records the catalog POINTS AT instead of duplicating — brands, man
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
   .option(`--id <id>`, `The \`reference_entities\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/reference_entities\`. An id no reference entitie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--code <code>`, `The entity's stable identifier — a domain of records the catalog POINTS AT instead of duplicating, so a brand is edited once and not on nine thousand products. Unique per tenant.`)
   .option(`--external-id <external-id>`, `The key this domain has in the system that owns it — the register a brand or manufacturer list is maintained in. Unique per tenant where set.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
@@ -329,7 +357,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, externalId, externalRefs, image, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
+        const { id, active, code, externalId, externalRefs, image, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsReferenceEntitiesUpdateSpecs,
           _command,
@@ -343,6 +371,9 @@ A body that names nothing writable is refused with 400 rather than answered as a
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -391,6 +422,7 @@ const productsReferenceEntityRecordsListSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "Exact match on `code`. The record's stable identifier — the value a product stores when it points at this record, the same way a select stores an option code. Unique within the entity.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. What the record is called, per language tag — the text a picker shows while the code is what gets written. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "attributeValues", option: "--attribute-values <attribute-values>", name: "attribute_values", description: "Exact match on `attribute_values`. Every attribute value the record carries, in ONE jsonb document — the core of an attribute-driven PIM. A record's properties are not columns here: they are rows in `attributes`, selected per family by `family_attributes`, and their values live under their attribute CODE inside this object. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "Exact match on `active`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact match on `external_id`. The key this record has in the system that owns it — a manufacturer number in the ERP, a supplier row keyed by GLN, a brand id in the PIM. Unique per tenant where set, so a brand list re-imports without founding a second Acme. Distinct from `code`, which is the value a product stores when it points here.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact match on `external_refs`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact match on `source_synced_at`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
@@ -414,6 +446,12 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--code <code>`, `Exact match on \`code\`. The record's stable identifier — the value a product stores when it points at this record, the same way a select stores an option code. Unique within the entity.`)
   .option(`--labels <labels>`, `Exact match on \`labels\`. What the record is called, per language tag — the text a picker shows while the code is what gets written. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--attribute-values <attribute-values>`, `Exact match on \`attribute_values\`. Every attribute value the record carries, in ONE jsonb document — the core of an attribute-driven PIM. A record's properties are not columns here: they are rows in \`attributes\`, selected per family by \`family_attributes\`, and their values live under their attribute CODE inside this object. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(
+    `--active [value]`,
+    `Exact match on \`active\`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--external-id <external-id>`, `Exact match on \`external_id\`. The key this record has in the system that owns it — a manufacturer number in the ERP, a supplier row keyed by GLN, a brand id in the PIM. Unique per tenant where set, so a brand list re-imports without founding a second Acme. Distinct from \`code\`, which is the value a product stores when it points here.`)
   .option(`--external-refs <external-refs>`, `Exact match on \`external_refs\`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--source-synced-at <source-synced-at>`, `Exact match on \`source_synced_at\`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
@@ -429,7 +467,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, referenceEntityId, code, labels, attributeValues, externalId, externalRefs, sourceSyncedAt, sourceData, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, referenceEntityId, code, labels, attributeValues, active, externalId, externalRefs, sourceSyncedAt, sourceData, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsReferenceEntityRecordsListSpecs,
           _command,
@@ -460,6 +498,9 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         }
         if (attributeValues !== undefined) {
           _payload[`attribute_values`] = attributeValues;
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (externalId !== undefined) {
           _payload[`external_id`] = externalId;
@@ -503,6 +544,7 @@ registerPromptSpecs(productsReferences.commands.at(-1)!, productsReferenceEntity
 const productsReferenceEntityRecordsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The record's stable identifier — the value a product stores when it points at this record, the same way a select stores an option code. Unique within the entity.", type: "string", required: true },
   { key: "referenceEntityId", option: "--reference-entity-id <reference-entity-id>", name: "reference_entity_id", description: "Which reference entity this record belongs to.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "attributeValues", option: "--attribute-values <attribute-values>", name: "attribute_values", description: "Every attribute value the record carries, in ONE jsonb document — the core of an attribute-driven PIM. A record's properties are not columns here: they are rows in `attributes`, selected per family by `family_attributes`, and their values live under their attribute CODE inside this object.\n\nFour buckets, and an attribute's own flags decide which one it writes to:\n\n  `common`                    the attribute is neither localizable nor scopable — one value, full stop.\n                              `{\"common\": {\"net_weight\": 2.4, \"colour\": \"black\"}}`\n  `locale_specific`           `localizable`: one value per locale key.\n                              `{\"locale_specific\": {\"de\": {\"name\": \"Akku-Bohrschrauber\"}}}`\n  `channel_specific`          `scopable`: one value per channel.\n                              `{\"channel_specific\": {\"b2b\": {\"minimum_order_quantity\": 6}}}`\n  `channel_locale_specific`   both: one value per channel AND locale key.\n                              `{\"channel_locale_specific\": {\"b2b\": {\"de\": {\"description\": \"…\"}}}}`\n\nA locale key is the WRITE KEY of this tenant's locale policy (`GET /v1/markets/locale-policy`, `locales[].write`): the bare language (`de`) when the tenant keys translations by language, the full locale (`de-DE`) when it keys them by region. Another spelling of the same locale (`de_DE`, `de-de`, `deu`) is accepted and stored under that key; a language no market of the tenant configures is refused with 422 `unknown_locale`, a bare language two regional keys share with 422 `ambiguous_locale`, and anything that is not a language tag with 422 `invalid_locale`. The database refuses any key that is not `xx` or `xx-YY` whichever way it is written.\n\nA reader takes the most specific bucket that carries the code and falls back through locale, then channel, then `common`. `common` is always last and always consulted, because early imports wrote everything there whatever an attribute's flags said — a reader that skipped it reports an imported catalog as empty. `GET /products/attribute-schema` answers, per field, the exact path a value belongs at (`storage.path`) and that full fallback order (`from`), so no client has to re-derive any of this.\n\nThe value itself is whatever the attribute's `type` implies: a string, a number, a boolean, an option CODE for a select (never its label), a list of codes for a multi-select, `{\"amount\": …, \"unit\": …}` for a measure, a list of `{\"amount\": …, \"currency\": …}` for a price, an asset code for media.\n\nDefaults to `{}`, and an empty object is a normal state — a record nobody has enriched yet. The declared type also admits an array only because every jsonb column of this app shares one mapping; an array is not meaningful here and every reader in this app treats a non-object as empty.\n\nWhich attributes a record of this entity has comes from `attributes` rows with `entity_type: \"reference_entity\"` and `entity_ref` equal to the entity's code — `GET /products/attribute-schema?entity_type=reference_entity&entity_ref=brand` answers it in one call.", type: "object", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this record has in the system that owns it — a manufacturer number in the ERP, a supplier row keyed by GLN, a brand id in the PIM. Unique per tenant where set, so a brand list re-imports without founding a second Acme. Distinct from `code`, which is the value a product stores when it points here.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
@@ -519,6 +561,12 @@ One record of a reference entity — one brand, one manufacturer. A product that
 \`reference_entity_id\` and \`code\` are the only columns the database refuses the row without; everything else has a default or is nullable. A second row with the same \`reference_entity_id\` and \`code\` answers 409.`)
   .option(`--code <code>`, `The record's stable identifier — the value a product stores when it points at this record, the same way a select stores an option code. Unique within the entity.`)
   .option(`--reference-entity-id <reference-entity-id>`, `Which reference entity this record belongs to.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--attribute-values <attribute-values>`, `Every attribute value the record carries, in ONE jsonb document — the core of an attribute-driven PIM. A record's properties are not columns here: they are rows in \`attributes\`, selected per family by \`family_attributes\`, and their values live under their attribute CODE inside this object.
 
 Four buckets, and an attribute's own flags decide which one it writes to:
@@ -549,7 +597,7 @@ Which attributes a record of this entity has comes from \`attributes\` rows with
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, referenceEntityId, attributeValues, externalId, externalRefs, labels, sourceData, sourceSyncedAt } = await promptForMissing(
+        const { code, referenceEntityId, active, attributeValues, externalId, externalRefs, labels, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsReferenceEntityRecordsCreateSpecs,
           _command,
@@ -563,6 +611,9 @@ Which attributes a record of this entity has comes from \`attributes\` rows with
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (attributeValues !== undefined) {
           _payload[`attribute_values`] = resolveBodyParam(attributeValues);
@@ -679,6 +730,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsReferences.commands.at(-1)!, productsReferenceEntityRecordsGetSpecs, { method: "get" });
 const productsReferenceEntityRecordsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `reference_entity_records` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/reference_entity_records`. An id no reference entity record of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/reference_entity_records", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "attributeValues", option: "--attribute-values <attribute-values>", name: "attribute_values", description: "Every attribute value the record carries, in ONE jsonb document — the core of an attribute-driven PIM. A record's properties are not columns here: they are rows in `attributes`, selected per family by `family_attributes`, and their values live under their attribute CODE inside this object.\n\nFour buckets, and an attribute's own flags decide which one it writes to:\n\n  `common`                    the attribute is neither localizable nor scopable — one value, full stop.\n                              `{\"common\": {\"net_weight\": 2.4, \"colour\": \"black\"}}`\n  `locale_specific`           `localizable`: one value per locale key.\n                              `{\"locale_specific\": {\"de\": {\"name\": \"Akku-Bohrschrauber\"}}}`\n  `channel_specific`          `scopable`: one value per channel.\n                              `{\"channel_specific\": {\"b2b\": {\"minimum_order_quantity\": 6}}}`\n  `channel_locale_specific`   both: one value per channel AND locale key.\n                              `{\"channel_locale_specific\": {\"b2b\": {\"de\": {\"description\": \"…\"}}}}`\n\nA locale key is the WRITE KEY of this tenant's locale policy (`GET /v1/markets/locale-policy`, `locales[].write`): the bare language (`de`) when the tenant keys translations by language, the full locale (`de-DE`) when it keys them by region. Another spelling of the same locale (`de_DE`, `de-de`, `deu`) is accepted and stored under that key; a language no market of the tenant configures is refused with 422 `unknown_locale`, a bare language two regional keys share with 422 `ambiguous_locale`, and anything that is not a language tag with 422 `invalid_locale`. The database refuses any key that is not `xx` or `xx-YY` whichever way it is written.\n\nA reader takes the most specific bucket that carries the code and falls back through locale, then channel, then `common`. `common` is always last and always consulted, because early imports wrote everything there whatever an attribute's flags said — a reader that skipped it reports an imported catalog as empty. `GET /products/attribute-schema` answers, per field, the exact path a value belongs at (`storage.path`) and that full fallback order (`from`), so no client has to re-derive any of this.\n\nThe value itself is whatever the attribute's `type` implies: a string, a number, a boolean, an option CODE for a select (never its label), a list of codes for a multi-select, `{\"amount\": …, \"unit\": …}` for a measure, a list of `{\"amount\": …, \"currency\": …}` for a price, an asset code for media.\n\nDefaults to `{}`, and an empty object is a normal state — a record nobody has enriched yet. The declared type also admits an array only because every jsonb column of this app shares one mapping; an array is not meaningful here and every reader in this app treats a non-object as empty.\n\nWhich attributes a record of this entity has comes from `attributes` rows with `entity_type: \"reference_entity\"` and `entity_ref` equal to the entity's code — `GET /products/attribute-schema?entity_type=reference_entity&entity_ref=brand` answers it in one call.", type: "object", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The record's stable identifier — the value a product stores when it points at this record, the same way a select stores an option code. Unique within the entity.", type: "string", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this record has in the system that owns it — a manufacturer number in the ERP, a supplier row keyed by GLN, a brand id in the PIM. Unique per tenant where set, so a brand list re-imports without founding a second Acme. Distinct from `code`, which is the value a product stores when it points here.", type: "string", required: false },
@@ -696,6 +748,12 @@ One record of a reference entity — one brand, one manufacturer. A product that
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`reference_entity_id\` and \`code\` answers 409.`)
   .option(`--id <id>`, `The \`reference_entity_records\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/reference_entity_records\`. An id no reference entity record of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--attribute-values <attribute-values>`, `Every attribute value the record carries, in ONE jsonb document — the core of an attribute-driven PIM. A record's properties are not columns here: they are rows in \`attributes\`, selected per family by \`family_attributes\`, and their values live under their attribute CODE inside this object.
 
 Four buckets, and an attribute's own flags decide which one it writes to:
@@ -728,7 +786,7 @@ Which attributes a record of this entity has comes from \`attributes\` rows with
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, attributeValues, code, externalId, externalRefs, labels, referenceEntityId, sourceData, sourceSyncedAt } = await promptForMissing(
+        const { id, active, attributeValues, code, externalId, externalRefs, labels, referenceEntityId, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsReferenceEntityRecordsUpdateSpecs,
           _command,
@@ -742,6 +800,9 @@ Which attributes a record of this entity has comes from \`attributes\` rows with
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (attributeValues !== undefined) {
           _payload[`attribute_values`] = resolveBodyParam(attributeValues);

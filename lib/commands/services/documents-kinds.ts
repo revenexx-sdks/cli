@@ -32,6 +32,7 @@ const listSpecs: PromptSpec[] = [
   { key: "title", option: "--title <title>", name: "title", description: "Filter to rows whose `title` is exactly this value. What the value is called for a person, in the tenant's working language. At least one character. A locale map goes in `labels`.", type: "string", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "Filter to rows whose `description` is exactly this value. One sentence a person reads under the title — what this value is for. Optional.", type: "string", required: false },
   { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Filter to the default kind. Exactly one row carries the flag, so `true` answers one.", type: "boolean", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "Filter by whether the kind is still offered. `true` is what a picker for a new document shows; `false` lists the kinds a merchant retired.", type: "boolean", required: false },
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Filter to rows whose `tone` is exactly this value. The badge colour a screen renders this value in — semantic, not a hex code: the vocabulary says what a value MEANS and the client decides what 'warning' looks like in its own design system. One of 'neutral', 'info', 'success', 'warning', 'danger'.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
   { key: "position", option: "--position <position>", name: "position", description: "Filter to rows whose `position` is exactly this value. Sort order in a select or a list, ascending. Values that tie fall back to their code, so a table where every position is 0 is still in a stable order.", type: "integer", required: false },
   { key: "isSystem", option: "--is-system <is-system>", name: "is_system", description: "Filter by whether this app seeded the value. `false` is the set a merchant added themselves.", type: "boolean", required: false },
@@ -52,6 +53,12 @@ documentsKinds
   .option(
     `--is-default [value]`,
     `Filter to the default kind. Exactly one row carries the flag, so \`true\` answers one.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
+    `--active [value]`,
+    `Filter by whether the kind is still offered. \`true\` is what a picker for a new document shows; \`false\` lists the kinds a merchant retired.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -77,7 +84,7 @@ documentsKinds
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, title, description, isDefault, tone, position, isSystem, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { id, code, title, description, isDefault, active, tone, position, isSystem, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -99,6 +106,9 @@ documentsKinds
         }
         if (isDefault !== undefined) {
           _payload[`is_default`] = isDefault;
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (tone !== undefined) {
           _payload[`tone`] = tone;
@@ -148,6 +158,7 @@ registerPromptSpecs(documentsKinds.commands.at(-1)!, listSpecs, { method: "get" 
 const createSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The value's stable identifier, and the string a document stores in `kind`. Lowercase letters, digits, `-` and `_`, starting with a letter. Unique per tenant and FIXED once created: renaming it would orphan every document carrying it, so an edit that changes it is refused and the title is what a merchant renames.", type: "string", required: true },
   { key: "title", option: "--title <title>", name: "title", description: "What the value is called for a person, in the tenant's working language. At least one character. A locale map goes in `labels`.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "Whether the value is still offered for a new record. An inactive value stays valid on every document that already carries it and keeps its title, but it is left out of the values the vocabulary offers and a new document may not take it on. The default cannot be inactive: deactivating it, or making an inactive value the default, is refused with 409. Every value is active until a merchant says otherwise. Defaults to `true` on create. `false` retires the kind from new documents; the default may not be retired.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "One sentence a person reads under the title — what this value is for. Optional.", type: "string", required: false },
   { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "The description per language tag. Falls back to `description` when a tag is missing.", type: "object", required: false },
   { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Whether this is the value a caller falls back to. Exactly ONE row of the table carries it: promoting another demotes the current one, so a client can mark the default without reading anything else. Deleting the default hands the flag to the first remaining row. Sending `true` promotes this value and demotes whichever held the flag. `false` is ignored — demote by promoting another.", type: "boolean", required: false },
@@ -160,6 +171,12 @@ documentsKinds
   .description(`A document kind is a value the MERCHANT keeps: a code every document stores, the words a person reads for it and the badge colour a screen renders. Four arrive with the app because an order produces them; a merchant adds a proforma invoice or a dunning letter without a release of this app. This is the route that makes the set open. A proforma invoice, a dunning letter, a works certificate or a scrap certificate is a kind this app was never going to enumerate, and a document may name it the moment it exists here — no release, no migration. \`code\` is lowercase letters, digits, \`-\` and \`_\`, unique per tenant and FIXED from here on; \`title\` is what a merchant renames later. The value is created as the merchant's own (\`is_system: false\`) and not as the default unless \`is_default: true\` says so, in which case whichever row held the flag is demoted in the same call.`)
   .option(`--code <code>`, `The value's stable identifier, and the string a document stores in \`kind\`. Lowercase letters, digits, \`-\` and \`_\`, starting with a letter. Unique per tenant and FIXED once created: renaming it would orphan every document carrying it, so an edit that changes it is refused and the title is what a merchant renames.`)
   .option(`--title <title>`, `What the value is called for a person, in the tenant's working language. At least one character. A locale map goes in \`labels\`.`)
+  .option(
+    `--active [value]`,
+    `Whether the value is still offered for a new record. An inactive value stays valid on every document that already carries it and keeps its title, but it is left out of the values the vocabulary offers and a new document may not take it on. The default cannot be inactive: deactivating it, or making an inactive value the default, is refused with 409. Every value is active until a merchant says otherwise. Defaults to \`true\` on create. \`false\` retires the kind from new documents; the default may not be retired.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--description <description>`, `One sentence a person reads under the title — what this value is for. Optional.`)
   .option(`--descriptions <descriptions>`, `The description per language tag. Falls back to \`description\` when a tag is missing.`)
   .option(
@@ -174,7 +191,7 @@ documentsKinds
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, title, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
+        const { code, title, active, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -188,6 +205,9 @@ documentsKinds
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -334,6 +354,7 @@ documentsKinds
 registerPromptSpecs(documentsKinds.commands.at(-1)!, getSpecs, { method: "get" });
 const updateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The document kind to edit.", type: "string", required: true, resource: { listPath: "/documents/kinds", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "Whether the value is still offered for a new record. An inactive value stays valid on every document that already carries it and keeps its title, but it is left out of the values the vocabulary offers and a new document may not take it on. The default cannot be inactive: deactivating it, or making an inactive value the default, is refused with 409. Every value is active until a merchant says otherwise. Defaults to `true` on create. `false` retires the kind from new documents; the default may not be retired.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The value's stable identifier, and the string a document stores in `kind`. Lowercase letters, digits, `-` and `_`, starting with a letter. Unique per tenant and FIXED once created: renaming it would orphan every document carrying it, so an edit that changes it is refused and the title is what a merchant renames.", type: "string", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "One sentence a person reads under the title — what this value is for. Optional.", type: "string", required: false },
   { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "The description per language tag. Falls back to `description` when a tag is missing.", type: "object", required: false },
@@ -347,6 +368,12 @@ documentsKinds
   .command(`update`)
   .description(`A document kind is a value the MERCHANT keeps: a code every document stores, the words a person reads for it and the badge colour a screen renders. Four arrive with the app because an order produces them; a merchant adds a proforma invoice or a dunning letter without a release of this app. What a merchant edits here is the WORDS: the title, the per-language labels, the description, the badge tone and the position in a select. What they cannot edit is the \`code\` — every document stores it, so renaming it would orphan each one, and a body that changes it is refused with a 400 that says to create a new kind and move the documents over. A seeded kind is as editable as any other: \`is_system\` records that this app put the row there and grants it no protection.`)
   .option(`--id <id>`, `The document kind to edit.`)
+  .option(
+    `--active [value]`,
+    `Whether the value is still offered for a new record. An inactive value stays valid on every document that already carries it and keeps its title, but it is left out of the values the vocabulary offers and a new document may not take it on. The default cannot be inactive: deactivating it, or making an inactive value the default, is refused with 409. Every value is active until a merchant says otherwise. Defaults to \`true\` on create. \`false\` retires the kind from new documents; the default may not be retired.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--code <code>`, `The value's stable identifier, and the string a document stores in \`kind\`. Lowercase letters, digits, \`-\` and \`_\`, starting with a letter. Unique per tenant and FIXED once created: renaming it would orphan every document carrying it, so an edit that changes it is refused and the title is what a merchant renames.`)
   .option(`--description <description>`, `One sentence a person reads under the title — what this value is for. Optional.`)
   .option(`--descriptions <descriptions>`, `The description per language tag. Falls back to \`description\` when a tag is missing.`)
@@ -363,7 +390,7 @@ documentsKinds
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
+        const { id, active, code, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -377,6 +404,9 @@ documentsKinds
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;

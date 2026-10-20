@@ -32,6 +32,8 @@ const listSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "Exact match on `name`. Display name, in the operator's own language. Cockpit copy only — nothing resolves a market by it.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. Exact whole-document equality on the jsonb: the value is a whole JSON document and has to match every key, so this is not a path or a containment query. Key order and whitespace are irrelevant — the comparison is semantic. A value that does not parse as JSON is refused with 400 `invalid_value` rather than answered with zero rows. Localized display names for storefronts, keyed by locale: a flat {locale: label} map, one level deep, string values. WHICH key to write is not free — GET /markets/{id}/context returns `locale_policy`, whose `write` is the key this tenant keys by (a full locale under regional granularity, a bare language under language granularity) and whose `read` is the order to try. Null means nothing is translated and `name` is all there is.", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "Exact match on `currency`. Base currency this market quotes in — ISO 4217, and schema.json's own default is 'EUR'. This is the single currency prices are STATED in; the currencies collection under the market is the wider set it accepts. A base currency missing from that collection is a blocking readiness failure.", type: "string", required: false },
+  { key: "shipFromCountry", option: "--ship-from-country <ship-from-country>", name: "ship_from_country", description: "Exact match on `ship_from_country`. The country this market ships from — upper-case ISO 3166-1 alpha-2 (RAD-246). Documents print an address for this country when they carry no sender address of their own, so it is what decides whether an address counts as abroad. The platform passes it to every app next to the market code. Required on every market written since 3.1.0: a create without it takes it from a code that is a country code (`de` → DE) and is refused otherwise; a market stored before then may answer null until the backfill has run.", type: "string", required: false },
+  { key: "shipFromCountryReview", option: "--ship-from-country-review <ship-from-country-review>", name: "ship_from_country_review", description: "Exact match on `ship_from_country_review`. True when the backfill could not take `ship_from_country` from the code and filled in the tenant's first market country as a guess. Readiness reports it as a warning until a write names the country, which clears it. Never written by a caller.", type: "boolean", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Exact match on `status`. Default 'active'. Only an active market serves a storefront; 'inactive' keeps the market and all its configuration but takes it out of service. Readiness reports an active market that cannot trade as `serving: true, ready: false` — live and broken.", type: "string", required: false, enum: ["active","inactive"] },
   { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Exact match on `is_default`. The tenant default market — what a call naming no market falls back to. Exactly one market holds it, and it is moved only with POST /markets/{id}/make-default: a create may set it only while the tenant has none, and an update cannot change it.", type: "boolean", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Sort position among the tenant's markets, ascending, default 0. Presentation only — it decides the order the Cockpit and a market picker list them in, and nothing resolves a market by it.", type: "integer", required: false },
@@ -39,7 +41,7 @@ const listSpecs: PromptSpec[] = [
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the market row was last written. Set by the database on every update; never writable.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). Out of range is CLAMPED, not refused — ?limit=999 answers 200 with 200 rows, and `page.limit` says so.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). A negative offset is clamped to 0 rather than refused.", type: "integer", required: false },
-  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, code, name, labels, currency, status, is_default, position, created_at, updated_at.", type: "string", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, code, name, labels, currency, ship_from_country, ship_from_country_review, status, is_default, position, created_at, updated_at.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 markets
@@ -50,6 +52,13 @@ markets
   .option(`--name <name>`, `Exact match on \`name\`. Display name, in the operator's own language. Cockpit copy only — nothing resolves a market by it.`)
   .option(`--labels <labels>`, `Exact match on \`labels\`. Exact whole-document equality on the jsonb: the value is a whole JSON document and has to match every key, so this is not a path or a containment query. Key order and whitespace are irrelevant — the comparison is semantic. A value that does not parse as JSON is refused with 400 \`invalid_value\` rather than answered with zero rows. Localized display names for storefronts, keyed by locale: a flat {locale: label} map, one level deep, string values. WHICH key to write is not free — GET /markets/{id}/context returns \`locale_policy\`, whose \`write\` is the key this tenant keys by (a full locale under regional granularity, a bare language under language granularity) and whose \`read\` is the order to try. Null means nothing is translated and \`name\` is all there is.`)
   .option(`--currency <currency>`, `Exact match on \`currency\`. Base currency this market quotes in — ISO 4217, and schema.json's own default is 'EUR'. This is the single currency prices are STATED in; the currencies collection under the market is the wider set it accepts. A base currency missing from that collection is a blocking readiness failure.`)
+  .option(`--ship-from-country <ship-from-country>`, `Exact match on \`ship_from_country\`. The country this market ships from — upper-case ISO 3166-1 alpha-2 (RAD-246). Documents print an address for this country when they carry no sender address of their own, so it is what decides whether an address counts as abroad. The platform passes it to every app next to the market code. Required on every market written since 3.1.0: a create without it takes it from a code that is a country code (\`de\` → DE) and is refused otherwise; a market stored before then may answer null until the backfill has run.`)
+  .option(
+    `--ship-from-country-review [value]`,
+    `Exact match on \`ship_from_country_review\`. True when the backfill could not take \`ship_from_country\` from the code and filled in the tenant's first market country as a guess. Readiness reports it as a warning until a write names the country, which clears it. Never written by a caller.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--status <status>`, `Exact match on \`status\`. Default 'active'. Only an active market serves a storefront; 'inactive' keeps the market and all its configuration but takes it out of service. Readiness reports an active market that cannot trade as \`serving: true, ready: false\` — live and broken.`)
   .option(
     `--is-default [value]`,
@@ -62,7 +71,7 @@ markets
   .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the market row was last written. Set by the database on every update; never writable.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200). Out of range is CLAMPED, not refused — ?limit=999 answers 200 with 200 rows, and \`page.limit\` says so.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). A negative offset is clamped to 0 rather than refused.`, parseInteger)
-  .option(`--order <order>`, `Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, code, name, labels, currency, status, is_default, position, created_at, updated_at.`)
+  .option(`--order <order>`, `Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, code, name, labels, currency, ship_from_country, ship_from_country_review, status, is_default, position, created_at, updated_at.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -72,7 +81,7 @@ markets
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, name, labels, currency, status, isDefault, position, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { id, code, name, labels, currency, shipFromCountry, shipFromCountryReview, status, isDefault, position, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -94,6 +103,12 @@ markets
         }
         if (currency !== undefined) {
           _payload[`currency`] = currency;
+        }
+        if (shipFromCountry !== undefined) {
+          _payload[`ship_from_country`] = shipFromCountry;
+        }
+        if (shipFromCountryReview !== undefined) {
+          _payload[`ship_from_country_review`] = shipFromCountryReview;
         }
         if (status !== undefined) {
           _payload[`status`] = status;
@@ -147,6 +162,8 @@ const createSpecs: PromptSpec[] = [
   { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The tenant default flag. On a create, `true` is accepted only while the tenant has no default market (409 `default_exists` otherwise). On an update it cannot change — move it with POST /markets/{id}/make-default (400 `default_via_make_default`); the current value sent back is accepted and ignored.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized display names for storefronts, keyed by locale: a flat {locale: label} map, one level deep, string values. WHICH key to write is not free — GET /markets/{id}/context returns `locale_policy`, whose `write` is the key this tenant keys by (a full locale under regional granularity, a bare language under language granularity) and whose `read` is the order to try. Null means nothing is translated and `name` is all there is.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among the tenant's markets, ascending, default 0. Presentation only — it decides the order the Cockpit and a market picker list them in, and nothing resolves a market by it.", type: "integer", required: false },
+  { key: "shipFromCountry", option: "--ship-from-country <ship-from-country>", name: "ship_from_country", description: "Upper-case ISO 3166-1 alpha-2 country this market ships from, checked against the assigned codes (400 `invalid_country` otherwise — it is not uppercased for you). On a create it may be omitted only when the code is a country code, and is then taken from it (`de` → DE); otherwise 400 `ship_from_country_required`. On an update it cannot be cleared. Naming it confirms it and clears `ship_from_country_review`.", type: "string", required: false },
+  { key: "shipFromCountryReview", option: "--ship-from-country-review <ship-from-country-review>", name: "ship_from_country_review", description: "Set by the backfill only. A body may send back `false` or the stored value; anything else is refused with 400 `server_owned_field`.", type: "boolean", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Default 'active'. Only an active market serves a storefront; 'inactive' keeps the market and all its configuration but takes it out of service. Readiness reports an active market that cannot trade as `serving: true, ready: false` — live and broken.", type: "string", required: false, enum: ["active","inactive"] },
 ];
 markets
@@ -163,11 +180,18 @@ markets
   )
   .option(`--labels <labels>`, `Localized display names for storefronts, keyed by locale: a flat {locale: label} map, one level deep, string values. WHICH key to write is not free — GET /markets/{id}/context returns \`locale_policy\`, whose \`write\` is the key this tenant keys by (a full locale under regional granularity, a bare language under language granularity) and whose \`read\` is the order to try. Null means nothing is translated and \`name\` is all there is.`)
   .option(`--position <position>`, `Sort position among the tenant's markets, ascending, default 0. Presentation only — it decides the order the Cockpit and a market picker list them in, and nothing resolves a market by it.`, parseInteger)
+  .option(`--ship-from-country <ship-from-country>`, `Upper-case ISO 3166-1 alpha-2 country this market ships from, checked against the assigned codes (400 \`invalid_country\` otherwise — it is not uppercased for you). On a create it may be omitted only when the code is a country code, and is then taken from it (\`de\` → DE); otherwise 400 \`ship_from_country_required\`. On an update it cannot be cleared. Naming it confirms it and clears \`ship_from_country_review\`.`)
+  .option(
+    `--ship-from-country-review [value]`,
+    `Set by the backfill only. A body may send back \`false\` or the stored value; anything else is refused with 400 \`server_owned_field\`.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--status <status>`, `Default 'active'. Only an active market serves a storefront; 'inactive' keeps the market and all its configuration but takes it out of service. Readiness reports an active market that cannot trade as \`serving: true, ready: false\` — live and broken.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, name, currency, isDefault, labels, position, status } = await promptForMissing(
+        const { code, name, currency, isDefault, labels, position, shipFromCountry, shipFromCountryReview, status } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -199,6 +223,12 @@ markets
         }
         if (position !== undefined) {
           _payload[`position`] = position;
+        }
+        if (shipFromCountry !== undefined) {
+          _payload[`ship_from_country`] = shipFromCountry;
+        }
+        if (shipFromCountryReview !== undefined) {
+          _payload[`ship_from_country_review`] = shipFromCountryReview;
         }
         if (status !== undefined) {
           _payload[`status`] = status;
@@ -366,6 +396,8 @@ const updateSpecs: PromptSpec[] = [
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized display names for storefronts, keyed by locale: a flat {locale: label} map, one level deep, string values. WHICH key to write is not free — GET /markets/{id}/context returns `locale_policy`, whose `write` is the key this tenant keys by (a full locale under regional granularity, a bare language under language granularity) and whose `read` is the order to try. Null means nothing is translated and `name` is all there is.", type: "object", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Display name, in the operator's own language. Cockpit copy only — nothing resolves a market by it.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among the tenant's markets, ascending, default 0. Presentation only — it decides the order the Cockpit and a market picker list them in, and nothing resolves a market by it.", type: "integer", required: false },
+  { key: "shipFromCountry", option: "--ship-from-country <ship-from-country>", name: "ship_from_country", description: "Upper-case ISO 3166-1 alpha-2 country this market ships from, checked against the assigned codes (400 `invalid_country` otherwise — it is not uppercased for you). On a create it may be omitted only when the code is a country code, and is then taken from it (`de` → DE); otherwise 400 `ship_from_country_required`. On an update it cannot be cleared. Naming it confirms it and clears `ship_from_country_review`.", type: "string", required: false },
+  { key: "shipFromCountryReview", option: "--ship-from-country-review <ship-from-country-review>", name: "ship_from_country_review", description: "Set by the backfill only. A body may send back `false` or the stored value; anything else is refused with 400 `server_owned_field`.", type: "boolean", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Default 'active'. Only an active market serves a storefront; 'inactive' keeps the market and all its configuration but takes it out of service. Readiness reports an active market that cannot trade as `serving: true, ready: false` — live and broken.", type: "string", required: false, enum: ["active","inactive"] },
 ];
 markets
@@ -383,11 +415,18 @@ markets
   .option(`--labels <labels>`, `Localized display names for storefronts, keyed by locale: a flat {locale: label} map, one level deep, string values. WHICH key to write is not free — GET /markets/{id}/context returns \`locale_policy\`, whose \`write\` is the key this tenant keys by (a full locale under regional granularity, a bare language under language granularity) and whose \`read\` is the order to try. Null means nothing is translated and \`name\` is all there is.`)
   .option(`--name <name>`, `Display name, in the operator's own language. Cockpit copy only — nothing resolves a market by it.`)
   .option(`--position <position>`, `Sort position among the tenant's markets, ascending, default 0. Presentation only — it decides the order the Cockpit and a market picker list them in, and nothing resolves a market by it.`, parseInteger)
+  .option(`--ship-from-country <ship-from-country>`, `Upper-case ISO 3166-1 alpha-2 country this market ships from, checked against the assigned codes (400 \`invalid_country\` otherwise — it is not uppercased for you). On a create it may be omitted only when the code is a country code, and is then taken from it (\`de\` → DE); otherwise 400 \`ship_from_country_required\`. On an update it cannot be cleared. Naming it confirms it and clears \`ship_from_country_review\`.`)
+  .option(
+    `--ship-from-country-review [value]`,
+    `Set by the backfill only. A body may send back \`false\` or the stored value; anything else is refused with 400 \`server_owned_field\`.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--status <status>`, `Default 'active'. Only an active market serves a storefront; 'inactive' keeps the market and all its configuration but takes it out of service. Readiness reports an active market that cannot trade as \`serving: true, ready: false\` — live and broken.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, currency, isDefault, labels, name, position, status } = await promptForMissing(
+        const { id, code, currency, isDefault, labels, name, position, shipFromCountry, shipFromCountryReview, status } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -419,6 +458,12 @@ markets
         }
         if (position !== undefined) {
           _payload[`position`] = position;
+        }
+        if (shipFromCountry !== undefined) {
+          _payload[`ship_from_country`] = shipFromCountry;
+        }
+        if (shipFromCountryReview !== undefined) {
+          _payload[`ship_from_country_review`] = shipFromCountryReview;
         }
         if (status !== undefined) {
           _payload[`status`] = status;
@@ -519,6 +564,7 @@ const cloneSpecs: PromptSpec[] = [
   { key: "copyTaxClasses", option: "--copy-tax-classes <copy-tax-classes>", name: "copy_tax_classes", description: "Copy the source's tax classes, rates and all. Default true. False leaves the market unable to tax anything, which readiness reports as blocking.", type: "boolean", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "Base currency of the new market, upper-case ISO 4217 (400 `invalid_currency` — it is not uppercased for you). Defaults to the source market's, and is registered and marked default on the new one either way.", type: "string", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Display name of the new market. Defaults to its code.", type: "string", required: false },
+  { key: "shipFromCountry", option: "--ship-from-country <ship-from-country>", name: "ship_from_country", description: "Country the new market ships from, upper-case ISO 3166-1 alpha-2 (400 `invalid_country`). Defaults to the country the new code names when it is a country code, else to the source market's; a clone that ends up with none is refused with 400 `ship_from_country_required`.", type: "string", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Status of the new market. Defaults to 'inactive', so it is checked and built out before it serves anyone; send 'active' to put it live with the call.", type: "string", required: false, enum: ["active","inactive"] },
 ];
 markets
@@ -546,11 +592,12 @@ markets
   )
   .option(`--currency <currency>`, `Base currency of the new market, upper-case ISO 4217 (400 \`invalid_currency\` — it is not uppercased for you). Defaults to the source market's, and is registered and marked default on the new one either way.`)
   .option(`--name <name>`, `Display name of the new market. Defaults to its code.`)
+  .option(`--ship-from-country <ship-from-country>`, `Country the new market ships from, upper-case ISO 3166-1 alpha-2 (400 \`invalid_country\`). Defaults to the country the new code names when it is a country code, else to the source market's; a clone that ends up with none is refused with 400 \`ship_from_country_required\`.`)
   .option(`--status <status>`, `Status of the new market. Defaults to 'inactive', so it is checked and built out before it serves anyone; send 'active' to put it live with the call.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, copyCurrencies, copyLocales, copyTaxClasses, currency, name, status } = await promptForMissing(
+        const { id, code, copyCurrencies, copyLocales, copyTaxClasses, currency, name, shipFromCountry, status } = await promptForMissing(
           _options,
           cloneSpecs,
           _command,
@@ -583,6 +630,9 @@ markets
         if (name !== undefined) {
           _payload[`name`] = name;
         }
+        if (shipFromCountry !== undefined) {
+          _payload[`ship_from_country`] = shipFromCountry;
+        }
         if (status !== undefined) {
           _payload[`status`] = status;
         }
@@ -600,6 +650,48 @@ markets
     ),
   );
 registerPromptSpecs(markets.commands.at(-1)!, cloneSpecs, { method: "post" });
+const confirmShipFromSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The market whose ship-from country is confirmed — a uuid or a market code.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
+];
+markets
+  .command(`confirm-ship-from`)
+  .description(`Clears \`ship_from_country_review\`, the flag the RAD-246 backfill set on a market whose ship-from country it had to guess. Editing the market clears it only when the country actually changes, because an edit form posts the stored value back and that confirms nothing; this is the call for "the guessed country is right as it is". Accepts an id or a market CODE. Answers the market; a market that carries no flag is answered unchanged and nothing is written.`)
+  .option(`--id <id>`, `The market whose ship-from country is confirmed — a uuid or a market code.`)
+  .option(`--body <body>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { id, body } = await promptForMissing(
+          _options,
+          confirmShipFromSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/markets/{id}/confirm-ship-from`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(markets.commands.at(-1)!, confirmShipFromSpecs, { method: "post" });
 const contextSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The market. A uuid — this route does not accept a market code.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
 ];
@@ -711,12 +803,13 @@ const currenciesListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Exact match on `id`. Primary key of this currency registration. The currency is named by `code` everywhere else.", type: "string", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "Exact match on `code`. ISO 4217 code, unique per market — one entry in the set of currencies this market TRADES in, as opposed to the single base currency on the market row that its prices are quoted in. The base currency must appear here or the market cannot serve; clone and backfill register it for you.", type: "string", required: false },
   { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Exact match on `is_default`. The currency offered first to a buyer who states no preference. At most one per market — a write flagging one takes it from the others — and it should be the market's base currency — readiness reports it as a warning when it is not.", type: "boolean", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "Exact match on `active`. Whether this currency is offered for new records (default true) — a picker lists `?active=true`. An inactive currency stays on the market and on every record that already carries it, and is no longer offered as the market's booking currency. The market's default currency and its booking currency are always active.", type: "boolean", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Sort position among this market's currencies, ascending, default 0 — the order a currency switcher lists them in.", type: "integer", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the currency was registered on this market. Set by the database; never writable.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the currency registration was last written. Set by the database on every update; never writable. A currency is changed in place — its default flag and its position move — so this is the column that says when that last happened.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). Out of range is CLAMPED, not refused — ?limit=999 answers 200 with 200 rows, and `page.limit` says so.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). A negative offset is clamped to 0 rather than refused.", type: "integer", required: false },
-  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, is_default, position, created_at, updated_at.", type: "string", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, is_default, active, position, created_at, updated_at.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 markets
@@ -731,12 +824,18 @@ markets
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(
+    `--active [value]`,
+    `Exact match on \`active\`. Whether this currency is offered for new records (default true) — a picker lists \`?active=true\`. An inactive currency stays on the market and on every record that already carries it, and is no longer offered as the market's booking currency. The market's default currency and its booking currency are always active.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--position <position>`, `Exact match on \`position\`. Sort position among this market's currencies, ascending, default 0 — the order a currency switcher lists them in.`, parseInteger)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the currency was registered on this market. Set by the database; never writable.`)
   .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the currency registration was last written. Set by the database on every update; never writable. A currency is changed in place — its default flag and its position move — so this is the column that says when that last happened.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200). Out of range is CLAMPED, not refused — ?limit=999 answers 200 with 200 rows, and \`page.limit\` says so.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). A negative offset is clamped to 0 rather than refused.`, parseInteger)
-  .option(`--order <order>`, `Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, is_default, position, created_at, updated_at.`)
+  .option(`--order <order>`, `Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, is_default, active, position, created_at, updated_at.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -746,7 +845,7 @@ markets
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { marketId, id, code, isDefault, position, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { marketId, id, code, isDefault, active, position, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           currenciesListSpecs,
           _command,
@@ -762,6 +861,9 @@ markets
         }
         if (isDefault !== undefined) {
           _payload[`is_default`] = isDefault;
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (position !== undefined) {
           _payload[`position`] = position;
@@ -805,7 +907,8 @@ registerPromptSpecs(markets.commands.at(-1)!, currenciesListSpecs, { method: "ge
 const currenciesCreateSpecs: PromptSpec[] = [
   { key: "marketId", option: "--market-id <market-id>", name: "market_id", description: "The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
   { key: "code", option: "--code <code>", name: "code", description: "Upper-case ISO 4217 code (400 `invalid_currency` otherwise — it is not uppercased for you). Unique per market.", type: "string", required: true },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this currency as the market's default. The flag MOVES: every other currency of the market loses it in the same call.", type: "boolean", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "False takes the currency out of the choices for new records; records that already carry it keep it. The default currency cannot be deactivated (409 `default_must_stay_active`), nor the market's booking currency (409 `booking_currency`, naming the market).", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this currency as the market's default. The flag MOVES: every other currency of the market loses it in the same call. An inactive currency cannot be flagged (409 `inactive_cannot_be_default`).", type: "boolean", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among this market's currencies, ascending, default 0 — the order a currency switcher lists them in.", type: "integer", required: false },
 ];
 markets
@@ -814,8 +917,14 @@ markets
   .option(`--market-id <market-id>`, `The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.`)
   .option(`--code <code>`, `Upper-case ISO 4217 code (400 \`invalid_currency\` otherwise — it is not uppercased for you). Unique per market.`)
   .option(
+    `--active [value]`,
+    `False takes the currency out of the choices for new records; records that already carry it keep it. The default currency cannot be deactivated (409 \`default_must_stay_active\`), nor the market's booking currency (409 \`booking_currency\`, naming the market).`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
     `--is-default [value]`,
-    `Flag this currency as the market's default. The flag MOVES: every other currency of the market loses it in the same call.`,
+    `Flag this currency as the market's default. The flag MOVES: every other currency of the market loses it in the same call. An inactive currency cannot be flagged (409 \`inactive_cannot_be_default\`).`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -823,7 +932,7 @@ markets
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { marketId, code, isDefault, position } = await promptForMissing(
+        const { marketId, code, active, isDefault, position } = await promptForMissing(
           _options,
           currenciesCreateSpecs,
           _command,
@@ -837,6 +946,9 @@ markets
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -933,8 +1045,9 @@ registerPromptSpecs(markets.commands.at(-1)!, currenciesGetSpecs, { method: "get
 const currenciesUpdateSpecs: PromptSpec[] = [
   { key: "marketId", option: "--market-id <market-id>", name: "market_id", description: "The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
   { key: "id", option: "--id <id>", name: "id", description: "The currency of a market, by its primary key. A uuid — this route does not resolve a code, so a segment that will not cast is a 400 before any row is read.", type: "string", required: true, resource: { listPath: "/markets/{market_id}/currencies", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False takes the currency out of the choices for new records; records that already carry it keep it. The default currency cannot be deactivated (409 `default_must_stay_active`), nor the market's booking currency (409 `booking_currency`, naming the market).", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "Upper-case ISO 4217 code (400 `invalid_currency` otherwise — it is not uppercased for you). Unique per market.", type: "string", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this currency as the market's default. The flag MOVES: every other currency of the market loses it in the same call.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this currency as the market's default. The flag MOVES: every other currency of the market loses it in the same call. An inactive currency cannot be flagged (409 `inactive_cannot_be_default`).", type: "boolean", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among this market's currencies, ascending, default 0 — the order a currency switcher lists them in.", type: "integer", required: false },
 ];
 markets
@@ -942,10 +1055,16 @@ markets
   .description(`Partial: omitted fields keep their value.`)
   .option(`--market-id <market-id>`, `The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.`)
   .option(`--id <id>`, `The currency of a market, by its primary key. A uuid — this route does not resolve a code, so a segment that will not cast is a 400 before any row is read.`)
+  .option(
+    `--active [value]`,
+    `False takes the currency out of the choices for new records; records that already carry it keep it. The default currency cannot be deactivated (409 \`default_must_stay_active\`), nor the market's booking currency (409 \`booking_currency\`, naming the market).`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--code <code>`, `Upper-case ISO 4217 code (400 \`invalid_currency\` otherwise — it is not uppercased for you). Unique per market.`)
   .option(
     `--is-default [value]`,
-    `Flag this currency as the market's default. The flag MOVES: every other currency of the market loses it in the same call.`,
+    `Flag this currency as the market's default. The flag MOVES: every other currency of the market loses it in the same call. An inactive currency cannot be flagged (409 \`inactive_cannot_be_default\`).`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -953,7 +1072,7 @@ markets
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { marketId, id, code, isDefault, position } = await promptForMissing(
+        const { marketId, id, active, code, isDefault, position } = await promptForMissing(
           _options,
           currenciesUpdateSpecs,
           _command,
@@ -967,6 +1086,9 @@ markets
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -1329,12 +1451,13 @@ const taxClassesListSpecs: PromptSpec[] = [
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. Exact whole-document equality on the jsonb: the value is a whole JSON document and has to match every key, so this is not a path or a containment query. Key order and whitespace are irrelevant — the comparison is semantic. A value that does not parse as JSON is refused with 400 `invalid_value` rather than answered with zero rows. Localized display names for storefronts and invoices, keyed by locale: a flat {locale: label} map, one level deep, string values. The key to write is the `locale_policy.write` from GET /markets/{id}/context, exactly as for a market's labels. Null means nothing is translated and `name` is all there is.", type: "string", required: false },
   { key: "rate", option: "--rate <rate>", name: "rate", description: "Exact match on `rate`. Tax rate in PERCENT, 0–100 (default 0) — 20 means 20 %, not 0.2. Whether a stored price already contains it is a separate question, answered per market by `pricing.tax_basis` on the context.", type: "number", required: false },
   { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Exact match on `is_default`. The class applied to a line that names none. At most one per market — a write flagging one takes it from the others. A market that stores GROSS prices and marks no default cannot break those prices back down into net, which is why readiness turns that combination from a warning into a blocking failure.", type: "boolean", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "Exact match on `active`. Whether this class is offered for new records (default true). An inactive class stays valid wherever it is already named — it keeps its rate, the context still lists it, and a product or shipping method pointing at it keeps resolving — but a picker for a new record lists `?active=true` and leaves it out. The default class is always active.", type: "boolean", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Sort position among this market's tax classes, ascending, default 0 — and the tie-break that picks a class when none is flagged default.", type: "integer", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the tax class was created on this market. Set by the database; never writable.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the tax class was last written. Set by the database on every update; never writable.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). Out of range is CLAMPED, not refused — ?limit=999 answers 200 with 200 rows, and `page.limit` says so.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). A negative offset is clamped to 0 rather than refused.", type: "integer", required: false },
-  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, name, labels, rate, is_default, position, created_at, updated_at.", type: "string", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, name, labels, rate, is_default, active, position, created_at, updated_at.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 markets
@@ -1352,12 +1475,18 @@ markets
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(
+    `--active [value]`,
+    `Exact match on \`active\`. Whether this class is offered for new records (default true). An inactive class stays valid wherever it is already named — it keeps its rate, the context still lists it, and a product or shipping method pointing at it keeps resolving — but a picker for a new record lists \`?active=true\` and leaves it out. The default class is always active.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--position <position>`, `Exact match on \`position\`. Sort position among this market's tax classes, ascending, default 0 — and the tie-break that picks a class when none is flagged default.`, parseInteger)
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the tax class was created on this market. Set by the database; never writable.`)
   .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the tax class was last written. Set by the database on every update; never writable.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200). Out of range is CLAMPED, not refused — ?limit=999 answers 200 with 200 rows, and \`page.limit\` says so.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). A negative offset is clamped to 0 rather than refused.`, parseInteger)
-  .option(`--order <order>`, `Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, name, labels, rate, is_default, position, created_at, updated_at.`)
+  .option(`--order <order>`, `Sort as 'column' | 'column.asc' | 'column.desc'. The direction is lower case, and the column has to exist: id, market_id, code, name, labels, rate, is_default, active, position, created_at, updated_at.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -1367,7 +1496,7 @@ markets
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { marketId, id, code, name, labels, rate, isDefault, position, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { marketId, id, code, name, labels, rate, isDefault, active, position, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           taxClassesListSpecs,
           _command,
@@ -1392,6 +1521,9 @@ markets
         }
         if (isDefault !== undefined) {
           _payload[`is_default`] = isDefault;
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (position !== undefined) {
           _payload[`position`] = position;
@@ -1436,7 +1568,8 @@ const taxClassesCreateSpecs: PromptSpec[] = [
   { key: "marketId", option: "--market-id <market-id>", name: "market_id", description: "The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
   { key: "code", option: "--code <code>", name: "code", description: "Tax class code, unique per market — the rate bucket a product or a shipping method is assigned to ('standard', 'reduced', 'zero'). Other apps name a class by THIS and by nothing else: there is no foreign key behind it and there cannot be (ADR-0055), which is why the delete route asks the shipping app what still points at the code before removing it.", type: "string", required: true },
   { key: "name", option: "--name <name>", name: "name", description: "Display name of the rate bucket, in the operator's own language.", type: "string", required: true },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this class as the market's default. The flag MOVES: every other tax class of the market loses it in the same call.", type: "boolean", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "False takes the class out of the choices for new records; records that already name it keep it. The default class cannot be deactivated (409 `default_must_stay_active`) — make another class the default first.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this class as the market's default. The flag MOVES: every other tax class of the market loses it in the same call. An inactive class cannot be flagged (409 `inactive_cannot_be_default`).", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized display names for storefronts and invoices, keyed by locale: a flat {locale: label} map, one level deep, string values. The key to write is the `locale_policy.write` from GET /markets/{id}/context, exactly as for a market's labels. Null means nothing is translated and `name` is all there is.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among this market's tax classes, ascending, default 0 — and the tie-break that picks a class when none is flagged default.", type: "integer", required: false },
   { key: "rate", option: "--rate <rate>", name: "rate", description: "Tax rate in PERCENT, 0–100 (default 0) — 20 means 20 %, not 0.2. Whether a stored price already contains it is a separate question, answered per market by `pricing.tax_basis` on the context.", type: "number", required: false },
@@ -1448,8 +1581,14 @@ markets
   .option(`--code <code>`, `Tax class code, unique per market — the rate bucket a product or a shipping method is assigned to ('standard', 'reduced', 'zero'). Other apps name a class by THIS and by nothing else: there is no foreign key behind it and there cannot be (ADR-0055), which is why the delete route asks the shipping app what still points at the code before removing it.`)
   .option(`--name <name>`, `Display name of the rate bucket, in the operator's own language.`)
   .option(
+    `--active [value]`,
+    `False takes the class out of the choices for new records; records that already name it keep it. The default class cannot be deactivated (409 \`default_must_stay_active\`) — make another class the default first.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
     `--is-default [value]`,
-    `Flag this class as the market's default. The flag MOVES: every other tax class of the market loses it in the same call.`,
+    `Flag this class as the market's default. The flag MOVES: every other tax class of the market loses it in the same call. An inactive class cannot be flagged (409 \`inactive_cannot_be_default\`).`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -1459,7 +1598,7 @@ markets
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { marketId, code, name, isDefault, labels, position, rate } = await promptForMissing(
+        const { marketId, code, name, active, isDefault, labels, position, rate } = await promptForMissing(
           _options,
           taxClassesCreateSpecs,
           _command,
@@ -1473,6 +1612,9 @@ markets
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -1578,8 +1720,9 @@ registerPromptSpecs(markets.commands.at(-1)!, taxClassesGetSpecs, { method: "get
 const taxClassesUpdateSpecs: PromptSpec[] = [
   { key: "marketId", option: "--market-id <market-id>", name: "market_id", description: "The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.", type: "string", required: true, resource: { listPath: "/markets", hasLimit: true } },
   { key: "id", option: "--id <id>", name: "id", description: "The tax class of a market, by its primary key. A uuid — this route does not resolve a code, so a segment that will not cast is a 400 before any row is read.", type: "string", required: true, resource: { listPath: "/markets/{market_id}/tax_classes", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False takes the class out of the choices for new records; records that already name it keep it. The default class cannot be deactivated (409 `default_must_stay_active`) — make another class the default first.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "Tax class code, unique per market — the rate bucket a product or a shipping method is assigned to ('standard', 'reduced', 'zero'). Other apps name a class by THIS and by nothing else: there is no foreign key behind it and there cannot be (ADR-0055), which is why the delete route asks the shipping app what still points at the code before removing it.", type: "string", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this class as the market's default. The flag MOVES: every other tax class of the market loses it in the same call.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Flag this class as the market's default. The flag MOVES: every other tax class of the market loses it in the same call. An inactive class cannot be flagged (409 `inactive_cannot_be_default`).", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized display names for storefronts and invoices, keyed by locale: a flat {locale: label} map, one level deep, string values. The key to write is the `locale_policy.write` from GET /markets/{id}/context, exactly as for a market's labels. Null means nothing is translated and `name` is all there is.", type: "object", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Display name of the rate bucket, in the operator's own language.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort position among this market's tax classes, ascending, default 0 — and the tie-break that picks a class when none is flagged default.", type: "integer", required: false },
@@ -1590,10 +1733,16 @@ markets
   .description(`Partial: omitted fields keep their value.`)
   .option(`--market-id <market-id>`, `The owning market. A uuid — this route does not accept a market code. An unknown market lists empty rather than 404.`)
   .option(`--id <id>`, `The tax class of a market, by its primary key. A uuid — this route does not resolve a code, so a segment that will not cast is a 400 before any row is read.`)
+  .option(
+    `--active [value]`,
+    `False takes the class out of the choices for new records; records that already name it keep it. The default class cannot be deactivated (409 \`default_must_stay_active\`) — make another class the default first.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--code <code>`, `Tax class code, unique per market — the rate bucket a product or a shipping method is assigned to ('standard', 'reduced', 'zero'). Other apps name a class by THIS and by nothing else: there is no foreign key behind it and there cannot be (ADR-0055), which is why the delete route asks the shipping app what still points at the code before removing it.`)
   .option(
     `--is-default [value]`,
-    `Flag this class as the market's default. The flag MOVES: every other tax class of the market loses it in the same call.`,
+    `Flag this class as the market's default. The flag MOVES: every other tax class of the market loses it in the same call. An inactive class cannot be flagged (409 \`inactive_cannot_be_default\`).`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -1604,7 +1753,7 @@ markets
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { marketId, id, code, isDefault, labels, name, position, rate } = await promptForMissing(
+        const { marketId, id, active, code, isDefault, labels, name, position, rate } = await promptForMissing(
           _options,
           taxClassesUpdateSpecs,
           _command,
@@ -1618,6 +1767,9 @@ markets
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;

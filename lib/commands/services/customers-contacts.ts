@@ -35,6 +35,9 @@ const customersContactEventsListSpecs: PromptSpec[] = [
   { key: "subject", option: "--subject <subject>", name: "subject", description: "Filter to rows whose `subject` is exactly this value. One line a person can scan in a timeline. Required for an activity; a decision row carries the app's own wording.", type: "string", required: false },
   { key: "actor", option: "--actor <actor>", name: "actor", description: "Filter to rows whose `actor` is exactly this value. Who logged the entry — free text as the client supplied it (operator id or email). Null for a row the app wrote itself.", type: "string", required: false },
   { key: "occurredAt", option: "--occurred-at <occurred-at>", name: "occurred_at", description: "Exact timestamp equality on when it happened — there is no range filter on this API. Use `order=occurred_at.desc` with limit/offset to walk a timeline.", type: "string", required: false },
+  { key: "dueAt", option: "--due-at <due-at>", name: "due_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When a follow-up is due. Null for an entry that is not a follow-up.", type: "string", required: false },
+  { key: "assignee", option: "--assignee <assignee>", name: "assignee", description: "Filter to rows whose `assignee` is exactly this value. Who does the follow-up, as the caller named them. Null when nobody was named.", type: "string", required: false },
+  { key: "doneAt", option: "--done-at <done-at>", name: "done_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When the follow-up was done — set by POST /customers/contact_events/{id}/done. Null while it is open.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When the row was written. Together with `occurred_at` this is what tells a late entry from a live one.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
@@ -52,6 +55,9 @@ customersContacts
   .option(`--subject <subject>`, `Filter to rows whose \`subject\` is exactly this value. One line a person can scan in a timeline. Required for an activity; a decision row carries the app's own wording.`)
   .option(`--actor <actor>`, `Filter to rows whose \`actor\` is exactly this value. Who logged the entry — free text as the client supplied it (operator id or email). Null for a row the app wrote itself.`)
   .option(`--occurred-at <occurred-at>`, `Exact timestamp equality on when it happened — there is no range filter on this API. Use \`order=occurred_at.desc\` with limit/offset to walk a timeline.`)
+  .option(`--due-at <due-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When a follow-up is due. Null for an entry that is not a follow-up.`)
+  .option(`--assignee <assignee>`, `Filter to rows whose \`assignee\` is exactly this value. Who does the follow-up, as the caller named them. Null when nobody was named.`)
+  .option(`--done-at <done-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the follow-up was done — set by POST /customers/contact_events/{id}/done. Null while it is open.`)
   .option(`--created-at <created-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the row was written. Together with \`occurred_at\` this is what tells a late entry from a live one.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
@@ -65,7 +71,7 @@ customersContacts
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, contactId, organizationId, kind, name, subject, actor, occurredAt, createdAt, limit, offset, order, filter } = await promptForMissing(
+        const { id, contactId, organizationId, kind, name, subject, actor, occurredAt, dueAt, assignee, doneAt, createdAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           customersContactEventsListSpecs,
           _command,
@@ -96,6 +102,15 @@ customersContacts
         }
         if (occurredAt !== undefined) {
           _payload[`occurred_at`] = occurredAt;
+        }
+        if (dueAt !== undefined) {
+          _payload[`due_at`] = dueAt;
+        }
+        if (assignee !== undefined) {
+          _payload[`assignee`] = assignee;
+        }
+        if (doneAt !== undefined) {
+          _payload[`done_at`] = doneAt;
         }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
@@ -173,19 +188,37 @@ const listSpecs: PromptSpec[] = [
   { key: "jobTitle", option: "--job-title <job-title>", name: "job_title", description: "Filter to rows whose `job_title` is exactly this value. What this person does at the company — free text on purpose, because it is a title and not a grant. The permission ladder is `role`; overloading a job title with authority silently un-grants everyone the day the ledger is enforced.", type: "string", required: false },
   { key: "role", option: "--role <role>", name: "role", description: "Filter by role. One of the tenant's own roles (GET /customers/roles) — a tenant that never edited the ledger has viewer, requester, buyer, approver, admin.", type: "string", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Filter by status.", type: "string", required: false, enum: ["invited","active","blocked"] },
-  { key: "orderApprovalMode", option: "--order-approval-mode <order-approval-mode>", name: "order_approval_mode", description: "Filter to rows whose `order_approval_mode` is exactly this value. How far `orders.approve` reaches for this person: 'none' (no order — the default), 'limited' (up to `order_approval_limit`) or 'unlimited'. Meaningful only with a role that grants `orders.approve`; the grant comes from the role, the reach from here.", type: "string", required: false, enum: ["none","limited","unlimited"] },
-  { key: "orderApprovalLimit", option: "--order-approval-limit <order-approval-limit>", name: "order_approval_limit", description: "Filter to rows whose `order_approval_limit` is exactly this value. Amount ceiling for this person, in the market's currency: with the `orders.approve` permission it is the most they may sign off. Set exactly when `order_approval_mode` is 'limited', and then above 0; null otherwise. An amount, never a grant — the grant comes from the role.", type: "number", required: false },
+  { key: "shopAccess", option: "--shop-access <shop-access>", name: "shop_access", description: "Filter to rows whose `shop_access` is exactly this value. Whether this person can buy in the shop, in one word: 'can_order', 'invited' (the invitation went out), 'pending' (an application nobody decided), 'blocked' (access revoked) or 'none' (never invited, or rejected). Derived from `status`, `registration_status` and `invited_at`, never written.", type: "string", required: false, enum: ["can_order","invited","pending","blocked","none"] },
+  { key: "invitedAt", option: "--invited-at <invited-at>", name: "invited_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When the last shop invitation was sent. Set by POST …/invite and …/reinvite; null while none went out.", type: "string", required: false },
+  { key: "accessBlockedReason", option: "--access-blocked-reason <access-blocked-reason>", name: "access_blocked_reason", description: "Filter to rows whose `access_blocked_reason` is exactly this value. Why this person's shop access was revoked, in the tenant's default language. Set by POST …/revoke-access, cleared by …/restore-access.", type: "string", required: false },
+  { key: "orderApprovalMode", option: "--order-approval-mode <order-approval-mode>", name: "order_approval_mode", description: "Filter to rows whose `order_approval_mode` is exactly this value. How far `orders.approve` is meant to reach for this person: 'none' (the default), 'limited' (up to `order_approval_limit`) or 'unlimited'. Meaningful only with a role that grants `orders.approve`; the grant comes from the role. Recorded for the merchant and for procurement's tiered sign-off; the orders app does not read it — whoever holds orders.approve approves or rejects a colleague's order of any amount.", type: "string", required: false, enum: ["none","limited","unlimited"] },
+  { key: "orderApprovalLimit", option: "--order-approval-limit <order-approval-limit>", name: "order_approval_limit", description: "Filter to rows whose `order_approval_limit` is exactly this value. Amount ceiling for this person, in the market's currency: with the `orders.approve` permission it is the most they are meant to sign off. Set exactly when `order_approval_mode` is 'limited', and then above 0; null otherwise. An amount, never a grant — the grant comes from the role. Recorded for the merchant and for procurement's tiered sign-off; the orders app does not read it — whoever holds orders.approve approves or rejects a colleague's order of any amount.", type: "number", required: false },
   { key: "registrationStatus", option: "--registration-status <registration-status>", name: "registration_status", description: "Filter by registration state. `pending` IS the approval inbox — there is no second entity for it.", type: "string", required: false, enum: ["pending","approved","rejected"] },
   { key: "registrationDecidedAt", option: "--registration-decided-at <registration-decided-at>", name: "registration_decided_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When a merchant approved or rejected the application. Null while nobody has decided.", type: "string", required: false },
   { key: "registrationDecidedBy", option: "--registration-decided-by <registration-decided-by>", name: "registration_decided_by", description: "Filter to rows whose `registration_decided_by` is exactly this value. Who decided — free text as the deciding client supplied it (an operator id or an email address), not a resolvable user reference.", type: "string", required: false },
   { key: "registrationReason", option: "--registration-reason <registration-reason>", name: "registration_reason", description: "Filter to rows whose `registration_reason` is exactly this value. Why the application was declined. Always recorded here; whether the APPLICANT is ever told it is the tenant's `registration_reason_disclosed` setting, because that is a legal decision and not a template one.", type: "string", required: false },
   { key: "locale", option: "--locale <locale>", name: "locale", description: "Filter to rows whose `locale` is exactly this value. The language this person is written to in — BCP 47, and one of the store's configured locales. Null falls back to the store default.", type: "string", required: false },
+  { key: "consentMarketing", option: "--consent-marketing <consent-marketing>", name: "consent_marketing", description: "Filter to rows whose `consent_marketing` is exactly this value. Whether this person may be sent marketing email. A MIRROR of the consent app (revenexx/marketing-consents): true while the person holds at least one confirmed email subscription there, written by this app from that app's events and its hourly sweep. What a contact segment for a campaign selects on. False until they say yes. Where the consent app is not installed, an import or an edit may still set it.", type: "boolean", required: false },
+  { key: "lifecycleStage", option: "--lifecycle-stage <lifecycle-stage>", name: "lifecycle_stage", description: "Filter to rows whose `lifecycle_stage` is exactly this value. Where this PERSON stands in the marketing and sales funnel — a separate axis from the company's stage and from shop access. One of the tenant's contact lifecycle stages (GET /customers/contact-lifecycle-stages), seeded subscriber, lead, mql, sql, opportunity, customer. Null for a person nobody placed in the funnel. Every change is announced as `contact.lifecycle_changed`.", type: "string", required: false },
+  { key: "lifecycleChangedAt", option: "--lifecycle-changed-at <lifecycle-changed-at>", name: "lifecycle_changed_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When `lifecycle_stage` last changed. Written by this app.", type: "string", required: false },
+  { key: "leadSource", option: "--lead-source <lead-source>", name: "lead_source", description: "Filter to rows whose `lead_source` is exactly this value. How the person first came: form, campaign, import, trade_fair, newsletter, referral or manual. Null when nobody said.", type: "string", required: false, enum: ["form","campaign","import","trade_fair","newsletter","referral","manual"] },
+  { key: "leadSourceRef", option: "--lead-source-ref <lead-source-ref>", name: "lead_source_ref", description: "Filter to rows whose `lead_source_ref` is exactly this value. What exactly they came through — a campaign id, `form:{form_id}:{submission_id}`, a fair code. Free text the caller supplied; a campaign counts a lead whose ref is its id.", type: "string", required: false },
+  { key: "ownerId", option: "--owner-id <owner-id>", name: "owner_id", description: "Filter to rows whose `owner_id` is exactly this value. The sales rep who owns this person, as the rep CODE of the sales-reps app. Set by POST /customers/contacts/{contact_id}/handover or an edit.", type: "string", required: false },
+  { key: "leadScore", option: "--lead-score <lead-score>", name: "lead_score", description: "Filter to rows whose `lead_score` is exactly this value. A score marketing writes — a whole number from 0, higher is warmer. Null until something scores the person; this app computes nothing.", type: "integer", required: false },
+  { key: "consentMarketingSyncedAt", option: "--consent-marketing-synced-at <consent-marketing-synced-at>", name: "consent_marketing_synced_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When the consent mirror last changed `consent_marketing`. Null while the mirror never touched the row.", type: "string", required: false },
   { key: "isPrimary", option: "--is-primary <is-primary>", name: "is_primary", description: "Filter to the primary contacts — with `organization_id`, the one person a merchant calls first at that company.", type: "boolean", required: false },
   { key: "externalUserId", option: "--external-user-id <external-user-id>", name: "external_user_id", description: "Find the contact behind a platform user id. What a storefront session resolves with when it has an auth id and needs the customer record.", type: "string", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Filter to rows whose `external_id` is exactly this value. Id of this person in the system the record came from — an ERP contact number, a CRM id. Nullable, because a contact created in the shop has none and never will, and unique per tenant where it is set, which is what lets a repeated import find the row it wrote last time instead of adding a second one. Distinct from `external_user_id`, which points at the platform account: this one points OUT of the platform.", type: "string", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When this row was last confirmed against its source. What a delta run asks for changes since, and what tells an operator that a feed has gone quiet — a row edited in the Cockpit does not touch it, because it says when the SOURCE was last seen, not when the row changed. Null for a row no source owns.", type: "string", required: false },
+  { key: "deletedAt", option: "--deleted-at <deleted-at>", name: "deleted_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When this person was moved to the trash, or null while it is live. A person in the trash is left out of every list unless `trashed` asks for it, cannot sign in or be signed in for, and is deleted for good by a second DELETE or by the daily purge.", type: "string", required: false },
+  { key: "deletedBy", option: "--deleted-by <deleted-by>", name: "deleted_by", description: "Filter to rows whose `deleted_by` is exactly this value. Who moved it to the trash, as the platform named them — an email, or `system`. Null while it is live.", type: "string", required: false },
+  { key: "deletedById", option: "--deleted-by-id <deleted-by-id>", name: "deleted_by_id", description: "Filter to rows whose `deleted_by_id` is exactly this value. The platform subject of whoever moved it to the trash. Kept beside the name so the person can be pseudonymised later without losing who acted. Null while it is live, and for the system.", type: "string", required: false },
+  { key: "trashBatch", option: "--trash-batch <trash-batch>", name: "trash_batch", description: "Filter to rows whose `trash_batch` is exactly this value. The trash action this record went with. An organization and the contacts it took along share one; a restore brings back exactly the records that carry it.", type: "string", required: false },
+  { key: "purgeAt", option: "--purge-at <purge-at>", name: "purge_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When the daily purge deletes it for good unless it is restored first: `deleted_at` plus the tenant's trash retention (90 days unless the tenant says otherwise). Null while it is live.", type: "string", required: false },
+  { key: "purgeBlockedReason", option: "--purge-blocked-reason <purge-blocked-reason>", name: "purge_blocked_reason", description: "Filter to rows whose `purge_blocked_reason` is exactly this value. Why the purge could not delete it for good — an open order, a quote, a price list another app still holds. Null when nothing stopped it. Cleared by a restore.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When this person record was created in this app.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When any column of this row last changed.", type: "string", required: false },
+  { key: "trashed", option: "--trashed <trashed>", name: "trashed", description: "Whether the trash is part of the answer. `exclude` (the default) leaves records in the trash out, `only` answers the trash itself, `include` both. A call acting for a buyer is always `exclude`.", type: "string", required: false, enum: ["exclude","only","include"] },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -204,13 +237,29 @@ customersContacts
   .option(`--job-title <job-title>`, `Filter to rows whose \`job_title\` is exactly this value. What this person does at the company — free text on purpose, because it is a title and not a grant. The permission ladder is \`role\`; overloading a job title with authority silently un-grants everyone the day the ledger is enforced.`)
   .option(`--role <role>`, `Filter by role. One of the tenant's own roles (GET /customers/roles) — a tenant that never edited the ledger has viewer, requester, buyer, approver, admin.`)
   .option(`--status <status>`, `Filter by status.`)
-  .option(`--order-approval-mode <order-approval-mode>`, `Filter to rows whose \`order_approval_mode\` is exactly this value. How far \`orders.approve\` reaches for this person: 'none' (no order — the default), 'limited' (up to \`order_approval_limit\`) or 'unlimited'. Meaningful only with a role that grants \`orders.approve\`; the grant comes from the role, the reach from here.`)
-  .option(`--order-approval-limit <order-approval-limit>`, `Filter to rows whose \`order_approval_limit\` is exactly this value. Amount ceiling for this person, in the market's currency: with the \`orders.approve\` permission it is the most they may sign off. Set exactly when \`order_approval_mode\` is 'limited', and then above 0; null otherwise. An amount, never a grant — the grant comes from the role.`, parseInteger)
+  .option(`--shop-access <shop-access>`, `Filter to rows whose \`shop_access\` is exactly this value. Whether this person can buy in the shop, in one word: 'can_order', 'invited' (the invitation went out), 'pending' (an application nobody decided), 'blocked' (access revoked) or 'none' (never invited, or rejected). Derived from \`status\`, \`registration_status\` and \`invited_at\`, never written.`)
+  .option(`--invited-at <invited-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the last shop invitation was sent. Set by POST …/invite and …/reinvite; null while none went out.`)
+  .option(`--access-blocked-reason <access-blocked-reason>`, `Filter to rows whose \`access_blocked_reason\` is exactly this value. Why this person's shop access was revoked, in the tenant's default language. Set by POST …/revoke-access, cleared by …/restore-access.`)
+  .option(`--order-approval-mode <order-approval-mode>`, `Filter to rows whose \`order_approval_mode\` is exactly this value. How far \`orders.approve\` is meant to reach for this person: 'none' (the default), 'limited' (up to \`order_approval_limit\`) or 'unlimited'. Meaningful only with a role that grants \`orders.approve\`; the grant comes from the role. Recorded for the merchant and for procurement's tiered sign-off; the orders app does not read it — whoever holds orders.approve approves or rejects a colleague's order of any amount.`)
+  .option(`--order-approval-limit <order-approval-limit>`, `Filter to rows whose \`order_approval_limit\` is exactly this value. Amount ceiling for this person, in the market's currency: with the \`orders.approve\` permission it is the most they are meant to sign off. Set exactly when \`order_approval_mode\` is 'limited', and then above 0; null otherwise. An amount, never a grant — the grant comes from the role. Recorded for the merchant and for procurement's tiered sign-off; the orders app does not read it — whoever holds orders.approve approves or rejects a colleague's order of any amount.`, parseInteger)
   .option(`--registration-status <registration-status>`, `Filter by registration state. \`pending\` IS the approval inbox — there is no second entity for it.`)
   .option(`--registration-decided-at <registration-decided-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When a merchant approved or rejected the application. Null while nobody has decided.`)
   .option(`--registration-decided-by <registration-decided-by>`, `Filter to rows whose \`registration_decided_by\` is exactly this value. Who decided — free text as the deciding client supplied it (an operator id or an email address), not a resolvable user reference.`)
   .option(`--registration-reason <registration-reason>`, `Filter to rows whose \`registration_reason\` is exactly this value. Why the application was declined. Always recorded here; whether the APPLICANT is ever told it is the tenant's \`registration_reason_disclosed\` setting, because that is a legal decision and not a template one.`)
   .option(`--locale <locale>`, `Filter to rows whose \`locale\` is exactly this value. The language this person is written to in — BCP 47, and one of the store's configured locales. Null falls back to the store default.`)
+  .option(
+    `--consent-marketing [value]`,
+    `Filter to rows whose \`consent_marketing\` is exactly this value. Whether this person may be sent marketing email. A MIRROR of the consent app (revenexx/marketing-consents): true while the person holds at least one confirmed email subscription there, written by this app from that app's events and its hourly sweep. What a contact segment for a campaign selects on. False until they say yes. Where the consent app is not installed, an import or an edit may still set it.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--lifecycle-stage <lifecycle-stage>`, `Filter to rows whose \`lifecycle_stage\` is exactly this value. Where this PERSON stands in the marketing and sales funnel — a separate axis from the company's stage and from shop access. One of the tenant's contact lifecycle stages (GET /customers/contact-lifecycle-stages), seeded subscriber, lead, mql, sql, opportunity, customer. Null for a person nobody placed in the funnel. Every change is announced as \`contact.lifecycle_changed\`.`)
+  .option(`--lifecycle-changed-at <lifecycle-changed-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When \`lifecycle_stage\` last changed. Written by this app.`)
+  .option(`--lead-source <lead-source>`, `Filter to rows whose \`lead_source\` is exactly this value. How the person first came: form, campaign, import, trade_fair, newsletter, referral or manual. Null when nobody said.`)
+  .option(`--lead-source-ref <lead-source-ref>`, `Filter to rows whose \`lead_source_ref\` is exactly this value. What exactly they came through — a campaign id, \`form:{form_id}:{submission_id}\`, a fair code. Free text the caller supplied; a campaign counts a lead whose ref is its id.`)
+  .option(`--owner-id <owner-id>`, `Filter to rows whose \`owner_id\` is exactly this value. The sales rep who owns this person, as the rep CODE of the sales-reps app. Set by POST /customers/contacts/{contact_id}/handover or an edit.`)
+  .option(`--lead-score <lead-score>`, `Filter to rows whose \`lead_score\` is exactly this value. A score marketing writes — a whole number from 0, higher is warmer. Null until something scores the person; this app computes nothing.`, parseInteger)
+  .option(`--consent-marketing-synced-at <consent-marketing-synced-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the consent mirror last changed \`consent_marketing\`. Null while the mirror never touched the row.`)
   .option(
     `--is-primary [value]`,
     `Filter to the primary contacts — with \`organization_id\`, the one person a merchant calls first at that company.`,
@@ -220,8 +269,15 @@ customersContacts
   .option(`--external-user-id <external-user-id>`, `Find the contact behind a platform user id. What a storefront session resolves with when it has an auth id and needs the customer record.`)
   .option(`--external-id <external-id>`, `Filter to rows whose \`external_id\` is exactly this value. Id of this person in the system the record came from — an ERP contact number, a CRM id. Nullable, because a contact created in the shop has none and never will, and unique per tenant where it is set, which is what lets a repeated import find the row it wrote last time instead of adding a second one. Distinct from \`external_user_id\`, which points at the platform account: this one points OUT of the platform.`)
   .option(`--source-synced-at <source-synced-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When this row was last confirmed against its source. What a delta run asks for changes since, and what tells an operator that a feed has gone quiet — a row edited in the Cockpit does not touch it, because it says when the SOURCE was last seen, not when the row changed. Null for a row no source owns.`)
+  .option(`--deleted-at <deleted-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When this person was moved to the trash, or null while it is live. A person in the trash is left out of every list unless \`trashed\` asks for it, cannot sign in or be signed in for, and is deleted for good by a second DELETE or by the daily purge.`)
+  .option(`--deleted-by <deleted-by>`, `Filter to rows whose \`deleted_by\` is exactly this value. Who moved it to the trash, as the platform named them — an email, or \`system\`. Null while it is live.`)
+  .option(`--deleted-by-id <deleted-by-id>`, `Filter to rows whose \`deleted_by_id\` is exactly this value. The platform subject of whoever moved it to the trash. Kept beside the name so the person can be pseudonymised later without losing who acted. Null while it is live, and for the system.`)
+  .option(`--trash-batch <trash-batch>`, `Filter to rows whose \`trash_batch\` is exactly this value. The trash action this record went with. An organization and the contacts it took along share one; a restore brings back exactly the records that carry it.`)
+  .option(`--purge-at <purge-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the daily purge deletes it for good unless it is restored first: \`deleted_at\` plus the tenant's trash retention (90 days unless the tenant says otherwise). Null while it is live.`)
+  .option(`--purge-blocked-reason <purge-blocked-reason>`, `Filter to rows whose \`purge_blocked_reason\` is exactly this value. Why the purge could not delete it for good — an open order, a quote, a price list another app still holds. Null when nothing stopped it. Cleared by a restore.`)
   .option(`--created-at <created-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When this person record was created in this app.`)
   .option(`--updated-at <updated-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When any column of this row last changed.`)
+  .option(`--trashed <trashed>`, `Whether the trash is part of the answer. \`exclude\` (the default) leaves records in the trash out, \`only\` answers the trash itself, \`include\` both. A call acting for a buyer is always \`exclude\`.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -234,7 +290,7 @@ customersContacts
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, organizationId, email, username, firstName, lastName, phone, jobTitle, role, status, orderApprovalMode, orderApprovalLimit, registrationStatus, registrationDecidedAt, registrationDecidedBy, registrationReason, locale, isPrimary, externalUserId, externalId, sourceSyncedAt, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { id, organizationId, email, username, firstName, lastName, phone, jobTitle, role, status, shopAccess, invitedAt, accessBlockedReason, orderApprovalMode, orderApprovalLimit, registrationStatus, registrationDecidedAt, registrationDecidedBy, registrationReason, locale, consentMarketing, lifecycleStage, lifecycleChangedAt, leadSource, leadSourceRef, ownerId, leadScore, consentMarketingSyncedAt, isPrimary, externalUserId, externalId, sourceSyncedAt, deletedAt, deletedBy, deletedById, trashBatch, purgeAt, purgeBlockedReason, createdAt, updatedAt, trashed, limit, offset, order, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -272,6 +328,15 @@ customersContacts
         if (status !== undefined) {
           _payload[`status`] = status;
         }
+        if (shopAccess !== undefined) {
+          _payload[`shop_access`] = shopAccess;
+        }
+        if (invitedAt !== undefined) {
+          _payload[`invited_at`] = invitedAt;
+        }
+        if (accessBlockedReason !== undefined) {
+          _payload[`access_blocked_reason`] = accessBlockedReason;
+        }
         if (orderApprovalMode !== undefined) {
           _payload[`order_approval_mode`] = orderApprovalMode;
         }
@@ -293,6 +358,30 @@ customersContacts
         if (locale !== undefined) {
           _payload[`locale`] = locale;
         }
+        if (consentMarketing !== undefined) {
+          _payload[`consent_marketing`] = consentMarketing;
+        }
+        if (lifecycleStage !== undefined) {
+          _payload[`lifecycle_stage`] = lifecycleStage;
+        }
+        if (lifecycleChangedAt !== undefined) {
+          _payload[`lifecycle_changed_at`] = lifecycleChangedAt;
+        }
+        if (leadSource !== undefined) {
+          _payload[`lead_source`] = leadSource;
+        }
+        if (leadSourceRef !== undefined) {
+          _payload[`lead_source_ref`] = leadSourceRef;
+        }
+        if (ownerId !== undefined) {
+          _payload[`owner_id`] = ownerId;
+        }
+        if (leadScore !== undefined) {
+          _payload[`lead_score`] = leadScore;
+        }
+        if (consentMarketingSyncedAt !== undefined) {
+          _payload[`consent_marketing_synced_at`] = consentMarketingSyncedAt;
+        }
         if (isPrimary !== undefined) {
           _payload[`is_primary`] = isPrimary;
         }
@@ -305,11 +394,32 @@ customersContacts
         if (sourceSyncedAt !== undefined) {
           _payload[`source_synced_at`] = sourceSyncedAt;
         }
+        if (deletedAt !== undefined) {
+          _payload[`deleted_at`] = deletedAt;
+        }
+        if (deletedBy !== undefined) {
+          _payload[`deleted_by`] = deletedBy;
+        }
+        if (deletedById !== undefined) {
+          _payload[`deleted_by_id`] = deletedById;
+        }
+        if (trashBatch !== undefined) {
+          _payload[`trash_batch`] = trashBatch;
+        }
+        if (purgeAt !== undefined) {
+          _payload[`purge_at`] = purgeAt;
+        }
+        if (purgeBlockedReason !== undefined) {
+          _payload[`purge_blocked_reason`] = purgeBlockedReason;
+        }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
         }
         if (updatedAt !== undefined) {
           _payload[`updated_at`] = updatedAt;
+        }
+        if (trashed !== undefined) {
+          _payload[`trashed`] = trashed;
         }
         if (limit !== undefined) {
           _payload[`limit`] = limit;
@@ -350,8 +460,8 @@ const createSpecs: PromptSpec[] = [
   { key: "jobTitle", option: "--job-title <job-title>", name: "job_title", description: "What this person does at the company — free text on purpose, because it is a title and not a grant. The permission ladder is `role`; overloading a job title with authority silently un-grants everyone the day the ledger is enforced.", type: "string", required: false },
   { key: "lastName", option: "--last-name <last-name>", name: "last_name", description: "Family name. Optional for the same reason.", type: "string", required: false },
   { key: "locale", option: "--locale <locale>", name: "locale", description: "The language this person is written to in — BCP 47, and one of the store's configured locales. Null falls back to the store default.", type: "string", required: false },
-  { key: "orderApprovalLimit", option: "--order-approval-limit <order-approval-limit>", name: "order_approval_limit", description: "Amount ceiling for this person, in the market's currency: with the `orders.approve` permission it is the most they may sign off. Set exactly when `order_approval_mode` is 'limited', and then above 0; null otherwise. An amount, never a grant — the grant comes from the role. Required with `order_approval_mode` 'limited' and refused with any other mode (400 `limited_mode_requires_limit` / `limit_requires_limited_mode`).", type: "number", required: false },
-  { key: "orderApprovalMode", option: "--order-approval-mode <order-approval-mode>", name: "order_approval_mode", description: "How far `orders.approve` reaches for this person: 'none' (no order — the default), 'limited' (up to `order_approval_limit`) or 'unlimited'. Meaningful only with a role that grants `orders.approve`; the grant comes from the role, the reach from here. Default 'none'. Leaving 'limited' without sending `order_approval_limit` clears the amount.", type: "string", required: false, enum: ["none","limited","unlimited"] },
+  { key: "orderApprovalLimit", option: "--order-approval-limit <order-approval-limit>", name: "order_approval_limit", description: "Amount ceiling for this person, in the market's currency: with the `orders.approve` permission it is the most they are meant to sign off. Set exactly when `order_approval_mode` is 'limited', and then above 0; null otherwise. An amount, never a grant — the grant comes from the role. Recorded for the merchant and for procurement's tiered sign-off; the orders app does not read it — whoever holds orders.approve approves or rejects a colleague's order of any amount. Required with `order_approval_mode` 'limited' and refused with any other mode (400 `limited_mode_requires_limit` / `limit_requires_limited_mode`).", type: "number", required: false },
+  { key: "orderApprovalMode", option: "--order-approval-mode <order-approval-mode>", name: "order_approval_mode", description: "How far `orders.approve` is meant to reach for this person: 'none' (the default), 'limited' (up to `order_approval_limit`) or 'unlimited'. Meaningful only with a role that grants `orders.approve`; the grant comes from the role. Recorded for the merchant and for procurement's tiered sign-off; the orders app does not read it — whoever holds orders.approve approves or rejects a colleague's order of any amount. Default 'none'. Leaving 'limited' without sending `order_approval_limit` clears the amount.", type: "string", required: false, enum: ["none","limited","unlimited"] },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The company this person belongs to. NULL is a legitimate state, not a defect: a standalone buyer with no company behind them. Deleting the organization sets this null and keeps the person. Membership is mirrored to the platform team.", type: "string", required: false },
   { key: "phone", option: "--phone <phone>", name: "phone", description: "Direct number of this person, as somebody typed it — free text, no format is enforced or normalized. E.164 is what an integration should send.", type: "string", required: false },
   { key: "registrationStatus", option: "--registration-status <registration-status>", name: "registration_status", description: "Where this person's own application stands: 'approved' (the default, and what an open store creates), 'pending' while a merchant has yet to decide, 'rejected' once they declined. Only the approve/reject routes move it; it is ignored on an ordinary update. On CREATE only, and only to file the contact as an application: 'pending' creates the platform user disabled and routes the contact through approve/reject.", type: "string", required: false, enum: ["pending","approved"] },
@@ -374,8 +484,8 @@ customersContacts
   .option(`--job-title <job-title>`, `What this person does at the company — free text on purpose, because it is a title and not a grant. The permission ladder is \`role\`; overloading a job title with authority silently un-grants everyone the day the ledger is enforced.`)
   .option(`--last-name <last-name>`, `Family name. Optional for the same reason.`)
   .option(`--locale <locale>`, `The language this person is written to in — BCP 47, and one of the store's configured locales. Null falls back to the store default.`)
-  .option(`--order-approval-limit <order-approval-limit>`, `Amount ceiling for this person, in the market's currency: with the \`orders.approve\` permission it is the most they may sign off. Set exactly when \`order_approval_mode\` is 'limited', and then above 0; null otherwise. An amount, never a grant — the grant comes from the role. Required with \`order_approval_mode\` 'limited' and refused with any other mode (400 \`limited_mode_requires_limit\` / \`limit_requires_limited_mode\`).`, parseInteger)
-  .option(`--order-approval-mode <order-approval-mode>`, `How far \`orders.approve\` reaches for this person: 'none' (no order — the default), 'limited' (up to \`order_approval_limit\`) or 'unlimited'. Meaningful only with a role that grants \`orders.approve\`; the grant comes from the role, the reach from here. Default 'none'. Leaving 'limited' without sending \`order_approval_limit\` clears the amount.`)
+  .option(`--order-approval-limit <order-approval-limit>`, `Amount ceiling for this person, in the market's currency: with the \`orders.approve\` permission it is the most they are meant to sign off. Set exactly when \`order_approval_mode\` is 'limited', and then above 0; null otherwise. An amount, never a grant — the grant comes from the role. Recorded for the merchant and for procurement's tiered sign-off; the orders app does not read it — whoever holds orders.approve approves or rejects a colleague's order of any amount. Required with \`order_approval_mode\` 'limited' and refused with any other mode (400 \`limited_mode_requires_limit\` / \`limit_requires_limited_mode\`).`, parseInteger)
+  .option(`--order-approval-mode <order-approval-mode>`, `How far \`orders.approve\` is meant to reach for this person: 'none' (the default), 'limited' (up to \`order_approval_limit\`) or 'unlimited'. Meaningful only with a role that grants \`orders.approve\`; the grant comes from the role. Recorded for the merchant and for procurement's tiered sign-off; the orders app does not read it — whoever holds orders.approve approves or rejects a colleague's order of any amount. Default 'none'. Leaving 'limited' without sending \`order_approval_limit\` clears the amount.`)
   .option(`--organization-id <organization-id>`, `The company this person belongs to. NULL is a legitimate state, not a defect: a standalone buyer with no company behind them. Deleting the organization sets this null and keeps the person. Membership is mirrored to the platform team.`)
   .option(`--phone <phone>`, `Direct number of this person, as somebody typed it — free text, no format is enforced or normalized. E.164 is what an integration should send.`)
   .option(`--registration-status <registration-status>`, `Where this person's own application stands: 'approved' (the default, and what an open store creates), 'pending' while a merchant has yet to decide, 'rejected' once they declined. Only the approve/reject routes move it; it is ignored on an ordinary update. On CREATE only, and only to file the contact as an application: 'pending' creates the platform user disabled and routes the contact through approve/reject.`)
@@ -458,6 +568,28 @@ customersContacts
     ),
   );
 registerPromptSpecs(customersContacts.commands.at(-1)!, createSpecs, { method: "post" });
+customersContacts
+  .command(`trash-empty`)
+  .description(`Deletes every contact in the trash for good, oldest first and at most fifty per call, each checked on its own exactly like a second DELETE. A contact something still blocks stays in the trash and is listed with the reason; the rest go. POST again while \`more\` is true. An administrator's right, never a buyer's.`)
+  .action(
+    actionRunner(
+      async () => {
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/contacts/trash/empty`;
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
 const eventsCreateSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person the entry is about. The organization is derived from them.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
   { key: "subject", option: "--subject <subject>", name: "subject", description: "One line a person can scan in a timeline. Required — an entry nobody can read at a glance is not worth the row.", type: "string", required: true },
@@ -568,19 +700,19 @@ customersContacts
 registerPromptSpecs(customersContacts.commands.at(-1)!, identitySpecs, { method: "post" });
 const inviteSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person being told. They are already a member — this only sends the message.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
-  { key: "url", option: "--url <url>", name: "url", description: "Where the invitation points — the storefront sign-in, normally. There is no token in it: the person is already a member and only has to sign in.", type: "string", required: true },
   { key: "invitedBy", option: "--invited-by <invited-by>", name: "invited_by", description: "Who did the inviting, as the recipient should read it. Absent, the company name is used — \"Beispiel GmbH invited you\" reads better than the name of somebody they have never heard of. Ignored on a buyer's call: the mail then names the buyer, because a name in the shop's own mail is a claim the shop makes.", type: "string", required: false },
+  { key: "url", option: "--url <url>", name: "url", description: "Where the invitation points — the storefront sign-in, normally. There is no token in it: the person is already a member and only has to sign in. Absent, the shop's first link origin is used, and `invited_at` is stamped either way.", type: "string", required: false },
 ];
 customersContacts
   .command(`invite`)
   .description(`Tell somebody they were added to a company. A deliberate act rather than a side effect of creating the contact: a merchant entering a colleague from a business card is not always ready to mail them, and "added" and "told" are different decisions. No secret travels — the platform team membership is confirmed as it is created, so there is nothing to accept; the message says "you are in, here is the way in". Unlike the auth mails, a failure here IS a failure: the identity service sends nothing for this occasion, so this is the only message the person gets.`)
   .option(`--contact-id <contact-id>`, `The person being told. They are already a member — this only sends the message.`)
-  .option(`--url <url>`, `Where the invitation points — the storefront sign-in, normally. There is no token in it: the person is already a member and only has to sign in.`)
   .option(`--invited-by <invited-by>`, `Who did the inviting, as the recipient should read it. Absent, the company name is used — "Beispiel GmbH invited you" reads better than the name of somebody they have never heard of. Ignored on a buyer's call: the mail then names the buyer, because a name in the shop's own mail is a claim the shop makes.`)
+  .option(`--url <url>`, `Where the invitation points — the storefront sign-in, normally. There is no token in it: the person is already a member and only has to sign in. Absent, the shop's first link origin is used, and \`invited_at\` is stamped either way.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { contactId, url, invitedBy } = await promptForMissing(
+        const { contactId, invitedBy, url } = await promptForMissing(
           _options,
           inviteSpecs,
           _command,
@@ -740,12 +872,154 @@ customersContacts
     ),
   );
 registerPromptSpecs(customersContacts.commands.at(-1)!, customersRegistrationsRejectSpecs, { method: "post" });
+const reinviteSpecs: PromptSpec[] = [
+  { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person whose invitation is sent again.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
+  { key: "url", option: "--url <url>", name: "url", description: "Where the invitation points. The first link origin when absent.", type: "string", required: false },
+];
+customersContacts
+  .command(`reinvite`)
+  .description(`For somebody who has not taken the first invitation up: the same mail again, and \`invited_at\` moves. Only while the shop access says 'invited'. Without a \`url\` the shop's first link origin is where it points.`)
+  .option(`--contact-id <contact-id>`, `The person whose invitation is sent again.`)
+  .option(`--url <url>`, `Where the invitation points. The first link origin when absent.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { contactId, url } = await promptForMissing(
+          _options,
+          reinviteSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/contacts/{contact_id}/reinvite`.replace(`{contact_id}`, contactId);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (url !== undefined) {
+          _payload[`url`] = url;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customersContacts.commands.at(-1)!, reinviteSpecs, { method: "post" });
+const restoreAccessSpecs: PromptSpec[] = [
+  { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person whose access comes back.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
+  { key: "actor", option: "--actor <actor>", name: "actor", description: "Who gave it back.", type: "string", required: false },
+];
+customersContacts
+  .command(`restore-access`)
+  .description(`The status returns to 'active', the reason is cleared, and the login is switched on again — unless the person is an application nobody decided, whose login stays off until approval.`)
+  .option(`--contact-id <contact-id>`, `The person whose access comes back.`)
+  .option(`--actor <actor>`, `Who gave it back.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { contactId, actor } = await promptForMissing(
+          _options,
+          restoreAccessSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/contacts/{contact_id}/restore-access`.replace(`{contact_id}`, contactId);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`actor`] = actor;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customersContacts.commands.at(-1)!, restoreAccessSpecs, { method: "post" });
+const revokeAccessSpecs: PromptSpec[] = [
+  { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person whose access is revoked.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
+  { key: "reason", option: "--reason <reason>", name: "reason", description: "Why the access is revoked. Stored as its words in the tenant's default language.", type: "string", required: true, enum: ["left_company","misuse","customer_request","other"] },
+  { key: "actor", option: "--actor <actor>", name: "actor", description: "Who revoked it.", type: "string", required: false },
+  { key: "note", option: "--note <note>", name: "note", description: "What happened, in the merchant's own words. Stored on the timeline entry.", type: "string", required: false },
+];
+customersContacts
+  .command(`revoke-access`)
+  .description(`The login is switched off, the status becomes 'blocked' with the reason, and \`contact.blocked\` is published — the same as an edit to 'blocked', with the reason on the record and on the timeline. The record, the role and the history stay.`)
+  .option(`--contact-id <contact-id>`, `The person whose access is revoked.`)
+  .option(`--reason <reason>`, `Why the access is revoked. Stored as its words in the tenant's default language.`)
+  .option(`--actor <actor>`, `Who revoked it.`)
+  .option(`--note <note>`, `What happened, in the merchant's own words. Stored on the timeline entry.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { contactId, reason, actor, note } = await promptForMissing(
+          _options,
+          revokeAccessSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/contacts/{contact_id}/revoke-access`.replace(`{contact_id}`, contactId);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`actor`] = actor;
+        }
+        if (note !== undefined) {
+          _payload[`note`] = note;
+        }
+        if (reason !== undefined) {
+          _payload[`reason`] = reason;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customersContacts.commands.at(-1)!, revokeAccessSpecs, { method: "post" });
 const deleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The contact to delete.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
 ];
 customersContacts
   .command(`delete`)
-  .description(`A contact is a PERSON, and the unit that logs in: one platform user, one email address, one role held inside its organization. A contact without an organization is a standalone buyer rather than an error, and two people at the same company are two contacts sharing an \`organization_id\`. Removes the person and their platform login, so they can no longer sign in anywhere. Their company keeps trading; use \`status: "blocked"\` instead when the intent is to stop one person without erasing what they did. Deleting one takes every \`contact_events\` and \`addresses\` row that points at it with it — the foreign keys decide, not this route.`)
+  .description(`A contact is a PERSON, and the unit that logs in: one platform user, one email address, one role held inside its organization. A contact without an organization is a standalone buyer rather than an error, and two people at the same company are two contacts sharing an \`organization_id\`. The first DELETE moves the contact to the trash: it keeps everything that points at it, leaves every list, and can no longer sign in or be signed in for. The person's platform login is switched off and every session ended, but kept — so a restore needs no new invitation. A second DELETE on a contact already in the trash deletes it for good, with its platform user — refused while another app still holds an open order, quote, purchase request or approval, an enabled punchout account, a punchout account naming the person as its fallback contact, a customer price list, an active cost centre or a personal voucher. An app that does not answer blocks too. The daily purge runs the same delete once the tenant's trash retention has run out.`)
   .option(`--id <id>`, `The contact to delete.`)
   .action(
     actionRunner(
@@ -814,8 +1088,8 @@ const updateSpecs: PromptSpec[] = [
   { key: "jobTitle", option: "--job-title <job-title>", name: "job_title", description: "What this person does at the company — free text on purpose, because it is a title and not a grant. The permission ladder is `role`; overloading a job title with authority silently un-grants everyone the day the ledger is enforced.", type: "string", required: false },
   { key: "lastName", option: "--last-name <last-name>", name: "last_name", description: "Family name. Optional for the same reason.", type: "string", required: false },
   { key: "locale", option: "--locale <locale>", name: "locale", description: "The language this person is written to in — BCP 47, and one of the store's configured locales. Null falls back to the store default.", type: "string", required: false },
-  { key: "orderApprovalLimit", option: "--order-approval-limit <order-approval-limit>", name: "order_approval_limit", description: "Amount ceiling for this person, in the market's currency: with the `orders.approve` permission it is the most they may sign off. Set exactly when `order_approval_mode` is 'limited', and then above 0; null otherwise. An amount, never a grant — the grant comes from the role. Required with `order_approval_mode` 'limited' and refused with any other mode (400 `limited_mode_requires_limit` / `limit_requires_limited_mode`).", type: "number", required: false },
-  { key: "orderApprovalMode", option: "--order-approval-mode <order-approval-mode>", name: "order_approval_mode", description: "How far `orders.approve` reaches for this person: 'none' (no order — the default), 'limited' (up to `order_approval_limit`) or 'unlimited'. Meaningful only with a role that grants `orders.approve`; the grant comes from the role, the reach from here. Default 'none'. Leaving 'limited' without sending `order_approval_limit` clears the amount.", type: "string", required: false, enum: ["none","limited","unlimited"] },
+  { key: "orderApprovalLimit", option: "--order-approval-limit <order-approval-limit>", name: "order_approval_limit", description: "Amount ceiling for this person, in the market's currency: with the `orders.approve` permission it is the most they are meant to sign off. Set exactly when `order_approval_mode` is 'limited', and then above 0; null otherwise. An amount, never a grant — the grant comes from the role. Recorded for the merchant and for procurement's tiered sign-off; the orders app does not read it — whoever holds orders.approve approves or rejects a colleague's order of any amount. Required with `order_approval_mode` 'limited' and refused with any other mode (400 `limited_mode_requires_limit` / `limit_requires_limited_mode`).", type: "number", required: false },
+  { key: "orderApprovalMode", option: "--order-approval-mode <order-approval-mode>", name: "order_approval_mode", description: "How far `orders.approve` is meant to reach for this person: 'none' (the default), 'limited' (up to `order_approval_limit`) or 'unlimited'. Meaningful only with a role that grants `orders.approve`; the grant comes from the role. Recorded for the merchant and for procurement's tiered sign-off; the orders app does not read it — whoever holds orders.approve approves or rejects a colleague's order of any amount. Default 'none'. Leaving 'limited' without sending `order_approval_limit` clears the amount.", type: "string", required: false, enum: ["none","limited","unlimited"] },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The company this person belongs to. NULL is a legitimate state, not a defect: a standalone buyer with no company behind them. Deleting the organization sets this null and keeps the person. Membership is mirrored to the platform team.", type: "string", required: false },
   { key: "phone", option: "--phone <phone>", name: "phone", description: "Direct number of this person, as somebody typed it — free text, no format is enforced or normalized. E.164 is what an integration should send.", type: "string", required: false },
   { key: "role", option: "--role <role>", name: "role", description: "The person's role INSIDE its organization, and the only thing permissions are derived from. One of the tenant's own roles (GET /customers/roles); a tenant that never edited the ledger has viewer, requester, buyer, approver, admin. Also the team role on the platform mirror. There is no global role — the same person in two companies is two contacts. A tenant that never edited the ledger has viewer, requester, buyer, approver, admin; a create without a role gets the one flagged as default, and a role the tenant does not keep is a 400.", type: "string", required: false },
@@ -837,8 +1111,8 @@ customersContacts
   .option(`--job-title <job-title>`, `What this person does at the company — free text on purpose, because it is a title and not a grant. The permission ladder is \`role\`; overloading a job title with authority silently un-grants everyone the day the ledger is enforced.`)
   .option(`--last-name <last-name>`, `Family name. Optional for the same reason.`)
   .option(`--locale <locale>`, `The language this person is written to in — BCP 47, and one of the store's configured locales. Null falls back to the store default.`)
-  .option(`--order-approval-limit <order-approval-limit>`, `Amount ceiling for this person, in the market's currency: with the \`orders.approve\` permission it is the most they may sign off. Set exactly when \`order_approval_mode\` is 'limited', and then above 0; null otherwise. An amount, never a grant — the grant comes from the role. Required with \`order_approval_mode\` 'limited' and refused with any other mode (400 \`limited_mode_requires_limit\` / \`limit_requires_limited_mode\`).`, parseInteger)
-  .option(`--order-approval-mode <order-approval-mode>`, `How far \`orders.approve\` reaches for this person: 'none' (no order — the default), 'limited' (up to \`order_approval_limit\`) or 'unlimited'. Meaningful only with a role that grants \`orders.approve\`; the grant comes from the role, the reach from here. Default 'none'. Leaving 'limited' without sending \`order_approval_limit\` clears the amount.`)
+  .option(`--order-approval-limit <order-approval-limit>`, `Amount ceiling for this person, in the market's currency: with the \`orders.approve\` permission it is the most they are meant to sign off. Set exactly when \`order_approval_mode\` is 'limited', and then above 0; null otherwise. An amount, never a grant — the grant comes from the role. Recorded for the merchant and for procurement's tiered sign-off; the orders app does not read it — whoever holds orders.approve approves or rejects a colleague's order of any amount. Required with \`order_approval_mode\` 'limited' and refused with any other mode (400 \`limited_mode_requires_limit\` / \`limit_requires_limited_mode\`).`, parseInteger)
+  .option(`--order-approval-mode <order-approval-mode>`, `How far \`orders.approve\` is meant to reach for this person: 'none' (the default), 'limited' (up to \`order_approval_limit\`) or 'unlimited'. Meaningful only with a role that grants \`orders.approve\`; the grant comes from the role. Recorded for the merchant and for procurement's tiered sign-off; the orders app does not read it — whoever holds orders.approve approves or rejects a colleague's order of any amount. Default 'none'. Leaving 'limited' without sending \`order_approval_limit\` clears the amount.`)
   .option(`--organization-id <organization-id>`, `The company this person belongs to. NULL is a legitimate state, not a defect: a standalone buyer with no company behind them. Deleting the organization sets this null and keeps the person. Membership is mirrored to the platform team.`)
   .option(`--phone <phone>`, `Direct number of this person, as somebody typed it — free text, no format is enforced or normalized. E.164 is what an integration should send.`)
   .option(`--role <role>`, `The person's role INSIDE its organization, and the only thing permissions are derived from. One of the tenant's own roles (GET /customers/roles); a tenant that never edited the ledger has viewer, requester, buyer, approver, admin. Also the team role on the platform mirror. There is no global role — the same person in two companies is two contacts. A tenant that never edited the ledger has viewer, requester, buyer, approver, admin; a create without a role gets the one flagged as default, and a role the tenant does not keep is a 400.`)
@@ -914,6 +1188,70 @@ customersContacts
     ),
   );
 registerPromptSpecs(customersContacts.commands.at(-1)!, updateSpecs, { method: "put" });
+const eraseSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The person to erase.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
+];
+customersContacts
+  .command(`erase`)
+  .description(`„Personendaten löschen“ — a person's erasure request under Art. 17 GDPR. It skips the trash: the contact is deleted for good right away, in the trash or not, with its platform user, its addresses and its timeline. The same checks as a final delete apply, because an open order keeps its buyer until it is closed (Art. 17(3)(b)); documents already issued keep their own snapshot in the apps that hold them. Pseudonymising the person in the record history is not done by this call yet — \`history_pseudonymised\` says so.`)
+  .option(`--id <id>`, `The person to erase.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          eraseSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/contacts/{id}/erase`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customersContacts.commands.at(-1)!, eraseSpecs, { method: "post" });
+const restoreSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The contact to restore.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
+];
+customersContacts
+  .command(`restore`)
+  .description(`Brings a contact back from the trash and switches its login back on unless the record itself says no (blocked, or an undecided registration). Refused while its organization is in the trash: restoring the organization brings back the contacts that went with it. Needs the same right as the delete.`)
+  .option(`--id <id>`, `The contact to restore.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          restoreSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/contacts/{id}/restore`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customersContacts.commands.at(-1)!, restoreSpecs, { method: "post" });
 const customersOrganizationsEventsCreateSpecs: PromptSpec[] = [
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The company the entry is filed under. The `contact_id` in the body has to belong to it.", type: "string", required: true },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person dealt with. Must be a contact of this organization.", type: "string", required: true },

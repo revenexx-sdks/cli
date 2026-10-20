@@ -34,6 +34,7 @@ const productsAssetFamiliesListSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "Exact match on `code`. The asset family's stable identifier — a class of media with one shared shape. Unique per tenant.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. What the asset family is called, per language tag. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "namingConvention", option: "--naming-convention <naming-convention>", name: "naming_convention", description: "Exact match on `naming_convention`. How a file of this family is named, so an import can bind a file to a product without a mapping table. `source` is the product value the file name is built from, `pattern` how it is assembled, `allowed_extensions` what may be uploaded. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "Exact match on `active`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the row was created. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the row was last written. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -52,6 +53,12 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--code <code>`, `Exact match on \`code\`. The asset family's stable identifier — a class of media with one shared shape. Unique per tenant.`)
   .option(`--labels <labels>`, `Exact match on \`labels\`. What the asset family is called, per language tag. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--naming-convention <naming-convention>`, `Exact match on \`naming_convention\`. How a file of this family is named, so an import can bind a file to a product without a mapping table. \`source\` is the product value the file name is built from, \`pattern\` how it is assembled, \`allowed_extensions\` what may be uploaded. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(
+    `--active [value]`,
+    `Exact match on \`active\`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the row was created. Server-set — it is not part of any request body.`)
   .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the row was last written. Server-set — it is not part of any request body.`)
   .option(
@@ -63,7 +70,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, code, labels, namingConvention, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, code, labels, namingConvention, active, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsAssetFamiliesListSpecs,
           _command,
@@ -91,6 +98,9 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         }
         if (namingConvention !== undefined) {
           _payload[`naming_convention`] = namingConvention;
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
@@ -121,6 +131,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAssetFamiliesListSpecs, { method: "get" });
 const productsAssetFamiliesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The asset family's stable identifier — a class of media with one shared shape. Unique per tenant.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What the asset family is called, per language tag.", type: "object", required: false },
   { key: "namingConvention", option: "--naming-convention <naming-convention>", name: "naming_convention", description: "How a file of this family is named, so an import can bind a file to a product without a mapping table. `source` is the product value the file name is built from, `pattern` how it is assembled, `allowed_extensions` what may be uploaded.", type: "object", required: false },
 ];
@@ -132,12 +143,18 @@ A class of media with one shared shape — packshots, datasheets, line drawings.
 
 \`code\` is the only column the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
   .option(`--code <code>`, `The asset family's stable identifier — a class of media with one shared shape. Unique per tenant.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--labels <labels>`, `What the asset family is called, per language tag.`)
   .option(`--naming-convention <naming-convention>`, `How a file of this family is named, so an import can bind a file to a product without a mapping table. \`source\` is the product value the file name is built from, \`pattern\` how it is assembled, \`allowed_extensions\` what may be uploaded.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, labels, namingConvention } = await promptForMissing(
+        const { code, active, labels, namingConvention } = await promptForMissing(
           _options,
           productsAssetFamiliesCreateSpecs,
           _command,
@@ -151,6 +168,9 @@ A class of media with one shared shape — packshots, datasheets, line drawings.
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -252,6 +272,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAssetFamiliesGetSpecs, { method: "get" });
 const productsAssetFamiliesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `asset_families` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/asset_families`. An id no asset familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/asset_families", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The asset family's stable identifier — a class of media with one shared shape. Unique per tenant.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What the asset family is called, per language tag.", type: "object", required: false },
   { key: "namingConvention", option: "--naming-convention <naming-convention>", name: "naming_convention", description: "How a file of this family is named, so an import can bind a file to a product without a mapping table. `source` is the product value the file name is built from, `pattern` how it is assembled, `allowed_extensions` what may be uploaded.", type: "object", required: false },
@@ -264,13 +285,19 @@ A class of media with one shared shape — packshots, datasheets, line drawings.
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
   .option(`--id <id>`, `The \`asset_families\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/asset_families\`. An id no asset familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--code <code>`, `The asset family's stable identifier — a class of media with one shared shape. Unique per tenant.`)
   .option(`--labels <labels>`, `What the asset family is called, per language tag.`)
   .option(`--naming-convention <naming-convention>`, `How a file of this family is named, so an import can bind a file to a product without a mapping table. \`source\` is the product value the file name is built from, \`pattern\` how it is assembled, \`allowed_extensions\` what may be uploaded.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, labels, namingConvention } = await promptForMissing(
+        const { id, active, code, labels, namingConvention } = await promptForMissing(
           _options,
           productsAssetFamiliesUpdateSpecs,
           _command,
@@ -284,6 +311,9 @@ A body that names nothing writable is refused with 400 rather than answered as a
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -317,6 +347,7 @@ const productsAssociationTypesListSpecs: PromptSpec[] = [
   { key: "isTwoWay", option: "--is-two-way <is-two-way>", name: "is_two_way", description: "Exact match on `is_two_way`. Declares the relation symmetric — an accessory of A is an accessory of B. It is a declaration a client reads: this app stores one row per direction and does not create the mirror for you.", type: "boolean", required: false },
   { key: "isQuantified", option: "--is-quantified <is-quantified>", name: "is_quantified", description: "Exact match on `is_quantified`. Declares that a relation of this kind carries a quantity — a bundle, a bill of materials. `product_associations.quantity` is where that number goes, and it is meaningless without this flag.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. What the relation is called in a product form, per language tag. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "Exact match on `active`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the row was created. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the row was last written. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -346,6 +377,12 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       value === undefined ? true : parseBool(value),
   )
   .option(`--labels <labels>`, `Exact match on \`labels\`. What the relation is called in a product form, per language tag. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(
+    `--active [value]`,
+    `Exact match on \`active\`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the row was created. Server-set — it is not part of any request body.`)
   .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the row was last written. Server-set — it is not part of any request body.`)
   .option(
@@ -357,7 +394,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, code, isTwoWay, isQuantified, labels, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, code, isTwoWay, isQuantified, labels, active, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsAssociationTypesListSpecs,
           _command,
@@ -389,6 +426,9 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         if (labels !== undefined) {
           _payload[`labels`] = labels;
         }
+        if (active !== undefined) {
+          _payload[`active`] = active;
+        }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
         }
@@ -418,6 +458,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAssociationTypesListSpecs, { method: "get" });
 const productsAssociationTypesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The kind of relation between two products. Unique per tenant.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "isQuantified", option: "--is-quantified <is-quantified>", name: "is_quantified", description: "Declares that a relation of this kind carries a quantity — a bundle, a bill of materials. `product_associations.quantity` is where that number goes, and it is meaningless without this flag.", type: "boolean", required: false },
   { key: "isTwoWay", option: "--is-two-way <is-two-way>", name: "is_two_way", description: "Declares the relation symmetric — an accessory of A is an accessory of B. It is a declaration a client reads: this app stores one row per direction and does not create the mirror for you.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What the relation is called in a product form, per language tag.", type: "object", required: false },
@@ -430,6 +471,12 @@ The KIND of relation two products can have — cross-sell, accessory, spare part
 
 \`code\` is the only column the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
   .option(`--code <code>`, `The kind of relation between two products. Unique per tenant.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(
     `--is-quantified [value]`,
     `Declares that a relation of this kind carries a quantity — a bundle, a bill of materials. \`product_associations.quantity\` is where that number goes, and it is meaningless without this flag.`,
@@ -446,7 +493,7 @@ The KIND of relation two products can have — cross-sell, accessory, spare part
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, isQuantified, isTwoWay, labels } = await promptForMissing(
+        const { code, active, isQuantified, isTwoWay, labels } = await promptForMissing(
           _options,
           productsAssociationTypesCreateSpecs,
           _command,
@@ -460,6 +507,9 @@ The KIND of relation two products can have — cross-sell, accessory, spare part
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -564,6 +614,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAssociationTypesGetSpecs, { method: "get" });
 const productsAssociationTypesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `association_types` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/association_types`. An id no association type of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/association_types", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The kind of relation between two products. Unique per tenant.", type: "string", required: false },
   { key: "isQuantified", option: "--is-quantified <is-quantified>", name: "is_quantified", description: "Declares that a relation of this kind carries a quantity — a bundle, a bill of materials. `product_associations.quantity` is where that number goes, and it is meaningless without this flag.", type: "boolean", required: false },
   { key: "isTwoWay", option: "--is-two-way <is-two-way>", name: "is_two_way", description: "Declares the relation symmetric — an accessory of A is an accessory of B. It is a declaration a client reads: this app stores one row per direction and does not create the mirror for you.", type: "boolean", required: false },
@@ -577,6 +628,12 @@ The KIND of relation two products can have — cross-sell, accessory, spare part
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
   .option(`--id <id>`, `The \`association_types\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/association_types\`. An id no association type of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--code <code>`, `The kind of relation between two products. Unique per tenant.`)
   .option(
     `--is-quantified [value]`,
@@ -594,7 +651,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, isQuantified, isTwoWay, labels } = await promptForMissing(
+        const { id, active, code, isQuantified, isTwoWay, labels } = await promptForMissing(
           _options,
           productsAssociationTypesUpdateSpecs,
           _command,
@@ -608,6 +665,9 @@ A body that names nothing writable is refused with 400 rather than answered as a
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -708,6 +768,7 @@ const productsAttributeGroupsListSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "Exact match on `code`. The group's stable identifier, and the value an `AttributeField` carries as its `group` — a SECTION of the product form, not a label. Unique per tenant and the key an import joins on.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Where this section sits in a form, ascending. Sections that tie keep the order the database returns them in.", type: "integer", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. The section heading a person sees, keyed by language tag. The code is never shown to an operator; a tag nobody translated falls back to the next filled one, then to English. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "Exact match on `active`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact match on `external_id`. The key this section has in the system that owns the property model — the block a supplier's data sheet groups its fields under. Unique per tenant where set, and null for a section somebody created here to tidy up a form, which is most of them.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact match on `external_refs`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact match on `source_synced_at`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
@@ -731,6 +792,12 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--code <code>`, `Exact match on \`code\`. The group's stable identifier, and the value an \`AttributeField\` carries as its \`group\` — a SECTION of the product form, not a label. Unique per tenant and the key an import joins on.`)
   .option(`--position <position>`, `Exact match on \`position\`. Where this section sits in a form, ascending. Sections that tie keep the order the database returns them in.`, parseInteger)
   .option(`--labels <labels>`, `Exact match on \`labels\`. The section heading a person sees, keyed by language tag. The code is never shown to an operator; a tag nobody translated falls back to the next filled one, then to English. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(
+    `--active [value]`,
+    `Exact match on \`active\`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--external-id <external-id>`, `Exact match on \`external_id\`. The key this section has in the system that owns the property model — the block a supplier's data sheet groups its fields under. Unique per tenant where set, and null for a section somebody created here to tidy up a form, which is most of them.`)
   .option(`--external-refs <external-refs>`, `Exact match on \`external_refs\`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--source-synced-at <source-synced-at>`, `Exact match on \`source_synced_at\`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
@@ -747,7 +814,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, code, position, labels, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, code, position, labels, active, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsAttributeGroupsListSpecs,
           _command,
@@ -775,6 +842,9 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         }
         if (labels !== undefined) {
           _payload[`labels`] = labels;
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (externalId !== undefined) {
           _payload[`external_id`] = externalId;
@@ -820,6 +890,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeGroupsListSpecs, { method: "get" });
 const productsAttributeGroupsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The group's stable identifier, and the value an `AttributeField` carries as its `group` — a SECTION of the product form, not a label. Unique per tenant and the key an import joins on.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this section has in the system that owns the property model — the block a supplier's data sheet groups its fields under. Unique per tenant where set, and null for a section somebody created here to tidy up a form, which is most of them.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "The section heading a person sees, keyed by language tag. The code is never shown to an operator; a tag nobody translated falls back to the next filled one, then to English.", type: "object", required: false },
@@ -836,6 +907,12 @@ An attribute group is a SECTION of a product form — "Technical attributes", "L
 
 \`code\` is the only column the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
   .option(`--code <code>`, `The group's stable identifier, and the value an \`AttributeField\` carries as its \`group\` — a SECTION of the product form, not a label. Unique per tenant and the key an import joins on.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--external-id <external-id>`, `The key this section has in the system that owns the property model — the block a supplier's data sheet groups its fields under. Unique per tenant where set, and null for a section somebody created here to tidy up a form, which is most of them.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--labels <labels>`, `The section heading a person sees, keyed by language tag. The code is never shown to an operator; a tag nobody translated falls back to the next filled one, then to English.`)
@@ -846,7 +923,7 @@ An attribute group is a SECTION of a product form — "Technical attributes", "L
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt } = await promptForMissing(
+        const { code, active, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsAttributeGroupsCreateSpecs,
           _command,
@@ -860,6 +937,9 @@ An attribute group is a SECTION of a product form — "Technical attributes", "L
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -976,6 +1056,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeGroupsGetSpecs, { method: "get" });
 const productsAttributeGroupsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `attribute_groups` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/attribute_groups`. An id no attribute group of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/attribute_groups", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The group's stable identifier, and the value an `AttributeField` carries as its `group` — a SECTION of the product form, not a label. Unique per tenant and the key an import joins on.", type: "string", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this section has in the system that owns the property model — the block a supplier's data sheet groups its fields under. Unique per tenant where set, and null for a section somebody created here to tidy up a form, which is most of them.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
@@ -993,6 +1074,12 @@ An attribute group is a SECTION of a product form — "Technical attributes", "L
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
   .option(`--id <id>`, `The \`attribute_groups\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/attribute_groups\`. An id no attribute group of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--code <code>`, `The group's stable identifier, and the value an \`AttributeField\` carries as its \`group\` — a SECTION of the product form, not a label. Unique per tenant and the key an import joins on.`)
   .option(`--external-id <external-id>`, `The key this section has in the system that owns the property model — the block a supplier's data sheet groups its fields under. Unique per tenant where set, and null for a section somebody created here to tidy up a form, which is most of them.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
@@ -1004,7 +1091,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt } = await promptForMissing(
+        const { id, active, code, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsAttributeGroupsUpdateSpecs,
           _command,
@@ -1018,6 +1105,9 @@ A body that names nothing writable is refused with 400 rather than answered as a
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -1067,6 +1157,7 @@ const productsAttributeOptionsListSpecs: PromptSpec[] = [
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Order in the dropdown, ascending. Options that tie keep the order the database returns them in, so give every option a position if the order matters.", type: "integer", required: false },
   { key: "swatch", option: "--swatch <swatch>", name: "swatch", description: "Exact match on `swatch`. A colour or texture chip for the picker. Null for an option that is not visual. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. What the option is called, per language tag. Two tenants may label the same code differently; only the code is ever written into a record. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "Exact match on `active`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact match on `external_id`. The key this option has in the system that owns the value list — an ETIM value, an eCl@ss value key. Unique per tenant where set. `code` is what a product stores when the option is picked; this is what the source calls the same choice, and holding the two apart is what stops a re-import founding a second option that means the same thing.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact match on `external_refs`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact match on `source_synced_at`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
@@ -1092,6 +1183,12 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--position <position>`, `Exact match on \`position\`. Order in the dropdown, ascending. Options that tie keep the order the database returns them in, so give every option a position if the order matters.`, parseInteger)
   .option(`--swatch <swatch>`, `Exact match on \`swatch\`. A colour or texture chip for the picker. Null for an option that is not visual. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--labels <labels>`, `Exact match on \`labels\`. What the option is called, per language tag. Two tenants may label the same code differently; only the code is ever written into a record. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(
+    `--active [value]`,
+    `Exact match on \`active\`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--external-id <external-id>`, `Exact match on \`external_id\`. The key this option has in the system that owns the value list — an ETIM value, an eCl@ss value key. Unique per tenant where set. \`code\` is what a product stores when the option is picked; this is what the source calls the same choice, and holding the two apart is what stops a re-import founding a second option that means the same thing.`)
   .option(`--external-refs <external-refs>`, `Exact match on \`external_refs\`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--source-synced-at <source-synced-at>`, `Exact match on \`source_synced_at\`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
@@ -1108,7 +1205,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, attributeId, code, position, swatch, labels, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, attributeId, code, position, swatch, labels, active, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsAttributeOptionsListSpecs,
           _command,
@@ -1142,6 +1239,9 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         }
         if (labels !== undefined) {
           _payload[`labels`] = labels;
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (externalId !== undefined) {
           _payload[`external_id`] = externalId;
@@ -1188,6 +1288,7 @@ registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeOptions
 const productsAttributeOptionsCreateSpecs: PromptSpec[] = [
   { key: "attributeId", option: "--attribute-id <attribute-id>", name: "attribute_id", description: "The select / multi-select attribute these are the permitted values of. Deleting the attribute deletes its options with it.", type: "string", required: true },
   { key: "code", option: "--code <code>", name: "code", description: "The value actually STORED in a record's `attribute_values` when this option is picked — never the label. Unique within the attribute.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this option has in the system that owns the value list — an ETIM value, an eCl@ss value key. Unique per tenant where set. `code` is what a product stores when the option is picked; this is what the source calls the same choice, and holding the two apart is what stops a re-import founding a second option that means the same thing.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What the option is called, per language tag. Two tenants may label the same code differently; only the code is ever written into a record.", type: "object", required: false },
@@ -1206,6 +1307,12 @@ The permitted values of one select or multi-select attribute. A record stores th
 \`attribute_id\` and \`code\` are the only columns the database refuses the row without; everything else has a default or is nullable. A second row with the same \`attribute_id\` and \`code\` answers 409.`)
   .option(`--attribute-id <attribute-id>`, `The select / multi-select attribute these are the permitted values of. Deleting the attribute deletes its options with it.`)
   .option(`--code <code>`, `The value actually STORED in a record's \`attribute_values\` when this option is picked — never the label. Unique within the attribute.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--external-id <external-id>`, `The key this option has in the system that owns the value list — an ETIM value, an eCl@ss value key. Unique per tenant where set. \`code\` is what a product stores when the option is picked; this is what the source calls the same choice, and holding the two apart is what stops a re-import founding a second option that means the same thing.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--labels <labels>`, `What the option is called, per language tag. Two tenants may label the same code differently; only the code is ever written into a record.`)
@@ -1217,7 +1324,7 @@ The permitted values of one select or multi-select attribute. A record stores th
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { attributeId, code, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt, swatch } = await promptForMissing(
+        const { attributeId, code, active, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt, swatch } = await promptForMissing(
           _options,
           productsAttributeOptionsCreateSpecs,
           _command,
@@ -1231,6 +1338,9 @@ The permitted values of one select or multi-select attribute. A record stores th
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (attributeId !== undefined) {
           _payload[`attribute_id`] = attributeId;
@@ -1353,6 +1463,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeOptionsGetSpecs, { method: "get" });
 const productsAttributeOptionsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `attribute_options` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/attribute_options`. An id no attribute option of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/attribute_options", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "attributeId", option: "--attribute-id <attribute-id>", name: "attribute_id", description: "The select / multi-select attribute these are the permitted values of. Deleting the attribute deletes its options with it.", type: "string", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The value actually STORED in a record's `attribute_values` when this option is picked — never the label. Unique within the attribute.", type: "string", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this option has in the system that owns the value list — an ETIM value, an eCl@ss value key. Unique per tenant where set. `code` is what a product stores when the option is picked; this is what the source calls the same choice, and holding the two apart is what stops a re-import founding a second option that means the same thing.", type: "string", required: false },
@@ -1372,6 +1483,12 @@ The permitted values of one select or multi-select attribute. A record stores th
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`attribute_id\` and \`code\` answers 409.`)
   .option(`--id <id>`, `The \`attribute_options\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/attribute_options\`. An id no attribute option of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--attribute-id <attribute-id>`, `The select / multi-select attribute these are the permitted values of. Deleting the attribute deletes its options with it.`)
   .option(`--code <code>`, `The value actually STORED in a record's \`attribute_values\` when this option is picked — never the label. Unique within the attribute.`)
   .option(`--external-id <external-id>`, `The key this option has in the system that owns the value list — an ETIM value, an eCl@ss value key. Unique per tenant where set. \`code\` is what a product stores when the option is picked; this is what the source calls the same choice, and holding the two apart is what stops a re-import founding a second option that means the same thing.`)
@@ -1385,7 +1502,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, attributeId, code, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt, swatch } = await promptForMissing(
+        const { id, active, attributeId, code, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt, swatch } = await promptForMissing(
           _options,
           productsAttributeOptionsUpdateSpecs,
           _command,
@@ -1399,6 +1516,9 @@ A body that names nothing writable is refused with 400 rather than answered as a
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (attributeId !== undefined) {
           _payload[`attribute_id`] = attributeId;
@@ -1463,6 +1583,7 @@ const productsAttributesListSpecs: PromptSpec[] = [
   { key: "config", option: "--config <config>", name: "config", description: "Exact match on `config`. Type-specific settings; which keys apply depends on `type`. The ones this app reads: `units` (the unit list a measure attribute offers) and `reference_entity` (which entity a reference attribute draws its options from). The ones the cockpit edits alongside them: `unit`, `metric_family`, `decimals_allowed`, `asset_family`, `max_file_size`, `allowed_extensions`. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. The field label a person sees, keyed by language tag. Resolution falls back to English and then to the code, so an untranslated attribute is still renderable. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Exact match on `position`. Where the field sits inside its group. A family may override it for its own form through `family_attributes.position`; this is the attribute's default.", type: "integer", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "Exact match on `active`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact match on `external_id`. The key this attribute has in the system that owns the property model — an ETIM feature, an eCl@ss property, a column of a supplier's data sheet. Unique per tenant where set. It is the half that survives a rename of `code`, so an import maps a source property onto an attribute once rather than on every run.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact match on `external_refs`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact match on `source_synced_at`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
@@ -1522,6 +1643,12 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--config <config>`, `Exact match on \`config\`. Type-specific settings; which keys apply depends on \`type\`. The ones this app reads: \`units\` (the unit list a measure attribute offers) and \`reference_entity\` (which entity a reference attribute draws its options from). The ones the cockpit edits alongside them: \`unit\`, \`metric_family\`, \`decimals_allowed\`, \`asset_family\`, \`max_file_size\`, \`allowed_extensions\`. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--labels <labels>`, `Exact match on \`labels\`. The field label a person sees, keyed by language tag. Resolution falls back to English and then to the code, so an untranslated attribute is still renderable. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--position <position>`, `Exact match on \`position\`. Where the field sits inside its group. A family may override it for its own form through \`family_attributes.position\`; this is the attribute's default.`, parseInteger)
+  .option(
+    `--active [value]`,
+    `Exact match on \`active\`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--external-id <external-id>`, `Exact match on \`external_id\`. The key this attribute has in the system that owns the property model — an ETIM feature, an eCl@ss property, a column of a supplier's data sheet. Unique per tenant where set. It is the half that survives a rename of \`code\`, so an import maps a source property onto an attribute once rather than on every run.`)
   .option(`--external-refs <external-refs>`, `Exact match on \`external_refs\`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--source-synced-at <source-synced-at>`, `Exact match on \`source_synced_at\`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
@@ -1538,7 +1665,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, code, entityType, entityRef, type, groupId, localizable, scopable, isUnique, isFilterable, usableInGrid, validation, config, labels, position, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, code, entityType, entityRef, type, groupId, localizable, scopable, isUnique, isFilterable, usableInGrid, validation, config, labels, position, active, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsAttributesListSpecs,
           _command,
@@ -1600,6 +1727,9 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         if (position !== undefined) {
           _payload[`position`] = position;
         }
+        if (active !== undefined) {
+          _payload[`active`] = active;
+        }
         if (externalId !== undefined) {
           _payload[`external_id`] = externalId;
         }
@@ -1645,6 +1775,7 @@ registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributesListSp
 const productsAttributesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The attribute's stable identifier — the KEY its value is stored under inside `attribute_values`, and the name a category rule addresses as `attribute:<code>`. Unique per (`entity_type`, `entity_ref`) in this tenant.", type: "string", required: true },
   { key: "type", option: "--type <type>", name: "type", description: "Which editor the value asks for — 'text', 'select', 'metric', 'price', 'asset_collection', 'reference_entity'. Carries no CHECK on purpose: an integrator adds a type, and `GET /products/attribute-schema` maps an unknown one onto a text field rather than refusing to answer.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "config", option: "--config <config>", name: "config", description: "Type-specific settings; which keys apply depends on `type`. The ones this app reads: `units` (the unit list a measure attribute offers) and `reference_entity` (which entity a reference attribute draws its options from). The ones the cockpit edits alongside them: `unit`, `metric_family`, `decimals_allowed`, `asset_family`, `max_file_size`, `allowed_extensions`.", type: "object", required: false },
   { key: "entityRef", option: "--entity-ref <entity-ref>", name: "entity_ref", description: "Narrows `entity_type` to ONE reference entity or asset family, by its code — the attributes of `brand` rather than of every reference entity. Null for a plain product attribute.", type: "string", required: false },
   { key: "entityType", option: "--entity-type <entity-type>", name: "entity_type", description: "Which kind of record carries this attribute: 'product' for the catalog itself, 'reference_entity', 'asset' or 'category' for the other things in this app that have attributes. Deliberately carries no CHECK — a tenant that models a fifth kind is served on it too.", type: "string", required: false },
@@ -1672,6 +1803,12 @@ An attribute is one property a record can carry, and in an attribute-driven PIM 
 \`code\` and \`type\` are the only columns the database refuses the row without; everything else has a default or is nullable. A second row with the same \`entity_type\`, \`entity_ref\`, \`code\` answers 409.`)
   .option(`--code <code>`, `The attribute's stable identifier — the KEY its value is stored under inside \`attribute_values\`, and the name a category rule addresses as \`attribute:<code>\`. Unique per (\`entity_type\`, \`entity_ref\`) in this tenant.`)
   .option(`--type <type>`, `Which editor the value asks for — 'text', 'select', 'metric', 'price', 'asset_collection', 'reference_entity'. Carries no CHECK on purpose: an integrator adds a type, and \`GET /products/attribute-schema\` maps an unknown one onto a text field rather than refusing to answer.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--config <config>`, `Type-specific settings; which keys apply depends on \`type\`. The ones this app reads: \`units\` (the unit list a measure attribute offers) and \`reference_entity\` (which entity a reference attribute draws its options from). The ones the cockpit edits alongside them: \`unit\`, \`metric_family\`, \`decimals_allowed\`, \`asset_family\`, \`max_file_size\`, \`allowed_extensions\`.`)
   .option(`--entity-ref <entity-ref>`, `Narrows \`entity_type\` to ONE reference entity or asset family, by its code — the attributes of \`brand\` rather than of every reference entity. Null for a plain product attribute.`)
   .option(`--entity-type <entity-type>`, `Which kind of record carries this attribute: 'product' for the catalog itself, 'reference_entity', 'asset' or 'category' for the other things in this app that have attributes. Deliberately carries no CHECK — a tenant that models a fifth kind is served on it too.`)
@@ -1717,7 +1854,7 @@ An attribute is one property a record can carry, and in an attribute-driven PIM 
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, type, config, entityRef, entityType, externalId, externalRefs, groupId, isFilterable, isUnique, labels, localizable, metadata, position, scopable, sourceData, sourceSyncedAt, usableInGrid, validation } = await promptForMissing(
+        const { code, type, active, config, entityRef, entityType, externalId, externalRefs, groupId, isFilterable, isUnique, labels, localizable, metadata, position, scopable, sourceData, sourceSyncedAt, usableInGrid, validation } = await promptForMissing(
           _options,
           productsAttributesCreateSpecs,
           _command,
@@ -1731,6 +1868,9 @@ An attribute is one property a record can carry, and in an attribute-driven PIM 
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -1880,6 +2020,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributesGetSpecs, { method: "get" });
 const productsAttributesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `attributes` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/attributes`. An id no attribute of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/attributes", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The attribute's stable identifier — the KEY its value is stored under inside `attribute_values`, and the name a category rule addresses as `attribute:<code>`. Unique per (`entity_type`, `entity_ref`) in this tenant.", type: "string", required: false },
   { key: "config", option: "--config <config>", name: "config", description: "Type-specific settings; which keys apply depends on `type`. The ones this app reads: `units` (the unit list a measure attribute offers) and `reference_entity` (which entity a reference attribute draws its options from). The ones the cockpit edits alongside them: `unit`, `metric_family`, `decimals_allowed`, `asset_family`, `max_file_size`, `allowed_extensions`.", type: "object", required: false },
   { key: "entityRef", option: "--entity-ref <entity-ref>", name: "entity_ref", description: "Narrows `entity_type` to ONE reference entity or asset family, by its code — the attributes of `brand` rather than of every reference entity. Null for a plain product attribute.", type: "string", required: false },
@@ -1908,6 +2049,12 @@ An attribute is one property a record can carry, and in an attribute-driven PIM 
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`entity_type\`, \`entity_ref\`, \`code\` answers 409.`)
   .option(`--id <id>`, `The \`attributes\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/attributes\`. An id no attribute of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--code <code>`, `The attribute's stable identifier — the KEY its value is stored under inside \`attribute_values\`, and the name a category rule addresses as \`attribute:<code>\`. Unique per (\`entity_type\`, \`entity_ref\`) in this tenant.`)
   .option(`--config <config>`, `Type-specific settings; which keys apply depends on \`type\`. The ones this app reads: \`units\` (the unit list a measure attribute offers) and \`reference_entity\` (which entity a reference attribute draws its options from). The ones the cockpit edits alongside them: \`unit\`, \`metric_family\`, \`decimals_allowed\`, \`asset_family\`, \`max_file_size\`, \`allowed_extensions\`.`)
   .option(`--entity-ref <entity-ref>`, `Narrows \`entity_type\` to ONE reference entity or asset family, by its code — the attributes of \`brand\` rather than of every reference entity. Null for a plain product attribute.`)
@@ -1955,7 +2102,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, config, entityRef, entityType, externalId, externalRefs, groupId, isFilterable, isUnique, labels, localizable, metadata, position, scopable, sourceData, sourceSyncedAt, type, usableInGrid, validation } = await promptForMissing(
+        const { id, active, code, config, entityRef, entityType, externalId, externalRefs, groupId, isFilterable, isUnique, labels, localizable, metadata, position, scopable, sourceData, sourceSyncedAt, type, usableInGrid, validation } = await promptForMissing(
           _options,
           productsAttributesUpdateSpecs,
           _command,
@@ -1969,6 +2116,9 @@ A body that names nothing writable is refused with 400 rather than answered as a
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -2050,6 +2200,7 @@ const productsFamiliesListSpecs: PromptSpec[] = [
   { key: "labelAttribute", option: "--label-attribute <label-attribute>", name: "label_attribute", description: "Exact match on `label_attribute`. Which attribute CODE carries the display name of a product in this family. A product's name is an attribute, not a column, and which attribute it is, is per family. Null falls back to the `default_label_attribute` setting and then to the conventional `name`.", type: "string", required: false },
   { key: "imageAttribute", option: "--image-attribute <image-attribute>", name: "image_attribute", description: "Exact match on `image_attribute`. Which attribute code carries the product's main image — the one a grid thumbnail and a picker read.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. What the family is called, per language tag — the name an operator picks from, while the code is what everything else joins on. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "Exact match on `active`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact match on `external_id`. The key this family has in the system that owns the classification — an ETIM class, an eCl@ss class, a supplier's article type. Unique per tenant where set, and what an import joins on to decide which family a delivered article belongs in.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact match on `external_refs`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact match on `source_synced_at`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
@@ -2074,6 +2225,12 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--label-attribute <label-attribute>`, `Exact match on \`label_attribute\`. Which attribute CODE carries the display name of a product in this family. A product's name is an attribute, not a column, and which attribute it is, is per family. Null falls back to the \`default_label_attribute\` setting and then to the conventional \`name\`.`)
   .option(`--image-attribute <image-attribute>`, `Exact match on \`image_attribute\`. Which attribute code carries the product's main image — the one a grid thumbnail and a picker read.`)
   .option(`--labels <labels>`, `Exact match on \`labels\`. What the family is called, per language tag — the name an operator picks from, while the code is what everything else joins on. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(
+    `--active [value]`,
+    `Exact match on \`active\`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--external-id <external-id>`, `Exact match on \`external_id\`. The key this family has in the system that owns the classification — an ETIM class, an eCl@ss class, a supplier's article type. Unique per tenant where set, and what an import joins on to decide which family a delivered article belongs in.`)
   .option(`--external-refs <external-refs>`, `Exact match on \`external_refs\`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--source-synced-at <source-synced-at>`, `Exact match on \`source_synced_at\`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
@@ -2090,7 +2247,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, code, labelAttribute, imageAttribute, labels, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, code, labelAttribute, imageAttribute, labels, active, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsFamiliesListSpecs,
           _command,
@@ -2121,6 +2278,9 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         }
         if (labels !== undefined) {
           _payload[`labels`] = labels;
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (externalId !== undefined) {
           _payload[`external_id`] = externalId;
@@ -2166,6 +2326,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamiliesListSpecs, { method: "get" });
 const productsFamiliesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The family's stable identifier — which set of attributes a product of this family HAS. Unique per tenant, and the value `GET /products/attribute-schema?family_code=` resolves.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this family has in the system that owns the classification — an ETIM class, an eCl@ss class, a supplier's article type. Unique per tenant where set, and what an import joins on to decide which family a delivered article belongs in.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
   { key: "imageAttribute", option: "--image-attribute <image-attribute>", name: "image_attribute", description: "Which attribute code carries the product's main image — the one a grid thumbnail and a picker read.", type: "string", required: false },
@@ -2183,6 +2344,12 @@ A family decides WHICH attributes a product has — the set is \`family_attribut
 
 \`code\` is the only column the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
   .option(`--code <code>`, `The family's stable identifier — which set of attributes a product of this family HAS. Unique per tenant, and the value \`GET /products/attribute-schema?family_code=\` resolves.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--external-id <external-id>`, `The key this family has in the system that owns the classification — an ETIM class, an eCl@ss class, a supplier's article type. Unique per tenant where set, and what an import joins on to decide which family a delivered article belongs in.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
   .option(`--image-attribute <image-attribute>`, `Which attribute code carries the product's main image — the one a grid thumbnail and a picker read.`)
@@ -2194,7 +2361,7 @@ A family decides WHICH attributes a product has — the set is \`family_attribut
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, externalId, externalRefs, imageAttribute, labelAttribute, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
+        const { code, active, externalId, externalRefs, imageAttribute, labelAttribute, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsFamiliesCreateSpecs,
           _command,
@@ -2208,6 +2375,9 @@ A family decides WHICH attributes a product has — the set is \`family_attribut
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -2327,6 +2497,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamiliesGetSpecs, { method: "get" });
 const productsFamiliesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `families` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/families`. An id no familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/families", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The family's stable identifier — which set of attributes a product of this family HAS. Unique per tenant, and the value `GET /products/attribute-schema?family_code=` resolves.", type: "string", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this family has in the system that owns the classification — an ETIM class, an eCl@ss class, a supplier's article type. Unique per tenant where set, and what an import joins on to decide which family a delivered article belongs in.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
@@ -2345,6 +2516,12 @@ A family decides WHICH attributes a product has — the set is \`family_attribut
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
   .option(`--id <id>`, `The \`families\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/families\`. An id no familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--code <code>`, `The family's stable identifier — which set of attributes a product of this family HAS. Unique per tenant, and the value \`GET /products/attribute-schema?family_code=\` resolves.`)
   .option(`--external-id <external-id>`, `The key this family has in the system that owns the classification — an ETIM class, an eCl@ss class, a supplier's article type. Unique per tenant where set, and what an import joins on to decide which family a delivered article belongs in.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
@@ -2357,7 +2534,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, externalId, externalRefs, imageAttribute, labelAttribute, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
+        const { id, active, code, externalId, externalRefs, imageAttribute, labelAttribute, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsFamiliesUpdateSpecs,
           _command,
@@ -2371,6 +2548,9 @@ A body that names nothing writable is refused with 400 rather than answered as a
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -2749,6 +2929,7 @@ const productsFamilyVariantsListSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "Exact match on `code`. The variant structure's stable identifier — how this family splits, not which product it splits. Unique per tenant.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. What the variant structure is called, per language tag. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "axes", option: "--axes <axes>", name: "axes", description: "Exact match on `axes`. The attribute codes a product model splits its variants on. Two shapes are in the wild and both are read: a bare list of codes, or one entry per level, outermost first — `[{\"level\": 1, \"axes\": [\"colour\"]}, {\"level\": 2, \"axes\": [\"size\"]}]`. An attribute named here is READ-ONLY on the model and set on each variant, which is what `AttributeField.readonly_reason` reports. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "Exact match on `active`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact match on `external_id`. The key this variant structure has in the system it came from. Unique per tenant where set, and usually null — few sources model how a family splits, so this is normally a structure somebody built here.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact match on `external_refs`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact match on `source_synced_at`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
@@ -2773,6 +2954,12 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--code <code>`, `Exact match on \`code\`. The variant structure's stable identifier — how this family splits, not which product it splits. Unique per tenant.`)
   .option(`--labels <labels>`, `Exact match on \`labels\`. What the variant structure is called, per language tag. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--axes <axes>`, `Exact match on \`axes\`. The attribute codes a product model splits its variants on. Two shapes are in the wild and both are read: a bare list of codes, or one entry per level, outermost first — \`[{"level": 1, "axes": ["colour"]}, {"level": 2, "axes": ["size"]}]\`. An attribute named here is READ-ONLY on the model and set on each variant, which is what \`AttributeField.readonly_reason\` reports. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(
+    `--active [value]`,
+    `Exact match on \`active\`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--external-id <external-id>`, `Exact match on \`external_id\`. The key this variant structure has in the system it came from. Unique per tenant where set, and usually null — few sources model how a family splits, so this is normally a structure somebody built here.`)
   .option(`--external-refs <external-refs>`, `Exact match on \`external_refs\`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--source-synced-at <source-synced-at>`, `Exact match on \`source_synced_at\`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
@@ -2789,7 +2976,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, familyId, code, labels, axes, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, familyId, code, labels, axes, active, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsFamilyVariantsListSpecs,
           _command,
@@ -2820,6 +3007,9 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         }
         if (axes !== undefined) {
           _payload[`axes`] = axes;
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (externalId !== undefined) {
           _payload[`external_id`] = externalId;
@@ -2866,6 +3056,7 @@ registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamilyVariantsLi
 const productsFamilyVariantsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The variant structure's stable identifier — how this family splits, not which product it splits. Unique per tenant.", type: "string", required: true },
   { key: "familyId", option: "--family-id <family-id>", name: "family_id", description: "The family this variant structure belongs to. A family may carry several, and a product names the one it follows through `family_variant_id`.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "axes", option: "--axes <axes>", name: "axes", description: "The attribute codes a product model splits its variants on. Two shapes are in the wild and both are read: a bare list of codes, or one entry per level, outermost first — `[{\"level\": 1, \"axes\": [\"colour\"]}, {\"level\": 2, \"axes\": [\"size\"]}]`. An attribute named here is READ-ONLY on the model and set on each variant, which is what `AttributeField.readonly_reason` reports.", type: "object", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this variant structure has in the system it came from. Unique per tenant where set, and usually null — few sources model how a family splits, so this is normally a structure somebody built here.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer.", type: "object", required: false },
@@ -2883,6 +3074,12 @@ A variant structure of a family: the attribute axes a product model splits its v
 \`family_id\` and \`code\` are the only columns the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
   .option(`--code <code>`, `The variant structure's stable identifier — how this family splits, not which product it splits. Unique per tenant.`)
   .option(`--family-id <family-id>`, `The family this variant structure belongs to. A family may carry several, and a product names the one it follows through \`family_variant_id\`.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--axes <axes>`, `The attribute codes a product model splits its variants on. Two shapes are in the wild and both are read: a bare list of codes, or one entry per level, outermost first — \`[{"level": 1, "axes": ["colour"]}, {"level": 2, "axes": ["size"]}]\`. An attribute named here is READ-ONLY on the model and set on each variant, which is what \`AttributeField.readonly_reason\` reports.`)
   .option(`--external-id <external-id>`, `The key this variant structure has in the system it came from. Unique per tenant where set, and usually null — few sources model how a family splits, so this is normally a structure somebody built here.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer.`)
@@ -2893,7 +3090,7 @@ A variant structure of a family: the attribute axes a product model splits its v
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, familyId, axes, externalId, externalRefs, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
+        const { code, familyId, active, axes, externalId, externalRefs, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsFamilyVariantsCreateSpecs,
           _command,
@@ -2907,6 +3104,9 @@ A variant structure of a family: the attribute axes a product model splits its v
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (axes !== undefined) {
           _payload[`axes`] = resolveBodyParam(axes);
@@ -3026,6 +3226,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamilyVariantsGetSpecs, { method: "get" });
 const productsFamilyVariantsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `family_variants` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/family_variants`. An id no family variant of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/family_variants", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "axes", option: "--axes <axes>", name: "axes", description: "The attribute codes a product model splits its variants on. Two shapes are in the wild and both are read: a bare list of codes, or one entry per level, outermost first — `[{\"level\": 1, \"axes\": [\"colour\"]}, {\"level\": 2, \"axes\": [\"size\"]}]`. An attribute named here is READ-ONLY on the model and set on each variant, which is what `AttributeField.readonly_reason` reports.", type: "object", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The variant structure's stable identifier — how this family splits, not which product it splits. Unique per tenant.", type: "string", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this variant structure has in the system it came from. Unique per tenant where set, and usually null — few sources model how a family splits, so this is normally a structure somebody built here.", type: "string", required: false },
@@ -3044,6 +3245,12 @@ A variant structure of a family: the attribute axes a product model splits its v
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
   .option(`--id <id>`, `The \`family_variants\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/family_variants\`. An id no family variant of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--axes <axes>`, `The attribute codes a product model splits its variants on. Two shapes are in the wild and both are read: a bare list of codes, or one entry per level, outermost first — \`[{"level": 1, "axes": ["colour"]}, {"level": 2, "axes": ["size"]}]\`. An attribute named here is READ-ONLY on the model and set on each variant, which is what \`AttributeField.readonly_reason\` reports.`)
   .option(`--code <code>`, `The variant structure's stable identifier — how this family splits, not which product it splits. Unique per tenant.`)
   .option(`--external-id <external-id>`, `The key this variant structure has in the system it came from. Unique per tenant where set, and usually null — few sources model how a family splits, so this is normally a structure somebody built here.`)
@@ -3056,7 +3263,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, axes, code, externalId, externalRefs, familyId, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
+        const { id, active, axes, code, externalId, externalRefs, familyId, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           productsFamilyVariantsUpdateSpecs,
           _command,
@@ -3070,6 +3277,9 @@ A body that names nothing writable is refused with 400 rather than answered as a
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (axes !== undefined) {
           _payload[`axes`] = resolveBodyParam(axes);
@@ -3121,6 +3331,7 @@ const productsMeasurementFamiliesListSpecs: PromptSpec[] = [
   { key: "standardUnit", option: "--standard-unit <standard-unit>", name: "standard_unit", description: "Exact match on `standard_unit`. The unit every value of this family is converted to before it is compared or sorted — the unit each `convert_factor` is relative to.", type: "string", required: false },
   { key: "units", option: "--units <units>", name: "units", description: "Exact match on `units`. The units this family offers. `convert_factor` multiplies a value into `standard_unit`, so a gram is 0.001 kilograms; `symbol` is what a form prints next to the number. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Exact match on `labels`. What the measurement family is called, per language tag. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "Exact match on `active`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact match on `created_at`. When the row was created. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact match on `updated_at`. When the row was last written. Server-set — it is not part of any request body.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
@@ -3140,6 +3351,12 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .option(`--standard-unit <standard-unit>`, `Exact match on \`standard_unit\`. The unit every value of this family is converted to before it is compared or sorted — the unit each \`convert_factor\` is relative to.`)
   .option(`--units <units>`, `Exact match on \`units\`. The units this family offers. \`convert_factor\` multiplies a value into \`standard_unit\`, so a gram is 0.001 kilograms; \`symbol\` is what a form prints next to the number. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--labels <labels>`, `Exact match on \`labels\`. What the measurement family is called, per language tag. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(
+    `--active [value]`,
+    `Exact match on \`active\`. False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--created-at <created-at>`, `Exact match on \`created_at\`. When the row was created. Server-set — it is not part of any request body.`)
   .option(`--updated-at <updated-at>`, `Exact match on \`updated_at\`. When the row was last written. Server-set — it is not part of any request body.`)
   .option(
@@ -3151,7 +3368,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, code, standardUnit, units, labels, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, code, standardUnit, units, labels, active, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           productsMeasurementFamiliesListSpecs,
           _command,
@@ -3183,6 +3400,9 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
         if (labels !== undefined) {
           _payload[`labels`] = labels;
         }
+        if (active !== undefined) {
+          _payload[`active`] = active;
+        }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
         }
@@ -3213,6 +3433,7 @@ registerPromptSpecs(productsDataModel.commands.at(-1)!, productsMeasurementFamil
 const productsMeasurementFamiliesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The measurement family's stable identifier. A `measure` attribute names one and then offers that family's units.", type: "string", required: true },
   { key: "standardUnit", option: "--standard-unit <standard-unit>", name: "standard_unit", description: "The unit every value of this family is converted to before it is compared or sorted — the unit each `convert_factor` is relative to.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What the measurement family is called, per language tag.", type: "object", required: false },
   { key: "units", option: "--units <units>", name: "units", description: "The units this family offers. `convert_factor` multiplies a value into `standard_unit`, so a gram is 0.001 kilograms; `symbol` is what a form prints next to the number.", type: "object", required: false },
 ];
@@ -3225,12 +3446,18 @@ A family of units and the standard one they all convert to — weight in kilogra
 \`code\` and \`standard_unit\` are the only columns the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
   .option(`--code <code>`, `The measurement family's stable identifier. A \`measure\` attribute names one and then offers that family's units.`)
   .option(`--standard-unit <standard-unit>`, `The unit every value of this family is converted to before it is compared or sorted — the unit each \`convert_factor\` is relative to.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--labels <labels>`, `What the measurement family is called, per language tag.`)
   .option(`--units <units>`, `The units this family offers. \`convert_factor\` multiplies a value into \`standard_unit\`, so a gram is 0.001 kilograms; \`symbol\` is what a form prints next to the number.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, standardUnit, labels, units } = await promptForMissing(
+        const { code, standardUnit, active, labels, units } = await promptForMissing(
           _options,
           productsMeasurementFamiliesCreateSpecs,
           _command,
@@ -3244,6 +3471,9 @@ A family of units and the standard one they all convert to — weight in kilogra
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -3348,6 +3578,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
 registerPromptSpecs(productsDataModel.commands.at(-1)!, productsMeasurementFamiliesGetSpecs, { method: "get" });
 const productsMeasurementFamiliesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `measurement_families` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/measurement_families`. An id no measurement familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/measurement_families", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The measurement family's stable identifier. A `measure` attribute names one and then offers that family's units.", type: "string", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What the measurement family is called, per language tag.", type: "object", required: false },
   { key: "standardUnit", option: "--standard-unit <standard-unit>", name: "standard_unit", description: "The unit every value of this family is converted to before it is compared or sorted — the unit each `convert_factor` is relative to.", type: "string", required: false },
@@ -3361,6 +3592,12 @@ A family of units and the standard one they all convert to — weight in kilogra
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
   .option(`--id <id>`, `The \`measurement_families\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/measurement_families\`. An id no measurement familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 \`entry_inactive\`, and choice lists leave it out — filter a list with \`?active=true\` to build a picker. Default true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--code <code>`, `The measurement family's stable identifier. A \`measure\` attribute names one and then offers that family's units.`)
   .option(`--labels <labels>`, `What the measurement family is called, per language tag.`)
   .option(`--standard-unit <standard-unit>`, `The unit every value of this family is converted to before it is compared or sorted — the unit each \`convert_factor\` is relative to.`)
@@ -3368,7 +3605,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, labels, standardUnit, units } = await promptForMissing(
+        const { id, active, code, labels, standardUnit, units } = await promptForMissing(
           _options,
           productsMeasurementFamiliesUpdateSpecs,
           _command,
@@ -3382,6 +3619,9 @@ A body that names nothing writable is refused with 400 rather than answered as a
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;

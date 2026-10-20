@@ -232,13 +232,20 @@ orderlists
 const kindsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "`true` answers only the kinds a new list may take — what a picker offers; `false` only the kinds a merchant retired. Omitted, every kind is answered, active or not. Anything other than true or false is a 400.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 orderlists
   .command(`kinds-list`)
-  .description(`What a saved list may be FOR — the tenant's own taxonomy, and the set every \`kind\` on a list is drawn from. This used to be a CHECK constraint, which meant a merchant who keeps reagent lists or sample lists needed a release of this app to say so — and the app never branched on the value, it only checked membership. The set is the tenant's rows now. Reading this route on a tenant that has none seeds them, so it never answers an empty set on a fresh install and a client may treat the first read as the install step it no longer has to make. Rows come back in \`position\` order, ascending, which is the order a select should offer them in, and each carries the \`is_default\` flag that decides what a create with no \`kind\` falls back to. It takes NO filters: \`limit\` and \`offset\` are the only query keys it reads, and any other is ignored rather than refused — which is also why this collection alone answers no \`filter\` echo, since echoing an empty one would be noise. The \`code\` on each row, not the \`id\`, is what \`lists.kind\` stores and what \`?kind=\` on GET /orderlists matches.`)
+  .description(`What a saved list may be FOR — the tenant's own taxonomy, and the set every \`kind\` on a list is drawn from. This used to be a CHECK constraint, which meant a merchant who keeps reagent lists or sample lists needed a release of this app to say so — and the app never branched on the value, it only checked membership. The set is the tenant's rows now. Reading this route on a tenant that has none seeds them, so it never answers an empty set on a fresh install and a client may treat the first read as the install step it no longer has to make. Rows come back in \`position\` order, ascending, which is the order a select should offer them in, and each carries the \`is_default\` flag that decides what a create with no \`kind\` falls back to. Its one filter is \`active\`: omitted, every kind is answered, the retired ones included, so a screen rendering a list's stored kind finds it; \`?active=true\` is what a picker for a new list reads. Besides it, \`limit\` and \`offset\` are the only query keys it reads, and any other is ignored rather than refused — which is also why this collection answers no \`filter\` echo. The \`code\` on each row, not the \`id\`, is what \`lists.kind\` stores and what \`?kind=\` on GET /orderlists matches.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(
+    `--active [value]`,
+    `\`true\` answers only the kinds a new list may take — what a picker offers; \`false\` only the kinds a merchant retired. Omitted, every kind is answered, active or not. Anything other than true or false is a 400.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -248,7 +255,7 @@ orderlists
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, filter } = await promptForMissing(
+        const { limit, offset, active, filter } = await promptForMissing(
           _options,
           kindsListSpecs,
           _command,
@@ -261,6 +268,9 @@ orderlists
         }
         if (offset !== undefined) {
           _payload[`offset`] = offset;
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -286,9 +296,10 @@ registerPromptSpecs(orderlists.commands.at(-1)!, kindsListSpecs, { method: "get"
 const kindsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "What `lists.kind` will store. Lowercased on the way in and immutable afterwards — a merchant who wants a different code creates a new kind and moves the lists over.", type: "string", required: true },
   { key: "title", option: "--title <title>", name: "title", description: "What a person reads. `labels` adds the localized forms on top; this one is the fallback.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "Whether a new list may take this kind. Omitted means true.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "What this kind is for, in one sentence — the line a select shows under the title.", type: "string", required: false },
   { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "Localized descriptions, keyed by language tag.", type: "object", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this kind; the previous default is demoted.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this kind; the previous default is demoted. Refused with 409 together with `active: false`.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized titles, keyed by language tag.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Where the kind sits in a select, ascending. Omitted means 0, which puts it first among the unpositioned.", type: "integer", required: false },
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour. The client owns what each tone looks like; omitted means `neutral`.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
@@ -298,11 +309,17 @@ orderlists
   .description(`Adds a kind to the tenant's own taxonomy — reagent lists, sample lists, whatever a merchant sorts their saved lists by — without a release of this app, because nothing here branches on the value. \`code\` and \`title\` are required, and they are exactly the two columns of \`list_kinds\` the database will not fill in. The code is lowercased on the way in and immutable afterwards: renaming it would orphan every list carrying it, since a list stores the code and not the id. \`is_default: true\` promotes the new kind and demotes whoever held the flag. Creating a kind changes no existing list.`)
   .option(`--code <code>`, `What \`lists.kind\` will store. Lowercased on the way in and immutable afterwards — a merchant who wants a different code creates a new kind and moves the lists over.`)
   .option(`--title <title>`, `What a person reads. \`labels\` adds the localized forms on top; this one is the fallback.`)
+  .option(
+    `--active [value]`,
+    `Whether a new list may take this kind. Omitted means true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--description <description>`, `What this kind is for, in one sentence — the line a select shows under the title.`)
   .option(`--descriptions <descriptions>`, `Localized descriptions, keyed by language tag.`)
   .option(
     `--is-default [value]`,
-    `Promote this kind; the previous default is demoted.`,
+    `Promote this kind; the previous default is demoted. Refused with 409 together with \`active: false\`.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -312,7 +329,7 @@ orderlists
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, title, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
+        const { code, title, active, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
           _options,
           kindsCreateSpecs,
           _command,
@@ -326,6 +343,9 @@ orderlists
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -432,6 +452,7 @@ orderlists
 registerPromptSpecs(orderlists.commands.at(-1)!, kindsGetSpecs, { method: "get" });
 const kindsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The list kind, by id.", type: "string", required: true, resource: { listPath: "/orderlists/kinds", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False retires the kind from new lists; the lists that carry it keep it. The default kind cannot be deactivated.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "What this kind is for, in one sentence. Explicit null clears it.", type: "string", required: false },
   { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "Localized descriptions, keyed by language tag. Replaces the whole map rather than merging into it.", type: "object", required: false },
   { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "True promotes this kind and demotes the previous default — the same move POST /orderlists/kinds/{id}/make-default makes on its own. False is accepted only on a kind that is not the default: the flag moves by promoting another kind.", type: "boolean", required: false },
@@ -444,6 +465,12 @@ orderlists
   .command(`kinds-update`)
   .description(`Everything a kind has except its code: the title a person reads, the sentence underneath it, the localized forms of both, the badge tone, and where it sits in a select. The code is not among them and cannot be reached from here at all: sending a different one is a 400 rather than a silent no-op, because \`lists.kind\` stores the code and a rename would orphan every list that carries it with no foreign key to stop it. So a rename is never how a list comes to name a code nothing defines — only a delete can do that. Renaming the TITLE touches no list, for the same reason. A blank title, an unknown tone and a body that changes nothing are 400s; an explicit null clears the description; \`labels\` and \`descriptions\` replace the whole map rather than merging into it. \`is_default: true\` makes the same move POST /orderlists/kinds/{id}/make-default makes on its own. A system kind is editable like any other.`)
   .option(`--id <id>`, `The list kind, by id.`)
+  .option(
+    `--active [value]`,
+    `False retires the kind from new lists; the lists that carry it keep it. The default kind cannot be deactivated.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--description <description>`, `What this kind is for, in one sentence. Explicit null clears it.`)
   .option(`--descriptions <descriptions>`, `Localized descriptions, keyed by language tag. Replaces the whole map rather than merging into it.`)
   .option(
@@ -459,7 +486,7 @@ orderlists
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
+        const { id, active, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
           _options,
           kindsUpdateSpecs,
           _command,
@@ -473,6 +500,9 @@ orderlists
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (description !== undefined) {
           _payload[`description`] = description;
@@ -845,6 +875,50 @@ orderlists
     ),
   );
 registerPromptSpecs(orderlists.commands.at(-1)!, toCartSpecs, { method: "post" });
+const transferOwnerSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The order list, by id.", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
+  { key: "ownerId", option: "--owner-id <owner-id>", name: "owner_id", description: "The contact who keeps the list from now on. A contact of the list's organization.", type: "string", required: true },
+];
+orderlists
+  .command(`transfer-owner`)
+  .description(`The buyer who kept a list has left, and the list is still how the company orders: this hands it to another contact of the same organization, with its positions, kind and sharing exactly as they were. Back office only — a buyer can neither give a list away nor take a colleague's, so a call with an acting contact is a 403. The new owner has to be a contact the customers app knows and, when the list belongs to an organization, one of that organization's contacts; only the customers app can say either, so this route asks it (customers.contacts.get) and refuses when it cannot be asked rather than moving a list out of the account it is shared in. The stored owner name follows the new owner. Naming the owner the list already has changes nothing and answers the list. The tenant's \`max_lists_per_owner\` applies to the new owner as it does on a create. This is the only way a list changes owner: PUT /orderlists/{id} refuses \`owner_id\`.`)
+  .option(`--id <id>`, `The order list, by id.`)
+  .option(`--owner-id <owner-id>`, `The contact who keeps the list from now on. A contact of the list's organization.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, ownerId } = await promptForMissing(
+          _options,
+          transferOwnerSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/orderlists/{id}/transfer-owner`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (ownerId !== undefined) {
+          _payload[`owner_id`] = ownerId;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(orderlists.commands.at(-1)!, transferOwnerSpecs, { method: "post" });
 const itemsListSpecs: PromptSpec[] = [
   { key: "listId", option: "--list-id <list-id>", name: "list_id", description: "The list the position belongs to. An id no list in this tenant has — or one the caller may not read — answers 404.", type: "string", required: true, resource: { listPath: "/orderlists", hasLimit: true } },
   { key: "id", option: "--id <id>", name: "id", description: "Exact-match filter on `id`. The position's own id — the same row GET /orderlists/{list_id}/items/{id} answers, reached through the collection.", type: "string", required: false },
@@ -855,6 +929,7 @@ const itemsListSpecs: PromptSpec[] = [
   { key: "quantity", option: "--quantity <quantity>", name: "quantity", description: "Exact-match filter on `quantity`. An exact quantity, which is a needle-in-a-haystack filter — there is no range filter on this collection.", type: "number", required: false },
   { key: "unit", option: "--unit <unit>", name: "unit", description: "Exact-match filter on `unit`. One unit, in the tenant's own words. Open text, so the value must match what was written.", type: "string", required: false },
   { key: "price", option: "--price <price>", name: "price", description: "Exact-match filter on `price`. An exact snapshotted unit price. Equality on a decimal, so it finds the rows written at exactly this price and nothing near it.", type: "number", required: false },
+  { key: "currency", option: "--currency <currency>", name: "currency", description: "Exact-match filter on `currency`. An exact ISO 4217 code, upper case, as stored.", type: "string", required: false },
   { key: "taxRate", option: "--tax-rate <tax-rate>", name: "tax_rate", description: "Exact-match filter on `tax_rate`. An exact VAT rate as a percent (19 = 19 %).", type: "number", required: false },
   { key: "costCenterId", option: "--cost-center-id <cost-center-id>", name: "cost_center_id", description: "Exact-match filter on `cost_center_id`. Every position booked to one cost centre, as the tenant's ERP names it. The filter a controller uses to see what a department has saved up.", type: "string", required: false },
   { key: "positionTexts", option: "--position-texts <position-texts>", name: "position_texts", description: "Exact-match filter on `position_texts`. The whole notes ARRAY, serialized as JSON — equality on the document, not a search inside it.", type: "string", required: false },
@@ -886,6 +961,7 @@ orderlists
   .option(`--quantity <quantity>`, `Exact-match filter on \`quantity\`. An exact quantity, which is a needle-in-a-haystack filter — there is no range filter on this collection.`, parseInteger)
   .option(`--unit <unit>`, `Exact-match filter on \`unit\`. One unit, in the tenant's own words. Open text, so the value must match what was written.`)
   .option(`--price <price>`, `Exact-match filter on \`price\`. An exact snapshotted unit price. Equality on a decimal, so it finds the rows written at exactly this price and nothing near it.`, parseInteger)
+  .option(`--currency <currency>`, `Exact-match filter on \`currency\`. An exact ISO 4217 code, upper case, as stored.`)
   .option(`--tax-rate <tax-rate>`, `Exact-match filter on \`tax_rate\`. An exact VAT rate as a percent (19 = 19 %).`, parseInteger)
   .option(`--cost-center-id <cost-center-id>`, `Exact-match filter on \`cost_center_id\`. Every position booked to one cost centre, as the tenant's ERP names it. The filter a controller uses to see what a department has saved up.`)
   .option(`--position-texts <position-texts>`, `Exact-match filter on \`position_texts\`. The whole notes ARRAY, serialized as JSON — equality on the document, not a search inside it.`)
@@ -912,7 +988,7 @@ orderlists
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { listId, id, productId, sku, name, image, quantity, unit, price, taxRate, costCenterId, positionTexts, customSku, categorySlug, subcategorySlug, position, metadata, externalId, externalRefs, sourceSyncedAt, sourceData, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { listId, id, productId, sku, name, image, quantity, unit, price, currency, taxRate, costCenterId, positionTexts, customSku, categorySlug, subcategorySlug, position, metadata, externalId, externalRefs, sourceSyncedAt, sourceData, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           itemsListSpecs,
           _command,
@@ -943,6 +1019,9 @@ orderlists
         }
         if (price !== undefined) {
           _payload[`price`] = price;
+        }
+        if (currency !== undefined) {
+          _payload[`currency`] = currency;
         }
         if (taxRate !== undefined) {
           _payload[`tax_rate`] = taxRate;
@@ -1021,6 +1100,7 @@ const itemsCreateSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "The article name AS IT WAS when the position was saved. A snapshot on purpose: the list is the buyer's own record, so a renamed or withdrawn article still reads the way they wrote it down.", type: "string", required: true },
   { key: "categorySlug", option: "--category-slug <category-slug>", name: "category_slug", description: "The catalogue category the article sat in when the position was saved, as a slug. Kept so a long list can be grouped the way the shop groups it without a call to the catalogue.", type: "string", required: false },
   { key: "costCenterId", option: "--cost-center-id <cost-center-id>", name: "cost_center_id", description: "The cost centre this position books to, as the tenant's ERP names it. Free text and not our enum. A cart line has no column for it, so the cart conversion carries it in the line snapshot.", type: "string", required: false },
+  { key: "currency", option: "--currency <currency>", name: "currency", description: "The ISO 4217 code `price` is in, upper case. Named by the caller, or — when a position with a price names none — the currency the prices app quotes in for the request (the market's, else the tenant's default), asked once per write; EUR when the prices app cannot be asked or the position has no price. Informational like `price`: the cart conversion takes its own `currency`.", type: "string", required: false },
   { key: "customSku", option: "--custom-sku <custom-sku>", name: "custom_sku", description: "The buyer's OWN article number for this article — what their purchasing system calls it, which is rarely what the shop calls it. Free text, and the field a B2B buyer searches their own lists by.", type: "string", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The id this position has in the system that OWNS it — the line as the shop this tenant migrated from numbered it, usually the old list id and the line number. Unique per tenant where it is set. It is what makes a re-run of the migration update the line rather than append a second one, which on a list of two hundred positions is the difference between a correction and a mess.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this position, keyed by system name. Answered on read and carrying no query parameter of its own — a jsonb field is compared as a WHOLE document, so a filter over part of one is refused. Look the position up by `external_id` and read this off the answer.", type: "object", required: false },
@@ -1045,6 +1125,7 @@ orderlists
   .option(`--name <name>`, `The article name AS IT WAS when the position was saved. A snapshot on purpose: the list is the buyer's own record, so a renamed or withdrawn article still reads the way they wrote it down.`)
   .option(`--category-slug <category-slug>`, `The catalogue category the article sat in when the position was saved, as a slug. Kept so a long list can be grouped the way the shop groups it without a call to the catalogue.`)
   .option(`--cost-center-id <cost-center-id>`, `The cost centre this position books to, as the tenant's ERP names it. Free text and not our enum. A cart line has no column for it, so the cart conversion carries it in the line snapshot.`)
+  .option(`--currency <currency>`, `The ISO 4217 code \`price\` is in, upper case. Named by the caller, or — when a position with a price names none — the currency the prices app quotes in for the request (the market's, else the tenant's default), asked once per write; EUR when the prices app cannot be asked or the position has no price. Informational like \`price\`: the cart conversion takes its own \`currency\`.`)
   .option(`--custom-sku <custom-sku>`, `The buyer's OWN article number for this article — what their purchasing system calls it, which is rarely what the shop calls it. Free text, and the field a B2B buyer searches their own lists by.`)
   .option(`--external-id <external-id>`, `The id this position has in the system that OWNS it — the line as the shop this tenant migrated from numbered it, usually the old list id and the line number. Unique per tenant where it is set. It is what makes a re-run of the migration update the line rather than append a second one, which on a list of two hundred positions is the difference between a correction and a mess.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this position, keyed by system name. Answered on read and carrying no query parameter of its own — a jsonb field is compared as a WHOLE document, so a filter over part of one is refused. Look the position up by \`external_id\` and read this off the answer.`)
@@ -1064,7 +1145,7 @@ orderlists
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { listId, name, categorySlug, costCenterId, customSku, externalId, externalRefs, image, metadata, position, positionTexts, price, productId, quantity, sku, sourceData, sourceSyncedAt, subcategorySlug, taxRate, unit } = await promptForMissing(
+        const { listId, name, categorySlug, costCenterId, currency, customSku, externalId, externalRefs, image, metadata, position, positionTexts, price, productId, quantity, sku, sourceData, sourceSyncedAt, subcategorySlug, taxRate, unit } = await promptForMissing(
           _options,
           itemsCreateSpecs,
           _command,
@@ -1084,6 +1165,9 @@ orderlists
         }
         if (costCenterId !== undefined) {
           _payload[`cost_center_id`] = costCenterId;
+        }
+        if (currency !== undefined) {
+          _payload[`currency`] = currency;
         }
         if (customSku !== undefined) {
           _payload[`custom_sku`] = customSku;
@@ -1268,6 +1352,7 @@ const itemsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The position, by id. A position that belongs to another list answers 404.", type: "string", required: true, resource: { listPath: "/orderlists/{list_id}/items", hasLimit: true } },
   { key: "categorySlug", option: "--category-slug <category-slug>", name: "category_slug", description: "The catalogue category the article sat in when the position was saved, as a slug. Kept so a long list can be grouped the way the shop groups it without a call to the catalogue.", type: "string", required: false },
   { key: "costCenterId", option: "--cost-center-id <cost-center-id>", name: "cost_center_id", description: "The cost centre this position books to, as the tenant's ERP names it. Free text and not our enum. A cart line has no column for it, so the cart conversion carries it in the line snapshot.", type: "string", required: false },
+  { key: "currency", option: "--currency <currency>", name: "currency", description: "The ISO 4217 code `price` is in, upper case. Named by the caller, or — when a position with a price names none — the currency the prices app quotes in for the request (the market's, else the tenant's default), asked once per write; EUR when the prices app cannot be asked or the position has no price. Informational like `price`: the cart conversion takes its own `currency`.", type: "string", required: false },
   { key: "customSku", option: "--custom-sku <custom-sku>", name: "custom_sku", description: "The buyer's OWN article number for this article — what their purchasing system calls it, which is rarely what the shop calls it. Free text, and the field a B2B buyer searches their own lists by.", type: "string", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The id this position has in the system that OWNS it — the line as the shop this tenant migrated from numbered it, usually the old list id and the line number. Unique per tenant where it is set. It is what makes a re-run of the migration update the line rather than append a second one, which on a list of two hundred positions is the difference between a correction and a mess.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this position, keyed by system name. Answered on read and carrying no query parameter of its own — a jsonb field is compared as a WHOLE document, so a filter over part of one is refused. Look the position up by `external_id` and read this off the answer.", type: "object", required: false },
@@ -1293,6 +1378,7 @@ orderlists
   .option(`--id <id>`, `The position, by id. A position that belongs to another list answers 404.`)
   .option(`--category-slug <category-slug>`, `The catalogue category the article sat in when the position was saved, as a slug. Kept so a long list can be grouped the way the shop groups it without a call to the catalogue.`)
   .option(`--cost-center-id <cost-center-id>`, `The cost centre this position books to, as the tenant's ERP names it. Free text and not our enum. A cart line has no column for it, so the cart conversion carries it in the line snapshot.`)
+  .option(`--currency <currency>`, `The ISO 4217 code \`price\` is in, upper case. Named by the caller, or — when a position with a price names none — the currency the prices app quotes in for the request (the market's, else the tenant's default), asked once per write; EUR when the prices app cannot be asked or the position has no price. Informational like \`price\`: the cart conversion takes its own \`currency\`.`)
   .option(`--custom-sku <custom-sku>`, `The buyer's OWN article number for this article — what their purchasing system calls it, which is rarely what the shop calls it. Free text, and the field a B2B buyer searches their own lists by.`)
   .option(`--external-id <external-id>`, `The id this position has in the system that OWNS it — the line as the shop this tenant migrated from numbered it, usually the old list id and the line number. Unique per tenant where it is set. It is what makes a re-run of the migration update the line rather than append a second one, which on a list of two hundred positions is the difference between a correction and a mess.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this position, keyed by system name. Answered on read and carrying no query parameter of its own — a jsonb field is compared as a WHOLE document, so a filter over part of one is refused. Look the position up by \`external_id\` and read this off the answer.`)
@@ -1313,7 +1399,7 @@ orderlists
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { listId, id, categorySlug, costCenterId, customSku, externalId, externalRefs, image, metadata, name, position, positionTexts, price, productId, quantity, sku, sourceData, sourceSyncedAt, subcategorySlug, taxRate, unit } = await promptForMissing(
+        const { listId, id, categorySlug, costCenterId, currency, customSku, externalId, externalRefs, image, metadata, name, position, positionTexts, price, productId, quantity, sku, sourceData, sourceSyncedAt, subcategorySlug, taxRate, unit } = await promptForMissing(
           _options,
           itemsUpdateSpecs,
           _command,
@@ -1333,6 +1419,9 @@ orderlists
         }
         if (costCenterId !== undefined) {
           _payload[`cost_center_id`] = costCenterId;
+        }
+        if (currency !== undefined) {
+          _payload[`currency`] = currency;
         }
         if (customSku !== undefined) {
           _payload[`custom_sku`] = customSku;

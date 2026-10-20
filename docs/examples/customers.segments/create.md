@@ -1,4 +1,3 @@
 ```bash
-revenexx customers-segments create \
-    --code key_accounts
+revenexx customers-segments create
 ```

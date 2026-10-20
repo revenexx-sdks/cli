@@ -24,6 +24,56 @@ export const quotesQuotes = new Command("quotes-quotes")
     helpWidth: process.stdout.columns || 80,
   });
 
+const openItemsSpecs: PromptSpec[] = [
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The catalogue product the positions name.", type: "string", required: true },
+  { key: "status", option: "--status <status>", name: "status", description: "Which quote states count as open, separated by commas. Default `requested,in_review,quoted,partially_accepted`.", type: "string", required: false },
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
+];
+quotesQuotes
+  .command(`open-items`)
+  .description(`Every position of an open quote that names one product, across all quotes — what \`products\` asks before it deletes a product for good, so a quote still being negotiated holds the delete (RAD-247). Open means requested, in review, quoted or partially accepted unless \`status\` says otherwise. Each row is the position with its quote's \`quote_number\` and \`quote_status\`; newest quote first, then by position. A call the gateway attributes to a buyer reads only that buyer's organisation's quotes.`)
+  .option(`--product-id <product-id>`, `The catalogue product the positions name.`)
+  .option(`--status <status>`, `Which quote states count as open, separated by commas. Default \`requested,in_review,quoted,partially_accepted\`.`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { productId, status, limit, offset } = await promptForMissing(
+          _options,
+          openItemsSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/quotes/open-items`;
+        const _payload: RequestParams = {};
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
+        }
+        if (status !== undefined) {
+          _payload[`status`] = status;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(quotesQuotes.commands.at(-1)!, openItemsSpecs, { method: "get" });
 const listSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
@@ -126,7 +176,7 @@ registerPromptSpecs(quotesQuotes.commands.at(-1)!, listSpecs, { method: "get" })
 const createSpecs: PromptSpec[] = [
   { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code every amount is read in.", type: "string", required: true },
   { key: "items", option: "--items [items...]", name: "items", description: "The positions. At least one.", type: "array", required: true },
-  { key: "billingAddress", option: "--billing-address <billing-address>", name: "billing_address", description: "Where an invoice would go.", type: "object", required: false },
+  { key: "billingAddress", option: "--billing-address <billing-address>", name: "billing_address", description: "Where an invoice would go, in the platform address type (customers app). The old flat shape (`street`, `zip`, `city`, `country`, …) is accepted and mapped first. An address read back may be sent again: the old keys beside the type are dropped. Checked against the country's rules; an invalid one answers 400 naming the field.", type: "object", required: false },
   { key: "buyer", option: "--buyer <buyer>", name: "buyer", description: "Name and address of the customer.", type: "object", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Who the quote is for.", type: "string", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this quote has in the system that owns it. Left out on anything this shop raised itself.", type: "string", required: false },
@@ -136,7 +186,7 @@ const createSpecs: PromptSpec[] = [
   { key: "ownerId", option: "--owner-id <owner-id>", name: "owner_id", description: "Who at the merchant owns it. Taken from the caller identity when left out.", type: "string", required: false },
   { key: "reason", option: "--reason <reason>", name: "reason", description: "What the quote is about.", type: "string", required: false },
   { key: "sellerNote", option: "--seller-note <seller-note>", name: "seller_note", description: "What the merchant wants the customer to read.", type: "string", required: false },
-  { key: "shippingAddress", option: "--shipping-address <shipping-address>", name: "shipping_address", description: "Where the goods would go.", type: "object", required: false },
+  { key: "shippingAddress", option: "--shipping-address <shipping-address>", name: "shipping_address", description: "Where the goods would go, in the platform address type (customers app). The old flat shape (`street`, `zip`, `city`, `country`, …) is accepted and mapped first. An address read back may be sent again: the old keys beside the type are dropped. Checked against the country's rules; an invalid one answers 400 naming the field.", type: "object", required: false },
   { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`.", type: "object", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this quote was last confirmed against its source.", type: "string", required: false },
 ];
@@ -145,7 +195,7 @@ quotesQuotes
   .description(`Sales opens a quote for a customer who never sent a cart — the normal case when a salesperson quotes over the phone. It starts on the desk rather than in the queue, because the person opening it IS the desk.`)
   .option(`--currency <currency>`, `ISO 4217 code every amount is read in.`)
   .option(`--items [items...]`, `The positions. At least one.`)
-  .option(`--billing-address <billing-address>`, `Where an invoice would go.`)
+  .option(`--billing-address <billing-address>`, `Where an invoice would go, in the platform address type (customers app). The old flat shape (\`street\`, \`zip\`, \`city\`, \`country\`, …) is accepted and mapped first. An address read back may be sent again: the old keys beside the type are dropped. Checked against the country's rules; an invalid one answers 400 naming the field.`)
   .option(`--buyer <buyer>`, `Name and address of the customer.`)
   .option(`--contact-id <contact-id>`, `Who the quote is for.`)
   .option(`--external-id <external-id>`, `The key this quote has in the system that owns it. Left out on anything this shop raised itself.`)
@@ -155,7 +205,7 @@ quotesQuotes
   .option(`--owner-id <owner-id>`, `Who at the merchant owns it. Taken from the caller identity when left out.`)
   .option(`--reason <reason>`, `What the quote is about.`)
   .option(`--seller-note <seller-note>`, `What the merchant wants the customer to read.`)
-  .option(`--shipping-address <shipping-address>`, `Where the goods would go.`)
+  .option(`--shipping-address <shipping-address>`, `Where the goods would go, in the platform address type (customers app). The old flat shape (\`street\`, \`zip\`, \`city\`, \`country\`, …) is accepted and mapped first. An address read back may be sent again: the old keys beside the type are dropped. Checked against the country's rules; an invalid one answers 400 naming the field.`)
   .option(`--source-data <source-data>`, `What the source said, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`.`)
   .option(`--source-synced-at <source-synced-at>`, `When this quote was last confirmed against its source.`)
   .action(
@@ -267,6 +317,50 @@ quotesQuotes
     ),
   );
 registerPromptSpecs(quotesQuotes.commands.at(-1)!, getSpecs, { method: "get" });
+const copySpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The quote to copy.", type: "string", required: true, resource: { listPath: "/quotes/quotes", hasLimit: true } },
+  { key: "parts", option: "--parts [parts...]", name: "parts", description: "What to copy along. `items` is the only part.", type: "array", required: false, enum: ["items"] },
+];
+quotesQuotes
+  .command(`copy`)
+  .description(`Opens a new quote from an existing one, as the desk's own work: it takes the next number, starts \`in_review\` with revision 1 and no request date, keeps the customer, the addresses, the carriage and the notes, and carries none of the original's decisions, deadline, cart or source keys. \`parts: ["items"]\` (the default) copies the positions with their prices and discounts, every decision open again.`)
+  .option(`--id <id>`, `The quote to copy.`)
+  .option(`--parts [parts...]`, `What to copy along. \`items\` is the only part.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, parts } = await promptForMissing(
+          _options,
+          copySpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/quotes/quotes/{id}/copy`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (parts !== undefined) {
+          _payload[`parts`] = parts;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(quotesQuotes.commands.at(-1)!, copySpecs, { method: "post" });
 const detailSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The quote.", type: "string", required: true, resource: { listPath: "/quotes/quotes", hasLimit: true } },
   { key: "audience", option: "--audience <audience>", name: "audience", description: "Read the quote as its customer sees it: internal notes and files left out.", type: "string", required: false, enum: ["customer"] },
@@ -339,7 +433,7 @@ registerPromptSpecs(quotesQuotes.commands.at(-1)!, itemsSpecs, { method: "get" }
 const requestSpecs: PromptSpec[] = [
   { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code every amount is read in.", type: "string", required: true },
   { key: "items", option: "--items [items...]", name: "items", description: "The positions asked about. At least one.", type: "array", required: true },
-  { key: "billingAddress", option: "--billing-address <billing-address>", name: "billing_address", description: "Where an invoice would go.", type: "object", required: false },
+  { key: "billingAddress", option: "--billing-address <billing-address>", name: "billing_address", description: "Where an invoice would go, in the platform address type (customers app). The old flat shape (`street`, `zip`, `city`, `country`, …) is accepted and mapped first. An address read back may be sent again: the old keys beside the type are dropped. Checked against the country's rules; an invalid one answers 400 naming the field.", type: "object", required: false },
   { key: "buyer", option: "--buyer <buyer>", name: "buyer", description: "Name and address of who is asking.", type: "object", required: false },
   { key: "buyerNote", option: "--buyer-note <buyer-note>", name: "buyer_note", description: "What the buyer wants to say about the request.", type: "string", required: false },
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "The cart this came from, for the trail back.", type: "string", required: false },
@@ -349,7 +443,7 @@ const requestSpecs: PromptSpec[] = [
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data carried with the quote.", type: "object", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Which company they buy for.", type: "string", required: false },
   { key: "reason", option: "--reason <reason>", name: "reason", description: "Why a quote is being asked for — too heavy to ship, price on request, a volume the list does not cover.", type: "string", required: false },
-  { key: "shippingAddress", option: "--shipping-address <shipping-address>", name: "shipping_address", description: "Where the goods would go.", type: "object", required: false },
+  { key: "shippingAddress", option: "--shipping-address <shipping-address>", name: "shipping_address", description: "Where the goods would go, in the platform address type (customers app). The old flat shape (`street`, `zip`, `city`, `country`, …) is accepted and mapped first. An address read back may be sent again: the old keys beside the type are dropped. Checked against the country's rules; an invalid one answers 400 naming the field.", type: "object", required: false },
   { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`.", type: "object", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this quote was last confirmed against its source.", type: "string", required: false },
 ];
@@ -358,7 +452,7 @@ quotesQuotes
   .description(`A buyer sends a basket in and asks for a price. The positions are COPIED onto the quote rather than referenced, so the buyer can keep shopping and the quote does not change under the merchant's desk. Commits the buyer to nothing: the answer is a numbered request waiting for a price.`)
   .option(`--currency <currency>`, `ISO 4217 code every amount is read in.`)
   .option(`--items [items...]`, `The positions asked about. At least one.`)
-  .option(`--billing-address <billing-address>`, `Where an invoice would go.`)
+  .option(`--billing-address <billing-address>`, `Where an invoice would go, in the platform address type (customers app). The old flat shape (\`street\`, \`zip\`, \`city\`, \`country\`, …) is accepted and mapped first. An address read back may be sent again: the old keys beside the type are dropped. Checked against the country's rules; an invalid one answers 400 naming the field.`)
   .option(`--buyer <buyer>`, `Name and address of who is asking.`)
   .option(`--buyer-note <buyer-note>`, `What the buyer wants to say about the request.`)
   .option(`--cart-id <cart-id>`, `The cart this came from, for the trail back.`)
@@ -368,7 +462,7 @@ quotesQuotes
   .option(`--metadata <metadata>`, `Free-form data carried with the quote.`)
   .option(`--organization-id <organization-id>`, `Which company they buy for.`)
   .option(`--reason <reason>`, `Why a quote is being asked for — too heavy to ship, price on request, a volume the list does not cover.`)
-  .option(`--shipping-address <shipping-address>`, `Where the goods would go.`)
+  .option(`--shipping-address <shipping-address>`, `Where the goods would go, in the platform address type (customers app). The old flat shape (\`street\`, \`zip\`, \`city\`, \`country\`, …) is accepted and mapped first. An address read back may be sent again: the old keys beside the type are dropped. Checked against the country's rules; an invalid one answers 400 naming the field.`)
   .option(`--source-data <source-data>`, `What the source said, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`.`)
   .option(`--source-synced-at <source-synced-at>`, `When this quote was last confirmed against its source.`)
   .action(

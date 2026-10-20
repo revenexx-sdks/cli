@@ -356,6 +356,38 @@ promotionsVouchers
     ),
   );
 registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesUpdateSpecs, { method: "put" });
+const promotionsBatchesDisableSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/batches", hasLimit: true } },
+];
+promotionsVouchers
+  .command(`promotions-batches-disable`)
+  .description(`Switching a batch off reaches every code it generated, which is the point of generating them as a batch: the batch and each of its active codes become \`disabled\`. Redemptions already committed stay; new ones are refused. Answers the batch with \`disabled_codes\`.`)
+  .option(`--id <id>`, `The row id, as it came back from the list.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          promotionsBatchesDisableSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/promotions/batches/{id}/disable`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesDisableSpecs, { method: "post" });
 const promotionsBatchesExportSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/batches", hasLimit: true } },
 ];
@@ -388,6 +420,38 @@ promotionsVouchers
     ),
   );
 registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesExportSpecs, { method: "get" });
+const promotionsBatchesExportFileSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/batches", hasLimit: true } },
+];
+promotionsVouchers
+  .command(`promotions-batches-export-file`)
+  .description(`The same codes as the GET, as a file the Cockpit downloads as it is: \`filename\`, \`content_type\` (\`text/csv\`) and \`content\`, one code per line with its status, its limit, its uses and its end date.`)
+  .option(`--id <id>`, `The row id, as it came back from the list.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          promotionsBatchesExportFileSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/promotions/batches/{id}/export`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesExportFileSpecs, { method: "post" });
 const promotionsBatchesGenerateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/batches", hasLimit: true } },
   { key: "count", option: "--count <count>", name: "count", description: "How many codes to make. Bounded by the tenant setting.", type: "integer", required: true },

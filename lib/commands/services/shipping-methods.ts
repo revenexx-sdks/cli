@@ -130,6 +130,7 @@ const createSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "Display name shown in the checkout.", type: "string", required: true },
   { key: "carrier", option: "--carrier <carrier>", name: "carrier", description: "Carrier CODE, kept from before shipping_carriers existed. Looked up in the carrier table when carrier_id is not set, so an existing value keeps working and gains a tracking template; a code nobody maintains is still reported as a plain name.", type: "string", required: false },
   { key: "carrierId", option: "--carrier-id <carrier-id>", name: "carrier_id", description: "The carrier this method ships with. Wins over `carrier` and supplies the tracking template, pickup cut-off, handling time and transit days.", type: "string", required: false },
+  { key: "checkoutNotes", option: "--checkout-notes <checkout-notes>", name: "checkout_notes", description: "The note the checkout prints under the method, per language — a delivery hint the name and description do not carry. A flat map keyed by locale — the Cockpit falls back to `en`. Null means the row has no translations and every client shows the untranslated column instead.", type: "object", required: false },
   { key: "countries", option: "--countries [countries...]", name: "countries", description: "The countries this method may be offered into. ISO 3166-1 alpha-2 codes; null or an empty array means no restriction. Compared without regard to case, so a lower-case entry still matches; anything but a two-letter code is refused with 400 `invalid_countries`. Declared as an array rather than the bare object a jsonb column derives to — this one is always a list. ANDed with the carrier's own reach.", type: "array", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code (default EUR) the price, the free-above threshold and the tiers are in. Exactly three characters — the column says so. Every rate carries it, and a rate request naming another currency is not offered this method: this app converts nothing.", type: "string", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "The sentence under the name in the checkout — the delivery promise in words. Null when the name says enough.", type: "string", required: false },
@@ -158,6 +159,7 @@ shippingMethods
   .option(`--name <name>`, `Display name shown in the checkout.`)
   .option(`--carrier <carrier>`, `Carrier CODE, kept from before shipping_carriers existed. Looked up in the carrier table when carrier_id is not set, so an existing value keeps working and gains a tracking template; a code nobody maintains is still reported as a plain name.`)
   .option(`--carrier-id <carrier-id>`, `The carrier this method ships with. Wins over \`carrier\` and supplies the tracking template, pickup cut-off, handling time and transit days.`)
+  .option(`--checkout-notes <checkout-notes>`, `The note the checkout prints under the method, per language — a delivery hint the name and description do not carry. A flat map keyed by locale — the Cockpit falls back to \`en\`. Null means the row has no translations and every client shows the untranslated column instead.`)
   .option(`--countries [countries...]`, `The countries this method may be offered into. ISO 3166-1 alpha-2 codes; null or an empty array means no restriction. Compared without regard to case, so a lower-case entry still matches; anything but a two-letter code is refused with 400 \`invalid_countries\`. Declared as an array rather than the bare object a jsonb column derives to — this one is always a list. ANDed with the carrier's own reach.`)
   .option(`--currency <currency>`, `ISO 4217 code (default EUR) the price, the free-above threshold and the tiers are in. Exactly three characters — the column says so. Every rate carries it, and a rate request naming another currency is not offered this method: this app converts nothing.`)
   .option(`--description <description>`, `The sentence under the name in the checkout — the delivery promise in words. Null when the name says enough.`)
@@ -186,7 +188,7 @@ shippingMethods
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, name, carrier, carrierId, countries, currency, description, enabled, etaDaysMax, etaDaysMin, externalId, externalRefs, freeAbove, labels, matrixAttribute, matrixBasis, metadata, position, price, pricingType, quoteAbove, sourceData, sourceSyncedAt, taxClass } = await promptForMissing(
+        const { code, name, carrier, carrierId, checkoutNotes, countries, currency, description, enabled, etaDaysMax, etaDaysMin, externalId, externalRefs, freeAbove, labels, matrixAttribute, matrixBasis, metadata, position, price, pricingType, quoteAbove, sourceData, sourceSyncedAt, taxClass } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -206,6 +208,9 @@ shippingMethods
         }
         if (carrierId !== undefined) {
           _payload[`carrier_id`] = carrierId;
+        }
+        if (checkoutNotes !== undefined) {
+          _payload[`checkout_notes`] = resolveBodyParam(checkoutNotes);
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -378,6 +383,7 @@ const updateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
   { key: "carrier", option: "--carrier <carrier>", name: "carrier", description: "Carrier CODE, kept from before shipping_carriers existed. Looked up in the carrier table when carrier_id is not set, so an existing value keeps working and gains a tracking template; a code nobody maintains is still reported as a plain name.", type: "string", required: false },
   { key: "carrierId", option: "--carrier-id <carrier-id>", name: "carrier_id", description: "The carrier this method ships with. Wins over `carrier` and supplies the tracking template, pickup cut-off, handling time and transit days.", type: "string", required: false },
+  { key: "checkoutNotes", option: "--checkout-notes <checkout-notes>", name: "checkout_notes", description: "The note the checkout prints under the method, per language — a delivery hint the name and description do not carry. A flat map keyed by locale — the Cockpit falls back to `en`. Null means the row has no translations and every client shows the untranslated column instead.", type: "object", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "Stable method code, unique per tenant (e.g. standard, express). What a checkout and an order line store, so it is the value every integration joins on.", type: "string", required: false },
   { key: "countries", option: "--countries [countries...]", name: "countries", description: "The countries this method may be offered into. ISO 3166-1 alpha-2 codes; null or an empty array means no restriction. Compared without regard to case, so a lower-case entry still matches; anything but a two-letter code is refused with 400 `invalid_countries`. Declared as an array rather than the bare object a jsonb column derives to — this one is always a list. ANDed with the carrier's own reach.", type: "array", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code (default EUR) the price, the free-above threshold and the tiers are in. Exactly three characters — the column says so. Every rate carries it, and a rate request naming another currency is not offered this method: this app converts nothing.", type: "string", required: false },
@@ -407,6 +413,7 @@ shippingMethods
   .option(`--id <id>`, `The row id.`)
   .option(`--carrier <carrier>`, `Carrier CODE, kept from before shipping_carriers existed. Looked up in the carrier table when carrier_id is not set, so an existing value keeps working and gains a tracking template; a code nobody maintains is still reported as a plain name.`)
   .option(`--carrier-id <carrier-id>`, `The carrier this method ships with. Wins over \`carrier\` and supplies the tracking template, pickup cut-off, handling time and transit days.`)
+  .option(`--checkout-notes <checkout-notes>`, `The note the checkout prints under the method, per language — a delivery hint the name and description do not carry. A flat map keyed by locale — the Cockpit falls back to \`en\`. Null means the row has no translations and every client shows the untranslated column instead.`)
   .option(`--code <code>`, `Stable method code, unique per tenant (e.g. standard, express). What a checkout and an order line store, so it is the value every integration joins on.`)
   .option(`--countries [countries...]`, `The countries this method may be offered into. ISO 3166-1 alpha-2 codes; null or an empty array means no restriction. Compared without regard to case, so a lower-case entry still matches; anything but a two-letter code is refused with 400 \`invalid_countries\`. Declared as an array rather than the bare object a jsonb column derives to — this one is always a list. ANDed with the carrier's own reach.`)
   .option(`--currency <currency>`, `ISO 4217 code (default EUR) the price, the free-above threshold and the tiers are in. Exactly three characters — the column says so. Every rate carries it, and a rate request naming another currency is not offered this method: this app converts nothing.`)
@@ -437,7 +444,7 @@ shippingMethods
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, carrier, carrierId, code, countries, currency, description, enabled, etaDaysMax, etaDaysMin, externalId, externalRefs, freeAbove, labels, matrixAttribute, matrixBasis, metadata, name, position, price, pricingType, quoteAbove, sourceData, sourceSyncedAt, taxClass } = await promptForMissing(
+        const { id, carrier, carrierId, checkoutNotes, code, countries, currency, description, enabled, etaDaysMax, etaDaysMin, externalId, externalRefs, freeAbove, labels, matrixAttribute, matrixBasis, metadata, name, position, price, pricingType, quoteAbove, sourceData, sourceSyncedAt, taxClass } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -457,6 +464,9 @@ shippingMethods
         }
         if (carrierId !== undefined) {
           _payload[`carrier_id`] = carrierId;
+        }
+        if (checkoutNotes !== undefined) {
+          _payload[`checkout_notes`] = resolveBodyParam(checkoutNotes);
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -912,7 +922,7 @@ const shippingRatesSpecs: PromptSpec[] = [
   { key: "orderValueNet", option: "--order-value-net <order-value-net>", name: "order_value_net", description: "Order value excluding tax. Compared against free-above thresholds, and measured by order_value matrices, when free_above_compares is 'net'.", type: "number", required: false },
   { key: "quantity", option: "--quantity <quantity>", name: "quantity", description: "Total quantity — measure for quantity matrices. Below 0 is refused with 400 `negative_measure`.", type: "number", required: false },
   { key: "weight", option: "--weight <weight>", name: "weight", description: "Total weight — measure for weight matrices. Read in weight_unit and converted to the unit the tiers are keyed in. Below 0 is refused with 400 `negative_measure`.", type: "number", required: false },
-  { key: "weightUnit", option: "--weight-unit <weight-unit>", name: "weight_unit", description: "The unit `weight` is expressed in, as a CODE into the tenant's own weight units (GET /shipping/weight-units). Omitted, it is the unit this market quotes in. A unit the tenant does not keep is a 400 — a mis-read weight prices the wrong bracket silently, and guessing is worse than refusing.", type: "string", required: false },
+  { key: "weightUnit", option: "--weight-unit <weight-unit>", name: "weight_unit", description: "The unit `weight` is expressed in, as a CODE into the tenant's own weight units (GET /shipping/weight-units). Omitted, it is the unit this market quotes in. A unit the tenant does not keep is a 400; one the merchant retired is a 409 (`weight_unit_inactive`) unless it is the unit this market still quotes in — a mis-read weight prices the wrong bracket silently, and guessing is worse than refusing.", type: "string", required: false },
 ];
 shippingMethods
   .command(`shipping-rates`)
@@ -927,7 +937,7 @@ shippingMethods
   .option(`--order-value-net <order-value-net>`, `Order value excluding tax. Compared against free-above thresholds, and measured by order_value matrices, when free_above_compares is 'net'.`, parseInteger)
   .option(`--quantity <quantity>`, `Total quantity — measure for quantity matrices. Below 0 is refused with 400 \`negative_measure\`.`, parseInteger)
   .option(`--weight <weight>`, `Total weight — measure for weight matrices. Read in weight_unit and converted to the unit the tiers are keyed in. Below 0 is refused with 400 \`negative_measure\`.`, parseInteger)
-  .option(`--weight-unit <weight-unit>`, `The unit \`weight\` is expressed in, as a CODE into the tenant's own weight units (GET /shipping/weight-units). Omitted, it is the unit this market quotes in. A unit the tenant does not keep is a 400 — a mis-read weight prices the wrong bracket silently, and guessing is worse than refusing.`)
+  .option(`--weight-unit <weight-unit>`, `The unit \`weight\` is expressed in, as a CODE into the tenant's own weight units (GET /shipping/weight-units). Omitted, it is the unit this market quotes in. A unit the tenant does not keep is a 400; one the merchant retired is a 409 (\`weight_unit_inactive\`) unless it is the unit this market still quotes in — a mis-read weight prices the wrong bracket silently, and guessing is worse than refusing.`)
   .action(
     actionRunner(
       async (_options, _command) => {

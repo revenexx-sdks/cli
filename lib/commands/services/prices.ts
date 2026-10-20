@@ -26,6 +26,100 @@ export const prices = new Command("prices")
     helpWidth: process.stdout.columns || 80,
   });
 
+const checkSpecs: PromptSpec[] = [
+  { key: "at", option: "--at <at>", name: "at", description: "The instant validity windows are read at. Absent is now.", type: "string", required: false },
+  { key: "channelId", option: "--channel-id <channel-id>", name: "channel_id", description: "The channel the question is asked for.", type: "string", required: false },
+  { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The buying contact, if any.", type: "string", required: false },
+  { key: "currency", option: "--currency <currency>", name: "currency", description: "A currency to price in instead of the market's, upper-case ISO 4217.", type: "string", required: false },
+  { key: "lang", option: "--lang <lang>", name: "lang", description: "The language of the texts in the answer.", type: "string", required: false, enum: ["de","en"] },
+  { key: "market", option: "--market <market>", name: "market", description: "The market code. Absent is the active market of the request.", type: "string", required: false },
+  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The buying organization, if any.", type: "string", required: false },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The product. `product_id` or `sku` is required.", type: "string", required: false },
+  { key: "quantity", option: "--quantity <quantity>", name: "quantity", description: "The quantity the tier is chosen for. Absent is 1.", type: "number", required: false },
+  { key: "segmentCodes", option: "--segment-codes [segment-codes...]", name: "segment_codes", description: "Segments the buyer is in, as codes.", type: "array", required: false },
+  { key: "sku", option: "--sku <sku>", name: "sku", description: "The SKU, matched exactly, for entries that carry no product id.", type: "string", required: false },
+];
+prices
+  .command(`check`)
+  .description(`The answer to "what does this item cost this customer in this market, and why?" for one item: the price, the list that won, its tier, the reason it won, the line total, and every other list that would have priced the item with the reason it lost. The resolution is exactly the one \`POST /prices/resolve\` runs — same candidate lists, same groups, same tier rule, same tie-break — so the answer matches what the shop quotes.
+
+Configuration, not a buyer route: it names lists a buyer must not learn about. The market is the one \`market\` names, else the active market of the request; a market other than the request's is read through its own market-scoped view. Texts (\`winning_list\`, \`tier\`, \`reason\`, \`why\`, \`summary\`) are German or English after \`lang\`, else the first Accept-Language tag, else German; the \`*_code\` fields beside them are stable. Segments are taken as stated in \`segment_codes\`, not looked up from the organization.`)
+  .option(`--at <at>`, `The instant validity windows are read at. Absent is now.`)
+  .option(`--channel-id <channel-id>`, `The channel the question is asked for.`)
+  .option(`--contact-id <contact-id>`, `The buying contact, if any.`)
+  .option(`--currency <currency>`, `A currency to price in instead of the market's, upper-case ISO 4217.`)
+  .option(`--lang <lang>`, `The language of the texts in the answer.`)
+  .option(`--market <market>`, `The market code. Absent is the active market of the request.`)
+  .option(`--organization-id <organization-id>`, `The buying organization, if any.`)
+  .option(`--product-id <product-id>`, `The product. \`product_id\` or \`sku\` is required.`)
+  .option(`--quantity <quantity>`, `The quantity the tier is chosen for. Absent is 1.`, parseInteger)
+  .option(`--segment-codes [segment-codes...]`, `Segments the buyer is in, as codes.`)
+  .option(`--sku <sku>`, `The SKU, matched exactly, for entries that carry no product id.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { at, channelId, contactId, currency, lang, market, organizationId, productId, quantity, segmentCodes, sku } = await promptForMissing(
+          _options,
+          checkSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/prices/check`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (at !== undefined) {
+          _payload[`at`] = at;
+        }
+        if (channelId !== undefined) {
+          _payload[`channel_id`] = channelId;
+        }
+        if (contactId !== undefined) {
+          _payload[`contact_id`] = contactId;
+        }
+        if (currency !== undefined) {
+          _payload[`currency`] = currency;
+        }
+        if (lang !== undefined) {
+          _payload[`lang`] = lang;
+        }
+        if (market !== undefined) {
+          _payload[`market`] = market;
+        }
+        if (organizationId !== undefined) {
+          _payload[`organization_id`] = organizationId;
+        }
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
+        }
+        if (quantity !== undefined) {
+          _payload[`quantity`] = quantity;
+        }
+        if (segmentCodes !== undefined) {
+          _payload[`segment_codes`] = segmentCodes;
+        }
+        if (sku !== undefined) {
+          _payload[`sku`] = sku;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(prices.commands.at(-1)!, checkSpecs, { method: "post" });
 const listsListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to one list by id. The same row `GET /prices/lists/{id}` returns, in page form.", type: "string", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "Filter by the exact list code — the unique per-tenant handle every integration joins on.", type: "string", required: false },
@@ -48,6 +142,7 @@ const listsListSpecs: PromptSpec[] = [
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact equality on the last change — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by `order` plus `limit`.", type: "string", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Filter by the key the system that OWNS the price list knows it by — how an import finds the row it wrote last run. Exact match; a price list maintained here carries none and is never answered by it.", type: "string", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Filter to the price lists last confirmed against their source at exactly this instant. A filter is an equality, so bounding a period means sorting with `order` and paging.", type: "string", required: false },
+  { key: "trashed", option: "--trashed <trashed>", name: "trashed", description: "Which lists the page holds with respect to the trash: `exclude` (default) leaves lists in the trash out, `only` answers the trash itself, `include` answers both. Anything else is refused with 400 `invalid_trashed`.", type: "string", required: false, enum: ["exclude","only","include"] },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -96,6 +191,7 @@ Market is deliberately not among them: a list is scoped to a market by an assign
   .option(`--updated-at <updated-at>`, `Exact equality on the last change — matched to the stored microsecond, not a range. This app publishes no from/until query; narrow a period client-side, or by \`order\` plus \`limit\`.`)
   .option(`--external-id <external-id>`, `Filter by the key the system that OWNS the price list knows it by — how an import finds the row it wrote last run. Exact match; a price list maintained here carries none and is never answered by it.`)
   .option(`--source-synced-at <source-synced-at>`, `Filter to the price lists last confirmed against their source at exactly this instant. A filter is an equality, so bounding a period means sorting with \`order\` and paging.`)
+  .option(`--trashed <trashed>`, `Which lists the page holds with respect to the trash: \`exclude\` (default) leaves lists in the trash out, \`only\` answers the trash itself, \`include\` answers both. Anything else is refused with 400 \`invalid_trashed\`.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -108,7 +204,7 @@ Market is deliberately not among them: a list is scoped to a market by an assign
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, name, description, currency, status, priority, isDefault, taxBasis, taxIncluded, requiresAuth, contactId, organizationId, segmentCode, channelId, validFrom, validUntil, createdAt, updatedAt, externalId, sourceSyncedAt, limit, offset, order, filter } = await promptForMissing(
+        const { id, code, name, description, currency, status, priority, isDefault, taxBasis, taxIncluded, requiresAuth, contactId, organizationId, segmentCode, channelId, validFrom, validUntil, createdAt, updatedAt, externalId, sourceSyncedAt, trashed, limit, offset, order, filter } = await promptForMissing(
           _options,
           listsListSpecs,
           _command,
@@ -178,6 +274,9 @@ Market is deliberately not among them: a list is scoped to a market by an assign
         }
         if (sourceSyncedAt !== undefined) {
           _payload[`source_synced_at`] = sourceSyncedAt;
+        }
+        if (trashed !== undefined) {
+          _payload[`trashed`] = trashed;
         }
         if (limit !== undefined) {
           _payload[`limit`] = limit;
@@ -385,16 +484,56 @@ Idempotent twice over — by that code, and by the existence of ANY default list
       },
     ),
   );
+const listsEmptyTrashSpecs: PromptSpec[] = [
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
+];
+prices
+  .command(`lists-empty-trash`)
+  .description(`Empties the trash: each list in it is deleted for good on its own, exactly as a second delete would, and a list something still needs stays with its reason. The answer lists both halves, so a partial success is visible. Nothing is recoverable afterwards.`)
+  .option(`--body <body>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { body } = await promptForMissing(
+          _options,
+          listsEmptyTrashSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/prices/lists/trash/empty`;
+        const _payload: RequestParams = {};
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(prices.commands.at(-1)!, listsEmptyTrashSpecs, { method: "post" });
 const listsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The price list, by id.", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
 ];
 prices
   .command(`lists-delete`)
-  .description(`Deletes the list AND every price in it. \`price_entries.price_list_id\` references this row ON DELETE CASCADE, so the entries go in the same statement: nothing asks, nothing blocks, a book of 40 000 prices deletes exactly as fast as an empty one, and the answer is a bare \`{deleted, id}\` that never says how many prices went with it.
+  .description(`The first delete moves the list to the TRASH: it keeps its entries, prices nothing from the next resolve call on, is left out of the list read, refuses every write, and keeps its code reserved. The answer counts the entries that stay with it under \`warnings\`. Only the default list is refused (409 \`default_price_list\`) — every fallback price comes from it, so make another list the default first.
 
-What that means while a storefront is quoting: from the next resolve call the items this list priced fall through to the next candidate list, and where there is none the answer is \`on_request\` — "price on request" for something that had a price a second ago, never €0. The default list itself is never deleted: move the flag with \`POST /prices/lists/{list_id}/make-default\` first, otherwise the delete answers 409 \`default_price_list\`.
+A delete of a list that is already in the trash deletes it for good. Only then do its entries go — \`price_entries.price_list_id\` cascades — and only then does \`price_list.deleted\` fire. Carts, quotes and orders carry the resolved price as a snapshot and no list id, so nothing elsewhere blocks it. The daily purge does the same after the tenant's trash retention.
 
-This is not the way to take a list out of circulation. \`status: "inactive"\` does that immediately and reversibly and keeps the prices; deleting is for a list whose contents you are prepared to import again, because nothing here is recoverable.`)
+This is still not the way to take a list out of circulation for a while: \`status: "inactive"\` does that and keeps the list editable. The trash is for a list that should go; \`POST /prices/lists/{id}/restore\` is the way back while it is there.`)
   .option(`--id <id>`, `The price list, by id.`)
   .action(
     actionRunner(
@@ -602,6 +741,97 @@ Three edits do more than their field names suggest. \`currency\` re-denominates 
     ),
   );
 registerPromptSpecs(prices.commands.at(-1)!, listsUpdateSpecs, { method: "put" });
+const listsCopySpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The price list, by id.", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
+  { key: "code", option: "--code <code>", name: "code", description: "The code of the new list, unique per tenant like every list code.", type: "string", required: true },
+  { key: "parts", option: "--parts [parts...]", name: "parts", description: "What the copy takes along: `prices` copies every entry of the source. Empty or absent copies the list header only.", type: "array", required: false, enum: ["prices"] },
+];
+prices
+  .command(`lists-copy`)
+  .description(`A new price list from this one (PE-1053, „Kopie anlegen“). It keeps every setting of the source — name, labels, currency, tax basis, buyer scope, priority, validity — starts \`inactive\` and never as the default, and takes the source's entries when \`parts\` names \`prices\`. Sync columns (\`external_id\`, \`external_refs\`, \`source_*\`) stay behind: the copy is nobody's import. The market assignment lives in the platform's scope registry, not on the row, so the copy starts global. A failure after the new list was written deletes it again, entries included.`)
+  .option(`--id <id>`, `The price list, by id.`)
+  .option(`--code <code>`, `The code of the new list, unique per tenant like every list code.`)
+  .option(`--parts [parts...]`, `What the copy takes along: \`prices\` copies every entry of the source. Empty or absent copies the list header only.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, code, parts } = await promptForMissing(
+          _options,
+          listsCopySpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/prices/lists/{id}/copy`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (code !== undefined) {
+          _payload[`code`] = code;
+        }
+        if (parts !== undefined) {
+          _payload[`parts`] = parts;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(prices.commands.at(-1)!, listsCopySpecs, { method: "post" });
+const listsRestoreSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The price list, by id.", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
+];
+prices
+  .command(`lists-restore`)
+  .description(`Brings a list in the trash back as it was, entries included: from the next resolve call it prices again. Everything trashed in the same action comes back with it. Takes the same right as deleting. A list that is not in the trash answers 409 \`not_in_trash\`.`)
+  .option(`--id <id>`, `The price list, by id.`)
+  .option(`--body <body>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { id, body } = await promptForMissing(
+          _options,
+          listsRestoreSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/prices/lists/{id}/restore`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(prices.commands.at(-1)!, listsRestoreSpecs, { method: "post" });
 const entriesListSpecs: PromptSpec[] = [
   { key: "listId", option: "--list-id <list-id>", name: "list_id", description: "The price list the entries belong to. An id no list in this tenant has answers 404 rather than an empty page.", type: "string", required: true, resource: { listPath: "/prices/lists", hasLimit: true } },
   { key: "id", option: "--id <id>", name: "id", description: "Filter to one entry by id, within this list.", type: "string", required: false },

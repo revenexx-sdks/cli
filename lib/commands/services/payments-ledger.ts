@@ -19,7 +19,7 @@ import {
 export const paymentsLedger = new Command("payments-ledger")
   .description(
     commandDescriptions["paymentsLedger"] ??
-      `What actually happened to one buyer's money, and everything that moves it. A payment is the record: an amount, a currency, the fee that was computed for it, the method code it was made under, the PSP it went through, and where it stands — created → requires_action → authorized → captured, with failed, cancelled and refunded as the ends. Four transitions move it and a lattice decides which is legal from where: a transition the lattice forbids answers 400, one the merchant's own window forbids (capture_expiry_days, refund_window_days) answers 422, and a provider that is configured and refuses answers 502. \`next_action\` is the instruction the storefront must follow next and is set exactly at requires_action. The routes with no screen of their own are here because every row they touch is a payment: the PSP webhook resolves one and moves its status, the order-reference capture collects every payment behind one shipment, and the one-off redaction rewrites \`error_message\` on rows written before the failure taxonomy existed. The daily dunning scan belongs here for the same reason and is not screenless at all — it writes the reminder clock onto unpaid invoice and prepayment payments, and the Cockpit fires it from the Payments list. The vocabularies sit here too — three of the four sets they publish are columns of this row.`,
+      `What actually happened to one buyer's money, and everything that moves it. A payment is the record: an amount, a currency, the fee that was computed for it, the method code it was made under, the PSP it went through, and where it stands — created → requires_action → authorized → captured, with failed, cancelled and refunded as the ends. Four transitions move it and a lattice decides which is legal from where: a transition the lattice forbids answers 400, one the merchant's own window forbids (capture_expiry_days, refund_window_days) answers 422, and a provider that is configured and refuses answers 502. \`next_action\` is the instruction the storefront must follow next and is set exactly at requires_action. The routes with no screen of their own are here because every row they touch is a payment: the PSP webhook resolves one and moves its status, the order-reference capture collects every payment behind one shipment, the one-off redaction rewrites \`error_message\` on rows written before the failure taxonomy existed, and the relink links payments that carry only an order reference to the order it names. The daily dunning scan belongs here for the same reason and is not screenless at all — it writes the reminder clock onto unpaid invoice and prepayment payments, and the Cockpit fires it from the Payments list. The vocabularies sit here too — three of the four sets they publish are columns of this row.`,
   )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
@@ -32,6 +32,7 @@ const paymentsListSpecs: PromptSpec[] = [
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "The cart a payment pays for. Indexed.", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The paying customer contact. Indexed.", type: "string", required: false },
   { key: "orderId", option: "--order-id <order-id>", name: "order_id", description: "The order a payment is for, as the orders app knows it. Indexed — this is how an order finds what has been paid against it.", type: "string", required: false },
+  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The buyer's organization, projected from the order when the payment was created. Indexed — one customer's payments across every order.", type: "string", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Restrict to one lifecycle state. Indexed.", type: "string", required: false, enum: ["created","requires_action","authorized","captured","failed","cancelled","refunded"] },
   { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", description: "Exact external order reference.", type: "string", required: false },
   { key: "methodCode", option: "--method-code <method-code>", name: "method_code", description: "Exact code of the method the payment was made with.", type: "string", required: false },
@@ -53,6 +54,7 @@ paymentsLedger
   .option(`--cart-id <cart-id>`, `The cart a payment pays for. Indexed.`)
   .option(`--contact-id <contact-id>`, `The paying customer contact. Indexed.`)
   .option(`--order-id <order-id>`, `The order a payment is for, as the orders app knows it. Indexed — this is how an order finds what has been paid against it.`)
+  .option(`--organization-id <organization-id>`, `The buyer's organization, projected from the order when the payment was created. Indexed — one customer's payments across every order.`)
   .option(`--status <status>`, `Restrict to one lifecycle state. Indexed.`)
   .option(`--order-ref <order-ref>`, `Exact external order reference.`)
   .option(`--method-code <method-code>`, `Exact code of the method the payment was made with.`)
@@ -72,7 +74,7 @@ paymentsLedger
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, cartId, contactId, orderId, status, orderRef, methodCode, kind, provider, dunningStage, idempotencyKey, externalId, reference, sourceSyncedAt, filter } = await promptForMissing(
+        const { limit, offset, order, cartId, contactId, orderId, organizationId, status, orderRef, methodCode, kind, provider, dunningStage, idempotencyKey, externalId, reference, sourceSyncedAt, filter } = await promptForMissing(
           _options,
           paymentsListSpecs,
           _command,
@@ -97,6 +99,9 @@ paymentsLedger
         }
         if (orderId !== undefined) {
           _payload[`order_id`] = orderId;
+        }
+        if (organizationId !== undefined) {
+          _payload[`organization_id`] = organizationId;
         }
         if (status !== undefined) {
           _payload[`status`] = status;
@@ -161,7 +166,7 @@ const paymentsCreateSpecs: PromptSpec[] = [
   { key: "idempotencyKey", option: "--idempotency-key <idempotency-key>", name: "idempotency_key", description: "The caller's own key for this creation attempt. Sending it again answers the SAME payment with 200 instead of creating a second one — which is what makes a retried checkout safe. Unique per tenant, so a filter on it answers at most one row. The replay answers 200, not 201.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data to keep on the payment. Merged with the keys this app writes itself (`provider_method`, `return_url`, later the cancel/refund reasons), which win on a collision.", type: "object", required: false },
   { key: "orderId", option: "--order-id <order-id>", name: "order_id", description: "The order this payment is for, as the orders app knows it (its uuid). Optional. When it is sent, the payment is checked against the order before anything is written: its currency must be the order's (409 `currency_mismatch`), and together with every payment of the order that is created, requires_action, authorized or captured it must not exceed the order's `grand_total` (409 `amount_exceeds_order`) — several payments per order are fine. A `cancelled` order takes no payment (409 `order_not_payable`); every other order status passes. An order that does not exist is 400 `unknown_order`; an orders app that cannot be asked is 502 `orders_unavailable` and nothing is created. On a buyer's own call the order must be the buyer's (400 `buyer_mismatch`). Left out, the payment is accepted unchecked, as before 1.0 — a purchase under approval has no order yet.", type: "string", required: false },
-  { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", description: "The external order reference the checkout wrote onto the payment. It is what POST /payments/orders/{order_ref}/capture resolves and the fallback key a PSP webhook is matched on when it carries no transaction id — so an integration that leaves it null gives up both. Free text with no uniqueness: several payments may share one reference.", type: "string", required: false },
+  { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", description: "The external order reference the checkout wrote onto the payment. It is what POST /payments/orders/{order_ref}/capture resolves and the fallback key a PSP webhook is matched on when it carries no transaction id — so an integration that leaves it null gives up both. Free text with no uniqueness: several payments may share one reference. When a payment is created without `order_id`, a reference that names exactly one order of the tenant — its id or its number — in the payment's currency, with a total the payment fits into, links the payment to that order (`order_id`, `organization_id`); one that does not, or an orders app that does not answer within three seconds, leaves the payment unlinked and is never a refusal.", type: "string", required: false },
   { key: "returnUrl", option: "--return-url <return-url>", name: "return_url", description: "Where the PSP sends the buyer back after a redirect or a 3-D Secure challenge. Kept in `metadata.return_url` and handed to the driver — a PSP method that needs a redirect and has none leaves the buyer stranded at the provider.", type: "string", required: false },
   { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this payment, kept as it said it. `system` names it, `etag` is the token an `If-Match` write-back has to hand back — there is nowhere else to keep it between two runs — and `raw` holds the source fields this app does not model, so they survive a round trip instead of being lost. Free jsonb; nothing here is read by this app.", type: "object", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this payment was last confirmed against the system that booked it. What a delta run asks for changes since, and what tells an operator a feed has gone quiet — a capture or a refund does not touch it, because it says when the SOURCE was last seen and not when the row moved. Indexed, and null for a payment no source owns.", type: "string", required: false },
@@ -180,7 +185,7 @@ paymentsLedger
   .option(`--idempotency-key <idempotency-key>`, `The caller's own key for this creation attempt. Sending it again answers the SAME payment with 200 instead of creating a second one — which is what makes a retried checkout safe. Unique per tenant, so a filter on it answers at most one row. The replay answers 200, not 201.`)
   .option(`--metadata <metadata>`, `Free-form data to keep on the payment. Merged with the keys this app writes itself (\`provider_method\`, \`return_url\`, later the cancel/refund reasons), which win on a collision.`)
   .option(`--order-id <order-id>`, `The order this payment is for, as the orders app knows it (its uuid). Optional. When it is sent, the payment is checked against the order before anything is written: its currency must be the order's (409 \`currency_mismatch\`), and together with every payment of the order that is created, requires_action, authorized or captured it must not exceed the order's \`grand_total\` (409 \`amount_exceeds_order\`) — several payments per order are fine. A \`cancelled\` order takes no payment (409 \`order_not_payable\`); every other order status passes. An order that does not exist is 400 \`unknown_order\`; an orders app that cannot be asked is 502 \`orders_unavailable\` and nothing is created. On a buyer's own call the order must be the buyer's (400 \`buyer_mismatch\`). Left out, the payment is accepted unchecked, as before 1.0 — a purchase under approval has no order yet.`)
-  .option(`--order-ref <order-ref>`, `The external order reference the checkout wrote onto the payment. It is what POST /payments/orders/{order_ref}/capture resolves and the fallback key a PSP webhook is matched on when it carries no transaction id — so an integration that leaves it null gives up both. Free text with no uniqueness: several payments may share one reference.`)
+  .option(`--order-ref <order-ref>`, `The external order reference the checkout wrote onto the payment. It is what POST /payments/orders/{order_ref}/capture resolves and the fallback key a PSP webhook is matched on when it carries no transaction id — so an integration that leaves it null gives up both. Free text with no uniqueness: several payments may share one reference. When a payment is created without \`order_id\`, a reference that names exactly one order of the tenant — its id or its number — in the payment's currency, with a total the payment fits into, links the payment to that order (\`order_id\`, \`organization_id\`); one that does not, or an orders app that does not answer within three seconds, leaves the payment unlinked and is never a refusal.`)
   .option(`--return-url <return-url>`, `Where the PSP sends the buyer back after a redirect or a 3-D Secure challenge. Kept in \`metadata.return_url\` and handed to the driver — a PSP method that needs a redirect and has none leaves the buyer stranded at the provider.`)
   .option(`--source-data <source-data>`, `What the source said about this payment, kept as it said it. \`system\` names it, \`etag\` is the token an \`If-Match\` write-back has to hand back — there is nowhere else to keep it between two runs — and \`raw\` holds the source fields this app does not model, so they survive a round trip instead of being lost. Free jsonb; nothing here is read by this app.`)
   .option(`--source-synced-at <source-synced-at>`, `When this payment was last confirmed against the system that booked it. What a delta run asks for changes since, and what tells an operator a feed has gone quiet — a capture or a refund does not touch it, because it says when the SOURCE was last seen and not when the row moved. Indexed, and null for a payment no source owns.`)
@@ -335,6 +340,63 @@ paymentsLedger
     ),
   );
 registerPromptSpecs(paymentsLedger.commands.at(-1)!, paymentsErrorsRedactSpecs, { method: "post" });
+const paymentsOrdersRelinkSpecs: PromptSpec[] = [
+  { key: "after", option: "--after <after>", name: "after", description: "Continue after this creation time — the `next` a previous run answered. Left out, the scan starts at the oldest payment.", type: "string", required: false },
+  { key: "apply", option: "--apply <apply>", name: "apply", description: "Write the links. Defaults to false, which reports what WOULD be linked and touches nothing.", type: "boolean", required: false },
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "How many payments without an organization to scan, oldest first. Defaults to 100, capped at 500.", type: "integer", required: false },
+];
+paymentsLedger
+  .command(`payments-orders-relink`)
+  .description(`Resolves the \`order_ref\` of payments that name no \`order_id\` to the order it names — by id when it is one, otherwise by number through the orders app — and writes \`order_id\` and the order's \`organization_id\`, nothing else. A payment that already names its order but no organization gets the order's organization. A match is linked only when it can have been this payment's order: the same currency, an amount within the order's total, and an order no younger than the payment — a number a later order reuses is reported, never linked. It is the same resolution creating a payment now runs, for payments written before it did. Dry-run by default — reports what it would link and changes nothing until apply:true. Oldest first, \`limit\` rows a run; \`after\` continues from the \`next\` of the previous run. Idempotent: a linked payment is no longer scanned. An orders app that cannot be asked answers 502 \`orders_unavailable\` and the run stops where it was.`)
+  .option(`--after <after>`, `Continue after this creation time — the \`next\` a previous run answered. Left out, the scan starts at the oldest payment.`)
+  .option(
+    `--apply [value]`,
+    `Write the links. Defaults to false, which reports what WOULD be linked and touches nothing.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--limit <limit>`, `How many payments without an organization to scan, oldest first. Defaults to 100, capped at 500.`, parseInteger)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { after, apply, limit } = await promptForMissing(
+          _options,
+          paymentsOrdersRelinkSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/payments/orders/relink`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (after !== undefined) {
+          _payload[`after`] = after;
+        }
+        if (apply !== undefined) {
+          _payload[`apply`] = apply;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(paymentsLedger.commands.at(-1)!, paymentsOrdersRelinkSpecs, { method: "post" });
 const paymentsOrdersCaptureSpecs: PromptSpec[] = [
   { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", description: "The external order reference the checkout wrote onto the payment, trimmed before it is resolved. Free text — the example is an invented shape, not a reference any tenant holds, and one no payment carries answers 404.", type: "string", required: true },
 ];
@@ -412,7 +474,7 @@ paymentsLedger
   );
 registerPromptSpecs(paymentsLedger.commands.at(-1)!, paymentsVocabulariesListSpecs, { method: "get" });
 const paymentsVocabulariesGetSpecs: PromptSpec[] = [
-  { key: "name", option: "--name <name>", name: "name", description: "Which vocabulary to read. The set is closed: GET /payments/vocabularies lists exactly these.", type: "string", required: true, enum: ["dunning-stages","fee-types","method-kinds","providers","statuses"], resource: { listPath: "/payments/vocabularies", hasLimit: false } },
+  { key: "name", option: "--name <name>", name: "name", description: "Which vocabulary to read. The set is closed: GET /payments/vocabularies lists exactly these.", type: "string", required: true, enum: ["connection-states","dunning-stages","fee-types","method-kinds","provider-methods","providers","statuses"], resource: { listPath: "/payments/vocabularies", hasLimit: false } },
 ];
 paymentsLedger
   .command(`payments-vocabularies-get`)

@@ -877,6 +877,196 @@ pages
     ),
   );
 registerPromptSpecs(pages.commands.at(-1)!, pagesRevisionsSpecs, { method: "get" });
+const popupsListSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. A column this entity does not have, or any other shape, is refused with 400.", type: "string", required: false },
+  { key: "campaignRef", option: "--campaign-ref <campaign-ref>", name: "campaign_ref", description: "Only the pop-ups one campaign claimed.", type: "string", required: false },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+pages
+  .command(`popups-list`)
+  .description(`The library items of the bundle \`popup\` — the Cockpit list, and the read the campaigns calendar makes for one campaign (\`?campaign_ref=\`). Never a soft-deleted one.`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. A column this entity does not have, or any other shape, is refused with 400.`)
+  .option(`--campaign-ref <campaign-ref>`, `Only the pop-ups one campaign claimed.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { limit, offset, order, campaignRef, filter } = await promptForMissing(
+          _options,
+          popupsListSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/popups`;
+        const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (order !== undefined) {
+          _payload[`order`] = order;
+        }
+        if (campaignRef !== undefined) {
+          _payload[`campaign_ref`] = campaignRef;
+        }
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, popupsListSpecs, { method: "get" });
+const popupsCreateSpecs: PromptSpec[] = [
+  { key: "label", option: "--label <label>", name: "label", description: "What the pop-up is called in the library.", type: "string", required: true },
+  { key: "campaignRef", option: "--campaign-ref <campaign-ref>", name: "campaign_ref", description: "The campaign it belongs to.", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "The item's own bag, stored as given.", type: "object", required: false },
+  { key: "popup", option: "--popup <popup>", name: "popup", description: "How a pop-up appears. Unknown keys are refused (400 `invalid_popup`).", type: "object", required: false },
+  { key: "tree", option: "--tree <tree>", name: "tree", description: "The content as a block tree `{ bundle, props, props_i18n, children }`. Default an empty `popup` block.", type: "object", required: false },
+];
+pages
+  .command(`popups-create`)
+  .description(`A pop-up is a library item of the bundle \`popup\`: \`tree\` is its content (edited like any library item), \`popup\` how it appears, \`campaign_ref\` the campaign it counts for. The settings are checked here; the storefront reads the live ones from \`GET /pages/delivery/popups\`.`)
+  .option(`--label <label>`, `What the pop-up is called in the library.`)
+  .option(`--campaign-ref <campaign-ref>`, `The campaign it belongs to.`)
+  .option(`--metadata <metadata>`, `The item's own bag, stored as given.`)
+  .option(`--popup <popup>`, `How a pop-up appears. Unknown keys are refused (400 \`invalid_popup\`).`)
+  .option(`--tree <tree>`, `The content as a block tree \`{ bundle, props, props_i18n, children }\`. Default an empty \`popup\` block.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { label, campaignRef, metadata, popup, tree } = await promptForMissing(
+          _options,
+          popupsCreateSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/popups`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (campaignRef !== undefined) {
+          _payload[`campaign_ref`] = campaignRef;
+        }
+        if (label !== undefined) {
+          _payload[`label`] = label;
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
+        }
+        if (popup !== undefined) {
+          _payload[`popup`] = resolveBodyParam(popup);
+        }
+        if (tree !== undefined) {
+          _payload[`tree`] = resolveBodyParam(tree);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, popupsCreateSpecs, { method: "post" });
+const popupsUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The pop-up (library item) id.", type: "string", required: true, resource: { listPath: "/pages/popups", hasLimit: true } },
+  { key: "campaignRef", option: "--campaign-ref <campaign-ref>", name: "campaign_ref", description: "Claim for a campaign, or null to release.", type: "string", required: false },
+  { key: "label", option: "--label <label>", name: "label", description: "A new name.", type: "string", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Replace the bag.", type: "object", required: false },
+  { key: "popup", option: "--popup <popup>", name: "popup", description: "What changes; merged over the stored settings and checked whole.", type: "object", required: false },
+  { key: "tree", option: "--tree <tree>", name: "tree", description: "Replace the content.", type: "object", required: false },
+];
+pages
+  .command(`popups-update`)
+  .description(`Partial update. \`popup\` is merged over what is stored and then checked whole, so a caller may send only what it changes; \`campaign_ref: null\` releases it from its campaign.`)
+  .option(`--id <id>`, `The pop-up (library item) id.`)
+  .option(`--campaign-ref <campaign-ref>`, `Claim for a campaign, or null to release.`)
+  .option(`--label <label>`, `A new name.`)
+  .option(`--metadata <metadata>`, `Replace the bag.`)
+  .option(`--popup <popup>`, `What changes; merged over the stored settings and checked whole.`)
+  .option(`--tree <tree>`, `Replace the content.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, campaignRef, label, metadata, popup, tree } = await promptForMissing(
+          _options,
+          popupsUpdateSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/popups/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (campaignRef !== undefined) {
+          _payload[`campaign_ref`] = campaignRef;
+        }
+        if (label !== undefined) {
+          _payload[`label`] = label;
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
+        }
+        if (popup !== undefined) {
+          _payload[`popup`] = resolveBodyParam(popup);
+        }
+        if (tree !== undefined) {
+          _payload[`tree`] = resolveBodyParam(tree);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `put`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, popupsUpdateSpecs, { method: "put" });
 const seedSpecs: PromptSpec[] = [
   { key: "library", option: "--library [library...]", name: "library", description: "The reusable blocks to create. Idempotent by label among live items. One without a label or without a block tree is reported under `skipped`.", type: "array", required: false },
   { key: "menus", option: "--menus [menus...]", name: "menus", description: "The menus to create. One with no key or no label is reported under `skipped`.", type: "array", required: false },

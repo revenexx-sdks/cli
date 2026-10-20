@@ -29,13 +29,20 @@ export const shippingValueLists = new Command("shipping-value-lists")
 const shippingServiceLevelsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A value outside the range is clamped rather than refused, and `page.limit` echoes what was applied.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). The next page is `page.offset + page.returned`.", type: "integer", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "true answers only the values on offer, false only the retired ones; omitted, both. The only filter this collection honours.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 shippingValueLists
   .command(`shipping-service-levels-list`)
-  .description(`What class of service a carrier row represents. This used to be a CHECK constraint, which meant a merchant with a night-courier tier or a two-man delivery service needed a release of this app to say so — and nothing in the app ever branched on the value, it only carried it. The set is the tenant's rows now, and the first read seeds it, so this never answers empty. Hand-rolled rather than a generic mount, because seeding is the point: it therefore honours limit/offset AND NOTHING ELSE. There is no \`?code=\` filter and no \`order\` — the rows always come back in \`position\` order, and a sort or a filter sent anyway is accepted, ignored, and answered 200.`)
+  .description(`What class of service a carrier row represents. This used to be a CHECK constraint, which meant a merchant with a night-courier tier or a two-man delivery service needed a release of this app to say so — and nothing in the app ever branched on the value, it only carried it. The set is the tenant's rows now, and the first read seeds it, so this never answers empty. Hand-rolled rather than a generic mount, because seeding is the point: it therefore honours limit/offset and the \`active\` flag AND NOTHING ELSE. There is no \`?code=\` filter and no \`order\` — the rows always come back in \`position\` order, and a sort or another filter sent anyway is accepted, ignored, and answered 200.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200). A value outside the range is clamped rather than refused, and \`page.limit\` echoes what was applied.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). The next page is \`page.offset + page.returned\`.`, parseInteger)
+  .option(
+    `--active [value]`,
+    `true answers only the values on offer, false only the retired ones; omitted, both. The only filter this collection honours.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -45,7 +52,7 @@ shippingValueLists
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, filter } = await promptForMissing(
+        const { limit, offset, active, filter } = await promptForMissing(
           _options,
           shippingServiceLevelsListSpecs,
           _command,
@@ -58,6 +65,9 @@ shippingValueLists
         }
         if (offset !== undefined) {
           _payload[`offset`] = offset;
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -83,9 +93,10 @@ registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingServiceLevelsLi
 const shippingServiceLevelsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "Lowercase letters, digits, - or _, starting with a letter. What `shipping_carriers.service_level` stores. Immutable once created — renaming it would orphan every row carrying it.", type: "string", required: true },
   { key: "title", option: "--title <title>", name: "title", description: "What an operator reads in a select. The name a merchant renames; the code underneath never moves.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "Whether this value is offered for new assignments. Defaults to true. An inactive value cannot be created as the default.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "The sentence under the title, explaining when to pick this service level. Null when the title says enough.", type: "string", required: false },
   { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "Localized descriptions. A flat map keyed by locale — the Cockpit falls back to `en`. Null means the row has no translations and every client shows the untranslated column instead.", type: "object", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this value on creation; the previous default is demoted.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this value on creation; the previous default is demoted. Refused together with `active: false`.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized titles. A flat map keyed by locale — the Cockpit falls back to `en`. Null means the row has no translations and every client shows the untranslated column instead.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort order in a select — the collection is returned in it.", type: "integer", required: false },
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour for a UI listing the set. The client owns what each tone looks like.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
@@ -95,11 +106,17 @@ shippingValueLists
   .description(`A service level is the class of service a carrier row represents, as one of the tenant's own codes. It is carried by \`shipping_carriers.service_level\` and reported on a rate as \`carrier_service_level\`; nothing in this app branches on it. A method never names one — it gets its level through the carrier it ships with. Reach for this when a merchant sells a class this app was not shipped with — a night courier, a two-man delivery, a same-day run. A create cannot omit \`code\` and \`title\`; every other column is optional or defaulted by the database. Two rows of this tenant may not share \`code\` — that is the 409. The code is lowercase and becomes what a carrier stores; it cannot be changed afterwards, because every carrier carrying it would be orphaned. Creating one changes nothing on its own: a carrier has to be moved onto it before it means anything.`)
   .option(`--code <code>`, `Lowercase letters, digits, - or _, starting with a letter. What \`shipping_carriers.service_level\` stores. Immutable once created — renaming it would orphan every row carrying it.`)
   .option(`--title <title>`, `What an operator reads in a select. The name a merchant renames; the code underneath never moves.`)
+  .option(
+    `--active [value]`,
+    `Whether this value is offered for new assignments. Defaults to true. An inactive value cannot be created as the default.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--description <description>`, `The sentence under the title, explaining when to pick this service level. Null when the title says enough.`)
   .option(`--descriptions <descriptions>`, `Localized descriptions. A flat map keyed by locale — the Cockpit falls back to \`en\`. Null means the row has no translations and every client shows the untranslated column instead.`)
   .option(
     `--is-default [value]`,
-    `Promote this value on creation; the previous default is demoted.`,
+    `Promote this value on creation; the previous default is demoted. Refused together with \`active: false\`.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -109,7 +126,7 @@ shippingValueLists
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, title, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
+        const { code, title, active, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
           _options,
           shippingServiceLevelsCreateSpecs,
           _command,
@@ -123,6 +140,9 @@ shippingValueLists
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -229,9 +249,10 @@ shippingValueLists
 registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingServiceLevelsGetSpecs, { method: "get" });
 const shippingServiceLevelsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/service-levels", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False retires the value: whatever already carries it keeps it, and it is no longer offered for a new assignment. Refused on the default — make another entry the default first.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "The sentence under the title, explaining when to pick this service level. Null when the title says enough.", type: "string", required: false },
   { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "Localized descriptions. A flat map keyed by locale — the Cockpit falls back to `en`. Null means the row has no translations and every client shows the untranslated column instead.", type: "object", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this value; the previous default is demoted. POST …/make-default does the same thing without an edit.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this value; the previous default is demoted. POST …/make-default does the same thing without an edit. Refused for an inactive value.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized titles. A flat map keyed by locale — the Cockpit falls back to `en`. Null means the row has no translations and every client shows the untranslated column instead.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort order in a select — the collection is returned in it.", type: "integer", required: false },
   { key: "title", option: "--title <title>", name: "title", description: "What an operator reads in a select. The name a merchant renames; the code underneath never moves.", type: "string", required: false },
@@ -241,11 +262,17 @@ shippingValueLists
   .command(`shipping-service-levels-update`)
   .description(`A service level is the class of service a carrier row represents, as one of the tenant's own codes. It is carried by \`shipping_carriers.service_level\` and reported on a rate as \`carrier_service_level\`; nothing in this app branches on it. A method never names one — it gets its level through the carrier it ships with. This edits the DISPLAY half of one — title, description, their locale maps, badge tone, position, and the default flag. Everything a carrier or a filter joins on stays put: the code is immutable (a different one in the payload is a 400, not a silent no-op), and no carrier is moved onto or off this level by renaming it. Moving a row's \`position\` does not renumber its neighbours — the collection is returned in position order and ties fall back to whatever the database returns, so a deliberate order means writing every row's position.`)
   .option(`--id <id>`, `The row id.`)
+  .option(
+    `--active [value]`,
+    `False retires the value: whatever already carries it keeps it, and it is no longer offered for a new assignment. Refused on the default — make another entry the default first.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--description <description>`, `The sentence under the title, explaining when to pick this service level. Null when the title says enough.`)
   .option(`--descriptions <descriptions>`, `Localized descriptions. A flat map keyed by locale — the Cockpit falls back to \`en\`. Null means the row has no translations and every client shows the untranslated column instead.`)
   .option(
     `--is-default [value]`,
-    `Promote this value; the previous default is demoted. POST …/make-default does the same thing without an edit.`,
+    `Promote this value; the previous default is demoted. POST …/make-default does the same thing without an edit. Refused for an inactive value.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -256,7 +283,7 @@ shippingValueLists
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
+        const { id, active, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
           _options,
           shippingServiceLevelsUpdateSpecs,
           _command,
@@ -270,6 +297,9 @@ shippingValueLists
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (description !== undefined) {
           _payload[`description`] = description;
@@ -397,7 +427,7 @@ const shippingVocabulariesGetSpecs: PromptSpec[] = [
 ];
 shippingValueLists
   .command(`shipping-vocabularies-get`)
-  .description(`One vocabulary in full: every value it permits, each carrying the title to show, the description to explain it and the badge tone to draw it in — everything a select or a status chip needs, so nothing has to be labelled a second time in a client. Two sources, one guarantee: what is served is what is enforced, so no UI keeps a second copy. 'source: schema' means the values are read out of a CHECK constraint — a value added to the constraint appears here even before anyone labels it, titled from its own key, in constraint order. 'source: table' means the values are the TENANT's own rows (service-levels, weight-units), read per request and seeded on first use, so a merchant may add one without a release of this app; those values also carry labels/descriptions, is_system and is_default, and weight-units carries the conversion factor. 'closed' says the set is exhaustive either way, so a value outside it is stale data rather than a missing label. \`title\` and \`description\` — the vocabulary's and every value's — are either one string or a locale map keyed by locale: curated copy carries the map, a value titled from its own key carries the string. Names: carrier-statuses, matrix-bases, pricing-types, service-levels, weight-units.`)
+  .description(`One vocabulary in full: every value it permits, each carrying the title to show, the description to explain it and the badge tone to draw it in — everything a select or a status chip needs, so nothing has to be labelled a second time in a client. Two sources, one guarantee: what is served is what is enforced, so no UI keeps a second copy. 'source: schema' means the values are read out of a CHECK constraint — a value added to the constraint appears here even before anyone labels it, titled from its own key, in constraint order. 'source: table' means the values are the TENANT's own rows (service-levels, weight-units), read per request and seeded on first use, so a merchant may add one without a release of this app; those values also carry labels/descriptions, is_system, is_default and active, and weight-units carries the conversion factor. A value the merchant set inactive is not under \`values\` (what a picker offers) but under \`inactive\`, in the same shape, so a stored code still resolves to its title. 'closed' says the set is exhaustive either way, so a value outside it is stale data rather than a missing label. \`title\` and \`description\` — the vocabulary's and every value's — are either one string or a locale map keyed by locale: curated copy carries the map, a value titled from its own key carries the string. Names: carrier-statuses, matrix-bases, pricing-types, service-levels, weight-units.`)
   .option(`--name <name>`, `The vocabulary name — the part after the dot in the qualified id.`)
   .action(
     actionRunner(
@@ -427,13 +457,20 @@ registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingVocabulariesGet
 const shippingWeightUnitsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A value outside the range is clamped rather than refused, and `page.limit` echoes what was applied.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). The next page is `page.offset + page.returned`.", type: "integer", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "true answers only the values on offer, false only the retired ones; omitted, both. The only filter this collection honours.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 shippingValueLists
   .command(`shipping-weight-units-list`)
-  .description(`Not a taxonomy: a unit is a code PLUS a factor, and the factor prices parcels. \`factor\` is how many kilograms one of this unit weighs, so a matrix keyed in one unit can price a request expressed in another. Exactly one row is the BASE (kg, factor 1) — the anchor every other factor and every stored rate tier is expressed in — and it is fixed at install. Seeded on first read, so this never answers empty. Like the service levels it is hand-rolled and honours limit/offset AND NOTHING ELSE: no column filter, no \`order\`, always \`position\` order, and a sort sent anyway is ignored rather than refused.`)
+  .description(`Not a taxonomy: a unit is a code PLUS a factor, and the factor prices parcels. \`factor\` is how many kilograms one of this unit weighs, so a matrix keyed in one unit can price a request expressed in another. Exactly one row is the BASE (kg, factor 1) — the anchor every other factor and every stored rate tier is expressed in — and it is fixed at install. Seeded on first read, so this never answers empty. Like the service levels it is hand-rolled and honours limit/offset and the \`active\` flag AND NOTHING ELSE: no other column filter, no \`order\`, always \`position\` order, and a sort sent anyway is ignored rather than refused.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200). A value outside the range is clamped rather than refused, and \`page.limit\` echoes what was applied.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). The next page is \`page.offset + page.returned\`.`, parseInteger)
+  .option(
+    `--active [value]`,
+    `true answers only the values on offer, false only the retired ones; omitted, both. The only filter this collection honours.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -443,7 +480,7 @@ shippingValueLists
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, filter } = await promptForMissing(
+        const { limit, offset, active, filter } = await promptForMissing(
           _options,
           shippingWeightUnitsListSpecs,
           _command,
@@ -456,6 +493,9 @@ shippingValueLists
         }
         if (offset !== undefined) {
           _payload[`offset`] = offset;
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -482,9 +522,10 @@ const shippingWeightUnitsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "Lowercase letters, digits, - or _, starting with a letter. What a rate request names in `weight_unit`, and what a market's `weight_unit` setting stores. Immutable once created — renaming it would orphan every row carrying it.", type: "string", required: true },
   { key: "factor", option: "--factor <factor>", name: "factor", description: "How many BASE units (kilograms) one of this unit weighs — a tonne is 1000, a gram 0.001, a pound 0.45359237. This number prices parcels: every weight matrix converts a request through it. Must be > 0; the base unit is fixed at 1 and rejects a change.", type: "number", required: true },
   { key: "title", option: "--title <title>", name: "title", description: "What an operator reads in a select. The name a merchant renames; the code underneath never moves.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "Whether this value is offered for new assignments. Defaults to true. An inactive value cannot be created as the default.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "The sentence under the title, explaining when to pick this weight unit. Null when the title says enough.", type: "string", required: false },
   { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "Localized descriptions. A flat map keyed by locale — the Cockpit falls back to `en`. Null means the row has no translations and every client shows the untranslated column instead.", type: "object", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this value on creation; the previous default is demoted.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this value on creation; the previous default is demoted. Refused together with `active: false`.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized titles. A flat map keyed by locale — the Cockpit falls back to `en`. Null means the row has no translations and every client shows the untranslated column instead.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort order in a select — the collection is returned in it.", type: "integer", required: false },
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour for a UI listing the set. The client owns what each tone looks like.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
@@ -495,11 +536,17 @@ shippingValueLists
   .option(`--code <code>`, `Lowercase letters, digits, - or _, starting with a letter. What a rate request names in \`weight_unit\`, and what a market's \`weight_unit\` setting stores. Immutable once created — renaming it would orphan every row carrying it.`)
   .option(`--factor <factor>`, `How many BASE units (kilograms) one of this unit weighs — a tonne is 1000, a gram 0.001, a pound 0.45359237. This number prices parcels: every weight matrix converts a request through it. Must be > 0; the base unit is fixed at 1 and rejects a change.`, parseInteger)
   .option(`--title <title>`, `What an operator reads in a select. The name a merchant renames; the code underneath never moves.`)
+  .option(
+    `--active [value]`,
+    `Whether this value is offered for new assignments. Defaults to true. An inactive value cannot be created as the default.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--description <description>`, `The sentence under the title, explaining when to pick this weight unit. Null when the title says enough.`)
   .option(`--descriptions <descriptions>`, `Localized descriptions. A flat map keyed by locale — the Cockpit falls back to \`en\`. Null means the row has no translations and every client shows the untranslated column instead.`)
   .option(
     `--is-default [value]`,
-    `Promote this value on creation; the previous default is demoted.`,
+    `Promote this value on creation; the previous default is demoted. Refused together with \`active: false\`.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -509,7 +556,7 @@ shippingValueLists
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, factor, title, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
+        const { code, factor, title, active, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
           _options,
           shippingWeightUnitsCreateSpecs,
           _command,
@@ -523,6 +570,9 @@ shippingValueLists
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -632,10 +682,11 @@ shippingValueLists
 registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingWeightUnitsGetSpecs, { method: "get" });
 const shippingWeightUnitsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/weight-units", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False retires the value: whatever already carries it keeps it, and it is no longer offered for a new assignment. Refused on the default — make another entry the default first.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "The sentence under the title, explaining when to pick this weight unit. Null when the title says enough.", type: "string", required: false },
   { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "Localized descriptions. A flat map keyed by locale — the Cockpit falls back to `en`. Null means the row has no translations and every client shows the untranslated column instead.", type: "object", required: false },
   { key: "factor", option: "--factor <factor>", name: "factor", description: "How many BASE units (kilograms) one of this unit weighs — a tonne is 1000, a gram 0.001, a pound 0.45359237. This number prices parcels: every weight matrix converts a request through it. Must be > 0; the base unit is fixed at 1 and rejects a change.", type: "number", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this value; the previous default is demoted. POST …/make-default does the same thing without an edit.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Promote this value; the previous default is demoted. POST …/make-default does the same thing without an edit. Refused for an inactive value.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "Localized titles. A flat map keyed by locale — the Cockpit falls back to `en`. Null means the row has no translations and every client shows the untranslated column instead.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort order in a select — the collection is returned in it.", type: "integer", required: false },
   { key: "title", option: "--title <title>", name: "title", description: "What an operator reads in a select. The name a merchant renames; the code underneath never moves.", type: "string", required: false },
@@ -645,12 +696,18 @@ shippingValueLists
   .command(`shipping-weight-units-update`)
   .description(`Everything but the code and the base flag. A factor sent for the BASE unit is refused rather than silently ignored: it reads as 1 because every other factor is relative to it, so changing it would rescale the whole table without touching another row.`)
   .option(`--id <id>`, `The row id.`)
+  .option(
+    `--active [value]`,
+    `False retires the value: whatever already carries it keeps it, and it is no longer offered for a new assignment. Refused on the default — make another entry the default first.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--description <description>`, `The sentence under the title, explaining when to pick this weight unit. Null when the title says enough.`)
   .option(`--descriptions <descriptions>`, `Localized descriptions. A flat map keyed by locale — the Cockpit falls back to \`en\`. Null means the row has no translations and every client shows the untranslated column instead.`)
   .option(`--factor <factor>`, `How many BASE units (kilograms) one of this unit weighs — a tonne is 1000, a gram 0.001, a pound 0.45359237. This number prices parcels: every weight matrix converts a request through it. Must be > 0; the base unit is fixed at 1 and rejects a change.`, parseInteger)
   .option(
     `--is-default [value]`,
-    `Promote this value; the previous default is demoted. POST …/make-default does the same thing without an edit.`,
+    `Promote this value; the previous default is demoted. POST …/make-default does the same thing without an edit. Refused for an inactive value.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -661,7 +718,7 @@ shippingValueLists
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, description, descriptions, factor, isDefault, labels, position, title, tone } = await promptForMissing(
+        const { id, active, description, descriptions, factor, isDefault, labels, position, title, tone } = await promptForMissing(
           _options,
           shippingWeightUnitsUpdateSpecs,
           _command,
@@ -675,6 +732,9 @@ shippingValueLists
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (description !== undefined) {
           _payload[`description`] = description;
@@ -714,6 +774,48 @@ shippingValueLists
     ),
   );
 registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingWeightUnitsUpdateSpecs, { method: "put" });
+const shippingWeightUnitsMakeBaseSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/weight-units", hasLimit: true } },
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
+];
+shippingValueLists
+  .command(`shipping-weight-units-make-base`)
+  .description(`The only way the base moves. This unit takes factor 1 and the base flag, and every other factor is divided by its old factor in the same call, so each unit still weighs what it did. Rate tiers are left alone: they are keyed in the unit a market quotes in, never in the base. Every new factor is checked before the first write. Calling it on the base itself changes nothing.`)
+  .option(`--id <id>`, `The row id.`)
+  .option(`--body <body>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { id, body } = await promptForMissing(
+          _options,
+          shippingWeightUnitsMakeBaseSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/shipping/weight-units/{id}/make-base`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingWeightUnitsMakeBaseSpecs, { method: "post" });
 const shippingWeightUnitsMakeDefaultSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/weight-units", hasLimit: true } },
   { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },

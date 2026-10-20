@@ -121,6 +121,7 @@ const budgetsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "discarded", option: "--discarded <discarded>", name: "discarded", description: "Discarded drafts are left out by default. 'include' lists them among the rest, 'only' lists nothing else. Any other value is refused with 400.", type: "string", required: false, enum: ["include","only"] },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 costCenters
@@ -129,6 +130,7 @@ costCenters
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(`--discarded <discarded>`, `Discarded drafts are left out by default. 'include' lists them among the rest, 'only' lists nothing else. Any other value is refused with 400.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -138,7 +140,7 @@ costCenters
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, filter } = await promptForMissing(
+        const { limit, offset, order, discarded, filter } = await promptForMissing(
           _options,
           budgetsListSpecs,
           _command,
@@ -154,6 +156,9 @@ costCenters
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        if (discarded !== undefined) {
+          _payload[`discarded`] = discarded;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -510,6 +515,55 @@ costCenters
     ),
   );
 registerPromptSpecs(costCenters.commands.at(-1)!, budgetsAdjustSpecs, { method: "post" });
+const budgetsDiscardSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/cost-centers/budgets", hasLimit: true } },
+  { key: "actor", option: "--actor <actor>", name: "actor", type: "string", required: false },
+  { key: "note", option: "--note <note>", name: "note", type: "string", required: false },
+];
+costCenters
+  .command(`budgets-discard`)
+  .description(`Discard a draft budget (only its initialized ledger entry, no rollover chain): writes it to zero, stamps it and sets it inactive, and budget.discarded announces it; 409 budget_in_use once anything moved, 409 budget_discarded if already discarded`)
+  .option(`--id <id>`, ``)
+  .option(`--actor <actor>`, ``)
+  .option(`--note <note>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, actor, note } = await promptForMissing(
+          _options,
+          budgetsDiscardSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/cost-centers/budgets/{id}/discard`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`actor`] = actor;
+        }
+        if (note !== undefined) {
+          _payload[`note`] = note;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(costCenters.commands.at(-1)!, budgetsDiscardSpecs, { method: "post" });
 const commitSpecs: PromptSpec[] = [
   { key: "allocations", option: "--allocations [allocations...]", name: "allocations", type: "array", required: true },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", type: "string", required: false },
@@ -1224,6 +1278,38 @@ costCenters
     ),
   );
 registerPromptSpecs(costCenters.commands.at(-1)!, costCentersUpdateSpecs, { method: "put" });
+const costCentersArchiveSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/cost-centers/cost-centers", hasLimit: true } },
+];
+costCenters
+  .command(`cost-centers-archive`)
+  .description(`Archive a cost centre: set it inactive so nothing books to it (idempotent). The way out for a centre that ever held a budget, which the store does not let go`)
+  .option(`--id <id>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          costCentersArchiveSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/cost-centers/cost-centers/{id}/archive`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(costCenters.commands.at(-1)!, costCentersArchiveSpecs, { method: "post" });
 const costCentersConsumeSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/cost-centers/cost-centers", hasLimit: true } },
   { key: "amount", option: "--amount <amount>", name: "amount", type: "number", required: true },

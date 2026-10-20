@@ -43,6 +43,7 @@ const listSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
+  { key: "sessionKey", option: "--session-key <session-key>", name: "session_key", description: "The session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Accepted and not yet checked; from 3.0.0 on, a call acting for a contact reaches such a cart only with it.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 cartsItems
@@ -65,6 +66,7 @@ cartsItems
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
+  .option(`--session-key <session-key>`, `The session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Accepted and not yet checked; from 3.0.0 on, a call acting for a contact reaches such a cart only with it.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -74,7 +76,7 @@ cartsItems
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { cartId, id, type, productId, sku, name, quantity, unit, unitPrice, taxRate, lineTotal, position, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { cartId, id, type, productId, sku, name, quantity, unit, unitPrice, taxRate, lineTotal, position, createdAt, updatedAt, limit, offset, order, sessionKey, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -130,6 +132,9 @@ cartsItems
         if (order !== undefined) {
           _payload[`order`] = order;
         }
+        if (sessionKey !== undefined) {
+          _payload[`session_key`] = sessionKey;
+        }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
           if (_eq <= 0) {
@@ -153,6 +158,7 @@ cartsItems
 registerPromptSpecs(cartsItems.commands.at(-1)!, listSpecs, { method: "get" });
 const createSpecs: PromptSpec[] = [
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.", type: "string", required: true },
+  { key: "sessionKey", option: "--session-key <session-key>", name: "session_key", description: "The session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Accepted and not yet checked; from 3.0.0 on, a call acting for a contact reaches such a cart only with it.", type: "string", required: false },
   { key: "configuration", option: "--configuration <configuration>", name: "configuration", description: "What was configured on this line, in the configurator's own vocabulary — this app stores it and reads nothing out of it. Its mere PRESENCE is behaviour: a line that carries a configuration never merges with another, because two differently configured units of the same article are not one line. Keys are the configurator's; the example is one shape, not the shape.", type: "object", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "Optional, and it cannot change anything: a line is read in its CART's currency and stores none of its own. Sending the cart's code (or nothing) is accepted — which is what makes an exported line re-importable — and sending a different one answers 409 `currency_mismatch` rather than being converted or quietly stored.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data the storefront hangs on the line. Stored and returned verbatim; no key in here is read by this app.", type: "object", required: false },
@@ -171,6 +177,7 @@ cartsItems
   .command(`create`)
   .description(`Adds one line to an ACTIVE cart — the add-to-basket call. \`name\` or \`sku\` is required (a line sent with only a SKU takes the SKU as its name, so a line always has something to show) and \`quantity\` must be greater than zero; everything else defaults. The line is priced in the CART's currency and stores none of its own, so a \`currency\` in the payload may only repeat the cart's — a different one is a 409. The one thing that surprises a caller: a plain product line with the same product/sku AND the same \`unit_price\` as a line already in the cart does not open a second row — its quantity is added to that line, and the 201 names a row that already existed. Price is part of that identity on purpose, so a changed price never averages into an old line. A configured or custom line always stands alone. The cart's \`item_count\` (the sum of QUANTITIES) and \`subtotal\` are recomputed before the answer, and \`max_items_per_cart\` / \`max_quantity_per_line\` are checked on the RESULT of the merge (422), so ten calls of one piece cannot walk past a limit one call of ten would hit.`)
   .option(`--cart-id <cart-id>`, `The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.`)
+  .option(`--session-key <session-key>`, `The session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Accepted and not yet checked; from 3.0.0 on, a call acting for a contact reaches such a cart only with it.`)
   .option(`--configuration <configuration>`, `What was configured on this line, in the configurator's own vocabulary — this app stores it and reads nothing out of it. Its mere PRESENCE is behaviour: a line that carries a configuration never merges with another, because two differently configured units of the same article are not one line. Keys are the configurator's; the example is one shape, not the shape.`)
   .option(`--currency <currency>`, `Optional, and it cannot change anything: a line is read in its CART's currency and stores none of its own. Sending the cart's code (or nothing) is accepted — which is what makes an exported line re-importable — and sending a different one answers 409 \`currency_mismatch\` rather than being converted or quietly stored.`)
   .option(`--metadata <metadata>`, `Free-form data the storefront hangs on the line. Stored and returned verbatim; no key in here is read by this app.`)
@@ -187,7 +194,7 @@ cartsItems
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { cartId, configuration, currency, metadata, name, position, productId, quantity, sku, snapshot, taxRate, type, unit, unitPrice } = await promptForMissing(
+        const { cartId, sessionKey, configuration, currency, metadata, name, position, productId, quantity, sku, snapshot, taxRate, type, unit, unitPrice } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -201,6 +208,9 @@ cartsItems
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (sessionKey !== undefined) {
+          _payload[`session_key`] = sessionKey;
         }
         if (configuration !== undefined) {
           _payload[`configuration`] = resolveBodyParam(configuration);
@@ -258,16 +268,18 @@ registerPromptSpecs(cartsItems.commands.at(-1)!, createSpecs, { method: "post" }
 const replaceSpecs: PromptSpec[] = [
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.", type: "string", required: true },
   { key: "items", option: "--items [items...]", name: "items", description: "The complete new item set (set semantics).", type: "array", required: true },
+  { key: "sessionKey", option: "--session-key <session-key>", name: "session_key", description: "The session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Accepted and not yet checked; from 3.0.0 on, a call acting for a contact reaches such a cart only with it.", type: "string", required: false },
 ];
 cartsItems
   .command(`replace`)
   .description(`Set semantics: the payload IS the cart. Every existing line is dropped and the payload is written in its place, so a line left out of the array is a line removed — this is the storefront sync, not a bulk add, and carts.items.create is what adds. Lines are numbered by their place in the array unless they carry their own \`position\`, and nothing merges: two identical lines in one payload stay two rows. The limits are checked against the payload BEFORE a single existing line is destroyed, so a sync refused with 422 leaves the cart exactly as it was. The cart must be active, and its totals are recomputed before the answer.`)
   .option(`--cart-id <cart-id>`, `The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.`)
   .option(`--items [items...]`, `The complete new item set (set semantics).`)
+  .option(`--session-key <session-key>`, `The session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Accepted and not yet checked; from 3.0.0 on, a call acting for a contact reaches such a cart only with it.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { cartId, items } = await promptForMissing(
+        const { cartId, items, sessionKey } = await promptForMissing(
           _options,
           replaceSpecs,
           _command,
@@ -281,6 +293,9 @@ cartsItems
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (sessionKey !== undefined) {
+          _payload[`session_key`] = sessionKey;
         }
         if (items !== undefined) {
           _payload[`items`] = items;
@@ -299,19 +314,90 @@ cartsItems
     ),
   );
 registerPromptSpecs(cartsItems.commands.at(-1)!, replaceSpecs, { method: "put" });
+const pricedSpecs: PromptSpec[] = [
+  { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.", type: "string", required: true },
+  { key: "sessionKey", option: "--session-key <session-key>", name: "session_key", description: "The session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Accepted and not yet checked; from 3.0.0 on, a call acting for a contact reaches such a cart only with it.", type: "string", required: false },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The catalogue product. Send this or `sku`.", type: "string", required: false },
+  { key: "quantity", option: "--quantity <quantity>", name: "quantity", description: "How much of it — default 1. It is also the quantity the price is resolved for, so a tier price applies.", type: "number", required: false },
+  { key: "sku", option: "--sku <sku>", name: "sku", description: "The article number, when no product id is at hand. Resolved against the products catalogue.", type: "string", required: false },
+  { key: "taxRate", option: "--tax-rate <tax-rate>", name: "tax_rate", description: "VAT percent, read only for an article the prices app has no price for, together with `unit_price`. A rate prices answers always wins.", type: "number", required: false },
+  { key: "unitPrice", option: "--unit-price <unit-price>", name: "unit_price", description: "An agreed net unit price that overrides the resolved one. Omit it and the line carries the price the customer would see in the shop. The snapshot keeps both.", type: "number", required: false },
+];
+cartsItems
+  .command(`priced`)
+  .description(`The operator's add-to-basket. The caller names an article and a quantity; the line is written with the article's name and SKU from the products catalogue and the price the prices app resolves for THIS cart's buyer — contact, organization, currency and market (the request's market, else the cart's own) — so a cart filled in a customer's name carries the prices that customer sees in the shop. This app still sets no price: it asks, exactly as a storefront asks before it adds. An agreed price may be stated as \`unit_price\`; the snapshot then keeps the resolved price beside it. From there the line goes the way every add goes — an identical product line at the same price folds into the existing one, the line limits apply and the totals are recomputed. It fails closed: an article prices cannot price for this buyer answers 422 \`no_price\` unless an agreed price was sent, and a tax rate that cannot be resolved is a refusal, never a line at 0 %. A request acting for a contact is refused with 403.`)
+  .option(`--cart-id <cart-id>`, `The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.`)
+  .option(`--session-key <session-key>`, `The session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Accepted and not yet checked; from 3.0.0 on, a call acting for a contact reaches such a cart only with it.`)
+  .option(`--product-id <product-id>`, `The catalogue product. Send this or \`sku\`.`)
+  .option(`--quantity <quantity>`, `How much of it — default 1. It is also the quantity the price is resolved for, so a tier price applies.`, parseInteger)
+  .option(`--sku <sku>`, `The article number, when no product id is at hand. Resolved against the products catalogue.`)
+  .option(`--tax-rate <tax-rate>`, `VAT percent, read only for an article the prices app has no price for, together with \`unit_price\`. A rate prices answers always wins.`, parseInteger)
+  .option(`--unit-price <unit-price>`, `An agreed net unit price that overrides the resolved one. Omit it and the line carries the price the customer would see in the shop. The snapshot keeps both.`, parseInteger)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { cartId, sessionKey, productId, quantity, sku, taxRate, unitPrice } = await promptForMissing(
+          _options,
+          pricedSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/carts/{cart_id}/items/priced`.replace(`{cart_id}`, cartId);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (sessionKey !== undefined) {
+          _payload[`session_key`] = sessionKey;
+        }
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
+        }
+        if (quantity !== undefined) {
+          _payload[`quantity`] = quantity;
+        }
+        if (sku !== undefined) {
+          _payload[`sku`] = sku;
+        }
+        if (taxRate !== undefined) {
+          _payload[`tax_rate`] = taxRate;
+        }
+        if (unitPrice !== undefined) {
+          _payload[`unit_price`] = unitPrice;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(cartsItems.commands.at(-1)!, pricedSpecs, { method: "post" });
 const deleteSpecs: PromptSpec[] = [
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.", type: "string", required: true },
   { key: "id", option: "--id <id>", name: "id", description: "The line, by its id. The cart in the path is checked too: a line that belongs to a different cart answers 404, so an id guessed from another cart never resolves here.", type: "string", required: true, resource: { listPath: "/carts/{cart_id}/items", hasLimit: true } },
+  { key: "sessionKey", option: "--session-key <session-key>", name: "session_key", description: "The session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Accepted and not yet checked; from 3.0.0 on, a call acting for a contact reaches such a cart only with it.", type: "string", required: false },
 ];
 cartsItems
   .command(`delete`)
   .description(`Removes one line from an ACTIVE cart and recomputes the owning cart's \`item_count\` and \`subtotal\` before answering. This is how a quantity reaches zero: \`quantity\` is constrained to be greater than zero, so "none of it" is a DELETE and never an update to 0. The cart in the path is part of the address — a line belonging to a different cart answers 404 and is left where it is. Deleting the last line leaves an empty cart, not a deleted one; the cart itself goes through carts.delete, which takes every line with it in one call.`)
   .option(`--cart-id <cart-id>`, `The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.`)
   .option(`--id <id>`, `The line, by its id. The cart in the path is checked too: a line that belongs to a different cart answers 404, so an id guessed from another cart never resolves here.`)
+  .option(`--session-key <session-key>`, `The session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Accepted and not yet checked; from 3.0.0 on, a call acting for a contact reaches such a cart only with it.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { cartId, id } = await promptForMissing(
+        const { cartId, id, sessionKey } = await promptForMissing(
           _options,
           deleteSpecs,
           _command,
@@ -320,6 +406,9 @@ cartsItems
         const _client = await sdkForProject();
         const _apiPath = `/carts/{cart_id}/items/{id}`.replace(`{cart_id}`, cartId).replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (sessionKey !== undefined) {
+          _payload[`session_key`] = sessionKey;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -337,16 +426,18 @@ registerPromptSpecs(cartsItems.commands.at(-1)!, deleteSpecs, { method: "delete"
 const getSpecs: PromptSpec[] = [
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.", type: "string", required: true },
   { key: "id", option: "--id <id>", name: "id", description: "The line, by its id. The cart in the path is checked too: a line that belongs to a different cart answers 404, so an id guessed from another cart never resolves here.", type: "string", required: true, resource: { listPath: "/carts/{cart_id}/items", hasLimit: true } },
+  { key: "sessionKey", option: "--session-key <session-key>", name: "session_key", description: "The session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Accepted and not yet checked; from 3.0.0 on, a call acting for a contact reaches such a cart only with it.", type: "string", required: false },
 ];
 cartsItems
   .command(`get`)
   .description(`One line, addressed through the cart that owns it. Both ids are checked, not just the line's: a line that exists but belongs to a different cart answers 404 rather than the row, so an id copied out of another cart never resolves here and a caller can trust that what came back is a line of the cart they asked about. The line carries both of its prices — the working \`unit_price\`, which a resync or a repricing job may have moved, and the \`snapshot\` the buyer was shown when the line was added — and its own \`line_total\`, which is always quantity × unit_price and never what a payload claimed. To read a whole cart's lines, list them: this route is for one known line.`)
   .option(`--cart-id <cart-id>`, `The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.`)
   .option(`--id <id>`, `The line, by its id. The cart in the path is checked too: a line that belongs to a different cart answers 404, so an id guessed from another cart never resolves here.`)
+  .option(`--session-key <session-key>`, `The session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Accepted and not yet checked; from 3.0.0 on, a call acting for a contact reaches such a cart only with it.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { cartId, id } = await promptForMissing(
+        const { cartId, id, sessionKey } = await promptForMissing(
           _options,
           getSpecs,
           _command,
@@ -354,6 +445,9 @@ cartsItems
         const _client = await sdkForProject();
         const _apiPath = `/carts/{cart_id}/items/{id}`.replace(`{cart_id}`, cartId).replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (sessionKey !== undefined) {
+          _payload[`session_key`] = sessionKey;
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };
@@ -371,6 +465,7 @@ registerPromptSpecs(cartsItems.commands.at(-1)!, getSpecs, { method: "get" });
 const updateSpecs: PromptSpec[] = [
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.", type: "string", required: true },
   { key: "id", option: "--id <id>", name: "id", description: "The line, by its id. The cart in the path is checked too: a line that belongs to a different cart answers 404, so an id guessed from another cart never resolves here.", type: "string", required: true, resource: { listPath: "/carts/{cart_id}/items", hasLimit: true } },
+  { key: "sessionKey", option: "--session-key <session-key>", name: "session_key", description: "The session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Accepted and not yet checked; from 3.0.0 on, a call acting for a contact reaches such a cart only with it.", type: "string", required: false },
   { key: "configuration", option: "--configuration <configuration>", name: "configuration", description: "What was configured on this line, in the configurator's own vocabulary — this app stores it and reads nothing out of it. Its mere PRESENCE is behaviour: a line that carries a configuration never merges with another, because two differently configured units of the same article are not one line. Keys are the configurator's; the example is one shape, not the shape.", type: "object", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "Optional, and it cannot change anything: a line is read in its CART's currency and stores none of its own. Sending the cart's code (or nothing) is accepted — which is what makes an exported line re-importable — and sending a different one answers 409 `currency_mismatch` rather than being converted or quietly stored.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data the storefront hangs on the line. Stored and returned verbatim; no key in here is read by this app.", type: "object", required: false },
@@ -390,6 +485,7 @@ cartsItems
   .description(`Changes one line of an ACTIVE cart — the quantity stepper on the cart page, and the route a repricing job writes through. The fields sent are merged onto the stored line and the whole line is validated again, so \`quantity\` must still be greater than zero and \`type\` still one of the three. \`line_total\` is not settable: it is recomputed as quantity × unit_price, and the cart's \`item_count\` and \`subtotal\` follow before the answer. What it will NOT do is merge — only carts.items.create folds one line into another, so giving this line the same product and price as a sibling leaves two rows standing, and the next add joins whichever it matches. \`max_quantity_per_line\` is enforced on the result (422). A quantity of zero is not the way to remove a line; the delete is.`)
   .option(`--cart-id <cart-id>`, `The cart the line belongs to, by its id. An id no cart in this tenant has answers 404 rather than an empty list, so a wrong cart is never mistaken for an empty one.`)
   .option(`--id <id>`, `The line, by its id. The cart in the path is checked too: a line that belongs to a different cart answers 404, so an id guessed from another cart never resolves here.`)
+  .option(`--session-key <session-key>`, `The session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Accepted and not yet checked; from 3.0.0 on, a call acting for a contact reaches such a cart only with it.`)
   .option(`--configuration <configuration>`, `What was configured on this line, in the configurator's own vocabulary — this app stores it and reads nothing out of it. Its mere PRESENCE is behaviour: a line that carries a configuration never merges with another, because two differently configured units of the same article are not one line. Keys are the configurator's; the example is one shape, not the shape.`)
   .option(`--currency <currency>`, `Optional, and it cannot change anything: a line is read in its CART's currency and stores none of its own. Sending the cart's code (or nothing) is accepted — which is what makes an exported line re-importable — and sending a different one answers 409 \`currency_mismatch\` rather than being converted or quietly stored.`)
   .option(`--metadata <metadata>`, `Free-form data the storefront hangs on the line. Stored and returned verbatim; no key in here is read by this app.`)
@@ -406,7 +502,7 @@ cartsItems
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { cartId, id, configuration, currency, metadata, name, position, productId, quantity, sku, snapshot, taxRate, type, unit, unitPrice } = await promptForMissing(
+        const { cartId, id, sessionKey, configuration, currency, metadata, name, position, productId, quantity, sku, snapshot, taxRate, type, unit, unitPrice } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -420,6 +516,9 @@ cartsItems
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (sessionKey !== undefined) {
+          _payload[`session_key`] = sessionKey;
         }
         if (configuration !== undefined) {
           _payload[`configuration`] = resolveBodyParam(configuration);

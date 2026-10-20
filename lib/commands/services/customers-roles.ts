@@ -25,6 +25,28 @@ export const customersRoles = new Command("customers-roles")
     helpWidth: process.stdout.columns || 80,
   });
 
+customersRoles
+  .command(`customers-permissions-ledger`)
+  .description(`What the role editor offers: every permission with its words per language, its area, the app that owns it and whether the platform enforces it yet, plus the built-in set of every built-in role — what resetting a role to its default restores.`)
+  .action(
+    actionRunner(
+      async () => {
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/permissions/ledger`;
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
 const listSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
@@ -71,6 +93,7 @@ customersRoles
 registerPromptSpecs(customersRoles.commands.at(-1)!, listSpecs, { method: "get" });
 const createSpecs: PromptSpec[] = [
   { key: "title", option: "--title <title>", name: "title", description: "The name a merchant reads.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "Whether the role is offered when a contact gets one. Default true. An inactive role cannot be the default.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "One line on what the role is for.", type: "string", required: false },
   { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "The one line per locale.", type: "object", required: false },
   { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Make this the role a contact created without one gets. The previous default stops being one.", type: "boolean", required: false },
@@ -83,6 +106,12 @@ customersRoles
   .command(`create`)
   .description(`One call for a whole new role: its name, and the permissions it grants. The key is made from the name when none is sent — 'Einkauf Zentrale' becomes \`einkauf-zentrale\`, German letters spelled out — and it is fixed from then on, because every contact holding the role stores it. Seeds the built-in roles first when the tenant never wrote them down, so the first role of a tenant's own leaves what every existing contact may do exactly as it was.`)
   .option(`--title <title>`, `The name a merchant reads.`)
+  .option(
+    `--active [value]`,
+    `Whether the role is offered when a contact gets one. Default true. An inactive role cannot be the default.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--description <description>`, `One line on what the role is for.`)
   .option(`--descriptions <descriptions>`, `The one line per locale.`)
   .option(
@@ -98,7 +127,7 @@ customersRoles
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { title, description, descriptions, isDefault, key, labels, permissions, position } = await promptForMissing(
+        const { title, active, description, descriptions, isDefault, key, labels, permissions, position } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -112,6 +141,9 @@ customersRoles
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (description !== undefined) {
           _payload[`description`] = description;
@@ -191,6 +223,95 @@ customersRoles
     ),
   );
 registerPromptSpecs(customersRoles.commands.at(-1)!, defaultsSpecs, { method: "post" });
+const updateSpecs: PromptSpec[] = [
+  { key: "key", option: "--key <key>", name: "key", description: "The role key, or the role's id, which is what a record page holds.", type: "string", required: true, resource: { listPath: "/customers/roles", hasLimit: false } },
+  { key: "active", option: "--active <active>", name: "active", description: "False retires the role: contacts holding it keep it, it is no longer offered. Refused on a built-in role and on the default.", type: "boolean", required: false },
+  { key: "description", option: "--description <description>", name: "description", description: "One line on what the role is for.", type: "string", required: false },
+  { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "The one line per locale.", type: "object", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Make this the role a contact created without one gets. Refused for an inactive role.", type: "boolean", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", description: "The name per locale.", type: "object", required: false },
+  { key: "position", option: "--position <position>", name: "position", description: "Display order, least privileged first. Grants nothing by itself.", type: "integer", required: false },
+  { key: "title", option: "--title <title>", name: "title", description: "The name a merchant reads.", type: "string", required: false },
+  { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
+];
+customersRoles
+  .command(`update`)
+  .description(`A role's words, its rank, the default flag and whether it is still offered — not its key, which every contact holding the role stores, and not its grants, which \`PUT /customers/roles/{key}/permissions\` replaces. A role marked inactive is no longer offered when a contact gets a role (the roles vocabulary leaves it out), while every contact that holds it keeps it and keeps its grants. Two roles stay on offer: a built-in one, which is what every tenant starts from, and the default, which is what a new contact gets. Promoting a role to the default demotes the previous one; clearing the flag on the default changes nothing. Seeds the built-in roles first when the tenant never wrote them down.`)
+  .option(`--key <key>`, `The role key, or the role's id, which is what a record page holds.`)
+  .option(
+    `--active [value]`,
+    `False retires the role: contacts holding it keep it, it is no longer offered. Refused on a built-in role and on the default.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--description <description>`, `One line on what the role is for.`)
+  .option(`--descriptions <descriptions>`, `The one line per locale.`)
+  .option(
+    `--is-default [value]`,
+    `Make this the role a contact created without one gets. Refused for an inactive role.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--labels <labels>`, `The name per locale.`)
+  .option(`--position <position>`, `Display order, least privileged first. Grants nothing by itself.`, parseInteger)
+  .option(`--title <title>`, `The name a merchant reads.`)
+  .option(`--tone <tone>`, `Semantic badge colour.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { key, active, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
+          _options,
+          updateSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/customers/roles/{key}`.replace(`{key}`, key);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
+        }
+        if (description !== undefined) {
+          _payload[`description`] = description;
+        }
+        if (descriptions !== undefined) {
+          _payload[`descriptions`] = resolveBodyParam(descriptions);
+        }
+        if (isDefault !== undefined) {
+          _payload[`is_default`] = isDefault;
+        }
+        if (labels !== undefined) {
+          _payload[`labels`] = resolveBodyParam(labels);
+        }
+        if (position !== undefined) {
+          _payload[`position`] = position;
+        }
+        if (title !== undefined) {
+          _payload[`title`] = title;
+        }
+        if (tone !== undefined) {
+          _payload[`tone`] = tone;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `put`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(customersRoles.commands.at(-1)!, updateSpecs, { method: "put" });
 const copySpecs: PromptSpec[] = [
   { key: "key", option: "--key <key>", name: "key", description: "The role to copy, by key or by id.", type: "string", required: true, resource: { listPath: "/customers/roles", hasLimit: false } },
   { key: "title", option: "--title <title>", name: "title", description: "The name of the new role.", type: "string", required: true },

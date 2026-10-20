@@ -20,7 +20,7 @@ import {
 export const procurement = new Command("procurement")
   .description(
     commandDescriptions["procurement"] ??
-      `Commerce Studio Procurement App — the approval-workflow half of B2B procurement (ADR-0097). Owns approval rules (global or cost-centre-scoped), purchase requests (order-shaped, with their own pending→approved→ordered lifecycle) and pending approvals. Cart → Purchase Request → Order, with the Order created only at final approval; spend with no applicable rule goes Cart → Order directly. Authoritative checkout-submit entry for approval-enabled tenants. Calls the cost-centers app for budget-aware condition evaluation and budget movement, and the orders app to create the placed Order. Ports the approval-workflow parts of IntelliShop V8 module-booking-accounts.`,
+      `Commerce Studio E-Procurement App — the approval-workflow half of B2B e-procurement (ADR-0097). Owns approval rules (global or cost-centre-scoped), purchase requests (order-shaped, with their own pending→approved→ordered lifecycle) and pending approvals. Cart → Purchase Request → Order, with the Order created only at final approval; spend with no applicable rule goes Cart → Order directly. Authoritative checkout-submit entry for approval-enabled tenants. Calls the cost-centers app for budget-aware condition evaluation and budget movement, and the orders app to create the placed Order. Ports the approval-workflow parts of IntelliShop V8 module-booking-accounts.`,
   )
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
@@ -710,6 +710,56 @@ procurement
     ),
   );
 registerPromptSpecs(procurement.commands.at(-1)!, directOrdersSettleSpecs, { method: "post" });
+const purchaseRequestItemsOpenSpecs: PromptSpec[] = [
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The product whose open request lines to list. Required; 400 without it or when it is not a uuid.", type: "string", required: true },
+  { key: "status", option: "--status <status>", name: "status", description: "Purchase-request states separated by commas (default `pending,approved`); one of pending, approved, ordered, declined, cancelled each, 400 otherwise.", type: "string", required: false },
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+];
+procurement
+  .command(`purchase-request-items-open`)
+  .description(`The lines of purchase requests still going somewhere — waiting, or approved and not yet ordered — that name one product. Asked before a product is deleted for good (RAD-247): a request that names it would become an order line pointing at nothing. \`status\` widens or narrows which request states count. Each line carries its request's \`request_number\` and \`request_status\`; lines are ordered by request number, then position. Not narrowed for a storefront contact, like every read address here.`)
+  .option(`--product-id <product-id>`, `The product whose open request lines to list. Required; 400 without it or when it is not a uuid.`)
+  .option(`--status <status>`, `Purchase-request states separated by commas (default \`pending,approved\`); one of pending, approved, ordered, declined, cancelled each, 400 otherwise.`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { productId, status, limit, offset } = await promptForMissing(
+          _options,
+          purchaseRequestItemsOpenSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/procurement/open-request-items`;
+        const _payload: RequestParams = {};
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
+        }
+        if (status !== undefined) {
+          _payload[`status`] = status;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(procurement.commands.at(-1)!, purchaseRequestItemsOpenSpecs, { method: "get" });
 const pendingApprovalsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
@@ -1453,7 +1503,7 @@ procurement
 registerPromptSpecs(procurement.commands.at(-1)!, purchaseRequestsGetSpecs, { method: "get" });
 const purchaseRequestsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/procurement/purchase-requests", hasLimit: true } },
-  { key: "billingAddress", option: "--billing-address <billing-address>", name: "billing_address", type: "object", required: false },
+  { key: "billingAddress", option: "--billing-address <billing-address>", name: "billing_address", description: "An address of the platform address type (customers, https://schemas.revenexx.com/apps/customers/address/). The old flat shape (street, zip, city, country, …) and the storefront shape (companyName, contactName, postalCode, id) are accepted and stored as the type; an `id` becomes `source_address_id`; an invalid address is refused (400) naming the field. From submission on it carries `formatted` (the lines as printed) and `source_address_id`. Reads answer the type plus the old flat keys derived from it, until the storefront moves. Not correctable once the request is ordered (409).", type: "object", required: false },
   { key: "buyer", option: "--buyer <buyer>", name: "buyer", type: "object", required: false },
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", type: "string", required: false },
   { key: "channelId", option: "--channel-id <channel-id>", name: "channel_id", type: "string", required: false },
@@ -1467,8 +1517,9 @@ const purchaseRequestsUpdateSpecs: PromptSpec[] = [
   { key: "number", option: "--number <number>", name: "number", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: false },
   { key: "payment", option: "--payment <payment>", name: "payment", type: "object", required: false },
+  { key: "senderCountry", option: "--sender-country <sender-country>", name: "sender_country", description: "The country the goods are sent from, ISO 3166-1 alpha-2 (DE). It decides what the frozen address lines print in capitals: a destination's capitalised fields when the request goes abroad, none at home. Omit it and the sender country the request was submitted for counts (for a request stored without one, the market's). Used to print, not stored. Anything that is not a country's code is a 400.", type: "string", required: false },
   { key: "shipping", option: "--shipping <shipping>", name: "shipping", type: "object", required: false },
-  { key: "shippingAddress", option: "--shipping-address <shipping-address>", name: "shipping_address", type: "object", required: false },
+  { key: "shippingAddress", option: "--shipping-address <shipping-address>", name: "shipping_address", description: "An address of the platform address type (customers, https://schemas.revenexx.com/apps/customers/address/). The old flat shape (street, zip, city, country, …) and the storefront shape (companyName, contactName, postalCode, id) are accepted and stored as the type; an `id` becomes `source_address_id`; an invalid address is refused (400) naming the field. From submission on it carries `formatted` (the lines as printed) and `source_address_id`. Reads answer the type plus the old flat keys derived from it, until the storefront moves. Not correctable once the request is ordered (409).", type: "object", required: false },
   { key: "shippingTotal", option: "--shipping-total <shipping-total>", name: "shipping_total", type: "number", required: false },
   { key: "subtotal", option: "--subtotal <subtotal>", name: "subtotal", type: "number", required: false },
   { key: "taxTotal", option: "--tax-total <tax-total>", name: "tax_total", type: "number", required: false },
@@ -1478,7 +1529,7 @@ procurement
   .command(`purchase-requests-update`)
   .description(`Update a purchase request`)
   .option(`--id <id>`, ``)
-  .option(`--billing-address <billing-address>`, ``)
+  .option(`--billing-address <billing-address>`, `An address of the platform address type (customers, https://schemas.revenexx.com/apps/customers/address/). The old flat shape (street, zip, city, country, …) and the storefront shape (companyName, contactName, postalCode, id) are accepted and stored as the type; an \`id\` becomes \`source_address_id\`; an invalid address is refused (400) naming the field. From submission on it carries \`formatted\` (the lines as printed) and \`source_address_id\`. Reads answer the type plus the old flat keys derived from it, until the storefront moves. Not correctable once the request is ordered (409).`)
   .option(`--buyer <buyer>`, ``)
   .option(`--cart-id <cart-id>`, ``)
   .option(`--channel-id <channel-id>`, ``)
@@ -1492,8 +1543,9 @@ procurement
   .option(`--number <number>`, ``)
   .option(`--organization-id <organization-id>`, ``)
   .option(`--payment <payment>`, ``)
+  .option(`--sender-country <sender-country>`, `The country the goods are sent from, ISO 3166-1 alpha-2 (DE). It decides what the frozen address lines print in capitals: a destination's capitalised fields when the request goes abroad, none at home. Omit it and the sender country the request was submitted for counts (for a request stored without one, the market's). Used to print, not stored. Anything that is not a country's code is a 400.`)
   .option(`--shipping <shipping>`, ``)
-  .option(`--shipping-address <shipping-address>`, ``)
+  .option(`--shipping-address <shipping-address>`, `An address of the platform address type (customers, https://schemas.revenexx.com/apps/customers/address/). The old flat shape (street, zip, city, country, …) and the storefront shape (companyName, contactName, postalCode, id) are accepted and stored as the type; an \`id\` becomes \`source_address_id\`; an invalid address is refused (400) naming the field. From submission on it carries \`formatted\` (the lines as printed) and \`source_address_id\`. Reads answer the type plus the old flat keys derived from it, until the storefront moves. Not correctable once the request is ordered (409).`)
   .option(`--shipping-total <shipping-total>`, ``, parseInteger)
   .option(`--subtotal <subtotal>`, ``, parseInteger)
   .option(`--tax-total <tax-total>`, ``, parseInteger)
@@ -1501,7 +1553,7 @@ procurement
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, billingAddress, buyer, cartId, channelId, contactId, currency, customerOrderNumber, externalRef, grandTotal, itemCount, metadata, number, organizationId, payment, shipping, shippingAddress, shippingTotal, subtotal, taxTotal, userData } = await promptForMissing(
+        const { id, billingAddress, buyer, cartId, channelId, contactId, currency, customerOrderNumber, externalRef, grandTotal, itemCount, metadata, number, organizationId, payment, senderCountry, shipping, shippingAddress, shippingTotal, subtotal, taxTotal, userData } = await promptForMissing(
           _options,
           purchaseRequestsUpdateSpecs,
           _command,
@@ -1557,6 +1609,9 @@ procurement
         }
         if (payment !== undefined) {
           _payload[`payment`] = resolveBodyParam(payment);
+        }
+        if (senderCountry !== undefined) {
+          _payload[`sender_country`] = senderCountry;
         }
         if (shipping !== undefined) {
           _payload[`shipping`] = resolveBodyParam(shipping);
@@ -1755,7 +1810,7 @@ registerPromptSpecs(procurement.commands.at(-1)!, reconcileSpecs, { method: "pos
 const submitSpecs: PromptSpec[] = [
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "Idempotency key — a re-submit for the same cart returns the existing PR/Order; a cart whose request was declined or cancelled is refused (409).", type: "string", required: true },
   { key: "items", option: "--items [items...]", name: "items", type: "array", required: true },
-  { key: "billingAddress", option: "--billing-address <billing-address>", name: "billing_address", type: "object", required: false },
+  { key: "billingAddress", option: "--billing-address <billing-address>", name: "billing_address", description: "An address of the platform address type (customers, https://schemas.revenexx.com/apps/customers/address/). The old flat shape (street, zip, city, country, …) and the storefront shape (companyName, contactName, postalCode, id) are accepted and stored as the type; an `id` becomes `source_address_id`; an invalid address is refused (400) naming the field. From submission on it carries `formatted` (the lines as printed) and `source_address_id`. Reads answer the type plus the old flat keys derived from it, until the storefront moves. Not correctable once the request is ordered (409).", type: "object", required: false },
   { key: "buyer", option: "--buyer <buyer>", name: "buyer", type: "object", required: false },
   { key: "channelId", option: "--channel-id <channel-id>", name: "channel_id", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", type: "string", required: false },
@@ -1765,8 +1820,9 @@ const submitSpecs: PromptSpec[] = [
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", type: "object", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: false },
   { key: "payment", option: "--payment <payment>", name: "payment", type: "object", required: false },
+  { key: "senderCountry", option: "--sender-country <sender-country>", name: "sender_country", description: "The country the goods are sent from, ISO 3166-1 alpha-2 (DE). It decides what the frozen address lines print in capitals: a destination's capitalised fields when the request goes abroad, none at home. Omit it and the market's ship-from country counts, else the market code when it is a country's code (de, at); otherwise nothing but the country line is in capitals. Stored on the request as what it was submitted for, with the market; the order an approval places is handed it and placed in that market. Anything that is not a country's code is a 400.", type: "string", required: false },
   { key: "shipping", option: "--shipping <shipping>", name: "shipping", type: "object", required: false },
-  { key: "shippingAddress", option: "--shipping-address <shipping-address>", name: "shipping_address", type: "object", required: false },
+  { key: "shippingAddress", option: "--shipping-address <shipping-address>", name: "shipping_address", description: "An address of the platform address type (customers, https://schemas.revenexx.com/apps/customers/address/). The old flat shape (street, zip, city, country, …) and the storefront shape (companyName, contactName, postalCode, id) are accepted and stored as the type; an `id` becomes `source_address_id`; an invalid address is refused (400) naming the field. From submission on it carries `formatted` (the lines as printed) and `source_address_id`. Reads answer the type plus the old flat keys derived from it, until the storefront moves. Not correctable once the request is ordered (409).", type: "object", required: false },
   { key: "userData", option: "--user-data <user-data>", name: "user_data", type: "object", required: false },
 ];
 procurement
@@ -1774,7 +1830,7 @@ procurement
   .description(`Authoritative checkout submit — evaluate approval rules and create a direct Order, a Purchase Request, or block (409)`)
   .option(`--cart-id <cart-id>`, `Idempotency key — a re-submit for the same cart returns the existing PR/Order; a cart whose request was declined or cancelled is refused (409).`)
   .option(`--items [items...]`, ``)
-  .option(`--billing-address <billing-address>`, ``)
+  .option(`--billing-address <billing-address>`, `An address of the platform address type (customers, https://schemas.revenexx.com/apps/customers/address/). The old flat shape (street, zip, city, country, …) and the storefront shape (companyName, contactName, postalCode, id) are accepted and stored as the type; an \`id\` becomes \`source_address_id\`; an invalid address is refused (400) naming the field. From submission on it carries \`formatted\` (the lines as printed) and \`source_address_id\`. Reads answer the type plus the old flat keys derived from it, until the storefront moves. Not correctable once the request is ordered (409).`)
   .option(`--buyer <buyer>`, ``)
   .option(`--channel-id <channel-id>`, ``)
   .option(`--contact-id <contact-id>`, ``)
@@ -1784,13 +1840,14 @@ procurement
   .option(`--metadata <metadata>`, ``)
   .option(`--organization-id <organization-id>`, ``)
   .option(`--payment <payment>`, ``)
+  .option(`--sender-country <sender-country>`, `The country the goods are sent from, ISO 3166-1 alpha-2 (DE). It decides what the frozen address lines print in capitals: a destination's capitalised fields when the request goes abroad, none at home. Omit it and the market's ship-from country counts, else the market code when it is a country's code (de, at); otherwise nothing but the country line is in capitals. Stored on the request as what it was submitted for, with the market; the order an approval places is handed it and placed in that market. Anything that is not a country's code is a 400.`)
   .option(`--shipping <shipping>`, ``)
-  .option(`--shipping-address <shipping-address>`, ``)
+  .option(`--shipping-address <shipping-address>`, `An address of the platform address type (customers, https://schemas.revenexx.com/apps/customers/address/). The old flat shape (street, zip, city, country, …) and the storefront shape (companyName, contactName, postalCode, id) are accepted and stored as the type; an \`id\` becomes \`source_address_id\`; an invalid address is refused (400) naming the field. From submission on it carries \`formatted\` (the lines as printed) and \`source_address_id\`. Reads answer the type plus the old flat keys derived from it, until the storefront moves. Not correctable once the request is ordered (409).`)
   .option(`--user-data <user-data>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { cartId, items, billingAddress, buyer, channelId, contactId, currency, customerOrderNumber, externalRef, metadata, organizationId, payment, shipping, shippingAddress, userData } = await promptForMissing(
+        const { cartId, items, billingAddress, buyer, channelId, contactId, currency, customerOrderNumber, externalRef, metadata, organizationId, payment, senderCountry, shipping, shippingAddress, userData } = await promptForMissing(
           _options,
           submitSpecs,
           _command,
@@ -1840,6 +1897,9 @@ procurement
         }
         if (payment !== undefined) {
           _payload[`payment`] = resolveBodyParam(payment);
+        }
+        if (senderCountry !== undefined) {
+          _payload[`sender_country`] = senderCountry;
         }
         if (shipping !== undefined) {
           _payload[`shipping`] = resolveBodyParam(shipping);

@@ -32,6 +32,7 @@ const salesRepsAssignmentRolesListSpecs: PromptSpec[] = [
   { key: "title", option: "--title <title>", name: "title", description: "Filter to rows whose `title` is exactly this value. What this role is called, as a person reads it — the text a list or a badge shows. At least one character. It carries one language; the per-language forms are in `labels`.", type: "string", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "Filter to rows whose `description` is exactly this value. What this role means, in the merchant's own words — the sentence an operator reads under the choice when they are deciding which one a rep has. Optional, one language, with the per-language forms in `descriptions`.", type: "string", required: false },
   { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The role an import falls back to, which should be at most one — and is none at all until the tenant decides, because no seeded role carries the flag.", type: "boolean", required: false },
+  { key: "active", option: "--active <active>", name: "active", description: "`false` lists the roles this merchant retired, `true` the ones still offered for new coverage.", type: "boolean", required: false },
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Filter to rows whose `tone` is exactly this value. The semantic badge colour a screen renders this role in. The client owns what each tone looks like; this only says what the role MEANS — that the desk which visits the customer reads differently from the one that answers the phone. Defaults to neutral.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
   { key: "position", option: "--position <position>", name: "position", description: "Filter to rows whose `position` is exactly this value. Where this role sits in the order a select offers the roles, ascending, ties broken by the code. It is presentation and nothing branches on it: a rep is not more senior for sorting first.", type: "integer", required: false },
   { key: "isSystem", option: "--is-system <is-system>", name: "is_system", description: "`true` is the roles this app seeded, `false` the ones this tenant added. It separates the two for a screen that wants to say so, and licenses nothing either way.", type: "boolean", required: false },
@@ -52,6 +53,12 @@ salesRepsCoverage
   .option(
     `--is-default [value]`,
     `The role an import falls back to, which should be at most one — and is none at all until the tenant decides, because no seeded role carries the flag.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
+    `--active [value]`,
+    `\`false\` lists the roles this merchant retired, \`true\` the ones still offered for new coverage.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -77,7 +84,7 @@ salesRepsCoverage
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, title, description, isDefault, tone, position, isSystem, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { id, code, title, description, isDefault, active, tone, position, isSystem, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           salesRepsAssignmentRolesListSpecs,
           _command,
@@ -99,6 +106,9 @@ salesRepsCoverage
         }
         if (isDefault !== undefined) {
           _payload[`is_default`] = isDefault;
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (tone !== undefined) {
           _payload[`tone`] = tone;
@@ -148,9 +158,10 @@ registerPromptSpecs(salesRepsCoverage.commands.at(-1)!, salesRepsAssignmentRoles
 const salesRepsAssignmentRolesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The role as STORED, and what a coverage row's `role` carries. Lowercase letters, digits, '-' and '_', starting with a letter — the shape every vocabulary code on this platform has, so a client may use it as a key. It should be treated as permanent even though the edit route accepts it: nothing in the database points at it, so renaming it leaves every coverage row that named the old value carrying a code the vocabulary no longer resolves.", type: "string", required: true },
   { key: "title", option: "--title <title>", name: "title", description: "What this role is called, as a person reads it — the text a list or a badge shows. At least one character. It carries one language; the per-language forms are in `labels`.", type: "string", required: true },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this role (RAD-255). It stays valid on every coverage row that already carries it, an edit that sends it back unchanged is accepted and its title still resolves — but GET /sales-reps/vocabularies/assignment-roles answers it under `inactive` rather than `values`, so no picker offers it, and new coverage or a correction naming it is refused with 409 `role_inactive`. True by default. The default role cannot be inactive (409 `default_must_stay_active`, and `inactive_cannot_be_default` for promoting one); `is_system` is no obstacle, because a merchant who never uses a shipped role is exactly who switches it off. Defaults to true.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "What this role means, in the merchant's own words — the sentence an operator reads under the choice when they are deciding which one a rep has. Optional, one language, with the per-language forms in `descriptions`.", type: "string", required: false },
   { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "The description per language tag, on the same rule as `labels`. Answered and NOT filterable.", type: "object", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Whether this is the role an import falls back to when a source value maps to none of the others. Nothing in this app reads it; it is served so an importer can find the fallback here instead of keeping a convention of its own. FALSE on every role this app seeds, and that is deliberate: a source system delivers no role at all, so a seeded default would not label the odd unmapped row — it would label every imported assignment as whichever role somebody guessed. Which role an unmapped value means is the tenant's to say. Defaults to false, and no role this app seeds carries it.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Whether this is the role an import falls back to when a source value maps to none of the others. Nothing in this app reads it; it is served so an importer can find the fallback here instead of keeping a convention of its own. FALSE on every role this app seeds, and that is deliberate: a source system delivers no role at all, so a seeded default would not label the odd unmapped row — it would label every imported assignment as whichever role somebody guessed. Which role an unmapped value means is the tenant's to say. An inactive role cannot carry it. Defaults to false, and no role this app seeds carries it.", type: "boolean", required: false },
   { key: "isSystem", option: "--is-system <is-system>", name: "is_system", description: "True for a role this app seeded, false for one the tenant added. It means \"we put it there\" and licenses nothing — a seeded role may be renamed, re-toned, reordered or removed exactly like any other, and nothing here treats the two differently. Send false or leave it out: it means this app seeded the row, and a tenant claiming it changes nothing but the truth of the flag.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "The title per language tag, as the tenant stored it. `title` is the same text in their working language, so a client reading one tag can ignore this. It is a jsonb column: answered, and NOT a query parameter — see the note on `metadata`.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Where this role sits in the order a select offers the roles, ascending, ties broken by the code. It is presentation and nothing branches on it: a rep is not more senior for sorting first. Defaults to 0.", type: "integer", required: false },
@@ -161,11 +172,17 @@ salesRepsCoverage
   .description(`An assignment role is one of the roles THIS TENANT keeps for what a rep does for a customer they carry — field sales, inside sales, a key-account desk, or whatever a merchant's own sales organisation distinguishes. A coverage row stores the \`code\`; this row carries the words a person reads for it and the tone a screen colours it in. The set is a table and not a fixed list because what those desks are called is the merchant's to state. Reach for this when a merchant's sales organisation distinguishes something the three seeded roles do not — a technical adviser, a branch counter, a desk that only handles framework terms. \`code\` and \`title\` are owed and the code should be treated as permanent: a coverage row stores it, nothing in the database points at it, so renaming it later leaves every row carrying the old one. Adding a role changes nothing on its own — a coverage row has to name it before it means anything, and the mapping from a source system's own values onto these codes is made where the import runs.`)
   .option(`--code <code>`, `The role as STORED, and what a coverage row's \`role\` carries. Lowercase letters, digits, '-' and '_', starting with a letter — the shape every vocabulary code on this platform has, so a client may use it as a key. It should be treated as permanent even though the edit route accepts it: nothing in the database points at it, so renaming it leaves every coverage row that named the old value carrying a code the vocabulary no longer resolves.`)
   .option(`--title <title>`, `What this role is called, as a person reads it — the text a list or a badge shows. At least one character. It carries one language; the per-language forms are in \`labels\`.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this role (RAD-255). It stays valid on every coverage row that already carries it, an edit that sends it back unchanged is accepted and its title still resolves — but GET /sales-reps/vocabularies/assignment-roles answers it under \`inactive\` rather than \`values\`, so no picker offers it, and new coverage or a correction naming it is refused with 409 \`role_inactive\`. True by default. The default role cannot be inactive (409 \`default_must_stay_active\`, and \`inactive_cannot_be_default\` for promoting one); \`is_system\` is no obstacle, because a merchant who never uses a shipped role is exactly who switches it off. Defaults to true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--description <description>`, `What this role means, in the merchant's own words — the sentence an operator reads under the choice when they are deciding which one a rep has. Optional, one language, with the per-language forms in \`descriptions\`.`)
   .option(`--descriptions <descriptions>`, `The description per language tag, on the same rule as \`labels\`. Answered and NOT filterable.`)
   .option(
     `--is-default [value]`,
-    `Whether this is the role an import falls back to when a source value maps to none of the others. Nothing in this app reads it; it is served so an importer can find the fallback here instead of keeping a convention of its own. FALSE on every role this app seeds, and that is deliberate: a source system delivers no role at all, so a seeded default would not label the odd unmapped row — it would label every imported assignment as whichever role somebody guessed. Which role an unmapped value means is the tenant's to say. Defaults to false, and no role this app seeds carries it.`,
+    `Whether this is the role an import falls back to when a source value maps to none of the others. Nothing in this app reads it; it is served so an importer can find the fallback here instead of keeping a convention of its own. FALSE on every role this app seeds, and that is deliberate: a source system delivers no role at all, so a seeded default would not label the odd unmapped row — it would label every imported assignment as whichever role somebody guessed. Which role an unmapped value means is the tenant's to say. An inactive role cannot carry it. Defaults to false, and no role this app seeds carries it.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -181,7 +198,7 @@ salesRepsCoverage
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, title, description, descriptions, isDefault, isSystem, labels, position, tone } = await promptForMissing(
+        const { code, title, active, description, descriptions, isDefault, isSystem, labels, position, tone } = await promptForMissing(
           _options,
           salesRepsAssignmentRolesCreateSpecs,
           _command,
@@ -195,6 +212,9 @@ salesRepsCoverage
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -282,7 +302,7 @@ const salesRepsAssignmentRolesDeleteSpecs: PromptSpec[] = [
 ];
 salesRepsCoverage
   .command(`sales-reps-assignment-roles-delete`)
-  .description(`An assignment role is one of the roles THIS TENANT keeps for what a rep does for a customer they carry — field sales, inside sales, a key-account desk, or whatever a merchant's own sales organisation distinguishes. A coverage row stores the \`code\`; this row carries the words a person reads for it and the tone a screen colours it in. The set is a table and not a fixed list because what those desks are called is the merchant's to state. ⚠ What is NOT checked here is the thing that matters: a coverage row stores the CODE and not this id, so nothing refuses the delete while rows still carry it, and those rows keep a role code the vocabulary no longer resolves. The set is \`closed\`, so a client reads such a value as stale data rather than as a missing label — but it reads no title and no tone for it either, and a screen that was showing "Inside sales" starts showing a bare code. Move the rows onto another role first (PUT /sales-reps/assignments/{id}), or leave the role in place and give it a \`title\` that says it is retired. Deleting all of them is undone by the next read of GET /sales-reps/vocabularies/assignment-roles, which seeds the shipped set back into an empty table.`)
+  .description(`An assignment role is one of the roles THIS TENANT keeps for what a rep does for a customer they carry — field sales, inside sales, a key-account desk, or whatever a merchant's own sales organisation distinguishes. A coverage row stores the \`code\`; this row carries the words a person reads for it and the tone a screen colours it in. The set is a table and not a fixed list because what those desks are called is the merchant's to state. ⚠ What is NOT checked here is the thing that matters: a coverage row stores the CODE and not this id, so nothing refuses the delete while rows still carry it, and those rows keep a role code the vocabulary no longer resolves. The set is \`closed\`, so a client reads such a value as stale data rather than as a missing label — but it reads no title and no tone for it either, and a screen that was showing "Inside sales" starts showing a bare code. Move the rows onto another role first (PUT /sales-reps/assignments/{id}), or keep the role and switch it off with \`active: false\` (PUT /sales-reps/assignment-roles/{id}), which stops it being offered and leaves every row that carries it resolving. Deleting all of them is undone by the next read of GET /sales-reps/vocabularies/assignment-roles, which seeds the shipped set back into an empty table.`)
   .option(`--id <id>`, `The row id of the role to remove, as the list answered it.`)
   .action(
     actionRunner(
@@ -344,10 +364,11 @@ salesRepsCoverage
 registerPromptSpecs(salesRepsCoverage.commands.at(-1)!, salesRepsAssignmentRolesGetSpecs, { method: "get" });
 const salesRepsAssignmentRolesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id of the role to change, as the list answered it.", type: "string", required: true, resource: { listPath: "/sales-reps/assignment-roles", hasLimit: true } },
+  { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this role (RAD-255). It stays valid on every coverage row that already carries it, an edit that sends it back unchanged is accepted and its title still resolves — but GET /sales-reps/vocabularies/assignment-roles answers it under `inactive` rather than `values`, so no picker offers it, and new coverage or a correction naming it is refused with 409 `role_inactive`. True by default. The default role cannot be inactive (409 `default_must_stay_active`, and `inactive_cannot_be_default` for promoting one); `is_system` is no obstacle, because a merchant who never uses a shipped role is exactly who switches it off. Defaults to true.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The role as STORED, and what a coverage row's `role` carries. Lowercase letters, digits, '-' and '_', starting with a letter — the shape every vocabulary code on this platform has, so a client may use it as a key. It should be treated as permanent even though the edit route accepts it: nothing in the database points at it, so renaming it leaves every coverage row that named the old value carrying a code the vocabulary no longer resolves.", type: "string", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "What this role means, in the merchant's own words — the sentence an operator reads under the choice when they are deciding which one a rep has. Optional, one language, with the per-language forms in `descriptions`.", type: "string", required: false },
   { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "The description per language tag, on the same rule as `labels`. Answered and NOT filterable.", type: "object", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Whether this is the role an import falls back to when a source value maps to none of the others. Nothing in this app reads it; it is served so an importer can find the fallback here instead of keeping a convention of its own. FALSE on every role this app seeds, and that is deliberate: a source system delivers no role at all, so a seeded default would not label the odd unmapped row — it would label every imported assignment as whichever role somebody guessed. Which role an unmapped value means is the tenant's to say. Defaults to false, and no role this app seeds carries it.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Whether this is the role an import falls back to when a source value maps to none of the others. Nothing in this app reads it; it is served so an importer can find the fallback here instead of keeping a convention of its own. FALSE on every role this app seeds, and that is deliberate: a source system delivers no role at all, so a seeded default would not label the odd unmapped row — it would label every imported assignment as whichever role somebody guessed. Which role an unmapped value means is the tenant's to say. An inactive role cannot carry it. Defaults to false, and no role this app seeds carries it.", type: "boolean", required: false },
   { key: "isSystem", option: "--is-system <is-system>", name: "is_system", description: "True for a role this app seeded, false for one the tenant added. It means \"we put it there\" and licenses nothing — a seeded role may be renamed, re-toned, reordered or removed exactly like any other, and nothing here treats the two differently. Send false or leave it out: it means this app seeded the row, and a tenant claiming it changes nothing but the truth of the flag.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "The title per language tag, as the tenant stored it. `title` is the same text in their working language, so a client reading one tag can ignore this. It is a jsonb column: answered, and NOT a query parameter — see the note on `metadata`.", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Where this role sits in the order a select offers the roles, ascending, ties broken by the code. It is presentation and nothing branches on it: a rep is not more senior for sorting first. Defaults to 0.", type: "integer", required: false },
@@ -356,14 +377,20 @@ const salesRepsAssignmentRolesUpdateSpecs: PromptSpec[] = [
 ];
 salesRepsCoverage
   .command(`sales-reps-assignment-roles-update`)
-  .description(`An assignment role is one of the roles THIS TENANT keeps for what a rep does for a customer they carry — field sales, inside sales, a key-account desk, or whatever a merchant's own sales organisation distinguishes. A coverage row stores the \`code\`; this row carries the words a person reads for it and the tone a screen colours it in. The set is a table and not a fixed list because what those desks are called is the merchant's to state. A partial update: omitted fields keep their value, and a body carrying no field at all is refused rather than answered as a no-op. The safe edits are the readable ones — \`title\`, \`labels\`, \`description\`, \`descriptions\`, \`tone\`, \`position\` — and they reach every screen at once, which is the point of the set living here. \`code\` is the one to leave alone: a coverage row stores it and nothing points at it, so moving it leaves every row that named the old value carrying a code the vocabulary no longer resolves. A role this app seeded may be edited exactly like one the tenant added; \`is_system\` records who put it there and licenses nothing.`)
+  .description(`An assignment role is one of the roles THIS TENANT keeps for what a rep does for a customer they carry — field sales, inside sales, a key-account desk, or whatever a merchant's own sales organisation distinguishes. A coverage row stores the \`code\`; this row carries the words a person reads for it and the tone a screen colours it in. The set is a table and not a fixed list because what those desks are called is the merchant's to state. A partial update: omitted fields keep their value, and a body carrying no field at all is refused rather than answered as a no-op. The safe edits are the readable ones — \`title\`, \`labels\`, \`description\`, \`descriptions\`, \`tone\`, \`position\` — and they reach every screen at once, which is the point of the set living here. \`code\` is the one to leave alone: a coverage row stores it and nothing points at it, so moving it leaves every row that named the old value carrying a code the vocabulary no longer resolves. A role this app seeded may be edited exactly like one the tenant added; \`is_system\` records who put it there and licenses nothing. \`active: false\` retires a role without deleting it: coverage that carries it keeps it and its title still resolves, but no picker offers it and no new coverage is given it. That is the safe alternative to the delete. The one refusal is the default role, which has to stay active.`)
   .option(`--id <id>`, `The row id of the role to change, as the list answered it.`)
+  .option(
+    `--active [value]`,
+    `False when the merchant retired this role (RAD-255). It stays valid on every coverage row that already carries it, an edit that sends it back unchanged is accepted and its title still resolves — but GET /sales-reps/vocabularies/assignment-roles answers it under \`inactive\` rather than \`values\`, so no picker offers it, and new coverage or a correction naming it is refused with 409 \`role_inactive\`. True by default. The default role cannot be inactive (409 \`default_must_stay_active\`, and \`inactive_cannot_be_default\` for promoting one); \`is_system\` is no obstacle, because a merchant who never uses a shipped role is exactly who switches it off. Defaults to true.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--code <code>`, `The role as STORED, and what a coverage row's \`role\` carries. Lowercase letters, digits, '-' and '_', starting with a letter — the shape every vocabulary code on this platform has, so a client may use it as a key. It should be treated as permanent even though the edit route accepts it: nothing in the database points at it, so renaming it leaves every coverage row that named the old value carrying a code the vocabulary no longer resolves.`)
   .option(`--description <description>`, `What this role means, in the merchant's own words — the sentence an operator reads under the choice when they are deciding which one a rep has. Optional, one language, with the per-language forms in \`descriptions\`.`)
   .option(`--descriptions <descriptions>`, `The description per language tag, on the same rule as \`labels\`. Answered and NOT filterable.`)
   .option(
     `--is-default [value]`,
-    `Whether this is the role an import falls back to when a source value maps to none of the others. Nothing in this app reads it; it is served so an importer can find the fallback here instead of keeping a convention of its own. FALSE on every role this app seeds, and that is deliberate: a source system delivers no role at all, so a seeded default would not label the odd unmapped row — it would label every imported assignment as whichever role somebody guessed. Which role an unmapped value means is the tenant's to say. Defaults to false, and no role this app seeds carries it.`,
+    `Whether this is the role an import falls back to when a source value maps to none of the others. Nothing in this app reads it; it is served so an importer can find the fallback here instead of keeping a convention of its own. FALSE on every role this app seeds, and that is deliberate: a source system delivers no role at all, so a seeded default would not label the odd unmapped row — it would label every imported assignment as whichever role somebody guessed. Which role an unmapped value means is the tenant's to say. An inactive role cannot carry it. Defaults to false, and no role this app seeds carries it.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -380,7 +407,7 @@ salesRepsCoverage
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, description, descriptions, isDefault, isSystem, labels, position, title, tone } = await promptForMissing(
+        const { id, active, code, description, descriptions, isDefault, isSystem, labels, position, title, tone } = await promptForMissing(
           _options,
           salesRepsAssignmentRolesUpdateSpecs,
           _command,
@@ -394,6 +421,9 @@ salesRepsCoverage
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (active !== undefined) {
+          _payload[`active`] = active;
         }
         if (code !== undefined) {
           _payload[`code`] = code;
@@ -786,7 +816,7 @@ const salesRepsVocabulariesGetSpecs: PromptSpec[] = [
 ];
 salesRepsCoverage
   .command(`sales-reps-vocabularies-get`)
-  .description(`One vocabulary in full: every permitted value, each carrying the title and description a person reads for it and the badge tone a UI colours it with, so a client renders a role without a hard-coded table of its own. \`source\` says who OWNS the set, and here it is always 'table' — the values are the TENANT's own rows, read per request and ordered by the position they gave them, so a merchant extends the set without waiting for a release of this app, and reading the set is what seeds the shipped one into a tenant that has never had it. \`closed\` is true all the same: the set is exhaustive at this moment, so a value outside it is stale data rather than a missing label — which is exactly the state a coverage row is left in when the role it names is deleted. Names: assignment-roles.`)
+  .description(`One vocabulary in full: every permitted value, each carrying the title and description a person reads for it and the badge tone a UI colours it with, so a client renders a role without a hard-coded table of its own. \`source\` says who OWNS the set, and here it is always 'table' — the values are the TENANT's own rows, read per request and ordered by the position they gave them, so a merchant extends the set without waiting for a release of this app, and reading the set is what seeds the shipped one into a tenant that has never had it. \`closed\` is true all the same: the set is exhaustive at this moment, so a value outside it is stale data rather than a missing label — which is exactly the state a coverage row is left in when the role it names is deleted. A role the merchant switched off is answered under \`inactive\` and not under \`values\`, because \`values\` is what a picker offers; \`inactive\` is there so a screen can still render the title and tone of coverage that already carries one. Names: assignment-roles.`)
   .option(`--name <name>`, `The vocabulary name — the part after the dot in the qualified id. One of: assignment-roles. Anything else is a 404, so the enum is the complete set and not a suggestion.`)
   .action(
     actionRunner(

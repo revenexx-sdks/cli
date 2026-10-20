@@ -30,6 +30,7 @@ const accountsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "fallbackContactId", option: "--fallback-contact-id <fallback-contact-id>", name: "fallback_contact_id", description: "The accounts that sign an unnamed buyer in as this contact. Asked by customers before a contact is deleted for good: an account whose fallback is gone turns every buyer the ERP does not name away. Applied and echoed in `filter`; any account, enabled or not.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 punchout
@@ -38,6 +39,7 @@ punchout
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(`--fallback-contact-id <fallback-contact-id>`, `The accounts that sign an unnamed buyer in as this contact. Asked by customers before a contact is deleted for good: an account whose fallback is gone turns every buyer the ERP does not name away. Applied and echoed in \`filter\`; any account, enabled or not.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -47,7 +49,7 @@ punchout
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, filter } = await promptForMissing(
+        const { limit, offset, order, fallbackContactId, filter } = await promptForMissing(
           _options,
           accountsListSpecs,
           _command,
@@ -63,6 +65,9 @@ punchout
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        if (fallbackContactId !== undefined) {
+          _payload[`fallback_contact_id`] = fallbackContactId;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -1887,6 +1892,48 @@ punchout
     ),
   );
 registerPromptSpecs(punchout.commands.at(-1)!, sessionsClaimSpecs, { method: "post" });
+const sessionsOrderedSpecs: PromptSpec[] = [
+  { key: "psid", option: "--psid <psid>", name: "psid", type: "string", required: true, resource: { listPath: "/punchout/sessions", hasLimit: true } },
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
+];
+punchout
+  .command(`sessions-ordered`)
+  .description(`The other way an IDS visit ends, for an account whose purchase mode is order: the buyer checked out in the shop, and the order is an ORDINARY order placed through the ordinary checkout. Call it after the checkout. This app believes the orders app, not the caller: it reads the order the visit's cart became, records its id, number and status on the visit and closes it as ordered. An order awaiting the buyer organisation's approval counts — the cart is converted either way — and a later decline changes nothing here. A visit that ran out while the buyer checked out is still closed as ordered when the order was created before it ran out. A retried call answers the visit as it was closed.`)
+  .option(`--psid <psid>`, ``)
+  .option(`--body <body>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { psid, body } = await promptForMissing(
+          _options,
+          sessionsOrderedSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/punchout/sessions/{psid}/ordered`.replace(`{psid}`, psid);
+        const _payload: RequestParams = {};
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(punchout.commands.at(-1)!, sessionsOrderedSpecs, { method: "post" });
 const sessionsReturnSpecs: PromptSpec[] = [
   { key: "psid", option: "--psid <psid>", name: "psid", type: "string", required: true, resource: { listPath: "/punchout/sessions", hasLimit: true } },
   { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
@@ -1929,6 +1976,28 @@ punchout
     ),
   );
 registerPromptSpecs(punchout.commands.at(-1)!, sessionsReturnSpecs, { method: "post" });
+punchout
+  .command(`setup-get`)
+  .description(`The steps are the ones cockpit.json declares under setup.steps: the shipped field mappings and the first punchout account. Each is done when its table holds a row, so none is marked by hand.`)
+  .action(
+    actionRunner(
+      async () => {
+        const _client = await sdkForProject();
+        const _apiPath = `/punchout/setup`;
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
 const transferItemsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
@@ -2553,7 +2622,7 @@ const vocabulariesGetSpecs: PromptSpec[] = [
 ];
 punchout
   .command(`vocabularies-get`)
-  .description(`One vocabulary in full: every permitted value with its title, its description and the badge tone a UI colours it with. The values are read out of the column's CHECK constraint, so the served set IS the set the database accepts and the set the mapping engine understands — a mapping editor offering anything else would produce silently empty fields. \`mapping-sources\` carries the 25 sources of ADR-0003 (three of them namespaced \`cxml.*\`, offered only for a cXML account) and \`mapping-mutators\` the 19 chainable mutators; each value's description names the config keys it reads and which of them are required. Answers 404 for an unknown name.`)
+  .description(`One vocabulary in full: every permitted value with its title, its description and the badge tone a UI colours it with. The values are read out of the column's CHECK constraint, so the served set IS the set the database accepts and the set the mapping engine understands — a mapping editor offering anything else would produce silently empty fields. \`mapping-sources\` carries the 25 sources of ADR-0003 (three of them namespaced \`cxml.*\`, offered only for a cXML account) and \`mapping-mutators\` the 20 chainable mutators; each value's description names the config keys it reads and which of them are required. Answers 404 for an unknown name.`)
   .option(`--name <name>`, `The vocabulary name — the part after the dot in the qualified id.`)
   .action(
     actionRunner(

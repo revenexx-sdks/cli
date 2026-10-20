@@ -31,8 +31,10 @@ const commitSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person buying, for a direct commitment.", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "The currency, for a direct commitment.", type: "string", required: false },
   { key: "market", option: "--market <market>", name: "market", description: "The market, carried onto the published fact.", type: "string", required: false },
+  { key: "orderNumber", option: "--order-number <order-number>", name: "order_number", description: "The order number, kept on the ledger rows so a list can search it.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The company, for a direct commitment.", type: "string", required: false },
   { key: "promotions", option: "--promotions [promotions...]", name: "promotions", description: "What to record, for a commitment with no prior hold.", type: "array", required: false },
+  { key: "redeemedBy", option: "--redeemed-by <redeemed-by>", name: "redeemed_by", description: "The buyer name, kept on the ledger rows so a list can search it.", type: "string", required: false },
   { key: "terms", option: "--terms <terms>", name: "terms", description: "Per promotion, the effects that produced it — what a re-decided return is settled against, because an order is a snapshot everywhere else in this platform.", type: "object", required: false },
 ];
 promotionsRedemptions
@@ -43,13 +45,15 @@ promotionsRedemptions
   .option(`--contact-id <contact-id>`, `The person buying, for a direct commitment.`)
   .option(`--currency <currency>`, `The currency, for a direct commitment.`)
   .option(`--market <market>`, `The market, carried onto the published fact.`)
+  .option(`--order-number <order-number>`, `The order number, kept on the ledger rows so a list can search it.`)
   .option(`--organization-id <organization-id>`, `The company, for a direct commitment.`)
   .option(`--promotions [promotions...]`, `What to record, for a commitment with no prior hold.`)
+  .option(`--redeemed-by <redeemed-by>`, `The buyer name, kept on the ledger rows so a list can search it.`)
   .option(`--terms <terms>`, `Per promotion, the effects that produced it — what a re-decided return is settled against, because an order is a snapshot everywhere else in this platform.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { orderId, cartId, contactId, currency, market, organizationId, promotions, terms } = await promptForMissing(
+        const { orderId, cartId, contactId, currency, market, orderNumber, organizationId, promotions, redeemedBy, terms } = await promptForMissing(
           _options,
           commitSpecs,
           _command,
@@ -79,11 +83,17 @@ promotionsRedemptions
         if (orderId !== undefined) {
           _payload[`order_id`] = orderId;
         }
+        if (orderNumber !== undefined) {
+          _payload[`order_number`] = orderNumber;
+        }
         if (organizationId !== undefined) {
           _payload[`organization_id`] = organizationId;
         }
         if (promotions !== undefined) {
           _payload[`promotions`] = promotions;
+        }
+        if (redeemedBy !== undefined) {
+          _payload[`redeemed_by`] = redeemedBy;
         }
         if (terms !== undefined) {
           _payload[`terms`] = resolveBodyParam(terms);
@@ -131,12 +141,15 @@ const listSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Keep only rows whose `id` equals this.", type: "string", required: false },
   { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "Keep only rows whose `promotion_id` equals this.", type: "string", required: false },
   { key: "voucherId", option: "--voucher-id <voucher-id>", name: "voucher_id", description: "Keep only rows whose `voucher_id` equals this.", type: "string", required: false },
+  { key: "voucherCode", option: "--voucher-code <voucher-code>", name: "voucher_code", description: "Keep only rows whose `voucher_code` equals this.", type: "string", required: false },
+  { key: "batchId", option: "--batch-id <batch-id>", name: "batch_id", description: "Keep only rows whose `batch_id` equals this.", type: "string", required: false },
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", description: "Keep only rows whose `cart_id` equals this.", type: "string", required: false },
   { key: "orderId", option: "--order-id <order-id>", name: "order_id", description: "Keep only rows whose `order_id` equals this.", type: "string", required: false },
+  { key: "orderNumber", option: "--order-number <order-number>", name: "order_number", description: "Keep only rows whose `order_number` equals this.", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Keep only rows whose `contact_id` equals this.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Keep only rows whose `organization_id` equals this.", type: "string", required: false },
+  { key: "redeemedBy", option: "--redeemed-by <redeemed-by>", name: "redeemed_by", description: "Keep only rows whose `redeemed_by` equals this.", type: "string", required: false },
   { key: "state", option: "--state <state>", name: "state", description: "Keep only rows whose `state` equals this.", type: "string", required: false },
-  { key: "currency", option: "--currency <currency>", name: "currency", description: "Keep only rows whose `currency` equals this.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 promotionsRedemptions
@@ -148,12 +161,15 @@ promotionsRedemptions
   .option(`--id <id>`, `Keep only rows whose \`id\` equals this.`)
   .option(`--promotion-id <promotion-id>`, `Keep only rows whose \`promotion_id\` equals this.`)
   .option(`--voucher-id <voucher-id>`, `Keep only rows whose \`voucher_id\` equals this.`)
+  .option(`--voucher-code <voucher-code>`, `Keep only rows whose \`voucher_code\` equals this.`)
+  .option(`--batch-id <batch-id>`, `Keep only rows whose \`batch_id\` equals this.`)
   .option(`--cart-id <cart-id>`, `Keep only rows whose \`cart_id\` equals this.`)
   .option(`--order-id <order-id>`, `Keep only rows whose \`order_id\` equals this.`)
+  .option(`--order-number <order-number>`, `Keep only rows whose \`order_number\` equals this.`)
   .option(`--contact-id <contact-id>`, `Keep only rows whose \`contact_id\` equals this.`)
   .option(`--organization-id <organization-id>`, `Keep only rows whose \`organization_id\` equals this.`)
+  .option(`--redeemed-by <redeemed-by>`, `Keep only rows whose \`redeemed_by\` equals this.`)
   .option(`--state <state>`, `Keep only rows whose \`state\` equals this.`)
-  .option(`--currency <currency>`, `Keep only rows whose \`currency\` equals this.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -163,7 +179,7 @@ promotionsRedemptions
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, promotionId, voucherId, cartId, orderId, contactId, organizationId, state, currency, filter } = await promptForMissing(
+        const { limit, offset, order, id, promotionId, voucherId, voucherCode, batchId, cartId, orderId, orderNumber, contactId, organizationId, redeemedBy, state, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -189,11 +205,20 @@ promotionsRedemptions
         if (voucherId !== undefined) {
           _payload[`voucher_id`] = voucherId;
         }
+        if (voucherCode !== undefined) {
+          _payload[`voucher_code`] = voucherCode;
+        }
+        if (batchId !== undefined) {
+          _payload[`batch_id`] = batchId;
+        }
         if (cartId !== undefined) {
           _payload[`cart_id`] = cartId;
         }
         if (orderId !== undefined) {
           _payload[`order_id`] = orderId;
+        }
+        if (orderNumber !== undefined) {
+          _payload[`order_number`] = orderNumber;
         }
         if (contactId !== undefined) {
           _payload[`contact_id`] = contactId;
@@ -201,11 +226,11 @@ promotionsRedemptions
         if (organizationId !== undefined) {
           _payload[`organization_id`] = organizationId;
         }
+        if (redeemedBy !== undefined) {
+          _payload[`redeemed_by`] = redeemedBy;
+        }
         if (state !== undefined) {
           _payload[`state`] = state;
-        }
-        if (currency !== undefined) {
-          _payload[`currency`] = currency;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -319,6 +344,7 @@ const reserveSpecs: PromptSpec[] = [
   { key: "fromCartId", option: "--from-cart-id <from-cart-id>", name: "from_cart_id", description: "A cart being merged into this one. Its hold is released in the same call, so the promotion is never scarcer than it really is.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The company they buy for.", type: "string", required: false },
   { key: "promotions", option: "--promotions [promotions...]", name: "promotions", description: "What this cart intends to use, as the evaluation answered it.", type: "array", required: false },
+  { key: "redeemedBy", option: "--redeemed-by <redeemed-by>", name: "redeemed_by", description: "The buyer name as the caller shows it, kept on the ledger rows so a list can search it.", type: "string", required: false },
 ];
 promotionsRedemptions
   .command(`reserve`)
@@ -329,10 +355,11 @@ promotionsRedemptions
   .option(`--from-cart-id <from-cart-id>`, `A cart being merged into this one. Its hold is released in the same call, so the promotion is never scarcer than it really is.`)
   .option(`--organization-id <organization-id>`, `The company they buy for.`)
   .option(`--promotions [promotions...]`, `What this cart intends to use, as the evaluation answered it.`)
+  .option(`--redeemed-by <redeemed-by>`, `The buyer name as the caller shows it, kept on the ledger rows so a list can search it.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { cartId, contactId, currency, fromCartId, organizationId, promotions } = await promptForMissing(
+        const { cartId, contactId, currency, fromCartId, organizationId, promotions, redeemedBy } = await promptForMissing(
           _options,
           reserveSpecs,
           _command,
@@ -364,6 +391,9 @@ promotionsRedemptions
         }
         if (promotions !== undefined) {
           _payload[`promotions`] = promotions;
+        }
+        if (redeemedBy !== undefined) {
+          _payload[`redeemed_by`] = redeemedBy;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
