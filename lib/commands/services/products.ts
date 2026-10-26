@@ -984,6 +984,38 @@ products
       },
     ),
   );
+const taxClassesUsageSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", description: "The tax-class CODE, as markets spells it — not a row id. Matched against the `tax_class` of every product visible in the request's market (every product when it names none).", type: "string", required: true },
+];
+products
+  .command(`tax-classes-usage`)
+  .description(`markets.tax_classes is the source of record for the rate and a product points at it by CODE in \`tax_class\` — a variant is a product row and carries its own. It is not a foreign key and could not be (ADR-0055), so integrity is a question one app asks the other, and this is the answering half: markets calls it when an operator tries to delete a tax class, and a count above zero is what stops the delete. A tax class is unique per market, so 'reduced' may exist in several: the caller names the class's market in \`x-revenexx-market\`, and only the products visible in that market count — the ones assigned to it plus the unassigned ones, which are sold in every market and so are taxed through its class too. Without the header every product of the tenant counts. Products in the trash count as well, because a restore brings them back naming the class; \`trashed\` says how many of them are. Reports at most 1000 products and names the first 20 by SKU. Every code answers, used or not — a code nobody points at is \`in_use: false\`, never a 404.`)
+  .option(`--code <code>`, `The tax-class CODE, as markets spells it — not a row id. Matched against the \`tax_class\` of every product visible in the request's market (every product when it names none).`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { code } = await promptForMissing(
+          _options,
+          taxClassesUsageSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/tax-classes/{code}/usage`.replace(`{code}`, code);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(products.commands.at(-1)!, taxClassesUsageSpecs, { method: "get" });
 products
   .command(`empty-trash`)
   .description(`Deletes the products in the trash for good, oldest first, up to 200 per call, each through the same checks as a second \`DELETE\`. One that is held is reported with its reason and the rest go on; \`more\` says another call has work left. Refused with 403 for a storefront contact.`)

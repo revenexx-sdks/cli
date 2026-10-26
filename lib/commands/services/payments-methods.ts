@@ -495,3 +495,35 @@ paymentsMethods
     ),
   );
 registerPromptSpecs(paymentsMethods.commands.at(-1)!, updateSpecs, { method: "put" });
+const paymentsTaxClassesUsageSpecs: PromptSpec[] = [
+  { key: "code", option: "--code <code>", name: "code", description: "The tax-class CODE, as markets spells it — not a row id. Matched against the `tax_class` of every payment method visible in the request's market (every method when it names none) and against that market's `payment_fee_tax_class` setting.", type: "string", required: true },
+];
+paymentsMethods
+  .command(`payments-tax-classes-usage`)
+  .description(`markets.tax_classes is the source of record for the rate and this app points at it by CODE from two places: a method's own tax_class and the market's payment_fee_tax_class fallback. Neither is a foreign key and neither could be — a cross-app FK is what ADR-0055 forbids — so integrity is a question one app asks the other, and this is the answering half: markets calls it when an operator tries to delete a tax class, and a count above zero is what stops the delete. A tax class is unique per market, so 'reduced' may exist in several: the caller names the class's market in \`x-revenexx-market\`, and only the methods visible in that market count — the ones assigned to it plus the unassigned ones, which are offered in every market and so are taxed through its class too. Without the header every method of the tenant counts. Reports at most 500 methods and names the first 20. Every code answers, used or not — a code nobody points at is \`in_use: false\`, never a 404.`)
+  .option(`--code <code>`, `The tax-class CODE, as markets spells it — not a row id. Matched against the \`tax_class\` of every payment method visible in the request's market (every method when it names none) and against that market's \`payment_fee_tax_class\` setting.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { code } = await promptForMissing(
+          _options,
+          paymentsTaxClassesUsageSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/payments/tax-classes/{code}/usage`.replace(`{code}`, code);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(paymentsMethods.commands.at(-1)!, paymentsTaxClassesUsageSpecs, { method: "get" });

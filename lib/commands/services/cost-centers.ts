@@ -1010,6 +1010,7 @@ registerPromptSpecs(costCenters.commands.at(-1)!, costCentersListSpecs, { method
 const costCentersCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", type: "string", required: true },
   { key: "name", option: "--name <name>", name: "name", type: "string", required: true },
+  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: true },
   { key: "accountableContactId", option: "--accountable-contact-id <accountable-contact-id>", name: "accountable_contact_id", type: "string", required: false },
   { key: "active", option: "--active <active>", name: "active", type: "boolean", required: false },
   { key: "budgetType", option: "--budget-type <budget-type>", name: "budget_type", type: "string", required: false, enum: ["monetary","tracking_only"] },
@@ -1017,7 +1018,6 @@ const costCentersCreateSpecs: PromptSpec[] = [
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this cost centre has in the system that OWNS it — the dimension value an ERP books against, which is rarely the `code` a controller types here. Unique per tenant where it is set, so a repeated import upserts on it instead of matching on a name; a centre opened in the Cockpit carries none and never will.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this cost centre, keyed by system name — a second ERP, the procurement platform a punchout session comes from, the shop this tenant migrated off. `external_id` names the leading system; this is the rest, and the next one costs no column. Answered on read and carrying no query parameter: the store compares such a field as a WHOLE document, so a filter over part of one is refused. Look the centre up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", type: "object", required: false },
-  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: false },
   { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this cost centre, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to send back in `If-Match`, and there is nowhere else to keep it between two runs. `raw` holds the source fields this app does not model — a responsible department, an account range — so an edit here does not silently throw them away.", type: "object", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this cost centre was last confirmed against its source. A delta run asks the source for what changed since it, and a controller reads it to see that a feed has gone quiet. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed — so a stale value beside a fresh `updated_at` means somebody is maintaining by hand what the ERP has stopped delivering.", type: "string", required: false },
 ];
@@ -1026,6 +1026,7 @@ costCenters
   .description(`Create a cost centre`)
   .option(`--code <code>`, ``)
   .option(`--name <name>`, ``)
+  .option(`--organization-id <organization-id>`, ``)
   .option(`--accountable-contact-id <accountable-contact-id>`, ``)
   .option(
     `--active [value]`,
@@ -1038,13 +1039,12 @@ costCenters
   .option(`--external-id <external-id>`, `The key this cost centre has in the system that OWNS it — the dimension value an ERP books against, which is rarely the \`code\` a controller types here. Unique per tenant where it is set, so a repeated import upserts on it instead of matching on a name; a centre opened in the Cockpit carries none and never will.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this cost centre, keyed by system name — a second ERP, the procurement platform a punchout session comes from, the shop this tenant migrated off. \`external_id\` names the leading system; this is the rest, and the next one costs no column. Answered on read and carrying no query parameter: the store compares such a field as a WHOLE document, so a filter over part of one is refused. Look the centre up by \`external_id\` and read this off the answer.`)
   .option(`--metadata <metadata>`, ``)
-  .option(`--organization-id <organization-id>`, ``)
   .option(`--source-data <source-data>`, `What the source said about this cost centre, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to send back in \`If-Match\`, and there is nowhere else to keep it between two runs. \`raw\` holds the source fields this app does not model — a responsible department, an account range — so an edit here does not silently throw them away.`)
   .option(`--source-synced-at <source-synced-at>`, `When this cost centre was last confirmed against its source. A delta run asks the source for what changed since it, and a controller reads it to see that a feed has gone quiet. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed — so a stale value beside a fresh \`updated_at\` means somebody is maintaining by hand what the ERP has stopped delivering.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, name, accountableContactId, active, budgetType, currency, externalId, externalRefs, metadata, organizationId, sourceData, sourceSyncedAt } = await promptForMissing(
+        const { code, name, organizationId, accountableContactId, active, budgetType, currency, externalId, externalRefs, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           costCentersCreateSpecs,
           _command,
@@ -1899,8 +1899,8 @@ costCenters
 registerPromptSpecs(costCenters.commands.at(-1)!, restrictionsUpdateSpecs, { method: "put" });
 const usableSpecs: PromptSpec[] = [
   { key: "lines", option: "--lines [lines...]", name: "lines", type: "array", required: true },
+  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: true },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", type: "string", required: false },
-  { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", type: "string", required: false },
   { key: "punchoutAccountCode", option: "--punchout-account-code <punchout-account-code>", name: "punchout_account_code", description: "Code of the punchout account the request is made in. Omit outside a punchout session: a cost centre restricted with mode 'only' is then out of reach, and one restricted with 'except' is offered. A value that is not a non-empty string is refused with 400.", type: "string", required: false },
   { key: "roles", option: "--roles [roles...]", name: "roles", type: "array", required: false },
 ];
@@ -1908,14 +1908,14 @@ costCenters
   .command(`usable`)
   .description(`Usable cost centres per line for a buyer (restriction eval incl. punchout + auto-select)`)
   .option(`--lines [lines...]`, ``)
-  .option(`--contact-id <contact-id>`, ``)
   .option(`--organization-id <organization-id>`, ``)
+  .option(`--contact-id <contact-id>`, ``)
   .option(`--punchout-account-code <punchout-account-code>`, `Code of the punchout account the request is made in. Omit outside a punchout session: a cost centre restricted with mode 'only' is then out of reach, and one restricted with 'except' is offered. A value that is not a non-empty string is refused with 400.`)
   .option(`--roles [roles...]`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { lines, contactId, organizationId, punchoutAccountCode, roles } = await promptForMissing(
+        const { lines, organizationId, contactId, punchoutAccountCode, roles } = await promptForMissing(
           _options,
           usableSpecs,
           _command,

@@ -2191,6 +2191,46 @@ A body that names nothing writable is refused with 400 rather than answered as a
     ),
   );
 registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributesUpdateSpecs, { method: "put" });
+const productsDefaultsRunSpecs: PromptSpec[] = [
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
+];
+productsDataModel
+  .command(`products-defaults-run`)
+  .description(`Creates the smallest catalog model a tenant can work with, for a tenant that has none: the product attributes \`name\` (text, localizable), \`description\` (textarea, localizable) and \`images\` (asset_collection), and the family \`standard\` („Standard“) carrying the three, with \`name\` as its label attribute and required, and \`images\` as its image attribute. It writes only into a tenant without any attribute or family — the rows an earlier run of this call wrote excepted, so a run that stopped half-way is finished by the next. A tenant with one attribute or family of its own is answered \`seeded: false\` with \`reason: not_empty\` and nothing is written. Idempotent: a second run writes nothing. The model is founded without a market. The install announcement runs the same seeding, but it is not reliably delivered, so support can call this for an existing empty tenant.`)
+  .option(`--body <body>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { body } = await promptForMissing(
+          _options,
+          productsDefaultsRunSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/defaults`;
+        const _payload: RequestParams = {};
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(productsDataModel.commands.at(-1)!, productsDefaultsRunSpecs, { method: "post" });
 const productsFamiliesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },

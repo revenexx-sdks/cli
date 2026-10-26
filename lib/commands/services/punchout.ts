@@ -827,7 +827,7 @@ const entryIdsSpecs: PromptSpec[] = [
 ];
 punchout
   .command(`entry-ids`)
-  .description(`IDS entry on one shared endpoint: the account is resolved from kndnr/name_kunde/pw_kunde in the body, because that is how IDS clients are configured. POST-only with multipart/form-data — the standard rules GET out because a cart does not fit in a query string (§5.1a) — and parameter names are lower-case single words. WKE (shop), ADL (one article), AS (a search) and WKS (a cart sent in, which always becomes a NEW cart) authenticate; LI and SV are answered BEFORE authentication, because the standard sends only the action code with them and they are what makes setup self-service. HLS, the heating-label list, is refused as not implemented rather than falling through to "come in and shop". Reached from the tenant's storefront host, never from this app's own URL and never as a public gateway route — see adr/ADR-0002. The storefront pass-through forwards the ERP's request as the envelope above and returns this answer unchanged.`)
+  .description(`IDS entry on one shared endpoint: the account is resolved from name_kunde in the body and authenticated with pw_kunde, plus kndnr where the tenant requires it or the call sends it — what LI answers is what is enforced. POST-only with multipart/form-data — the standard rules GET out because a cart does not fit in a query string (§5.1a) — and parameter names are lower-case single words. WKE (shop), ADL (one article), AS (a search) and WKS (a cart sent in, which always becomes a NEW cart) authenticate; LI and SV are answered BEFORE authentication, because the standard sends only the action code with them and they are what makes setup self-service. HLS, the heating-label list, is refused as not implemented rather than falling through to "come in and shop". Reached from the tenant's storefront host, never from this app's own URL and never as a public gateway route — see adr/ADR-0002. The storefront pass-through forwards the ERP's request as the envelope above and returns this answer unchanged.`)
   .option(`--method <method>`, `The method the external system used ('GET' for a typical OCI entry, 'POST' for cXML/IDS).`)
   .option(`--body-b64 <body-b64>`, `The raw request body, base64-encoded. Base64 because a cXML or IDS document must survive byte-for-byte — re-serialising it breaks signatures and encodings.`)
   .option(`--client-ip <client-ip>`, `The external system's IP, for the session record and rate accounting.`)
@@ -2578,7 +2578,7 @@ const vocabulariesListSpecs: PromptSpec[] = [
 ];
 punchout
   .command(`vocabularies-list`)
-  .description(`Discovery for the vocabulary routes: the enums this app enforces, each with its name, its title and its description — and deliberately WITHOUT its values, so a UI can cache this one small answer and fetch only the value sets it renders. Names: auth-strategies, entry-actions, entry-probe-outcome, mapping-documents, mapping-emit, mapping-mutators, mapping-scopes, mapping-sources, mapping-target-kinds, origins, protocol-versions, protocols, purchase-modes, refusal-reasons, return-methods, session-statuses, unknown-user-policies. Fetch one with GET /punchout/vocabularies/{name}.`)
+  .description(`Discovery for the vocabulary routes: the enums this app enforces, each with its name, its title and its description — and deliberately WITHOUT its values, so a UI can cache this one small answer and fetch only the value sets it renders. Names: auth-strategies, entry-actions, entry-probe-outcome, mapping-documents, mapping-emit, mapping-mutators, mapping-scopes, mapping-sources, mapping-target-kinds, origins, protocol-versions, protocols, purchase-modes, refusal-details, refusal-reasons, return-methods, session-statuses, unknown-user-policies. Fetch one with GET /punchout/vocabularies/{name}.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -2618,7 +2618,7 @@ punchout
   );
 registerPromptSpecs(punchout.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
 const vocabulariesGetSpecs: PromptSpec[] = [
-  { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id.", type: "string", required: true, enum: ["auth-strategies","entry-actions","entry-probe-outcome","mapping-documents","mapping-emit","mapping-mutators","mapping-scopes","mapping-sources","mapping-target-kinds","origins","protocol-versions","protocols","purchase-modes","refusal-reasons","return-methods","session-statuses","unknown-user-policies"], resource: { listPath: "/punchout/vocabularies", hasLimit: false } },
+  { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id.", type: "string", required: true, enum: ["auth-strategies","entry-actions","entry-probe-outcome","mapping-documents","mapping-emit","mapping-mutators","mapping-scopes","mapping-sources","mapping-target-kinds","origins","protocol-versions","protocols","purchase-modes","refusal-details","refusal-reasons","return-methods","session-statuses","unknown-user-policies"], resource: { listPath: "/punchout/vocabularies", hasLimit: false } },
 ];
 punchout
   .command(`vocabularies-get`)
