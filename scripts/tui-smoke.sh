@@ -25,15 +25,25 @@ keys() {
   sleep 1
   printf '\033'  # esc — clear the filter
   sleep 1
-  printf '\033'  # esc at the root — quit
+  printf '\033'  # esc at the root — opens the quit confirmation
+  sleep 1
+  printf 'y'     # confirm the quit
   sleep 1
 }
 
 # BSD (macOS) and util-linux script(1) disagree on how to pass the command.
+# The timeout turns a session that never quits into a failure instead of a
+# step that hangs until the runner kills it. Status 124 is the timeout; any
+# other status is the CLI's own and is left to the checks below.
+# macOS ships no timeout(1); there the session runs unbounded.
+limit() {
+  if command -v timeout > /dev/null; then timeout 60 "$@"; else "$@"; fi
+}
+status=0
 if [ "$(uname)" = "Darwin" ]; then
-  keys | script -q /dev/null node "$CLI" tui > "$OUT" 2>&1 || true
+  keys | limit script -q /dev/null node "$CLI" tui > "$OUT" 2>&1 || status=$?
 else
-  keys | script -qec "node $CLI tui" /dev/null > "$OUT" 2>&1 || true
+  keys | limit script -qec "node $CLI tui" /dev/null > "$OUT" 2>&1 || status=$?
 fi
 
 plain="$(perl -pe 's/\e\[[0-9;?]*[a-zA-Z]//g' "$OUT")"
@@ -45,6 +55,7 @@ fail() {
   exit 1
 }
 
+[ "$status" -ne 124 ] || fail "session did not exit within 60 s"
 printf '%s' "$plain" | grep -qi "revenexx" || fail "app shell header did not render"
 printf '%s' "$plain" | grep -qi "commands"  || fail "commands pane did not render"
 printf '%s' "$plain" | grep -q "› status"   || fail "type-to-search filter did not engage"
