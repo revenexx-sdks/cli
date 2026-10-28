@@ -31,6 +31,10 @@ keys() {
   sleep 1
 }
 
+# Ink treats CI=true (set on every GitHub runner) as a dumb terminal and draws
+# only the last frame, so the search frames checked below would never appear.
+export CI=false
+
 # BSD (macOS) and util-linux script(1) disagree on how to pass the command.
 # The timeout turns a session that never quits into a failure instead of a
 # step that hangs until the runner kills it. Status 124 is the timeout; any
