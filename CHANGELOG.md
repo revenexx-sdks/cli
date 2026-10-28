@@ -1,3 +1,6 @@
+## v0.7.2
+- CI checks on every pull request, publish behind the checks, Dependabot security updates and a committed branch ruleset
+
 ## v0.7.1
 - Regenerated from the latest API specification
 

@@ -329,7 +329,7 @@ skills
   )
   .option(
     "--agent <agent>",
-    `Agent whose install directory the 'Installed' column reflects: ${Object.keys(AGENT_TARGETS).join(", ")}`,
+    "Agent whose install directory the 'Installed' column reflects: claude, opencode, copilot",
     DEFAULT_AGENT,
   )
   .option(
@@ -414,7 +414,7 @@ skills
   .option("--readme", "Also print the skill's README")
   .option(
     "--agent <agent>",
-    `Agent whose install directory the 'Installed' line reflects: ${Object.keys(AGENT_TARGETS).join(", ")}`,
+    "Agent whose install directory the 'Installed' line reflects: claude, opencode, copilot",
     DEFAULT_AGENT,
   )
   .option(
@@ -560,7 +560,7 @@ skills
   )
   .option(
     "--agent <agent>",
-    `Target agent: ${Object.keys(AGENT_TARGETS).join(", ")}`,
+    "Target agent: claude, opencode, copilot",
     DEFAULT_AGENT,
   )
   // --skill-version, not --version: the CLI answers `--version` itself before

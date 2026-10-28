@@ -2,6 +2,8 @@
     ".changeset/README.md",
     ".changeset/config.json",
     ".env.example",
+    ".github/dependabot.yml",
+    ".github/rulesets/main.json",
     ".github/workflows/ci.yml",
     ".github/workflows/homebrew.yml",
     ".github/workflows/publish.yml",

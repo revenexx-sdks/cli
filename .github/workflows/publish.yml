@@ -10,11 +10,18 @@ permissions:
   id-token: write
 
 jobs:
+  # The gate in front of the publish: the same checks a pull request runs
+  # (ci.yml), in this run. A release whose tests or build fail never reaches
+  # npm, the release page or the Homebrew tap.
+  check:
+    uses: ./.github/workflows/ci.yml
+
   build-and-publish:
+    needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
 
@@ -34,7 +41,7 @@ jobs:
       - name: Setup Node.js for tests
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install npm dependencies
         run: npm ci || npm install
@@ -95,7 +102,7 @@ jobs:
       - name: Publish
         run: npm publish --provenance --access public --tag ${{ steps.release_tag.outputs.tag }}
 
-      - uses: fnkr/github-action-ghr@v1
+      - uses: fnkr/github-action-ghr@8ed8fc2f0a781340421ad61acdc0e3d665a95692 # v1
         env:
           GHR_PATH: build/
           GHR_REPLACE: false
