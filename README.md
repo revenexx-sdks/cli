@@ -26,7 +26,7 @@ Once the installation is complete, you can verify the install using
 
 ```sh
 $ revenexx -v
-0.7.4
+0.7.5
 ```
 
 ### MacOS / Linux via [Homebrew](https://brew.sh)
@@ -68,7 +68,7 @@ On Windows, use `npm` — or download the `.exe` from the same release page.
 Once the installation completes, you can verify your install using
 ```
 $ revenexx -v
-0.7.4
+0.7.5
 ```
 
 ## Getting Started
@@ -254,6 +254,19 @@ $ npm run verify:install:local
 ```
 
 Use the `--image` flag on the script to pin a specific Node base (e.g. `--image node:22-alpine`).
+
+## Releases
+
+Every app and theme version goes through a release round before it is live. `deploy app` / `deploy theme` upload a release in `deploy` mode: the build goes live once a reviewer approves the round. `preview app` / `preview theme` upload a release in `preview` mode: the build runs as a candidate on its own host, and it goes live once you have accepted it and a reviewer has approved it.
+
+| Command | What it does |
+|---|---|
+| `revenexx deploy app [dir]` | Uploads and builds, then publishes + installs, but only once the round is approved. A round still in review ends the command with its state and the command to finish later. |
+| `revenexx preview app [dir]` | The same flow as a preview candidate. |
+| `revenexx preview accept [dir] [--release-version <v>] [--rc <n>]` | Your go on a preview candidate. Without `--release-version` the manifest's version is used, then the newest candidate. |
+| `revenexx release status [dir]` | Lists the release rounds: version, round, mode, state, gates, decision date, rejection. `--json` returns the rounds as the platform reports them. |
+
+After the build, `deploy` and `preview` wait up to `--release-wait <seconds>` (default 120) for the round to be approved or rejected. The theme commands take the same options.
 
 ## Tenants
 

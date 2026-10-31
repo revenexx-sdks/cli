@@ -31,7 +31,17 @@ vi.mock("../lib/project-config.js", async (importOriginal) => ({
   resolveTenant: () => "acme",
 }));
 
-import { deployApp, deployTheme, parseSeconds, type DeployAppFlags, type DeployThemeFlags } from "../lib/commands/deploy.js";
+import {
+  deployApp,
+  deployTheme,
+  parseSeconds,
+  previewAccept,
+  releaseStatus,
+  gateSummary,
+  findRound,
+  type DeployAppFlags,
+  type DeployThemeFlags,
+} from "../lib/commands/deploy.js";
 import { cliConfig } from "../lib/parser.js";
 
 const APP_ID = "app-123";
@@ -42,11 +52,25 @@ const baseFlags = (overrides: Partial<DeployAppFlags> = {}): DeployAppFlags => (
   publish: true,
   install: true,
   timeout: 0, // give up right after the first status read — no 5s poll sleeps in tests
+  releaseWait: 0, // read the release round once
   ...overrides,
 });
 
-/** Default gateway: app exists, upload succeeds, build is ready, publish + install work. */
-const happyGateway = (deploymentStatus = "ready") => (call: Call): unknown => {
+/** A release round as the registry lists it. */
+const round = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
+  version: "1.0.0",
+  rc_number: 1,
+  mode: "deploy",
+  state: "approved",
+  gate_results: { pre: { results: [{ id: "changelog", status: "passed", title: "Changelog" }] } },
+  decision_due_at: null,
+  rejection: null,
+  ...overrides,
+});
+
+/** Default gateway: app exists, upload succeeds, build is ready, the round is approved, publish + install work. */
+const happyGateway = (deploymentStatus = "ready", rounds: Record<string, unknown>[] = [round()]) => (call: Call): unknown => {
+  if (call.method === "get" && call.path === `/apps/${APP_ID}/releases`) return { data: rounds };
   if (call.method === "get" && call.path === "/apps") return { apps: [{ $id: APP_ID, name: "cost-centers" }] };
   if (call.method === "get" && call.path === `/apps/${APP_ID}`) return { $id: APP_ID, name: "cost-centers" };
   if (call.method === "post" && call.path === `/apps/${APP_ID}/deployments`) return { $id: DEPLOYMENT_ID };
@@ -64,7 +88,7 @@ const stdout: string[] = [];
 beforeEach(() => {
   calls.length = 0;
   workdir = fs.mkdtempSync(path.join(os.tmpdir(), "revenexx-deploy-flow-"));
-  fs.writeFileSync(path.join(workdir, "manifest.json"), JSON.stringify({ name: "cost-centers" }));
+  fs.writeFileSync(path.join(workdir, "manifest.json"), JSON.stringify({ name: "cost-centers", version: "1.0.0" }));
   fs.mkdirSync(path.join(workdir, "src"));
   fs.writeFileSync(path.join(workdir, "src", "main.js"), "export default {};");
   stdout.length = 0;
@@ -265,10 +289,12 @@ describe("deploy theme", () => {
     publish: true,
     install: true,
     timeout: 0,
+    releaseWait: 0,
     ...overrides,
   });
 
   const siteGateway = (call: Call): unknown => {
+    if (call.method === "get" && call.path === `/sites/${SITE_ID}/releases`) return { data: [round({ deployed_deployment_id: DEPLOYMENT_ID })] };
     if (call.method === "get" && call.path === `/sites/${SITE_ID}`) return { $id: SITE_ID, name: "midnight" };
     if (call.method === "get" && call.path === `/sites/${SITE_ID}/deployments/${DEPLOYMENT_ID}`) return { $id: DEPLOYMENT_ID, status: "ready" };
     return {};
@@ -337,6 +363,16 @@ describe("machine-readable stdout (DX-241)", () => {
       functionId: APP_ID,
       deploymentId: DEPLOYMENT_ID,
       resumed: false,
+      releaseMode: "deploy",
+      release: {
+        version: "1.0.0",
+        rc: 1,
+        mode: "deploy",
+        state: "approved",
+        gates: "pre passed · post pending",
+        decisionDueAt: null,
+        rejection: null,
+      },
       published: true,
       installed: true,
     });
@@ -358,5 +394,250 @@ describe("machine-readable stdout (DX-241)", () => {
     await deployApp(workdir, baseFlags());
 
     expect(stdout.join("\n")).toContain("Waiting for the platform build");
+  });
+});
+
+/**
+ * MAR-33: the release mode travels with the upload, and publish + install only
+ * follow an approved round. A round still in review ends the command with its
+ * state, never with a success claim or an unapproved publish.
+ */
+describe("release approval", () => {
+  const uploaded = (): Record<string, unknown> | undefined => calls.find((c) => c.method === "post" && c.path === `/apps/${APP_ID}/deployments`)?.params;
+
+  it("deploy app sends releaseMode deploy and still asks for activation", async () => {
+    respond = happyGateway();
+    await deployApp(workdir, baseFlags());
+    expect(uploaded()).toMatchObject({ activate: true, releaseMode: "deploy" });
+  });
+
+  it("preview app sends releaseMode preview", async () => {
+    respond = happyGateway();
+    await deployApp(workdir, baseFlags({ releaseMode: "preview" }));
+    expect(uploaded()).toMatchObject({ activate: true, releaseMode: "preview" });
+  });
+
+  it("holds publish + install while the round is in review and says so", async () => {
+    respond = happyGateway("ready", [round({ state: "submitted", decision_due_at: "2026-11-06T08:00:00Z" })]);
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    await deployApp(workdir, baseFlags());
+
+    expect(paths("post")).toEqual([`/apps/${APP_ID}/deployments`]);
+    const out = stdout.join("\n") + stderr.mock.calls.map((args) => String(args[0])).join("");
+    expect(out).toMatch(/is submitted: the build is uploaded but not live until it is approved/);
+    expect(out).toMatch(/2026-11-06T08:00:00Z/);
+    expect(out).toMatch(/waiting for release approval/);
+    expect(out).not.toMatch(/App 'cost-centers' deployed/);
+  });
+
+  it("points a held preview candidate at preview accept and resumes through preview app", async () => {
+    respond = happyGateway("ready", [round({ state: "candidate", mode: "preview" })]);
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    await deployApp(workdir, baseFlags({ releaseMode: "preview" }));
+
+    expect(paths("post")).toEqual([`/apps/${APP_ID}/deployments`]);
+    const out = stdout.join("\n") + stderr.mock.calls.map((args) => String(args[0])).join("");
+    expect(out).toMatch(/preview accept/);
+    expect(out).toMatch(/preview app --function-id app-123 --deployment-id dep-456/);
+  });
+
+  it("reports the held round in the machine-readable result", async () => {
+    respond = happyGateway("ready", [round({ state: "candidate" })]);
+    vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    cliConfig.output = "json";
+    cliConfig.json = true;
+    try {
+      await deployApp(workdir, baseFlags());
+    } finally {
+      cliConfig.output = "table";
+      cliConfig.json = false;
+    }
+    const result = JSON.parse(stdout.join("\n"));
+    expect(result).toMatchObject({ published: false, installed: false, release: { state: "candidate", rc: 1 } });
+  });
+
+  it("fails with the reason when the round was rejected", async () => {
+    respond = happyGateway("ready", [round({ state: "rejected", rejection: { reason: "secrets found in src/config.js" } })]);
+    await expect(deployApp(workdir, baseFlags())).rejects.toThrow(/was rejected: secrets found in src\/config.js/);
+    expect(paths("post")).toEqual([`/apps/${APP_ID}/deployments`]);
+  });
+
+  it("holds when no round is recorded for the deployment", async () => {
+    respond = happyGateway("ready", [round({ version: "0.9.0" })]);
+    vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    await deployApp(workdir, baseFlags());
+    expect(paths("post")).toEqual([`/apps/${APP_ID}/deployments`]);
+  });
+
+  it("keeps the pre-approval flow on a gateway without release rounds", async () => {
+    const happy = happyGateway();
+    respond = (call) => {
+      if (call.path === `/apps/${APP_ID}/releases`) {
+        const err = new Error("Route not found") as Error & { code?: number };
+        err.code = 404;
+        throw err;
+      }
+      return happy(call);
+    };
+    await deployApp(workdir, baseFlags());
+    expect(paths("post")).toEqual([`/apps/${APP_ID}/deployments`, `/apps/${APP_ID}/publish`, "/apps/marketplace/install"]);
+  });
+
+  it("explains a publish the registry refused as not approved", async () => {
+    const happy = happyGateway();
+    respond = (call) => {
+      if (call.method === "post" && call.path === `/apps/${APP_ID}/publish`) {
+        const err = new Error("Version 1.0.0 is not approved") as Error & { code?: number; type?: string };
+        err.code = 409;
+        err.type = "version_not_approved";
+        throw err;
+      }
+      return happy(call);
+    };
+    await expect(deployApp(workdir, baseFlags())).rejects.toThrow(/not approved yet, and install did NOT run[\s\S]*release status --function-id app-123/);
+    expect(paths("post")).not.toContain("/apps/marketplace/install");
+  });
+
+  it("deploy theme sends the release mode and holds an unapproved theme", async () => {
+    const SITE_ID = "site-789";
+    fs.writeFileSync(path.join(workdir, "theme.json"), JSON.stringify({ name: "midnight", version: "2.0.0" }));
+    respond = (call) => {
+      if (call.method === "get" && call.path === "/sites") return { sites: [{ $id: SITE_ID, name: "midnight" }] };
+      if (call.method === "post" && call.path === `/sites/${SITE_ID}/deployments`) return { $id: DEPLOYMENT_ID };
+      if (call.method === "get" && call.path === `/sites/${SITE_ID}/deployments/${DEPLOYMENT_ID}`) return { status: "ready" };
+      if (call.method === "get" && call.path === `/sites/${SITE_ID}/releases`) return { data: [round({ version: "2.0.0", state: "candidate", mode: "preview" })] };
+      return {};
+    };
+    vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    await deployTheme(workdir, {
+      framework: "nuxt",
+      adapter: "ssr",
+      buildRuntime: "node-25",
+      installCommand: "npm install",
+      buildCommand: "npm run build",
+      outputDirectory: ".output",
+      publish: true,
+      install: true,
+      timeout: 0,
+      releaseWait: 0,
+      releaseMode: "preview",
+    });
+    expect(calls.find((c) => c.method === "post" && c.path === `/sites/${SITE_ID}/deployments`)?.params).toMatchObject({ activate: true, releaseMode: "preview" });
+    expect(paths("post")).toEqual([`/sites/${SITE_ID}/deployments`]);
+  });
+});
+
+describe("preview accept", () => {
+  it("accepts the manifest's version on the app's releases path", async () => {
+    respond = (call) => {
+      if (call.method === "get" && call.path === "/apps") return { apps: [{ $id: APP_ID, name: "cost-centers" }] };
+      if (call.method === "post") return { data: round({ state: "approved", mode: "preview" }) };
+      return {};
+    };
+    await previewAccept(workdir, {});
+    const accept = calls.find((c) => c.method === "post");
+    expect(accept?.path).toBe(`/apps/${APP_ID}/releases/accept`);
+    expect(accept?.params).toEqual({ version: "1.0.0" });
+  });
+
+  it("passes --release-version and --rc through", async () => {
+    respond = (call) => (call.method === "post" ? { data: round({ version: "1.2.0", rc_number: 3, state: "candidate" }) } : {});
+    await previewAccept(workdir, { functionId: APP_ID, releaseVersion: "1.2.0", rc: 3 });
+    expect(calls.find((c) => c.method === "post")?.params).toEqual({ version: "1.2.0", rc: 3 });
+  });
+
+  it("uses the sites path for a theme", async () => {
+    respond = (call) => (call.method === "post" ? { data: round() } : {});
+    await previewAccept(workdir, { siteId: "site-789", releaseVersion: "2.0.0" });
+    expect(calls.find((c) => c.method === "post")?.path).toBe("/sites/site-789/releases/accept");
+  });
+
+  it("falls back to the newest preview candidate without a local version", async () => {
+    fs.writeFileSync(path.join(workdir, "manifest.json"), JSON.stringify({ name: "cost-centers" }));
+    respond = (call) => {
+      if (call.method === "get" && call.path === "/apps") return { apps: [{ $id: APP_ID, name: "cost-centers" }] };
+      if (call.method === "get" && call.path === `/apps/${APP_ID}/releases`) {
+        return { data: [round({ version: "1.3.0", state: "approved" }), round({ version: "1.2.0", mode: "preview", state: "candidate" })] };
+      }
+      return { data: round({ version: "1.2.0" }) };
+    };
+    await previewAccept(workdir, {});
+    expect(calls.find((c) => c.method === "post")?.params).toEqual({ version: "1.2.0" });
+  });
+
+  it("says so when the gateway has no release endpoints", async () => {
+    respond = (call) => {
+      if (call.method === "post") {
+        const err = new Error("Route not found") as Error & { code?: number };
+        err.code = 404;
+        throw err;
+      }
+      return {};
+    };
+    await expect(previewAccept(workdir, { functionId: APP_ID })).rejects.toThrow(/does not offer release rounds yet/);
+  });
+});
+
+describe("release status", () => {
+  it("prints one row per round with mode, state, gates and the decision date", async () => {
+    respond = (call) =>
+      call.path === `/apps/${APP_ID}/releases`
+        ? {
+            data: [
+              round({ version: "1.1.0", rc_number: 2, state: "candidate", mode: "preview", decision_due_at: "2026-11-06T08:00:00Z" }),
+              round({ version: "1.1.0", rc_number: 1, state: "rejected", rejection: "listing is missing a privacy URL" }),
+            ],
+          }
+        : {};
+    await releaseStatus(workdir, { functionId: APP_ID });
+    const out = stdout.join("\n");
+    expect(out).toContain("1.1.0");
+    expect(out).toContain("candidate");
+    expect(out).toContain("preview");
+    expect(out).toContain("2026-11-06T08:00:00Z");
+    expect(out).toContain("listing is missing a privacy URL");
+  });
+
+  it("--json prints the rounds as the registry returned them", async () => {
+    const rounds = [round({ state: "submitted" })];
+    respond = (call) => (call.path === `/apps/${APP_ID}/releases` ? { data: rounds } : {});
+    cliConfig.output = "json";
+    cliConfig.json = true;
+    try {
+      await releaseStatus(workdir, { functionId: APP_ID });
+    } finally {
+      cliConfig.output = "table";
+      cliConfig.json = false;
+    }
+    expect(JSON.parse(stdout.join("\n"))).toEqual({ app: "cost-centers", id: APP_ID, releases: rounds });
+  });
+
+  it("refuses a directory that is neither an app nor a theme", async () => {
+    const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), "revenexx-not-an-app-"));
+    try {
+      await expect(releaseStatus(elsewhere, {})).rejects.toThrow(/neither an app \(manifest.json\) nor a theme/);
+    } finally {
+      fs.rmSync(elsewhere, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("release helpers", () => {
+  it("summarises both gate phases", () => {
+    expect(gateSummary(null)).toBe("pre pending · post pending");
+    expect(
+      gateSummary({
+        pre: { results: [{ status: "passed" }, { status: "warning" }] },
+        post: { results: [{ status: "failed" }, { status: "passed" }] },
+      }),
+    ).toBe("pre passed, 1 warning · post failed (1)");
+  });
+
+  it("matches a round by deployment id before the version", () => {
+    const rounds = [round({ version: "1.0.0", rc_number: 2 }), round({ version: "0.9.0", deployed_deployment_id: "dep-1" })];
+    expect(findRound(rounds, "dep-1", "1.0.0")?.version).toBe("0.9.0");
+    expect(findRound(rounds, "dep-x", "1.0.0")?.rc_number).toBe(2);
+    expect(findRound(rounds, "dep-x", "")?.version).toBe("1.0.0");
+    expect(findRound([], "dep-x", "")).toBeNull();
   });
 });

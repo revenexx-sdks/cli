@@ -247,6 +247,46 @@ markets
     ),
   );
 registerPromptSpecs(markets.commands.at(-1)!, createSpecs, { method: "post" });
+const defaultsSpecs: PromptSpec[] = [
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
+];
+markets
+  .command(`defaults`)
+  .description(`Stores, for this tenant, every setting the app needs STORED rather than merely declared and that the tenant has not stored yet — today \`locale_granularity\`, which the search service refuses to publish without. The value is the declared default, and a value the tenant already stored is never touched, so the call is idempotent and safe to repeat. The app does the same by itself whenever a market's locales change. Answers what was written, what was already stored, and why nothing was written when nothing was.`)
+  .option(`--body <body>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { body } = await promptForMissing(
+          _options,
+          defaultsSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/markets/defaults`;
+        const _payload: RequestParams = {};
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(markets.commands.at(-1)!, defaultsSpecs, { method: "post" });
 markets
   .command(`locale-policy`)
   .description(`How this tenant keys its translations, resolved for a surface that stands in no market at all. The Cockpit edits a tenant BASELINE when no market is selected, and a baseline value has to be readable by every market — so the locale set answered here is the UNION of every market's locales, each one already resolved to the key it is written under, not one market's list and not a pair of setting names to re-implement. Each entry names the markets that asked for that locale: an editor listing six inputs without saying who needs them invites translations nobody will ever read. Write/read keys follow the same two settings as the per-market answer, so a baseline and a market value can never be keyed differently.`)
@@ -255,6 +295,28 @@ markets
       async () => {
         const _client = await sdkForProject();
         const _apiPath = `/markets/locale-policy`;
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+markets
+  .command(`setup`)
+  .description(`What this app needs once before it is ready, as the checklist the Cockpit's „Einrichtung“ shows: every step of \`cockpit.json#setup\`, done or not, in the order declared. A step is done when what it names exists — at least one market, one locale, one tax class — or, for the locale policy, when the tenant's settings STORE how locales are maintained (the declared default alone is no answer). A read only: it stores nothing. Not cached: a changed setting reaches no code here.`)
+  .action(
+    actionRunner(
+      async () => {
+        const _client = await sdkForProject();
+        const _apiPath = `/markets/setup`;
         const _payload: RequestParams = {};
         const _headers: Record<string, string> = {
           "content-type": "application/json",

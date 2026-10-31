@@ -165,7 +165,7 @@ import { tagManagerDelivery } from './lib/commands/services/tag-manager-delivery
 import { tagManagerTags } from './lib/commands/services/tag-manager-tags.js';
 import { about } from './lib/commands/about.js';
 import { create } from "./lib/commands/create.js";
-import { deploy } from "./lib/commands/deploy.js";
+import { deploy, preview, release } from "./lib/commands/deploy.js";
 import { skills } from './lib/commands/skills.js';
 // Side-effect import: attaches DX-22 alias shapes onto the generated apps Command.
 import './lib/commands/apps-aliases.js';
@@ -485,6 +485,8 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(about)
         .addCommand(create)
         .addCommand(deploy)
+        .addCommand(preview)
+        .addCommand(release)
         .addCommand(skills)
         .addCommand(client);
 
