@@ -3,7 +3,9 @@
 # overwritten by the next run: versions are bumped in the generator's
 # templates, and Dependabot opens a pull request only for a known
 # vulnerability. open-pull-requests-limit: 0 switches the version updates
-# off; it does not apply to security updates.
+# off; it does not apply to security updates. One group per ecosystem
+# bundles its security updates into a single pull request instead of one
+# per advisory.
 version: 2
 updates:
   - package-ecosystem: "npm"
@@ -11,8 +13,16 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 0
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 0
+    groups:
+      actions-security:
+        applies-to: security-updates
+        patterns: ["*"]

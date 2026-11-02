@@ -818,6 +818,7 @@
     "docs/examples/orders/return.md",
     "docs/examples/orders/returnable.md",
     "docs/examples/orders/returns-complete.md",
+    "docs/examples/orders/returns-list.md",
     "docs/examples/orders/returns-receive.md",
     "docs/examples/orders/returns-reject.md",
     "docs/examples/orders/ship.md",
