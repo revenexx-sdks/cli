@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -22,6 +23,7 @@ export const tagManagerContainer = new Command("tag-manager-container")
       `Validating, publishing and rolling back the container — the active marketing tags, triggers and variables, frozen. A container is published only when the consent manager's published policy discloses every vendor it loads under the purpose it is used for, the vendors a tag chains (Google Analytics under Google Tag Manager) included; a refusal is a 409 listing EVERY violation. A published version never changes: it keeps its snapshot, its sha256 and the policy version it was checked against, and a rollback publishes an old snapshot as a new version after the same checks. When the consent manager publishes a new policy, the live containers are re-checked and the result is recorded; nothing is switched off.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
@@ -483,19 +485,20 @@ tagManagerContainer
     ),
   );
 registerPromptSpecs(tagManagerContainer.commands.at(-1)!, validateSpecs, { method: "post" });
-const tagManagerPreviewCreateSpecs: PromptSpec[] = [
+const previewCreateSpecs: PromptSpec[] = [
   { key: "ttlMinutes", option: "--ttl-minutes <ttl-minutes>", name: "ttl_minutes", description: "Lifetime in minutes, default 60, at most 7 days.", type: "integer", required: false },
 ];
 tagManagerContainer
-  .command(`tag-manager-preview-create`)
+  .command(`preview-create`)
   .description(`Mint a token that lets a storefront load the unpublished draft (\`?rvx_tm_preview=<token>\`). The token is answered once and stored only as its hash.`)
+  .alias("tag-manager-preview-create")
   .option(`--ttl-minutes <ttl-minutes>`, `Lifetime in minutes, default 60, at most 7 days.`, parseInteger)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { ttlMinutes } = await promptForMissing(
           _options,
-          tagManagerPreviewCreateSpecs,
+          previewCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -524,4 +527,4 @@ tagManagerContainer
       },
     ),
   );
-registerPromptSpecs(tagManagerContainer.commands.at(-1)!, tagManagerPreviewCreateSpecs, { method: "post" });
+registerPromptSpecs(tagManagerContainer.commands.at(-1)!, previewCreateSpecs, { method: "post" });

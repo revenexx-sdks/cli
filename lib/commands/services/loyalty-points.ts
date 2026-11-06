@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -21,6 +22,7 @@ export const loyaltyPoints = new Command("loyalty-points")
       `The point ledger: every credit, redemption, expiry, correction and reversal as one keyed entry. Points are spent oldest first and expire per the tenant setting.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

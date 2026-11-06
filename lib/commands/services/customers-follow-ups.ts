@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -18,22 +19,24 @@ export const customersFollowUps = new Command("customers-follow-ups")
       `The follow-ups across every customer: timeline entries with a due date — a task, a call to return — that are still open, and the one call that marks one done. The entries themselves are written from a contact or a company page; this group is the worklist over them.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
-const customersContactEventsDoneSpecs: PromptSpec[] = [
+const contactEventsDoneSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The timeline entry.", type: "string", required: true },
 ];
 customersFollowUps
-  .command(`customers-contact-events-done`)
+  .command(`contact-events-done`)
   .description(`A follow-up — a task, or any entry with a due date — is done: \`done_at\` is set and it leaves every list of open tasks. The entry stays on the timeline as it was filed. Done twice answers the entry as it is.`)
+  .alias("customers-contact-events-done")
   .option(`--id <id>`, `The timeline entry.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersContactEventsDoneSpecs,
+          contactEventsDoneSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -52,4 +55,4 @@ customersFollowUps
       },
     ),
   );
-registerPromptSpecs(customersFollowUps.commands.at(-1)!, customersContactEventsDoneSpecs, { method: "post" });
+registerPromptSpecs(customersFollowUps.commands.at(-1)!, contactEventsDoneSpecs, { method: "post" });

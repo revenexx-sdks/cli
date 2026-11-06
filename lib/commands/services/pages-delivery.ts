@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -19,6 +20,7 @@ export const pagesDelivery = new Command("pages-delivery")
       `What a storefront calls, and the group to start in if you are building a theme. Six read-only routes, no editorial concepts in any of them: resolve one published page by slug or id into a ready-to-render block tree, list the published pages for routing and sitemaps, read the navigation menus, read the site settings the theme styles itself with, find the page a product or category renders as its template, and resolve a share token into the CURRENT unpublished state for a preview link. The page routes serve the published revision — not the live rows — with the requested language filled in from its fallback chain, block-level publish windows applied and library references expanded, so a renderer needs no second call and no knowledge of how any of it was authored.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

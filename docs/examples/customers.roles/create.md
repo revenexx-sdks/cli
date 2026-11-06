@@ -1,4 +1,4 @@
 ```bash
 revenexx customers-roles create \
-    --title Einkauf Zentrale
+    --title 'Einkauf Zentrale'
 ```

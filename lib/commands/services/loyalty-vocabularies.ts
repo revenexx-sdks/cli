@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -18,6 +19,7 @@ export const loyaltyVocabularies = new Command("loyalty-vocabularies")
       `The closed lists this app enforces, with their labels, so a client never hardcodes a state or a kind.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

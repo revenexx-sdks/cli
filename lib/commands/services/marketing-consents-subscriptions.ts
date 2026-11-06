@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -22,6 +23,7 @@ export const marketingConsentsSubscriptions = new Command("marketing-consents-su
       `The life of a subscription: a sign-up opens it pending and asks the sequencer for an advertising-free confirmation, the click confirms it, a withdrawal from any surface ends it at once and reaches the sequencer's suppression. The eligibility call answers per recipient whether a marketing send is allowed and on which basis; the preference centre lets a recipient choose behind a personal link.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
@@ -89,14 +91,15 @@ marketingConsentsSubscriptions
     ),
   );
 registerPromptSpecs(marketingConsentsSubscriptions.commands.at(-1)!, confirmSpecs, { method: "post" });
-const marketingConsentsEligibilityCheckSpecs: PromptSpec[] = [
+const eligibilityCheckSpecs: PromptSpec[] = [
   { key: "recipients", option: "--recipients [recipients...]", name: "recipients", description: "Up to 500 recipients.", type: "array", required: true },
   { key: "subscriptionType", option: "--subscription-type <subscription-type>", name: "subscription_type", description: "The code of the type the send is under.", type: "string", required: true },
   { key: "channel", option: "--channel <channel>", name: "channel", description: "Defaults to email.", type: "string", required: false, enum: ["email","sms","whatsapp"] },
 ];
 marketingConsentsSubscriptions
-  .command(`marketing-consents-eligibility-check`)
+  .command(`eligibility-check`)
   .description(`The one call \`mailings\` and \`journeys\` make before every batch. Per recipient: allowed or not, with the legal basis or the reason. Only a confirmed subscription allows; \`contract\` never does; \`existing_customer\` only on a type that allows it; an erased address answers \`erased\`. At most 500 recipients per call. The sequencer's suppression stays the last refusal at send time.`)
+  .alias("marketing-consents-eligibility-check")
   .option(`--recipients [recipients...]`, `Up to 500 recipients.`)
   .option(`--subscription-type <subscription-type>`, `The code of the type the send is under.`)
   .option(`--channel <channel>`, `Defaults to email.`)
@@ -105,7 +108,7 @@ marketingConsentsSubscriptions
       async (_options, _command) => {
         const { recipients, subscriptionType, channel } = await promptForMissing(
           _options,
-          marketingConsentsEligibilityCheckSpecs,
+          eligibilityCheckSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -140,14 +143,15 @@ marketingConsentsSubscriptions
       },
     ),
   );
-registerPromptSpecs(marketingConsentsSubscriptions.commands.at(-1)!, marketingConsentsEligibilityCheckSpecs, { method: "post" });
-const marketingConsentsPreferencesLinksSpecs: PromptSpec[] = [
+registerPromptSpecs(marketingConsentsSubscriptions.commands.at(-1)!, eligibilityCheckSpecs, { method: "post" });
+const preferencesLinksSpecs: PromptSpec[] = [
   { key: "recipients", option: "--recipients [recipients...]", name: "recipients", description: "Up to 500.", type: "array", required: true },
   { key: "channel", option: "--channel <channel>", name: "channel", description: "Defaults to email.", type: "string", required: false, enum: ["email","sms","whatsapp"] },
 ];
 marketingConsentsSubscriptions
-  .command(`marketing-consents-preferences-links`)
+  .command(`preferences-links`)
   .description(`One stable personal link per address and channel, for the mandatory footer of every marketing message. The same address gets the same token every time. At most 500 per call.`)
+  .alias("marketing-consents-preferences-links")
   .option(`--recipients [recipients...]`, `Up to 500.`)
   .option(`--channel <channel>`, `Defaults to email.`)
   .action(
@@ -155,7 +159,7 @@ marketingConsentsSubscriptions
       async (_options, _command) => {
         const { recipients, channel } = await promptForMissing(
           _options,
-          marketingConsentsPreferencesLinksSpecs,
+          preferencesLinksSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -187,14 +191,15 @@ marketingConsentsSubscriptions
       },
     ),
   );
-registerPromptSpecs(marketingConsentsSubscriptions.commands.at(-1)!, marketingConsentsPreferencesLinksSpecs, { method: "post" });
-const marketingConsentsPreferencesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(marketingConsentsSubscriptions.commands.at(-1)!, preferencesLinksSpecs, { method: "post" });
+const preferencesGetSpecs: PromptSpec[] = [
   { key: "subscriptionsToken", option: "--subscriptions-token <subscriptions-token>", name: "token", description: "The personal token.", type: "string", required: true, secret: true },
   { key: "locale", option: "--locale <locale>", name: "locale", description: "The language for labels and wording (default de).", type: "string", required: false },
 ];
 marketingConsentsSubscriptions
-  .command(`marketing-consents-preferences-get`)
+  .command(`preferences-get`)
   .description(`Behind a personal link: every active type the channel offers, where the address stands on each, and the wording to show. The storefront renders the page.`)
+  .alias("marketing-consents-preferences-get")
   .option(`--subscriptions-token <subscriptions-token>`, `The personal token.`)
   .option(`--locale <locale>`, `The language for labels and wording (default de).`)
   .action(
@@ -202,7 +207,7 @@ marketingConsentsSubscriptions
       async (_options, _command) => {
         const { subscriptionsToken, locale } = await promptForMissing(
           _options,
-          marketingConsentsPreferencesGetSpecs,
+          preferencesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -224,8 +229,8 @@ marketingConsentsSubscriptions
       },
     ),
   );
-registerPromptSpecs(marketingConsentsSubscriptions.commands.at(-1)!, marketingConsentsPreferencesGetSpecs, { method: "get" });
-const marketingConsentsPreferencesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(marketingConsentsSubscriptions.commands.at(-1)!, preferencesGetSpecs, { method: "get" });
+const preferencesUpdateSpecs: PromptSpec[] = [
   { key: "subscriptionsToken", option: "--subscriptions-token <subscriptions-token>", name: "token", description: "The personal token.", type: "string", required: true, secret: true },
   { key: "choices", option: "--choices [choices...]", name: "choices", description: "The choices.", type: "array", required: false },
   { key: "ip", option: "--ip <ip>", name: "ip", description: "The person's IP address.", type: "string", required: false },
@@ -234,8 +239,9 @@ const marketingConsentsPreferencesUpdateSpecs: PromptSpec[] = [
   { key: "userAgent", option: "--user-agent <user-agent>", name: "user_agent", description: "The person's browser.", type: "string", required: false },
 ];
 marketingConsentsSubscriptions
-  .command(`marketing-consents-preferences-update`)
+  .command(`preferences-update`)
   .description(`Per type: \`subscribed: false\` withdraws at once (source preference_centre, pushed to the sequencer); \`subscribed: true\` signs up — with a confirmation first when the type requires double opt-in. \`unsubscribe_all: true\` withdraws every type of the channel. Answers the page as it now stands, with what changed.`)
+  .alias("marketing-consents-preferences-update")
   .option(`--subscriptions-token <subscriptions-token>`, `The personal token.`)
   .option(`--choices [choices...]`, `The choices.`)
   .option(`--ip <ip>`, `The person's IP address.`)
@@ -252,7 +258,7 @@ marketingConsentsSubscriptions
       async (_options, _command) => {
         const { subscriptionsToken, choices, ip, locale, unsubscribeAll, userAgent } = await promptForMissing(
           _options,
-          marketingConsentsPreferencesUpdateSpecs,
+          preferencesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -293,7 +299,7 @@ marketingConsentsSubscriptions
       },
     ),
   );
-registerPromptSpecs(marketingConsentsSubscriptions.commands.at(-1)!, marketingConsentsPreferencesUpdateSpecs, { method: "post" });
+registerPromptSpecs(marketingConsentsSubscriptions.commands.at(-1)!, preferencesUpdateSpecs, { method: "post" });
 const listSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to rows whose `id` is exactly this value. The row's own id, generated by the database. A caller never sends one; it reads one back and puts it in the path of later calls.", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Filter to rows whose `contact_id` is exactly this value. The `customers` contact holding the address. Null until one exists — a sign-up creates one at lifecycle stage `subscriber` — and after an erasure.", type: "string", required: false },

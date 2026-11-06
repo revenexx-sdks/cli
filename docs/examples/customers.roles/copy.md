@@ -1,5 +1,5 @@
 ```bash
 revenexx customers-roles copy \
     --key buyer \
-    --title Einkäufer Werk 2
+    --title 'Einkäufer Werk 2'
 ```

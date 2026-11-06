@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -22,6 +23,7 @@ export const reviewsReviews = new Command("reviews-reviews")
       `Product reviews: stars, title and text, the product and order they belong to, whether the purchase is verified, and the moderation state. Only published reviews reach the shop.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const messaging = new Command("messaging")
       `Outbound multi-channel messaging (email/SMS/push): templates, event bindings, sends (the sequencer service).`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

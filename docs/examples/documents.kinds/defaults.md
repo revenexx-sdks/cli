@@ -1,4 +1,4 @@
 ```bash
 revenexx documents-kinds defaults \
-    --data '{ "key": "value" }'
+    --body '{ "key": "value" }'
 ```

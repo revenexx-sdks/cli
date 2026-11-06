@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const shippingMethods = new Command("shipping-methods")
       `WHAT is offered, what it costs, and the answer a checkout gets. A shipping method is the line a buyer picks: a pricing model ('fixed', 'free' or 'matrix'), the countries it may be offered into, a free-above threshold, and the carrier it ships with. A matrix method prices off its own rate tiers — a lookup table of \`from_value\` → price, nested under the method, deleted with it — which is why they are one group and not two: a method with pricing_type 'matrix' and no tiers quotes nothing at all. POST /shipping/rates is the read side of everything in here: it takes the buyer context and answers with the methods that apply and their computed prices, plus an \`excluded\` list naming the ones that did not and why. The delivery promise on that answer is inherited from the carrier and is described under that group.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
@@ -548,7 +550,7 @@ shippingMethods
     ),
   );
 registerPromptSpecs(shippingMethods.commands.at(-1)!, updateSpecs, { method: "put" });
-const shippingTiersListSpecs: PromptSpec[] = [
+const tiersListSpecs: PromptSpec[] = [
   { key: "methodId", option: "--method-id <method-id>", name: "method_id", description: "The shipping method these tiers belong to. A method this tenant does not have is a 404, never an empty page.", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A value outside the range is clamped rather than refused, and `page.limit` echoes what was applied.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). The next page is `page.offset + page.returned`.", type: "integer", required: false },
@@ -557,8 +559,9 @@ const shippingTiersListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 shippingMethods
-  .command(`shipping-tiers-list`)
+  .command(`tiers-list`)
   .description(`The rate matrix of one method — every \`from_value\` threshold with the price charged at or above it — lowest threshold first. Filterable by \`?from_value=\` — the unique index is (tenant_id, method_id, from_value), so that addresses one row of the matrix by the threshold it prices rather than by an id a bulk replace has already discarded. The applied filters are echoed in \`filter\`, which always carries the \`method_id\` taken from the path.`)
+  .alias("shipping-tiers-list")
   .option(`--method-id <method-id>`, `The shipping method these tiers belong to. A method this tenant does not have is a 404, never an empty page.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200). A value outside the range is clamped rather than refused, and \`page.limit\` echoes what was applied.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). The next page is \`page.offset + page.returned\`.`, parseInteger)
@@ -575,7 +578,7 @@ shippingMethods
       async (_options, _command) => {
         const { methodId, limit, offset, order, fromValue, filter } = await promptForMissing(
           _options,
-          shippingTiersListSpecs,
+          tiersListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -613,16 +616,17 @@ shippingMethods
       },
     ),
   );
-registerPromptSpecs(shippingMethods.commands.at(-1)!, shippingTiersListSpecs, { method: "get" });
-const shippingTiersCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingMethods.commands.at(-1)!, tiersListSpecs, { method: "get" });
+const tiersCreateSpecs: PromptSpec[] = [
   { key: "methodId", option: "--method-id <method-id>", name: "method_id", description: "The shipping method these tiers belong to. A method this tenant does not have is a 404, never an empty page.", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
   { key: "fromValue", option: "--from-value <from-value>", name: "from_value", description: "Lower bound of this tier, in the method's matrix measure — kilograms (or whatever the market's `weight_unit` names, converted through its factor) for a weight matrix, items for quantity, money in the method's currency for order_value, and the raw attribute value for 'attribute'. INCLUSIVE: the tier applies from this value upward, and the tier that wins is the one with the highest from_value at or below the measured value, so a measure of exactly 10 is priced by the tier at 10 rather than the one below it. The last tier has no upper bound. Unique per method — a second tier at the same threshold is a 409, because which of the two won would be whatever the database returned first. Defaults to 0.", type: "number", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Display order in the matrix editor (default 0; a bulk replace derives it from the array index). Pricing reads from_value, never this.", type: "integer", required: false },
   { key: "price", option: "--price <price>", name: "price", description: "What this tier costs, in the method's currency. Charged in full for the whole consignment — a matrix is a lookup table, not a rate per unit. Defaults to 0.", type: "number", required: false },
 ];
 shippingMethods
-  .command(`shipping-tiers-create`)
+  .command(`tiers-create`)
   .description(`A rate tier is one row of a matrix method's price table: a \`from_value\` threshold and the price charged at or above it. The bound is INCLUSIVE and the winning tier is the one with the highest \`from_value\` at or below the measured value, so a measure of exactly 10 is priced by the tier at 10. What the number measures is the method's \`matrix_basis\` — kilograms in the market's own weight unit, items, money in the method's currency, or a named attribute — and the last tier has no upper bound. This adds ONE row to the table of the method in the path, leaving the rest alone — the edit for a merchant who has added a heavier bracket. To lay a whole table down at once use PUT …/tiers (set semantics) or POST …/tiers/ladder (evenly stepped), and note that both of those DISCARD the ids of the rows they replace. Two rows of this tenant may not share the combination of \`method_id\` + \`from_value\` — that is the 409. \`method_id\` is taken from the path on every write, so a body naming a different method is ignored rather than obeyed.`)
+  .alias("shipping-tiers-create")
   .option(`--method-id <method-id>`, `The shipping method these tiers belong to. A method this tenant does not have is a 404, never an empty page.`)
   .option(`--from-value <from-value>`, `Lower bound of this tier, in the method's matrix measure — kilograms (or whatever the market's \`weight_unit\` names, converted through its factor) for a weight matrix, items for quantity, money in the method's currency for order_value, and the raw attribute value for 'attribute'. INCLUSIVE: the tier applies from this value upward, and the tier that wins is the one with the highest from_value at or below the measured value, so a measure of exactly 10 is priced by the tier at 10 rather than the one below it. The last tier has no upper bound. Unique per method — a second tier at the same threshold is a 409, because which of the two won would be whatever the database returned first. Defaults to 0.`, parseInteger)
   .option(`--position <position>`, `Display order in the matrix editor (default 0; a bulk replace derives it from the array index). Pricing reads from_value, never this.`, parseInteger)
@@ -632,7 +636,7 @@ shippingMethods
       async (_options, _command) => {
         const { methodId, fromValue, position, price } = await promptForMissing(
           _options,
-          shippingTiersCreateSpecs,
+          tiersCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -667,14 +671,15 @@ shippingMethods
       },
     ),
   );
-registerPromptSpecs(shippingMethods.commands.at(-1)!, shippingTiersCreateSpecs, { method: "post" });
-const shippingTiersReplaceSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingMethods.commands.at(-1)!, tiersCreateSpecs, { method: "post" });
+const tiersReplaceSpecs: PromptSpec[] = [
   { key: "methodId", option: "--method-id <method-id>", name: "method_id", description: "The shipping method these tiers belong to. A method this tenant does not have is a 404, never an empty page.", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
   { key: "tiers", option: "--tiers [tiers...]", name: "tiers", description: "The complete new tier set (set semantics) — positions are derived from the array order. An empty array clears the matrix, and a matrix method with no tiers quotes nothing.", type: "array", required: true },
 ];
 shippingMethods
-  .command(`shipping-tiers-replace`)
+  .command(`tiers-replace`)
   .description(`The write behind a table editor: a merchant edits the whole matrix on screen and saves it in one call, rather than diffing it into a row added here and a row deleted there. Set semantics, and it replaces EVERY tier the method had: the tiers this method has afterwards are exactly the ones handed in, positions derived from the array order. An empty \`tiers\` array clears the table — and a matrix method with no tiers quotes nothing, with a reason.`)
+  .alias("shipping-tiers-replace")
   .option(`--method-id <method-id>`, `The shipping method these tiers belong to. A method this tenant does not have is a 404, never an empty page.`)
   .option(`--tiers [tiers...]`, `The complete new tier set (set semantics) — positions are derived from the array order. An empty array clears the matrix, and a matrix method with no tiers quotes nothing.`)
   .action(
@@ -682,7 +687,7 @@ shippingMethods
       async (_options, _command) => {
         const { methodId, tiers } = await promptForMissing(
           _options,
-          shippingTiersReplaceSpecs,
+          tiersReplaceSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -711,8 +716,8 @@ shippingMethods
       },
     ),
   );
-registerPromptSpecs(shippingMethods.commands.at(-1)!, shippingTiersReplaceSpecs, { method: "put" });
-const shippingTiersLadderSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingMethods.commands.at(-1)!, tiersReplaceSpecs, { method: "put" });
+const tiersLadderSpecs: PromptSpec[] = [
   { key: "methodId", option: "--method-id <method-id>", name: "method_id", description: "The shipping method these tiers belong to. A method this tenant does not have is a 404, never an empty page.", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
   { key: "basePrice", option: "--base-price <base-price>", name: "base_price", description: "Price of the first tier.", type: "number", required: true },
   { key: "step", option: "--step <step>", name: "step", description: "Distance between two tiers. Must be > 0.", type: "number", required: true },
@@ -722,8 +727,9 @@ const shippingTiersLadderSpecs: PromptSpec[] = [
   { key: "stepPrice", option: "--step-price <step-price>", name: "step_price", description: "Added to each subsequent tier (default 0). A negative value is allowed as long as no tier ends up below 0.", type: "number", required: false },
 ];
 shippingMethods
-  .command(`shipping-tiers-ladder`)
+  .command(`tiers-ladder`)
   .description(`The tier table a merchant describes in words — "0 to 30 kg, every 5 kg, €4.90 plus €2 a step" — without typing every row. Replaces the method's tiers by default (set replace=false to append).`)
+  .alias("shipping-tiers-ladder")
   .option(`--method-id <method-id>`, `The shipping method these tiers belong to. A method this tenant does not have is a 404, never an empty page.`)
   .option(`--base-price <base-price>`, `Price of the first tier.`, parseInteger)
   .option(`--step <step>`, `Distance between two tiers. Must be > 0.`, parseInteger)
@@ -741,7 +747,7 @@ shippingMethods
       async (_options, _command) => {
         const { methodId, basePrice, step, toValue, fromValue, replace, stepPrice } = await promptForMissing(
           _options,
-          shippingTiersLadderSpecs,
+          tiersLadderSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -785,14 +791,15 @@ shippingMethods
       },
     ),
   );
-registerPromptSpecs(shippingMethods.commands.at(-1)!, shippingTiersLadderSpecs, { method: "post" });
-const shippingTiersDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingMethods.commands.at(-1)!, tiersLadderSpecs, { method: "post" });
+const tiersDeleteSpecs: PromptSpec[] = [
   { key: "methodId", option: "--method-id <method-id>", name: "method_id", description: "The shipping method these tiers belong to. A method this tenant does not have is a 404, never an empty page.", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/methods/{method_id}/tiers", hasLimit: true } },
 ];
 shippingMethods
-  .command(`shipping-tiers-delete`)
+  .command(`tiers-delete`)
   .description(`A rate tier is one row of a matrix method's price table: a \`from_value\` threshold and the price charged at or above it. The bound is INCLUSIVE and the winning tier is the one with the highest \`from_value\` at or below the measured value, so a measure of exactly 10 is priced by the tier at 10. What the number measures is the method's \`matrix_basis\` — kilograms in the market's own weight unit, items, money in the method's currency, or a named attribute — and the last tier has no upper bound. Removing a tier in the MIDDLE of a table is harmless — the measures it used to cover fall to the highest remaining threshold below them. Removing the LOWEST one is not: a measure under the new lowest threshold matches no tier at all, and the method is then left out of POST /shipping/rates with 'no tier covers measure …' instead of being quoted at 0, so an entire band of baskets silently stops being offered this method. Deleting the last tier takes the method out of the checkout altogether. Rebuilding the table wholesale is PUT …/tiers or POST …/tiers/ladder; deleting the method deletes its tiers on its own.`)
+  .alias("shipping-tiers-delete")
   .option(`--method-id <method-id>`, `The shipping method these tiers belong to. A method this tenant does not have is a 404, never an empty page.`)
   .option(`--id <id>`, `The row id.`)
   .action(
@@ -800,10 +807,10 @@ shippingMethods
       async (_options, _command) => {
         const { methodId, id } = await promptForMissing(
           _options,
-          shippingTiersDeleteSpecs,
+          tiersDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`shipping-methods shipping-tiers-delete`);
+        await confirmDestructive(`shipping-methods tiers-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/shipping/methods/{method_id}/tiers/{id}`.replace(`{method_id}`, methodId).replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -820,14 +827,15 @@ shippingMethods
       },
     ),
   );
-registerPromptSpecs(shippingMethods.commands.at(-1)!, shippingTiersDeleteSpecs, { method: "delete", destructive: true });
-const shippingTiersGetSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingMethods.commands.at(-1)!, tiersDeleteSpecs, { method: "delete", destructive: true });
+const tiersGetSpecs: PromptSpec[] = [
   { key: "methodId", option: "--method-id <method-id>", name: "method_id", description: "The shipping method these tiers belong to. A method this tenant does not have is a 404, never an empty page.", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/methods/{method_id}/tiers", hasLimit: true } },
 ];
 shippingMethods
-  .command(`shipping-tiers-get`)
+  .command(`tiers-get`)
   .description(`A rate tier is one row of a matrix method's price table: a \`from_value\` threshold and the price charged at or above it. The bound is INCLUSIVE and the winning tier is the one with the highest \`from_value\` at or below the measured value, so a measure of exactly 10 is priced by the tier at 10. What the number measures is the method's \`matrix_basis\` — kilograms in the market's own weight unit, items, money in the method's currency, or a named attribute — and the last tier has no upper bound. This reads one row of that table by id, under the method that owns it; a tier id belonging to another method is a 404 rather than somebody else's price. A tier id is not durable: PUT …/tiers and POST …/tiers/ladder replace the table by deleting and recreating it, so an id read before either of them names nothing afterwards. Where a caller wants a stable handle, address the row by what it MEANS — GET …/tiers?from_value=… — since (method_id, from_value) is unique.`)
+  .alias("shipping-tiers-get")
   .option(`--method-id <method-id>`, `The shipping method these tiers belong to. A method this tenant does not have is a 404, never an empty page.`)
   .option(`--id <id>`, `The row id.`)
   .action(
@@ -835,7 +843,7 @@ shippingMethods
       async (_options, _command) => {
         const { methodId, id } = await promptForMissing(
           _options,
-          shippingTiersGetSpecs,
+          tiersGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -854,8 +862,8 @@ shippingMethods
       },
     ),
   );
-registerPromptSpecs(shippingMethods.commands.at(-1)!, shippingTiersGetSpecs, { method: "get" });
-const shippingTiersUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingMethods.commands.at(-1)!, tiersGetSpecs, { method: "get" });
+const tiersUpdateSpecs: PromptSpec[] = [
   { key: "methodId", option: "--method-id <method-id>", name: "method_id", description: "The shipping method these tiers belong to. A method this tenant does not have is a 404, never an empty page.", type: "string", required: true, resource: { listPath: "/shipping/methods", hasLimit: true } },
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/methods/{method_id}/tiers", hasLimit: true } },
   { key: "fromValue", option: "--from-value <from-value>", name: "from_value", description: "Lower bound of this tier, in the method's matrix measure — kilograms (or whatever the market's `weight_unit` names, converted through its factor) for a weight matrix, items for quantity, money in the method's currency for order_value, and the raw attribute value for 'attribute'. INCLUSIVE: the tier applies from this value upward, and the tier that wins is the one with the highest from_value at or below the measured value, so a measure of exactly 10 is priced by the tier at 10 rather than the one below it. The last tier has no upper bound. Unique per method — a second tier at the same threshold is a 409, because which of the two won would be whatever the database returned first. Defaults to 0.", type: "number", required: false },
@@ -863,8 +871,9 @@ const shippingTiersUpdateSpecs: PromptSpec[] = [
   { key: "price", option: "--price <price>", name: "price", description: "What this tier costs, in the method's currency. Charged in full for the whole consignment — a matrix is a lookup table, not a rate per unit. Defaults to 0.", type: "number", required: false },
 ];
 shippingMethods
-  .command(`shipping-tiers-update`)
+  .command(`tiers-update`)
   .description(`A tier id is not stable across a bulk edit: \`PUT …/tiers\` and \`POST …/tiers/ladder\` replace the table by deleting and recreating it, so an id read before either of them is gone afterwards.`)
+  .alias("shipping-tiers-update")
   .option(`--method-id <method-id>`, `The shipping method these tiers belong to. A method this tenant does not have is a 404, never an empty page.`)
   .option(`--id <id>`, `The row id.`)
   .option(`--from-value <from-value>`, `Lower bound of this tier, in the method's matrix measure — kilograms (or whatever the market's \`weight_unit\` names, converted through its factor) for a weight matrix, items for quantity, money in the method's currency for order_value, and the raw attribute value for 'attribute'. INCLUSIVE: the tier applies from this value upward, and the tier that wins is the one with the highest from_value at or below the measured value, so a measure of exactly 10 is priced by the tier at 10 rather than the one below it. The last tier has no upper bound. Unique per method — a second tier at the same threshold is a 409, because which of the two won would be whatever the database returned first. Defaults to 0.`, parseInteger)
@@ -875,7 +884,7 @@ shippingMethods
       async (_options, _command) => {
         const { methodId, id, fromValue, position, price } = await promptForMissing(
           _options,
-          shippingTiersUpdateSpecs,
+          tiersUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -910,8 +919,8 @@ shippingMethods
       },
     ),
   );
-registerPromptSpecs(shippingMethods.commands.at(-1)!, shippingTiersUpdateSpecs, { method: "put" });
-const shippingRatesSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingMethods.commands.at(-1)!, tiersUpdateSpecs, { method: "put" });
+const ratesSpecs: PromptSpec[] = [
   { key: "at", option: "--at <at>", name: "at", description: "The instant to evaluate the delivery estimate at (ISO 8601). Omitted: now. Lets a storefront compute the cut-off in its own timezone.", type: "string", required: false },
   { key: "attributes", option: "--attributes <attributes>", name: "attributes", description: "Measure values for attribute matrices, keyed by attribute NAME — the key a matrix method names in its matrix_attribute, and the value the number its tiers are matched against. Summed over the basket by the caller, not by this app. Only the key a method asks for is read; anything else in the map is carried along and ignored, and a value that is not a finite number excludes that method with a reason rather than failing the quote.", type: "object", required: false },
   { key: "country", option: "--country <country>", name: "country", description: "Destination ISO 3166-1 alpha-2 code — compared upper-cased against method and carrier country restrictions. Omitted or null: every method that restricts by country is excluded, with a reason.", type: "string", required: false },
@@ -925,8 +934,9 @@ const shippingRatesSpecs: PromptSpec[] = [
   { key: "weightUnit", option: "--weight-unit <weight-unit>", name: "weight_unit", description: "The unit `weight` is expressed in, as a CODE into the tenant's own weight units (GET /shipping/weight-units). Omitted, it is the unit this market quotes in. A unit the tenant does not keep is a 400; one the merchant retired is a 409 (`weight_unit_inactive`) unless it is the unit this market still quotes in — a mis-read weight prices the wrong bracket silently, and guessing is worse than refusing.", type: "string", required: false },
 ];
 shippingMethods
-  .command(`shipping-rates`)
+  .command(`rates`)
   .description(`The question a checkout asks, and the only route that answers a PRICE. Hand in the buyer context — the destination country, the order value, and whatever the matrix methods measure: a weight, a quantity or a named product attribute — and this comes back with the methods that may be offered and what each of them costs, free-above thresholds, country restrictions, the carrier's delivery promise and tax already applied. A method that does not apply is never an error: it moves to \`excluded\` with a reason. So is a tax rate that cannot be resolved — \`tax.resolved: false\` means the rates are UNKNOWN, not untaxed.`)
+  .alias("shipping-rates")
   .option(`--at <at>`, `The instant to evaluate the delivery estimate at (ISO 8601). Omitted: now. Lets a storefront compute the cut-off in its own timezone.`)
   .option(`--attributes <attributes>`, `Measure values for attribute matrices, keyed by attribute NAME — the key a matrix method names in its matrix_attribute, and the value the number its tiers are matched against. Summed over the basket by the caller, not by this app. Only the key a method asks for is read; anything else in the map is carried along and ignored, and a value that is not a finite number excludes that method with a reason rather than failing the quote.`)
   .option(`--country <country>`, `Destination ISO 3166-1 alpha-2 code — compared upper-cased against method and carrier country restrictions. Omitted or null: every method that restricts by country is excluded, with a reason.`)
@@ -943,7 +953,7 @@ shippingMethods
       async (_options, _command) => {
         const { at, attributes, country, currency, marketId, orderValue, orderValueGross, orderValueNet, quantity, weight, weightUnit } = await promptForMissing(
           _options,
-          shippingRatesSpecs,
+          ratesSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1002,20 +1012,21 @@ shippingMethods
       },
     ),
   );
-registerPromptSpecs(shippingMethods.commands.at(-1)!, shippingRatesSpecs, { method: "post" });
-const shippingTaxClassesUsageSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingMethods.commands.at(-1)!, ratesSpecs, { method: "post" });
+const taxClassesUsageSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The tax-class CODE, as markets spells it — not a row id. Matched against the `tax_class` of every shipping method visible in the request's market (every method when it names none) and against this market's `shipping_tax_class` setting.", type: "string", required: true },
 ];
 shippingMethods
-  .command(`shipping-tax-classes-usage`)
+  .command(`tax-classes-usage`)
   .description(`markets.tax_classes is the source of record for the rate and this app points at it by CODE from two places: a method's own tax_class and the tenant's shipping_tax_class fallback. Neither is a foreign key and neither could be — a cross-app FK is what ADR-0055 forbids — so integrity is a question one app asks the other, and this is the answering half. It is asked before a destructive edit: markets calls it when an operator tries to delete a tax class, and a count above zero is what stops the delete rather than leaving these methods pointing at a code nobody serves. A tax class is unique per market, so 'reduced' may exist in several: the caller names the class's market in \`x-revenexx-market\`, and only the methods visible in that market count — the ones assigned to it plus the unassigned ones, which are offered in every market and so price through its class too. Without the header every method of the tenant counts. Reports at most 500 methods and names the first 20. Every code answers, used or not — a code nobody points at is \`in_use: false\`, never a 404.`)
+  .alias("shipping-tax-classes-usage")
   .option(`--code <code>`, `The tax-class CODE, as markets spells it — not a row id. Matched against the \`tax_class\` of every shipping method visible in the request's market (every method when it names none) and against this market's \`shipping_tax_class\` setting.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { code } = await promptForMissing(
           _options,
-          shippingTaxClassesUsageSpecs,
+          taxClassesUsageSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1034,4 +1045,4 @@ shippingMethods
       },
     ),
   );
-registerPromptSpecs(shippingMethods.commands.at(-1)!, shippingTaxClassesUsageSpecs, { method: "get" });
+registerPromptSpecs(shippingMethods.commands.at(-1)!, taxClassesUsageSpecs, { method: "get" });

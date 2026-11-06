@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -21,6 +22,7 @@ export const reviewsRequests = new Command("reviews-requests")
       `Review links: one per completed order and contact, asked for by a journey, opened and submitted on the storefront. A review written through a link is a verified purchase.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

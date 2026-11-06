@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -19,6 +20,7 @@ export const journeysSteps = new Command("journeys-steps")
       `The steps of each version as rows — kind, settings and the next, yes and no edges. Written by saving the canvas and frozen when the version goes live.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

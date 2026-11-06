@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const punchout = new Command("punchout")
       `Commerce Studio Punchout App — the punchout session and nothing else (ADR-0001). Owns punchout accounts (credentials, protocol, channel, behaviour), sessions (state, return address, resolved buyer, the cart they name), field mappings and transfer records. Speaks OCI, cXML and IDS 2.5 as three protocol adapters over one session core. The buyer shops on the ordinary storefront as an ordinary contact; a hand-back records a transfer, creates no order and reserves no stock. Ports IntelliShop V8 module-punch-out and module-ids.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

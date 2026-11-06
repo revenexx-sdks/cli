@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -19,6 +20,7 @@ export const journeysVersions = new Command("journeys-versions")
       `Every version a journey had: one draft at most, one live at most, the rest retired. A running enrollment finishes on the version it started on.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

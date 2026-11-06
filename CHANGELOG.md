@@ -1,3 +1,6 @@
+## v0.7.7
+- Add Cube commands: create cube, deploy cube, preview cube, and --cube-id on release status and preview accept
+
 ## v0.7.6
 - Regenerated from the latest API specification
 

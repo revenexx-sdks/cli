@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,10 +24,11 @@ export const customersSegments = new Command("customers-segments")
       `Named groups of ORGANIZATIONS — never of people — built by hand, by rule, or both at once, plus the memberships that record which of the two a company came in by. The rule language is the one product categories use, evaluated over organization columns and settings AND over order behaviour (revenue, order count, average order value, days since the last order) read from this app's own metrics projection, because the orders app may not be joined. Rules are materialized rather than live: preview one before storing it, then recompute one segment or every segment that carries rules.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
-const customersSegmentMembersListSpecs: PromptSpec[] = [
+const segmentMembersListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to rows whose `id` is exactly this value. Primary key of the membership row.", type: "string", required: false },
   { key: "segmentId", option: "--segment-id <segment-id>", name: "segment_id", description: "Filter to one segment — its members.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Filter to one company — the segments it belongs to. The same route answers both questions.", type: "string", required: false },
@@ -39,8 +41,9 @@ const customersSegmentMembersListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 customersSegments
-  .command(`customers-segment-members-list`)
+  .command(`segment-members-list`)
   .description(`One organization inside one segment, plus the record of how it got there: \`source: "manual"\` for a company somebody put in, \`source: "rule"\` for one the rule engine matched. That distinction is what lets a recompute rewrite its own rows and leave every hand-picked one alone. The membership rows themselves — the answer to "which companies are in this segment" (\`segment_id\`) and to "which segments is this company in" (\`organization_id\`). Paged with \`limit\`/\`offset\`/\`order\`.`)
+  .alias("customers-segment-members-list")
   .option(`--id <id>`, `Filter to rows whose \`id\` is exactly this value. Primary key of the membership row.`)
   .option(`--segment-id <segment-id>`, `Filter to one segment — its members.`)
   .option(`--organization-id <organization-id>`, `Filter to one company — the segments it belongs to. The same route answers both questions.`)
@@ -61,7 +64,7 @@ customersSegments
       async (_options, _command) => {
         const { id, segmentId, organizationId, contactId, source, createdAt, limit, offset, order, filter } = await promptForMissing(
           _options,
-          customersSegmentMembersListSpecs,
+          segmentMembersListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -114,16 +117,17 @@ customersSegments
       },
     ),
   );
-registerPromptSpecs(customersSegments.commands.at(-1)!, customersSegmentMembersListSpecs, { method: "get" });
-const customersSegmentMembersCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersSegments.commands.at(-1)!, segmentMembersListSpecs, { method: "get" });
+const segmentMembersCreateSpecs: PromptSpec[] = [
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The member company. Segments group companies, never people — a person is reached through their organization.", type: "string", required: true },
   { key: "segmentId", option: "--segment-id <segment-id>", name: "segment_id", description: "The segment.", type: "string", required: true },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "When the organization joined the segment. Accepted on create only from a call naming no acting contact — an operator, an import, an ERP carrying a record over with its original date. A buyer sending it, or any update changing it, is a 400 `server_owned_field`.", type: "string", required: false },
   { key: "source", option: "--source <source>", name: "source", description: "How this membership came about: 'manual' is hand-picked, 'rule' was materialized by a recompute, 'sync' was written by an import from the system that owns the grouping — an ERP customer discount or price group arrives as a segment membership rather than as a column on the company. The distinction is load-bearing — a recompute only ever inserts and deletes 'rule' rows, so a hand-picked member and an imported one both survive every rule change. Default 'manual'. Send 'sync' from an import so the next recompute of the segment leaves the row alone; 'rule' rows are the recompute's own and it deletes the ones that stopped matching.", type: "string", required: false, enum: ["manual","rule","sync"] },
 ];
 customersSegments
-  .command(`customers-segment-members-create`)
+  .command(`segment-members-create`)
   .description(`One organization inside one segment, plus the record of how it got there: \`source: "manual"\` for a company somebody put in, \`source: "rule"\` for one the rule engine matched. That distinction is what lets a recompute rewrite its own rows and leave every hand-picked one alone. Adds a company to a segment BY HAND. The row is \`source: "manual"\`, which is what protects it: a rule recompute rewrites the rule-derived rows of that segment and never touches this one. A create cannot omit \`segment_id\` and \`organization_id\`; everything else is optional or defaulted by the database. Two rows of this tenant may not share the combination of \`segment_id\` + \`organization_id\` (while contact_id IS NULL) or the combination of \`segment_id\` + \`contact_id\` (while contact_id IS NOT NULL).`)
+  .alias("customers-segment-members-create")
   .option(`--organization-id <organization-id>`, `The member company. Segments group companies, never people — a person is reached through their organization.`)
   .option(`--segment-id <segment-id>`, `The segment.`)
   .option(`--created-at <created-at>`, `When the organization joined the segment. Accepted on create only from a call naming no acting contact — an operator, an import, an ERP carrying a record over with its original date. A buyer sending it, or any update changing it, is a 400 \`server_owned_field\`.`)
@@ -133,7 +137,7 @@ customersSegments
       async (_options, _command) => {
         const { organizationId, segmentId, createdAt, source } = await promptForMissing(
           _options,
-          customersSegmentMembersCreateSpecs,
+          segmentMembersCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -171,23 +175,24 @@ customersSegments
       },
     ),
   );
-registerPromptSpecs(customersSegments.commands.at(-1)!, customersSegmentMembersCreateSpecs, { method: "post" });
-const customersSegmentMembersDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(customersSegments.commands.at(-1)!, segmentMembersCreateSpecs, { method: "post" });
+const segmentMembersDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The segment membership to delete.", type: "string", required: true, resource: { listPath: "/customers/segment_members", hasLimit: true } },
 ];
 customersSegments
-  .command(`customers-segment-members-delete`)
+  .command(`segment-members-delete`)
   .description(`One organization inside one segment, plus the record of how it got there: \`source: "manual"\` for a company somebody put in, \`source: "rule"\` for one the rule engine matched. That distinction is what lets a recompute rewrite its own rows and leave every hand-picked one alone. Takes the company out of the segment. If the segment carries rules and the company still matches them, the next recompute puts it back; remove it from the rule, not from the list. Nothing else in this app points at it, so nothing else goes with it.`)
+  .alias("customers-segment-members-delete")
   .option(`--id <id>`, `The segment membership to delete.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersSegmentMembersDeleteSpecs,
+          segmentMembersDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`customers-segments customers-segment-members-delete`);
+        await confirmDestructive(`customers-segments segment-members-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/customers/segment_members/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -204,20 +209,21 @@ customersSegments
       },
     ),
   );
-registerPromptSpecs(customersSegments.commands.at(-1)!, customersSegmentMembersDeleteSpecs, { method: "delete", destructive: true });
-const customersSegmentMembersGetSpecs: PromptSpec[] = [
+registerPromptSpecs(customersSegments.commands.at(-1)!, segmentMembersDeleteSpecs, { method: "delete", destructive: true });
+const segmentMembersGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The segment membership to read.", type: "string", required: true, resource: { listPath: "/customers/segment_members", hasLimit: true } },
 ];
 customersSegments
-  .command(`customers-segment-members-get`)
+  .command(`segment-members-get`)
   .description(`One organization inside one segment, plus the record of how it got there: \`source: "manual"\` for a company somebody put in, \`source: "rule"\` for one the rule engine matched. That distinction is what lets a recompute rewrite its own rows and leave every hand-picked one alone. One membership row by id, with the \`source\` that says how it came about.`)
+  .alias("customers-segment-members-get")
   .option(`--id <id>`, `The segment membership to read.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersSegmentMembersGetSpecs,
+          segmentMembersGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -236,16 +242,17 @@ customersSegments
       },
     ),
   );
-registerPromptSpecs(customersSegments.commands.at(-1)!, customersSegmentMembersGetSpecs, { method: "get" });
-const customersSegmentMembersUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersSegments.commands.at(-1)!, segmentMembersGetSpecs, { method: "get" });
+const segmentMembersUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The segment membership to update.", type: "string", required: true, resource: { listPath: "/customers/segment_members", hasLimit: true } },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The member company. Segments group companies, never people — a person is reached through their organization.", type: "string", required: false },
   { key: "segmentId", option: "--segment-id <segment-id>", name: "segment_id", description: "The segment.", type: "string", required: false },
   { key: "source", option: "--source <source>", name: "source", description: "How this membership came about: 'manual' is hand-picked, 'rule' was materialized by a recompute, 'sync' was written by an import from the system that owns the grouping — an ERP customer discount or price group arrives as a segment membership rather than as a column on the company. The distinction is load-bearing — a recompute only ever inserts and deletes 'rule' rows, so a hand-picked member and an imported one both survive every rule change. Default 'manual'. Send 'sync' from an import so the next recompute of the segment leaves the row alone; 'rule' rows are the recompute's own and it deletes the ones that stopped matching.", type: "string", required: false, enum: ["manual","rule","sync"] },
 ];
 customersSegments
-  .command(`customers-segment-members-update`)
+  .command(`segment-members-update`)
   .description(`One organization inside one segment, plus the record of how it got there: \`source: "manual"\` for a company somebody put in, \`source: "rule"\` for one the rule engine matched. That distinction is what lets a recompute rewrite its own rows and leave every hand-picked one alone. A partial update. In practice there is little to change — a membership is a pair of ids — so this exists for the \`source\` correction rather than as the normal path. Two rows of this tenant may not share the combination of \`segment_id\` + \`organization_id\` (while contact_id IS NULL) or the combination of \`segment_id\` + \`contact_id\` (while contact_id IS NOT NULL).`)
+  .alias("customers-segment-members-update")
   .option(`--id <id>`, `The segment membership to update.`)
   .option(`--organization-id <organization-id>`, `The member company. Segments group companies, never people — a person is reached through their organization.`)
   .option(`--segment-id <segment-id>`, `The segment.`)
@@ -255,7 +262,7 @@ customersSegments
       async (_options, _command) => {
         const { id, organizationId, segmentId, source } = await promptForMissing(
           _options,
-          customersSegmentMembersUpdateSpecs,
+          segmentMembersUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -290,7 +297,7 @@ customersSegments
       },
     ),
   );
-registerPromptSpecs(customersSegments.commands.at(-1)!, customersSegmentMembersUpdateSpecs, { method: "put" });
+registerPromptSpecs(customersSegments.commands.at(-1)!, segmentMembersUpdateSpecs, { method: "put" });
 const listSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to rows whose `id` is exactly this value. Primary key of the segment.", type: "string", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "Filter by exact segment code.", type: "string", required: false },

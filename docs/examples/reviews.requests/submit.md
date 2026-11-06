@@ -1,4 +1,4 @@
 ```bash
 revenexx reviews-requests submit \
-    --token ''
+    --requests-token ''
 ```

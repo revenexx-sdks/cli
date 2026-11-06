@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,10 +24,11 @@ export const promotionsVouchers = new Command("promotions-vouchers")
       `The codes a buyer types, and the batches they were made in. A voucher belongs to exactly one promotion and carries four independent limits: how often it may be redeemed, an amount that is spent down rather than used up, the buyer it was issued to, and its own validity window. A code may also be reserved for a buyer without being given to them, and may require a reservation before it works at all. Batches generate fifty thousand codes from one pattern, import existing ones unchanged, and account for the whole mailing afterwards.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
-const promotionsBatchesListSpecs: PromptSpec[] = [
+const batchesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.", type: "string", required: false },
@@ -43,8 +45,9 @@ const promotionsBatchesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 promotionsVouchers
-  .command(`promotions-batches-list`)
+  .command(`batches-list`)
   .description(`The unit a mailing is accounted for by. "How many of the spring codes have been used" is a question about a batch, not about fifty thousand rows.`)
+  .alias("promotions-batches-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.`)
@@ -69,7 +72,7 @@ promotionsVouchers
       async (_options, _command) => {
         const { limit, offset, order, id, promotionId, name, pattern, alphabet, requested, createdCount, redeemedCount, status, requestRef, filter } = await promptForMissing(
           _options,
-          promotionsBatchesListSpecs,
+          batchesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -134,8 +137,8 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesListSpecs, { method: "get" });
-const promotionsBatchesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, batchesListSpecs, { method: "get" });
+const batchesCreateSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "What the batch is called — the unit a mailing is accounted for by afterwards.", type: "string", required: true },
   { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: true },
   { key: "alphabet", option: "--alphabet <alphabet>", name: "alphabet", description: "The characters generated codes may use. The default omits the ones people confuse reading a code off paper.", type: "string", required: false },
@@ -146,8 +149,9 @@ const promotionsBatchesCreateSpecs: PromptSpec[] = [
   { key: "status", option: "--status <status>", name: "status", description: "A leaked batch is `disabled`, which refuses every code in it at once — a leak is discovered as a batch and has to be stopped as one.", type: "string", required: false, enum: ["active","disabled"] },
 ];
 promotionsVouchers
-  .command(`promotions-batches-create`)
+  .command(`batches-create`)
   .description(`Create a code batch`)
+  .alias("promotions-batches-create")
   .option(`--name <name>`, `What the batch is called — the unit a mailing is accounted for by afterwards.`)
   .option(`--promotion-id <promotion-id>`, `The promotion this row belongs to. Deleting the promotion deletes it.`)
   .option(`--alphabet <alphabet>`, `The characters generated codes may use. The default omits the ones people confuse reading a code off paper.`)
@@ -161,7 +165,7 @@ promotionsVouchers
       async (_options, _command) => {
         const { name, promotionId, alphabet, metadata, pattern, requestRef, requested, status } = await promptForMissing(
           _options,
-          promotionsBatchesCreateSpecs,
+          batchesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -211,23 +215,24 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesCreateSpecs, { method: "post" });
-const promotionsBatchesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, batchesCreateSpecs, { method: "post" });
+const batchesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/batches", hasLimit: true } },
 ];
 promotionsVouchers
-  .command(`promotions-batches-delete`)
+  .command(`batches-delete`)
   .description(`Delete a batch`)
+  .alias("promotions-batches-delete")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsBatchesDeleteSpecs,
+          batchesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`promotions-vouchers promotions-batches-delete`);
+        await confirmDestructive(`promotions-vouchers batches-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/promotions/batches/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -244,20 +249,21 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesDeleteSpecs, { method: "delete", destructive: true });
-const promotionsBatchesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, batchesDeleteSpecs, { method: "delete", destructive: true });
+const batchesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/batches", hasLimit: true } },
 ];
 promotionsVouchers
-  .command(`promotions-batches-get`)
+  .command(`batches-get`)
   .description(`Read one batch`)
+  .alias("promotions-batches-get")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsBatchesGetSpecs,
+          batchesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -276,8 +282,8 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesGetSpecs, { method: "get" });
-const promotionsBatchesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, batchesGetSpecs, { method: "get" });
+const batchesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/batches", hasLimit: true } },
   { key: "alphabet", option: "--alphabet <alphabet>", name: "alphabet", description: "The characters generated codes may use. The default omits the ones people confuse reading a code off paper.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
@@ -289,8 +295,9 @@ const promotionsBatchesUpdateSpecs: PromptSpec[] = [
   { key: "status", option: "--status <status>", name: "status", description: "A leaked batch is `disabled`, which refuses every code in it at once — a leak is discovered as a batch and has to be stopped as one.", type: "string", required: false, enum: ["active","disabled"] },
 ];
 promotionsVouchers
-  .command(`promotions-batches-update`)
+  .command(`batches-update`)
   .description(`Correct a batch`)
+  .alias("promotions-batches-update")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .option(`--alphabet <alphabet>`, `The characters generated codes may use. The default omits the ones people confuse reading a code off paper.`)
   .option(`--metadata <metadata>`, `Free-form JSON a caller may keep on the row. Nothing here reads it.`)
@@ -305,7 +312,7 @@ promotionsVouchers
       async (_options, _command) => {
         const { id, alphabet, metadata, name, pattern, promotionId, requestRef, requested, status } = await promptForMissing(
           _options,
-          promotionsBatchesUpdateSpecs,
+          batchesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -355,20 +362,21 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesUpdateSpecs, { method: "put" });
-const promotionsBatchesDisableSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, batchesUpdateSpecs, { method: "put" });
+const batchesDisableSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/batches", hasLimit: true } },
 ];
 promotionsVouchers
-  .command(`promotions-batches-disable`)
+  .command(`batches-disable`)
   .description(`Switching a batch off reaches every code it generated, which is the point of generating them as a batch: the batch and each of its active codes become \`disabled\`. Redemptions already committed stay; new ones are refused. Answers the batch with \`disabled_codes\`.`)
+  .alias("promotions-batches-disable")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsBatchesDisableSpecs,
+          batchesDisableSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -387,20 +395,21 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesDisableSpecs, { method: "post" });
-const promotionsBatchesExportSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, batchesDisableSpecs, { method: "post" });
+const batchesExportSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/batches", hasLimit: true } },
 ];
 promotionsVouchers
-  .command(`promotions-batches-export`)
+  .command(`batches-export`)
   .description(`The codes are only useful once they are out of this system and in a mailing tool, so a batch that cannot leave was made for nobody.`)
+  .alias("promotions-batches-export")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsBatchesExportSpecs,
+          batchesExportSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -419,20 +428,21 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesExportSpecs, { method: "get" });
-const promotionsBatchesExportFileSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, batchesExportSpecs, { method: "get" });
+const batchesExportFileSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/batches", hasLimit: true } },
 ];
 promotionsVouchers
-  .command(`promotions-batches-export-file`)
+  .command(`batches-export-file`)
   .description(`The same codes as the GET, as a file the Cockpit downloads as it is: \`filename\`, \`content_type\` (\`text/csv\`) and \`content\`, one code per line with its status, its limit, its uses and its end date.`)
+  .alias("promotions-batches-export-file")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsBatchesExportFileSpecs,
+          batchesExportFileSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -451,8 +461,8 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesExportFileSpecs, { method: "post" });
-const promotionsBatchesGenerateSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, batchesExportFileSpecs, { method: "post" });
+const batchesGenerateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/batches", hasLimit: true } },
   { key: "count", option: "--count <count>", name: "count", description: "How many codes to make. Bounded by the tenant setting.", type: "integer", required: true },
   { key: "alphabet", option: "--alphabet <alphabet>", name: "alphabet", description: "The characters they may use.", type: "string", required: false },
@@ -461,8 +471,9 @@ const promotionsBatchesGenerateSpecs: PromptSpec[] = [
   { key: "usageLimit", option: "--usage-limit <usage-limit>", name: "usage_limit", description: "How often each code may be redeemed. Zero is unlimited.", type: "integer", required: false },
 ];
 promotionsVouchers
-  .command(`promotions-batches-generate`)
+  .command(`batches-generate`)
   .description(`Fifty thousand codes from one pattern, in one call, accounted for as one batch. The alphabet omits the characters people confuse reading a code off paper. A request carrying a reference makes no second batch when it is retried — a retry that doubled a mailing is discovered when the codes are in the post.`)
+  .alias("promotions-batches-generate")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .option(`--count <count>`, `How many codes to make. Bounded by the tenant setting.`, parseInteger)
   .option(`--alphabet <alphabet>`, `The characters they may use.`)
@@ -474,7 +485,7 @@ promotionsVouchers
       async (_options, _command) => {
         const { id, count, alphabet, pattern, requestRef, usageLimit } = await promptForMissing(
           _options,
-          promotionsBatchesGenerateSpecs,
+          batchesGenerateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -515,14 +526,15 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesGenerateSpecs, { method: "post" });
-const promotionsBatchesGenerateForSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, batchesGenerateSpecs, { method: "post" });
+const batchesGenerateForSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/batches", hasLimit: true } },
   { key: "recipients", option: "--recipients [recipients...]", name: "recipients", description: "The contacts to issue a code to, one each.", type: "array", required: true },
 ];
 promotionsVouchers
-  .command(`promotions-batches-generate-for`)
+  .command(`batches-generate-for`)
   .description(`A personalised mailing needs one code per recipient, issued to them alone. Generating them separately would turn one campaign into ten thousand calls.`)
+  .alias("promotions-batches-generate-for")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .option(`--recipients [recipients...]`, `The contacts to issue a code to, one each.`)
   .action(
@@ -530,7 +542,7 @@ promotionsVouchers
       async (_options, _command) => {
         const { id, recipients } = await promptForMissing(
           _options,
-          promotionsBatchesGenerateForSpecs,
+          batchesGenerateForSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -559,15 +571,16 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesGenerateForSpecs, { method: "post" });
-const promotionsBatchesImportSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, batchesGenerateForSpecs, { method: "post" });
+const batchesImportSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/batches", hasLimit: true } },
   { key: "codes", option: "--codes [codes...]", name: "codes", description: "The codes to take, exactly as they are.", type: "array", required: true },
   { key: "usageLimit", option: "--usage-limit <usage-limit>", name: "usage_limit", description: "How often each may be redeemed.", type: "integer", required: false },
 ];
 promotionsVouchers
-  .command(`promotions-batches-import`)
+  .command(`batches-import`)
   .description(`A migrated shop has codes already printed on cards, and a code the new system rewrote is a card in somebody wallet that no longer works. Every collision is named rather than silently skipped — an import that quietly dropped duplicates leaves a merchant believing they issued codes they did not.`)
+  .alias("promotions-batches-import")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .option(`--codes [codes...]`, `The codes to take, exactly as they are.`)
   .option(`--usage-limit <usage-limit>`, `How often each may be redeemed.`, parseInteger)
@@ -576,7 +589,7 @@ promotionsVouchers
       async (_options, _command) => {
         const { id, codes, usageLimit } = await promptForMissing(
           _options,
-          promotionsBatchesImportSpecs,
+          batchesImportSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -608,8 +621,8 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsBatchesImportSpecs, { method: "post" });
-const promotionsVoucherReservationsListSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, batchesImportSpecs, { method: "post" });
+const voucherReservationsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.", type: "string", required: false },
@@ -620,8 +633,9 @@ const promotionsVoucherReservationsListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 promotionsVouchers
-  .command(`promotions-voucher-reservations-list`)
+  .command(`voucher-reservations-list`)
   .description(`A code held FOR a buyer without being given to them — which is what a shop handing a limited code to the first hundred who ask actually needs. An expired reservation stops counting when the code is next looked at.`)
+  .alias("promotions-voucher-reservations-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.`)
@@ -640,7 +654,7 @@ promotionsVouchers
       async (_options, _command) => {
         const { limit, offset, order, id, voucherId, contactId, organizationId, filter } = await promptForMissing(
           _options,
-          promotionsVoucherReservationsListSpecs,
+          voucherReservationsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -687,16 +701,17 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsVoucherReservationsListSpecs, { method: "get" });
-const promotionsVoucherReservationsCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, voucherReservationsListSpecs, { method: "get" });
+const voucherReservationsCreateSpecs: PromptSpec[] = [
   { key: "voucherId", option: "--voucher-id <voucher-id>", name: "voucher_id", description: "The code being held.", type: "string", required: true },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Who it is held for.", type: "string", required: false },
   { key: "expiresAt", option: "--expires-at <expires-at>", name: "expires_at", description: "When the hold stops counting. Empty is held until it is used or deleted.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Which company it is held for.", type: "string", required: false },
 ];
 promotionsVouchers
-  .command(`promotions-voucher-reservations-create`)
+  .command(`voucher-reservations-create`)
   .description(`Hold a code for a buyer`)
+  .alias("promotions-voucher-reservations-create")
   .option(`--voucher-id <voucher-id>`, `The code being held.`)
   .option(`--contact-id <contact-id>`, `Who it is held for.`)
   .option(`--expires-at <expires-at>`, `When the hold stops counting. Empty is held until it is used or deleted.`)
@@ -706,7 +721,7 @@ promotionsVouchers
       async (_options, _command) => {
         const { voucherId, contactId, expiresAt, organizationId } = await promptForMissing(
           _options,
-          promotionsVoucherReservationsCreateSpecs,
+          voucherReservationsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -744,23 +759,24 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsVoucherReservationsCreateSpecs, { method: "post" });
-const promotionsVoucherReservationsDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, voucherReservationsCreateSpecs, { method: "post" });
+const voucherReservationsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/voucher-reservations", hasLimit: true } },
 ];
 promotionsVouchers
-  .command(`promotions-voucher-reservations-delete`)
+  .command(`voucher-reservations-delete`)
   .description(`Release a reservation`)
+  .alias("promotions-voucher-reservations-delete")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsVoucherReservationsDeleteSpecs,
+          voucherReservationsDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`promotions-vouchers promotions-voucher-reservations-delete`);
+        await confirmDestructive(`promotions-vouchers voucher-reservations-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/promotions/voucher-reservations/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -777,20 +793,21 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsVoucherReservationsDeleteSpecs, { method: "delete", destructive: true });
-const promotionsVoucherReservationsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, voucherReservationsDeleteSpecs, { method: "delete", destructive: true });
+const voucherReservationsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/voucher-reservations", hasLimit: true } },
 ];
 promotionsVouchers
-  .command(`promotions-voucher-reservations-get`)
+  .command(`voucher-reservations-get`)
   .description(`Read one reservation`)
+  .alias("promotions-voucher-reservations-get")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsVoucherReservationsGetSpecs,
+          voucherReservationsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -809,8 +826,8 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsVoucherReservationsGetSpecs, { method: "get" });
-const promotionsVoucherReservationsUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, voucherReservationsGetSpecs, { method: "get" });
+const voucherReservationsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/voucher-reservations", hasLimit: true } },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Who it is held for.", type: "string", required: false },
   { key: "expiresAt", option: "--expires-at <expires-at>", name: "expires_at", description: "When the hold stops counting. Empty is held until it is used or deleted.", type: "string", required: false },
@@ -818,8 +835,9 @@ const promotionsVoucherReservationsUpdateSpecs: PromptSpec[] = [
   { key: "voucherId", option: "--voucher-id <voucher-id>", name: "voucher_id", description: "The code being held.", type: "string", required: false },
 ];
 promotionsVouchers
-  .command(`promotions-voucher-reservations-update`)
+  .command(`voucher-reservations-update`)
   .description(`Correct a reservation`)
+  .alias("promotions-voucher-reservations-update")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .option(`--contact-id <contact-id>`, `Who it is held for.`)
   .option(`--expires-at <expires-at>`, `When the hold stops counting. Empty is held until it is used or deleted.`)
@@ -830,7 +848,7 @@ promotionsVouchers
       async (_options, _command) => {
         const { id, contactId, expiresAt, organizationId, voucherId } = await promptForMissing(
           _options,
-          promotionsVoucherReservationsUpdateSpecs,
+          voucherReservationsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -868,7 +886,7 @@ promotionsVouchers
       },
     ),
   );
-registerPromptSpecs(promotionsVouchers.commands.at(-1)!, promotionsVoucherReservationsUpdateSpecs, { method: "put" });
+registerPromptSpecs(promotionsVouchers.commands.at(-1)!, voucherReservationsUpdateSpecs, { method: "put" });
 const listSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },

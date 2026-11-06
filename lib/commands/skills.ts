@@ -7,7 +7,6 @@ import * as path from "path";
 import os from "os";
 import {
   actionRunner,
-  commandDescriptions,
   success,
   log,
   warn,
@@ -308,10 +307,7 @@ const selectSkill = async (
 };
 
 export const skills = new Command("skills")
-  .description(
-    commandDescriptions["skills"] ??
-      "List and install AI agent skills from the Revenexx Skill Registry",
-  )
+  .description("List and install AI agent skills from the Revenexx Skill Registry")
   .configureHelp({
     helpWidth: process.stdout.columns || 80,
   });

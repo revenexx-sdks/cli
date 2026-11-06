@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const products = new Command("products")
       `The catalog itself — the product rows a merchant works on, and everything keyed by a product: the grid a person scans, the display name a product resolves to (which is an attribute, not a column), the completeness measured against its family, and the associations that point one product at another. Start here for anything about A PRODUCT; the shape a product has is in Data model, and the categories it is filed into are in Categories.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

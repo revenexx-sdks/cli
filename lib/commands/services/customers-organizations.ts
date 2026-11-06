@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,15 +24,17 @@ export const customersOrganizations = new Command("customers-organizations")
       `The buying COMPANIES and everything keyed to one: the company rows themselves, their postal addresses, the contact points that say where each kind of document goes, and the revenue/order projection pulled from the orders app. An organization is the unit a contract, a credit limit, a payment term, a balance and a price list belong to — not a person, and not a household. Addresses live here because a B2B address is the company's (a contact may own a private one, and that row is reached the same way). The people inside a company are in Contacts, and the groups a company falls into are in Segments.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
-const customersAddressFormatListSpecs: PromptSpec[] = [
+const addressFormatListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 customersOrganizations
-  .command(`customers-address-format-list`)
+  .command(`address-format-list`)
   .description(`The address type every revenexx app stores a postal address as, and the countries that carry rules for it. \`schema\` is the JSON Schema (2020-12) itself, with a versioned \`\$id\` (https://schemas.revenexx.com/apps/customers/address/1.1.0.json) an app pins its copy by; only \`country_code\` is required by the type, and what else an address needs depends on its country. \`countries\` lists every ISO 3166-1 code with rules, by code and name — read one with GET /customers/address-format/{country}. The same for every tenant: this is a contract, not data.`)
+  .alias("customers-address-format-list")
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -43,7 +46,7 @@ customersOrganizations
       async (_options, _command) => {
         const { filter } = await promptForMissing(
           _options,
-          customersAddressFormatListSpecs,
+          addressFormatListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -69,20 +72,21 @@ customersOrganizations
       },
     ),
   );
-registerPromptSpecs(customersOrganizations.commands.at(-1)!, customersAddressFormatListSpecs, { method: "get" });
-const customersAddressFormatGetSpecs: PromptSpec[] = [
+registerPromptSpecs(customersOrganizations.commands.at(-1)!, addressFormatListSpecs, { method: "get" });
+const addressFormatGetSpecs: PromptSpec[] = [
   { key: "country", option: "--country <country>", name: "country", description: "ISO 3166-1 alpha-2 code, upper case.", type: "string", required: true, enum: ["AC","AD","AE","AF","AG","AI","AL","AM","AO","AQ","AR","AS","AT","AU","AW","AX","AZ","BA","BB","BD","BE","BF","BG","BH","BI","BJ","BL","BM","BN","BO","BQ","BR","BS","BT","BV","BW","BY","BZ","CA","CC","CD","CF","CG","CH","CI","CK","CL","CM","CN","CO","CR","CU","CV","CW","CX","CY","CZ","DE","DJ","DK","DM","DO","DZ","EC","EE","EG","EH","ER","ES","ET","FI","FJ","FK","FM","FO","FR","GA","GB","GD","GE","GF","GG","GH","GI","GL","GM","GN","GP","GQ","GR","GS","GT","GU","GW","GY","HK","HM","HN","HR","HT","HU","ID","IE","IL","IM","IN","IO","IQ","IR","IS","IT","JE","JM","JO","JP","KE","KG","KH","KI","KM","KN","KP","KR","KW","KY","KZ","LA","LB","LC","LI","LK","LR","LS","LT","LU","LV","LY","MA","MC","MD","ME","MF","MG","MH","MK","ML","MM","MN","MO","MP","MQ","MR","MS","MT","MU","MV","MW","MX","MY","MZ","NA","NC","NE","NF","NG","NI","NL","NO","NP","NR","NU","NZ","OM","PA","PE","PF","PG","PH","PK","PL","PM","PN","PR","PS","PT","PW","PY","QA","RE","RO","RS","RU","RW","SA","SB","SC","SD","SE","SG","SH","SI","SJ","SK","SL","SM","SN","SO","SR","SS","ST","SV","SX","SY","SZ","TA","TC","TD","TF","TG","TH","TJ","TK","TL","TM","TN","TO","TR","TT","TV","TW","TZ","UA","UG","UM","US","UY","UZ","VA","VC","VE","VG","VI","VN","VU","WF","WS","XK","YE","YT","ZA","ZM","ZW"], resource: { listPath: "/customers/address-format", hasLimit: false } },
 ];
 customersOrganizations
-  .command(`customers-address-format-get`)
+  .command(`address-format-get`)
   .description(`What an address in one country looks like and needs: the fields in the order they are printed, the ones it requires, the postal-code pattern with an example, the word a form shows for each field that varies by country (de/en), the regions as ISO 3166-2 codes, and the contact fields (phone, email) every country takes but never prints. Derived from Google's libaddressinput data. A region the data names only in words carries \`code: null\`; an address there gives the region by name in \`administrative_area_name\`.`)
+  .alias("customers-address-format-get")
   .option(`--country <country>`, `ISO 3166-1 alpha-2 code, upper case.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { country } = await promptForMissing(
           _options,
-          customersAddressFormatGetSpecs,
+          addressFormatGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -101,8 +105,8 @@ customersOrganizations
       },
     ),
   );
-registerPromptSpecs(customersOrganizations.commands.at(-1)!, customersAddressFormatGetSpecs, { method: "get" });
-const customersAddressesListSpecs: PromptSpec[] = [
+registerPromptSpecs(customersOrganizations.commands.at(-1)!, addressFormatGetSpecs, { method: "get" });
+const addressesListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to rows whose `id` is exactly this value. Primary key of the address.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Filter to one owning company.", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Filter to one owning contact — a personal address book.", type: "string", required: false },
@@ -143,8 +147,9 @@ const customersAddressesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 customersOrganizations
-  .command(`customers-addresses-list`)
+  .command(`addresses-list`)
   .description(`A postal address used for billing or for shipping, owned by exactly one of the two parties: an organization (the company address everyone in it may use) or a contact (a private one only that person uses). Both owner columns are nullable and exactly one is set — sending both, or neither, is refused. Every address this tenant holds, filterable by owner (\`organization_id\`, \`contact_id\`), by \`type\` and by any other column. It is how the addresses tab of a company or a person is filled; the page is \`limit\`/\`offset\`/\`order\`.`)
+  .alias("customers-addresses-list")
   .option(`--id <id>`, `Filter to rows whose \`id\` is exactly this value. Primary key of the address.`)
   .option(`--organization-id <organization-id>`, `Filter to one owning company.`)
   .option(`--contact-id <contact-id>`, `Filter to one owning contact — a personal address book.`)
@@ -198,7 +203,7 @@ customersOrganizations
       async (_options, _command) => {
         const { id, organizationId, contactId, type, company, name, name2, street, street2, zip, city, region, country, phone, email, addressLine3, dependentLocality, administrativeAreaCode, sortingCode, streetName, houseNumber, houseNumberAddition, deliveryPointType, deliveryPointId, languageCode, script, validationStatus, validatedAt, validationSource, isDefault, externalId, sourceSyncedAt, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
-          customersAddressesListSpecs,
+          addressesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -335,8 +340,8 @@ customersOrganizations
       },
     ),
   );
-registerPromptSpecs(customersOrganizations.commands.at(-1)!, customersAddressesListSpecs, { method: "get" });
-const customersAddressesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersOrganizations.commands.at(-1)!, addressesListSpecs, { method: "get" });
+const addressesCreateSpecs: PromptSpec[] = [
   { key: "addressLine1", option: "--address-line1 <address-line1>", name: "address_line1", description: "The address type's name for `street`. A body that carries any of the type's names is read in them alone: `street` beside it is ignored, as are the storefront's camelCase spellings, so a record read and sent back saves unchanged.", type: "string", required: false },
   { key: "addressLine2", option: "--address-line2 <address-line2>", name: "address_line2", description: "The address type's name for `street2`. A body that carries any of the type's names is read in them alone: `street2` beside it is ignored, as are the storefront's camelCase spellings, so a record read and sent back saves unchanged.", type: "string", required: false },
   { key: "addressLine3", option: "--address-line3 <address-line3>", name: "address_line3", description: "The third address line, where a country prints one. Null when there is none.", type: "string", required: false },
@@ -380,8 +385,9 @@ const customersAddressesCreateSpecs: PromptSpec[] = [
   { key: "zip", option: "--zip <zip>", name: "zip", description: "Postal code, as text — leading zeros are real in most countries. Stored as the country prints it (trimmed, one inner space, upper case). Null where the country has none (Hong Kong, the UAE); whether one is needed is the country's rule (GET /customers/address-format/{country}). The address type calls it `postal_code`.", type: "string", required: false },
 ];
 customersOrganizations
-  .command(`customers-addresses-create`)
+  .command(`addresses-create`)
   .description(`A postal address used for billing or for shipping, owned by exactly one of the two parties: an organization (the company address everyone in it may use) or a contact (a private one only that person uses). Both owner columns are nullable and exactly one is set — sending both, or neither, is refused. \`type\` names one of this tenant's own address types — billing and shipping are seeded, and a merchant may add a works entrance or a central accounts office without a release of this app. \`is_default\` picks the one a checkout should preselect for that owner and that type. \`country\` is the only field a create cannot omit; everything else is optional or defaulted by the database. Two rows of this tenant may not share \`external_id\` (while external_id IS NOT NULL).`)
+  .alias("customers-addresses-create")
   .option(`--address-line1 <address-line1>`, `The address type's name for \`street\`. A body that carries any of the type's names is read in them alone: \`street\` beside it is ignored, as are the storefront's camelCase spellings, so a record read and sent back saves unchanged.`)
   .option(`--address-line2 <address-line2>`, `The address type's name for \`street2\`. A body that carries any of the type's names is read in them alone: \`street2\` beside it is ignored, as are the storefront's camelCase spellings, so a record read and sent back saves unchanged.`)
   .option(`--address-line3 <address-line3>`, `The third address line, where a country prints one. Null when there is none.`)
@@ -433,7 +439,7 @@ customersOrganizations
       async (_options, _command) => {
         const { addressLine1, addressLine2, addressLine3, administrativeAreaCode, administrativeAreaName, careOf, city, company, contactId, country, countryCode, createdAt, deliveryPointId, deliveryPointType, dependentLocality, email, externalId, houseNumber, houseNumberAddition, isDefault, languageCode, latin, locality, name, name2, organizationId, organizationName, phone, postalCode, recipientName, region, script, sortingCode, street, street2, streetName, type, validatedAt, validationSource, validationStatus, zip } = await promptForMissing(
           _options,
-          customersAddressesCreateSpecs,
+          addressesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -582,23 +588,24 @@ customersOrganizations
       },
     ),
   );
-registerPromptSpecs(customersOrganizations.commands.at(-1)!, customersAddressesCreateSpecs, { method: "post" });
-const customersAddressesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(customersOrganizations.commands.at(-1)!, addressesCreateSpecs, { method: "post" });
+const addressesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The address to delete.", type: "string", required: true, resource: { listPath: "/customers/addresses", hasLimit: true } },
 ];
 customersOrganizations
-  .command(`customers-addresses-delete`)
+  .command(`addresses-delete`)
   .description(`A postal address used for billing or for shipping, owned by exactly one of the two parties: an organization (the company address everyone in it may use) or a contact (a private one only that person uses). Both owner columns are nullable and exactly one is set — sending both, or neither, is refused. Removes the address. Orders already placed keep the address they were placed with; nothing in this app reaches back. Deleting one takes every \`contact_points\` row that points at it with it — the foreign keys decide, not this route.`)
+  .alias("customers-addresses-delete")
   .option(`--id <id>`, `The address to delete.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersAddressesDeleteSpecs,
+          addressesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`customers-organizations customers-addresses-delete`);
+        await confirmDestructive(`customers-organizations addresses-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/customers/addresses/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -615,20 +622,21 @@ customersOrganizations
       },
     ),
   );
-registerPromptSpecs(customersOrganizations.commands.at(-1)!, customersAddressesDeleteSpecs, { method: "delete", destructive: true });
-const customersAddressesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(customersOrganizations.commands.at(-1)!, addressesDeleteSpecs, { method: "delete", destructive: true });
+const addressesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The address to read.", type: "string", required: true, resource: { listPath: "/customers/addresses", hasLimit: true } },
 ];
 customersOrganizations
-  .command(`customers-addresses-get`)
+  .command(`addresses-get`)
   .description(`A postal address used for billing or for shipping, owned by exactly one of the two parties: an organization (the company address everyone in it may use) or a contact (a private one only that person uses). Both owner columns are nullable and exactly one is set — sending both, or neither, is refused. One address by id, whichever of the two owners it hangs off.`)
+  .alias("customers-addresses-get")
   .option(`--id <id>`, `The address to read.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersAddressesGetSpecs,
+          addressesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -647,8 +655,8 @@ customersOrganizations
       },
     ),
   );
-registerPromptSpecs(customersOrganizations.commands.at(-1)!, customersAddressesGetSpecs, { method: "get" });
-const customersAddressesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersOrganizations.commands.at(-1)!, addressesGetSpecs, { method: "get" });
+const addressesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The address to update.", type: "string", required: true, resource: { listPath: "/customers/addresses", hasLimit: true } },
   { key: "addressLine1", option: "--address-line1 <address-line1>", name: "address_line1", description: "The address type's name for `street`. A body that carries any of the type's names is read in them alone: `street` beside it is ignored, as are the storefront's camelCase spellings, so a record read and sent back saves unchanged.", type: "string", required: false },
   { key: "addressLine2", option: "--address-line2 <address-line2>", name: "address_line2", description: "The address type's name for `street2`. A body that carries any of the type's names is read in them alone: `street2` beside it is ignored, as are the storefront's camelCase spellings, so a record read and sent back saves unchanged.", type: "string", required: false },
@@ -692,8 +700,9 @@ const customersAddressesUpdateSpecs: PromptSpec[] = [
   { key: "zip", option: "--zip <zip>", name: "zip", description: "Postal code, as text — leading zeros are real in most countries. Stored as the country prints it (trimmed, one inner space, upper case). Null where the country has none (Hong Kong, the UAE); whether one is needed is the country's rule (GET /customers/address-format/{country}). The address type calls it `postal_code`.", type: "string", required: false },
 ];
 customersOrganizations
-  .command(`customers-addresses-update`)
+  .command(`addresses-update`)
   .description(`A postal address used for billing or for shipping, owned by exactly one of the two parties: an organization (the company address everyone in it may use) or a contact (a private one only that person uses). Both owner columns are nullable and exactly one is set — sending both, or neither, is refused. A partial update — send only what changes. An empty body is refused rather than answered as a no-op, so a client that built the wrong patch finds out. Two rows of this tenant may not share \`external_id\` (while external_id IS NOT NULL).`)
+  .alias("customers-addresses-update")
   .option(`--id <id>`, `The address to update.`)
   .option(`--address-line1 <address-line1>`, `The address type's name for \`street\`. A body that carries any of the type's names is read in them alone: \`street\` beside it is ignored, as are the storefront's camelCase spellings, so a record read and sent back saves unchanged.`)
   .option(`--address-line2 <address-line2>`, `The address type's name for \`street2\`. A body that carries any of the type's names is read in them alone: \`street2\` beside it is ignored, as are the storefront's camelCase spellings, so a record read and sent back saves unchanged.`)
@@ -745,7 +754,7 @@ customersOrganizations
       async (_options, _command) => {
         const { id, addressLine1, addressLine2, addressLine3, administrativeAreaCode, administrativeAreaName, careOf, city, company, contactId, country, countryCode, deliveryPointId, deliveryPointType, dependentLocality, email, externalId, houseNumber, houseNumberAddition, isDefault, languageCode, latin, locality, name, name2, organizationId, organizationName, phone, postalCode, recipientName, region, script, sortingCode, street, street2, streetName, type, validatedAt, validationSource, validationStatus, zip } = await promptForMissing(
           _options,
-          customersAddressesUpdateSpecs,
+          addressesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -891,8 +900,8 @@ customersOrganizations
       },
     ),
   );
-registerPromptSpecs(customersOrganizations.commands.at(-1)!, customersAddressesUpdateSpecs, { method: "put" });
-const customersContactPointsListSpecs: PromptSpec[] = [
+registerPromptSpecs(customersOrganizations.commands.at(-1)!, addressesUpdateSpecs, { method: "put" });
+const contactPointsListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to rows whose `id` is exactly this value. Primary key of the contact point.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Filter to one company's document recipients.", type: "string", required: false },
   { key: "addressId", option: "--address-id <address-id>", name: "address_id", description: "Filter to the points carried on one postal address — the ERP case of a mail address on a delivery address.", type: "string", required: false },
@@ -911,8 +920,9 @@ const customersContactPointsListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 customersOrganizations
-  .command(`customers-contact-points-list`)
+  .command(`contact-points-list`)
   .description(`A contact point is WHERE one kind of document goes for one company: the invoice to accounts payable, the order confirmation to the buyer who placed it, the shipping notice to goods-in, the dunning letter to whoever settles it. An ERP keeps these as four separate addresses per debtor and they had nowhere to land here — the \`email\` of an address is the delivery's, not a document's — so these rows create a home rather than moving one. Exactly one point per company and kind is flagged as the one to use. Every contact point this tenant holds, filtered by \`organization_id\` for one company, by \`kind\` for one kind of document, by \`is_primary\` for the ones actually in use. \`?organization_id=…&kind=invoice&is_primary=true\` is the single read behind "where does this company's invoice go" — and it answers at most one row, because this app keeps the flag single. The page is \`limit\`/\`offset\`/\`order\`.`)
+  .alias("customers-contact-points-list")
   .option(`--id <id>`, `Filter to rows whose \`id\` is exactly this value. Primary key of the contact point.`)
   .option(`--organization-id <organization-id>`, `Filter to one company's document recipients.`)
   .option(`--address-id <address-id>`, `Filter to the points carried on one postal address — the ERP case of a mail address on a delivery address.`)
@@ -944,7 +954,7 @@ customersOrganizations
       async (_options, _command) => {
         const { id, organizationId, addressId, kind, email, phone, isPrimary, position, externalId, sourceSyncedAt, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
-          customersContactPointsListSpecs,
+          contactPointsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1015,8 +1025,8 @@ customersOrganizations
       },
     ),
   );
-registerPromptSpecs(customersOrganizations.commands.at(-1)!, customersContactPointsListSpecs, { method: "get" });
-const customersContactPointsCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersOrganizations.commands.at(-1)!, contactPointsListSpecs, { method: "get" });
+const contactPointsCreateSpecs: PromptSpec[] = [
   { key: "kind", option: "--kind <kind>", name: "kind", description: "WHICH document goes here — one of the tenant's own document recipient types (GET /customers/contact-point-kinds), seeded with invoice, order_confirmation, shipping_notice and dunning. Required and never defaulted: a point filed as the wrong document is worse than no point at all, because nothing downstream can tell that nobody chose. A merchant whose ERP mails a credit note separately adds their own type without a release of this app. Required on create, and nothing is defaulted: a kind the tenant does not keep is a 400 naming the ones on offer.", type: "string", required: true },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The company whose document this is. Required — a contact point with no company is an address for nobody, and deleting the company takes its points with it. Fixed once created — the flag that says which point of a kind to use is scoped by the company, so moving a point would move an invariant with it.", type: "string", required: true },
   { key: "addressId", option: "--address-id <address-id>", name: "address_id", description: "The postal address this point belongs to, for the one case an ERP has it: a mail address carried ON a delivery address, so the notice about a shipment goes to whoever receives it there. Null is the ordinary case and means the point is the company's rather than one address's. It has to be an address of the same company (or of one of its people), and deleting the address takes the point with it.", type: "string", required: false },
@@ -1028,8 +1038,9 @@ const customersContactPointsCreateSpecs: PromptSpec[] = [
   { key: "position", option: "--position <position>", name: "position", description: "Where this point sits among the others of its kind, ascending. It orders the ones that are NOT flagged — a fallback list for a caller that wants every invoice recipient rather than the one. Default 0.", type: "integer", required: false },
 ];
 customersOrganizations
-  .command(`customers-contact-points-create`)
+  .command(`contact-points-create`)
   .description(`A contact point is WHERE one kind of document goes for one company: the invoice to accounts payable, the order confirmation to the buyer who placed it, the shipping notice to goods-in, the dunning letter to whoever settles it. An ERP keeps these as four separate addresses per debtor and they had nowhere to land here — the \`email\` of an address is the delivery's, not a document's — so these rows create a home rather than moving one. Exactly one point per company and kind is flagged as the one to use. \`kind\` is required and names one of this tenant's own document recipient types — nothing is defaulted, because a point filed as the wrong document is worse than a point refused. A point needs an \`email\` or a \`phone\`, since one with neither delivers nothing. The FIRST point of a kind becomes the one to use on its own; a later one takes over only when it is sent as \`is_primary\`, which demotes the incumbent in the same call. A create cannot omit \`organization_id\` and \`kind\`; everything else is optional or defaulted by the database. Two rows of this tenant may not share the combination of \`organization_id\` + \`kind\` (while is_primary) or \`external_id\` (while external_id IS NOT NULL).`)
+  .alias("customers-contact-points-create")
   .option(`--kind <kind>`, `WHICH document goes here — one of the tenant's own document recipient types (GET /customers/contact-point-kinds), seeded with invoice, order_confirmation, shipping_notice and dunning. Required and never defaulted: a point filed as the wrong document is worse than no point at all, because nothing downstream can tell that nobody chose. A merchant whose ERP mails a credit note separately adds their own type without a release of this app. Required on create, and nothing is defaulted: a kind the tenant does not keep is a 400 naming the ones on offer.`)
   .option(`--organization-id <organization-id>`, `The company whose document this is. Required — a contact point with no company is an address for nobody, and deleting the company takes its points with it. Fixed once created — the flag that says which point of a kind to use is scoped by the company, so moving a point would move an invariant with it.`)
   .option(`--address-id <address-id>`, `The postal address this point belongs to, for the one case an ERP has it: a mail address carried ON a delivery address, so the notice about a shipment goes to whoever receives it there. Null is the ordinary case and means the point is the company's rather than one address's. It has to be an address of the same company (or of one of its people), and deleting the address takes the point with it.`)
@@ -1049,7 +1060,7 @@ customersOrganizations
       async (_options, _command) => {
         const { kind, organizationId, addressId, createdAt, email, externalId, isPrimary, phone, position } = await promptForMissing(
           _options,
-          customersContactPointsCreateSpecs,
+          contactPointsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1102,23 +1113,24 @@ customersOrganizations
       },
     ),
   );
-registerPromptSpecs(customersOrganizations.commands.at(-1)!, customersContactPointsCreateSpecs, { method: "post" });
-const customersContactPointsDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(customersOrganizations.commands.at(-1)!, contactPointsCreateSpecs, { method: "post" });
+const contactPointsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The contact point to delete.", type: "string", required: true, resource: { listPath: "/customers/contact_points", hasLimit: true } },
 ];
 customersOrganizations
-  .command(`customers-contact-points-delete`)
+  .command(`contact-points-delete`)
   .description(`A contact point is WHERE one kind of document goes for one company: the invoice to accounts payable, the order confirmation to the buyer who placed it, the shipping notice to goods-in, the dunning letter to whoever settles it. An ERP keeps these as four separate addresses per debtor and they had nowhere to land here — the \`email\` of an address is the delivery's, not a document's — so these rows create a home rather than moving one. Exactly one point per company and kind is flagged as the one to use. Removes the point. If it was the flagged one, the next point of that kind takes over — so the kind keeps an answer for as long as it has any point at all, and the company is left with none only once the last one goes. Nothing else in this app points at it, so nothing else goes with it.`)
+  .alias("customers-contact-points-delete")
   .option(`--id <id>`, `The contact point to delete.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersContactPointsDeleteSpecs,
+          contactPointsDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`customers-organizations customers-contact-points-delete`);
+        await confirmDestructive(`customers-organizations contact-points-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/customers/contact_points/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1135,20 +1147,21 @@ customersOrganizations
       },
     ),
   );
-registerPromptSpecs(customersOrganizations.commands.at(-1)!, customersContactPointsDeleteSpecs, { method: "delete", destructive: true });
-const customersContactPointsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(customersOrganizations.commands.at(-1)!, contactPointsDeleteSpecs, { method: "delete", destructive: true });
+const contactPointsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The contact point to read.", type: "string", required: true, resource: { listPath: "/customers/contact_points", hasLimit: true } },
 ];
 customersOrganizations
-  .command(`customers-contact-points-get`)
+  .command(`contact-points-get`)
   .description(`A contact point is WHERE one kind of document goes for one company: the invoice to accounts payable, the order confirmation to the buyer who placed it, the shipping notice to goods-in, the dunning letter to whoever settles it. An ERP keeps these as four separate addresses per debtor and they had nowhere to land here — the \`email\` of an address is the delivery's, not a document's — so these rows create a home rather than moving one. Exactly one point per company and kind is flagged as the one to use. One contact point by id.`)
+  .alias("customers-contact-points-get")
   .option(`--id <id>`, `The contact point to read.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersContactPointsGetSpecs,
+          contactPointsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1167,8 +1180,8 @@ customersOrganizations
       },
     ),
   );
-registerPromptSpecs(customersOrganizations.commands.at(-1)!, customersContactPointsGetSpecs, { method: "get" });
-const customersContactPointsUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersOrganizations.commands.at(-1)!, contactPointsGetSpecs, { method: "get" });
+const contactPointsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The contact point to update.", type: "string", required: true, resource: { listPath: "/customers/contact_points", hasLimit: true } },
   { key: "addressId", option: "--address-id <address-id>", name: "address_id", description: "The postal address this point belongs to, for the one case an ERP has it: a mail address carried ON a delivery address, so the notice about a shipment goes to whoever receives it there. Null is the ordinary case and means the point is the company's rather than one address's. It has to be an address of the same company (or of one of its people), and deleting the address takes the point with it.", type: "string", required: false },
   { key: "email", option: "--email <email>", name: "email", description: "The mail address this document is sent to. Nullable, because a point may carry a phone number instead — but a point with neither is refused, since it delivers nothing. Note that the `email` of an address is the delivery's, not a document's: a mail address per document had nowhere to live before these rows.", type: "string", required: false },
@@ -1180,8 +1193,9 @@ const customersContactPointsUpdateSpecs: PromptSpec[] = [
   { key: "position", option: "--position <position>", name: "position", description: "Where this point sits among the others of its kind, ascending. It orders the ones that are NOT flagged — a fallback list for a caller that wants every invoice recipient rather than the one. Default 0.", type: "integer", required: false },
 ];
 customersOrganizations
-  .command(`customers-contact-points-update`)
+  .command(`contact-points-update`)
   .description(`A contact point is WHERE one kind of document goes for one company: the invoice to accounts payable, the order confirmation to the buyer who placed it, the shipping notice to goods-in, the dunning letter to whoever settles it. An ERP keeps these as four separate addresses per debtor and they had nowhere to land here — the \`email\` of an address is the delivery's, not a document's — so these rows create a home rather than moving one. Exactly one point per company and kind is flagged as the one to use. A partial update — send only what changes. The owning company is fixed (the flag is scoped by it, so moving a point between companies would move an invariant with it) and an empty body is refused. A flag MOVES rather than switching off: send \`is_primary\` on the point that should take over, because a kind with points and no flag is a question with no answer. Two rows of this tenant may not share the combination of \`organization_id\` + \`kind\` (while is_primary) or \`external_id\` (while external_id IS NOT NULL).`)
+  .alias("customers-contact-points-update")
   .option(`--id <id>`, `The contact point to update.`)
   .option(`--address-id <address-id>`, `The postal address this point belongs to, for the one case an ERP has it: a mail address carried ON a delivery address, so the notice about a shipment goes to whoever receives it there. Null is the ordinary case and means the point is the company's rather than one address's. It has to be an address of the same company (or of one of its people), and deleting the address takes the point with it.`)
   .option(`--email <email>`, `The mail address this document is sent to. Nullable, because a point may carry a phone number instead — but a point with neither is refused, since it delivers nothing. Note that the \`email\` of an address is the delivery's, not a document's: a mail address per document had nowhere to live before these rows.`)
@@ -1201,7 +1215,7 @@ customersOrganizations
       async (_options, _command) => {
         const { id, addressId, email, externalId, isPrimary, kind, organizationId, phone, position } = await promptForMissing(
           _options,
-          customersContactPointsUpdateSpecs,
+          contactPointsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1251,10 +1265,11 @@ customersOrganizations
       },
     ),
   );
-registerPromptSpecs(customersOrganizations.commands.at(-1)!, customersContactPointsUpdateSpecs, { method: "put" });
+registerPromptSpecs(customersOrganizations.commands.at(-1)!, contactPointsUpdateSpecs, { method: "put" });
 customersOrganizations
-  .command(`customers-derived-refresh`)
+  .command(`derived-refresh`)
   .description(`Every derived column again, from the rows as they stand: each company's city, revenue of 365 days, last order, main contact and account manager (from the sales-reps app, when it answers), each person's shop access, and how many people hold each role. Every write of this app keeps them already; this is for rows written around it — an import straight into a table — and for the first run after the release that added them. Only what is wrong is written, so it is free to repeat. The hourly metrics tick runs it too.`)
+  .alias("customers-derived-refresh")
   .action(
     actionRunner(
       async () => {
@@ -1274,7 +1289,7 @@ customersOrganizations
       },
     ),
   );
-const customersOrganizationMetricsListSpecs: PromptSpec[] = [
+const organizationMetricsListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to rows whose `id` is exactly this value. Primary key of the projection row.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Read the metrics of one company.", type: "string", required: false },
   { key: "orderCount", option: "--order-count <order-count>", name: "order_count", description: "Filter to rows whose `order_count` is exactly this value. Orders ever counted for this company.", type: "integer", required: false },
@@ -1301,8 +1316,9 @@ const customersOrganizationMetricsListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 customersOrganizations
-  .command(`customers-organization-metrics-list`)
+  .command(`organization-metrics-list`)
   .description(`What an organization has BOUGHT, materialized into this app from the orders app: lifetime revenue, revenue over the last 30/90/365 days, order count, average order value, and the first and last order dates. Revenue lives in orders and may not be joined (ADR-0055: no cross-app foreign key, grant or view), so it is pulled on a schedule and stored here — one row per organization, all-zero for a company that never ordered, so that a "never bought anything" rule has something to match. The customer-value list: sort by \`revenue_365d\` for the best customers, filter \`last_order_at\` for the dormant ones. Every row carries \`computed_at\`, and a row is only as current as the last refresh — \`GET /customers/organization_metrics/freshness\` says how stale the set is before a number is shown to anybody.`)
+  .alias("customers-organization-metrics-list")
   .option(`--id <id>`, `Filter to rows whose \`id\` is exactly this value. Primary key of the projection row.`)
   .option(`--organization-id <organization-id>`, `Read the metrics of one company.`)
   .option(`--order-count <order-count>`, `Filter to rows whose \`order_count\` is exactly this value. Orders ever counted for this company.`, parseInteger)
@@ -1342,7 +1358,7 @@ customersOrganizations
       async (_options, _command) => {
         const { id, organizationId, orderCount, orderCount30d, orderCount90d, orderCount365d, revenueTotal, revenue30d, revenue90d, revenue365d, avgOrderValue, avgOrderValue365d, firstOrderAt, lastOrderAt, currency, currencyMixed, ordersAsOf, computedAt, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
-          customersOrganizationMetricsListSpecs,
+          organizationMetricsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1437,10 +1453,11 @@ customersOrganizations
       },
     ),
   );
-registerPromptSpecs(customersOrganizations.commands.at(-1)!, customersOrganizationMetricsListSpecs, { method: "get" });
+registerPromptSpecs(customersOrganizations.commands.at(-1)!, organizationMetricsListSpecs, { method: "get" });
 customersOrganizations
-  .command(`customers-organization-metrics-freshness`)
+  .command(`organization-metrics-freshness`)
   .description(`The projection is materialized, so it is only as true as its last refresh. This is that fact as one answer: the OLDEST computed_at in the table (the floor, not an average), the anchor those numbers were measured from, and how many organizations are not covered at all yet.`)
+  .alias("customers-organization-metrics-freshness")
   .action(
     actionRunner(
       async () => {
@@ -1460,14 +1477,15 @@ customersOrganizations
       },
     ),
   );
-const customersOrganizationMetricsRefreshSpecs: PromptSpec[] = [
+const organizationMetricsRefreshSpecs: PromptSpec[] = [
   { key: "asOf", option: "--as-of <as-of>", name: "as_of", description: "Anchor for the rolling windows — pass back the value the previous call returned.", type: "string", required: false },
   { key: "cursor", option: "--cursor <cursor>", name: "cursor", description: "Continue an unfinished refresh: the value the previous call returned, verbatim. It is the id of the last organization processed, so only a value this API handed out ever resolves.", type: "string", required: false },
   { key: "organizationIds", option: "--organization-ids [organization-ids...]", name: "organization_ids", description: "Refresh exactly these organizations in one call instead of walking all of them.", type: "array", required: false },
 ];
 customersOrganizations
-  .command(`customers-organization-metrics-refresh`)
+  .command(`organization-metrics-refresh`)
   .description(`Revenue lives in the orders app and cannot be joined (ADR-0055: no cross-app FK, grant or view), so it is PULLED: this route walks organizations in id order, asks orders.reports.customer-rollup about a batch of them at a time and materializes the answer into organization_metrics — one row per organization, all-zero for those that never ordered, so that 'never bought' rules match something. Rows are only rewritten when a value actually changed, so a routine refresh costs almost no writes. Bounded by a wall-clock budget below the gateway's upstream timeout: while 'done' is false, POST again with the returned 'cursor' AND 'as_of' (pinning as_of is what stops the rolling windows sliding during a multi-call refresh). 'organization_ids' refreshes exactly those organizations in a single call — the targeted path after a customer ordered.`)
+  .alias("customers-organization-metrics-refresh")
   .option(`--as-of <as-of>`, `Anchor for the rolling windows — pass back the value the previous call returned.`)
   .option(`--cursor <cursor>`, `Continue an unfinished refresh: the value the previous call returned, verbatim. It is the id of the last organization processed, so only a value this API handed out ever resolves.`)
   .option(`--organization-ids [organization-ids...]`, `Refresh exactly these organizations in one call instead of walking all of them.`)
@@ -1476,7 +1494,7 @@ customersOrganizations
       async (_options, _command) => {
         const { asOf, cursor, organizationIds } = await promptForMissing(
           _options,
-          customersOrganizationMetricsRefreshSpecs,
+          organizationMetricsRefreshSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1511,20 +1529,21 @@ customersOrganizations
       },
     ),
   );
-registerPromptSpecs(customersOrganizations.commands.at(-1)!, customersOrganizationMetricsRefreshSpecs, { method: "post" });
-const customersOrganizationMetricsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(customersOrganizations.commands.at(-1)!, organizationMetricsRefreshSpecs, { method: "post" });
+const organizationMetricsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The organization metrics row to read.", type: "string", required: true, resource: { listPath: "/customers/organization_metrics", hasLimit: true } },
 ];
 customersOrganizations
-  .command(`customers-organization-metrics-get`)
+  .command(`organization-metrics-get`)
   .description(`What an organization has BOUGHT, materialized into this app from the orders app: lifetime revenue, revenue over the last 30/90/365 days, order count, average order value, and the first and last order dates. Revenue lives in orders and may not be joined (ADR-0055: no cross-app foreign key, grant or view), so it is pulled on a schedule and stored here — one row per organization, all-zero for a company that never ordered, so that a "never bought anything" rule has something to match. One company's numbers by the metrics row id. All zeroes mean the company has never ordered, not that the projection is missing — a missing row means the refresh has not reached that company yet.`)
+  .alias("customers-organization-metrics-get")
   .option(`--id <id>`, `The organization metrics row to read.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersOrganizationMetricsGetSpecs,
+          organizationMetricsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1543,7 +1562,7 @@ customersOrganizations
       },
     ),
   );
-registerPromptSpecs(customersOrganizations.commands.at(-1)!, customersOrganizationMetricsGetSpecs, { method: "get" });
+registerPromptSpecs(customersOrganizations.commands.at(-1)!, organizationMetricsGetSpecs, { method: "get" });
 const listSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to exactly one company. `GET /customers/organizations/{id}` is the direct form; this exists because the list honours it too.", type: "string", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Filter by the EXACT company name — this is an equality, not a search. There is no substring or fuzzy match on this API.", type: "string", required: false },

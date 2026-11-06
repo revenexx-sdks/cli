@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -21,6 +22,7 @@ export const campaignsAssets = new Command("campaigns-assets")
       `What each campaign holds: promotions, marketing mails, automations and forms that carry the campaign in their own campaign reference, and pages and ad campaigns listed here only. Written through attach and detach, never directly.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

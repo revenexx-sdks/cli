@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -22,6 +23,7 @@ export const promotionsRedemptions = new Command("promotions-redemptions")
       `Holding a promotion, then spending it. A hold says this cart intends to use these promotions, and from that moment the budget, the per-buyer limit and the voucher remaining value are smaller for everybody else. On placement the hold becomes a commitment against the order; on abandonment it comes back. A hold expires on its own, so correctness never waits on a scheduler, and a return credits back what the returned lines carried — or re-decides the kept goods, if the promotion says so.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -18,6 +19,7 @@ export const tagManagerDelivery = new Command("tag-manager-delivery")
       `What a storefront reads on its server before it renders a page: the latest published container for its market with the market's tag settings, cached by the gateway per tenant and market and dropped when a version is published — or, with a preview token, the unpublished draft, never cached. A storefront that has nothing published reads an empty container and renders without tags.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -22,6 +23,7 @@ export const audiencesMembers = new Command("audiences-members")
       `Who is in an audience, and since when. Members are read as a stable keyset page for a send; one person's audiences are answered for the storefront; static audiences take imports and hand-picked contacts. Every join and every leave is kept as history and published on the bus.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
@@ -57,15 +59,16 @@ audiencesMembers
     ),
   );
 registerPromptSpecs(audiencesMembers.commands.at(-1)!, compositionSpecs, { method: "get" });
-const audiencesAudiencesImportSpecs: PromptSpec[] = [
+const audiencesImportSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true },
   { key: "emails", option: "--emails <emails>", name: "emails", description: "Addresses separated by lines, commas or semicolons — what a form field sends. Used when `rows` is absent.", type: "string", required: false },
   { key: "filename", option: "--filename <filename>", name: "filename", type: "string", required: false },
   { key: "rows", option: "--rows [rows...]", name: "rows", type: "array", required: false },
 ];
 audiencesMembers
-  .command(`audiences-audiences-import`)
+  .command(`audiences-import`)
   .description(`Each row names a contact id or a mail address of an existing contact. A row that matches nobody is refused with its reason rather than creating a person. At most 1000 rows per call.`)
+  .alias("audiences-audiences-import")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .option(`--emails <emails>`, `Addresses separated by lines, commas or semicolons — what a form field sends. Used when \`rows\` is absent.`)
   .option(`--filename <filename>`, ``)
@@ -75,7 +78,7 @@ audiencesMembers
       async (_options, _command) => {
         const { id, emails, filename, rows } = await promptForMissing(
           _options,
-          audiencesAudiencesImportSpecs,
+          audiencesImportSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -110,7 +113,7 @@ audiencesMembers
       },
     ),
   );
-registerPromptSpecs(audiencesMembers.commands.at(-1)!, audiencesAudiencesImportSpecs, { method: "post" });
+registerPromptSpecs(audiencesMembers.commands.at(-1)!, audiencesImportSpecs, { method: "post" });
 const readSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true },
   { key: "cursor", option: "--cursor <cursor>", name: "cursor", description: "The `next_cursor` of the previous page. Omitted: the first page.", type: "string", required: false },
@@ -269,7 +272,7 @@ audiencesMembers
     ),
   );
 registerPromptSpecs(audiencesMembers.commands.at(-1)!, timelineSpecs, { method: "get" });
-const audiencesImportsListSpecs: PromptSpec[] = [
+const importsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.", type: "string", required: false },
@@ -283,8 +286,9 @@ const audiencesImportsListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 audiencesMembers
-  .command(`audiences-imports-list`)
+  .command(`imports-list`)
   .description(`Every import into a static audience, with its counts and refused rows.`)
+  .alias("audiences-imports-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.`)
@@ -306,7 +310,7 @@ audiencesMembers
       async (_options, _command) => {
         const { limit, offset, order, id, audienceId, filename, rows, accepted, rejected, state, filter } = await promptForMissing(
           _options,
-          audiencesImportsListSpecs,
+          importsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -362,20 +366,21 @@ audiencesMembers
       },
     ),
   );
-registerPromptSpecs(audiencesMembers.commands.at(-1)!, audiencesImportsListSpecs, { method: "get" });
-const audiencesImportsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(audiencesMembers.commands.at(-1)!, importsListSpecs, { method: "get" });
+const importsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/audiences/imports", hasLimit: true } },
 ];
 audiencesMembers
-  .command(`audiences-imports-get`)
+  .command(`imports-get`)
   .description(`Read one import`)
+  .alias("audiences-imports-get")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          audiencesImportsGetSpecs,
+          importsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -394,8 +399,8 @@ audiencesMembers
       },
     ),
   );
-registerPromptSpecs(audiencesMembers.commands.at(-1)!, audiencesImportsGetSpecs, { method: "get" });
-const audiencesMemberEventsListSpecs: PromptSpec[] = [
+registerPromptSpecs(audiencesMembers.commands.at(-1)!, importsGetSpecs, { method: "get" });
+const memberEventsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.", type: "string", required: false },
@@ -408,8 +413,9 @@ const audiencesMemberEventsListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 audiencesMembers
-  .command(`audiences-member-events-list`)
+  .command(`member-events-list`)
   .description(`The join/leave history; filter \`?audience_id=\` or \`?contact_id=\`.`)
+  .alias("audiences-member-events-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.`)
@@ -430,7 +436,7 @@ audiencesMembers
       async (_options, _command) => {
         const { limit, offset, order, id, audienceId, contactId, kind, source, reason, filter } = await promptForMissing(
           _options,
-          audiencesMemberEventsListSpecs,
+          memberEventsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -483,20 +489,21 @@ audiencesMembers
       },
     ),
   );
-registerPromptSpecs(audiencesMembers.commands.at(-1)!, audiencesMemberEventsListSpecs, { method: "get" });
-const audiencesMemberEventsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(audiencesMembers.commands.at(-1)!, memberEventsListSpecs, { method: "get" });
+const memberEventsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/audiences/member-events", hasLimit: true } },
 ];
 audiencesMembers
-  .command(`audiences-member-events-get`)
+  .command(`member-events-get`)
   .description(`Read one join or leave`)
+  .alias("audiences-member-events-get")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          audiencesMemberEventsGetSpecs,
+          memberEventsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -515,7 +522,7 @@ audiencesMembers
       },
     ),
   );
-registerPromptSpecs(audiencesMembers.commands.at(-1)!, audiencesMemberEventsGetSpecs, { method: "get" });
+registerPromptSpecs(audiencesMembers.commands.at(-1)!, memberEventsGetSpecs, { method: "get" });
 const listSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },

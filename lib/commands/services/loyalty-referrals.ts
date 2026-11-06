@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -21,6 +22,7 @@ export const loyaltyReferrals = new Command("loyalty-referrals")
       `Referral codes of members and the referrals made with them. A referral qualifies on the referred person's first credited order; both sides are rewarded through promotions.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

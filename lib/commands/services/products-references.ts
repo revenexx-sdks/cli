@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,10 +24,11 @@ export const productsReferences = new Command("products-references")
       `Reference entities and their records — the domains this catalog POINTS AT instead of duplicating. A brand, a manufacturer, a care instruction is one record here, edited once, and every product that uses it stores only its code. A reference entity carries attributes of its own, so its records hold real data rather than just a name; that shape is declared in Data model and read back with the attribute-schema call there.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
-const productsReferenceEntitiesListSpecs: PromptSpec[] = [
+const referenceEntitiesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -45,12 +47,13 @@ const productsReferenceEntitiesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsReferences
-  .command(`products-reference-entities-list`)
+  .command(`reference-entities-list`)
   .description(`A domain of records the catalog POINTS AT instead of duplicating — brands, manufacturers, care instructions. Declaring one is how a brand comes to be edited in one place rather than on nine thousand products. A reference entity has attributes of its own (\`attributes\` rows with \`entity_type: "reference_entity"\` and this entity's code as \`entity_ref\`), which is what makes its records more than a label.
 
 Every column of \`reference_entities\` is an exact-match query parameter, \`order\` sorts by one column, and \`limit\`/\`offset\` page through \`page.total\`. A query key that is NOT a column is dropped rather than refused, and the \`filter\` object echoes the ones that were understood — that echo is the only way to tell an unfiltered answer from an empty one. It reads rows exactly as they are stored: no join is resolved, no jsonb value is unpacked.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-reference-entities-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -82,7 +85,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       async (_options, _command) => {
         const { limit, offset, order, id, code, labels, image, active, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
-          productsReferenceEntitiesListSpecs,
+          referenceEntitiesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -153,8 +156,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsReferences.commands.at(-1)!, productsReferenceEntitiesListSpecs, { method: "get" });
-const productsReferenceEntitiesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsReferences.commands.at(-1)!, referenceEntitiesListSpecs, { method: "get" });
+const referenceEntitiesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The entity's stable identifier — a domain of records the catalog POINTS AT instead of duplicating, so a brand is edited once and not on nine thousand products. Unique per tenant.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this domain has in the system that owns it — the register a brand or manufacturer list is maintained in. Unique per tenant where set.", type: "string", required: false },
@@ -166,12 +169,13 @@ const productsReferenceEntitiesCreateSpecs: PromptSpec[] = [
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsReferences
-  .command(`products-reference-entities-create`)
+  .command(`reference-entities-create`)
   .description(`Creates one reference entity and answers 201 with the stored row, including the id and the timestamps the database filled in — a client never sends an id, it reads one back and uses it in the path of every later call.
 
 A domain of records the catalog POINTS AT instead of duplicating — brands, manufacturers, care instructions. Declaring one is how a brand comes to be edited in one place rather than on nine thousand products. A reference entity has attributes of its own (\`attributes\` rows with \`entity_type: "reference_entity"\` and this entity's code as \`entity_ref\`), which is what makes its records more than a label.
 
 \`code\` is the only column the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
+  .alias("products-reference-entities-create")
   .option(`--code <code>`, `The entity's stable identifier — a domain of records the catalog POINTS AT instead of duplicating, so a brand is edited once and not on nine thousand products. Unique per tenant.`)
   .option(
     `--active [value]`,
@@ -191,7 +195,7 @@ A domain of records the catalog POINTS AT instead of duplicating — brands, man
       async (_options, _command) => {
         const { code, active, externalId, externalRefs, image, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
-          productsReferenceEntitiesCreateSpecs,
+          referenceEntitiesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -244,27 +248,28 @@ A domain of records the catalog POINTS AT instead of duplicating — brands, man
       },
     ),
   );
-registerPromptSpecs(productsReferences.commands.at(-1)!, productsReferenceEntitiesCreateSpecs, { method: "post" });
-const productsReferenceEntitiesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(productsReferences.commands.at(-1)!, referenceEntitiesCreateSpecs, { method: "post" });
+const referenceEntitiesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `reference_entities` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/reference_entities`. An id no reference entitie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/reference_entities", hasLimit: true } },
 ];
 productsReferences
-  .command(`products-reference-entities-delete`)
+  .command(`reference-entities-delete`)
   .description(`Deletes one reference entity by id. It is a hard delete — the row is gone, and the answer is a confirmation rather than a result to branch on.
 
 It takes what hangs off it: reference entity records (\`reference_entity_id\`) are deleted with it.
 
 An id no reference entity of this tenant carries answers 404; there is no 409, because every foreign key pointing at this entity resolves itself on delete rather than blocking one.`)
+  .alias("products-reference-entities-delete")
   .option(`--id <id>`, `The \`reference_entities\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/reference_entities\`. An id no reference entitie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsReferenceEntitiesDeleteSpecs,
+          referenceEntitiesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`products-references products-reference-entities-delete`);
+        await confirmDestructive(`products-references reference-entities-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entities/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -281,12 +286,12 @@ An id no reference entity of this tenant carries answers 404; there is no 409, b
       },
     ),
   );
-registerPromptSpecs(productsReferences.commands.at(-1)!, productsReferenceEntitiesDeleteSpecs, { method: "delete", destructive: true });
-const productsReferenceEntitiesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(productsReferences.commands.at(-1)!, referenceEntitiesDeleteSpecs, { method: "delete", destructive: true });
+const referenceEntitiesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `reference_entities` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/reference_entities`. An id no reference entitie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/reference_entities", hasLimit: true } },
 ];
 productsReferences
-  .command(`products-reference-entities-get`)
+  .command(`reference-entities-get`)
   .description(`Reads one reference entity by its id — the whole row, every column, as it is stored.
 
 A domain of records the catalog POINTS AT instead of duplicating — brands, manufacturers, care instructions. Declaring one is how a brand comes to be edited in one place rather than on nine thousand products. A reference entity has attributes of its own (\`attributes\` rows with \`entity_type: "reference_entity"\` and this entity's code as \`entity_ref\`), which is what makes its records more than a label.
@@ -294,13 +299,14 @@ A domain of records the catalog POINTS AT instead of duplicating — brands, man
 An id no reference entity of this tenant carries answers 404, and so does one belonging to another tenant: row-level security makes that row invisible rather than forbidden. A malformed id answers 400 before the route is reached.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-reference-entities-get")
   .option(`--id <id>`, `The \`reference_entities\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/reference_entities\`. An id no reference entitie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsReferenceEntitiesGetSpecs,
+          referenceEntitiesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -319,8 +325,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsReferences.commands.at(-1)!, productsReferenceEntitiesGetSpecs, { method: "get" });
-const productsReferenceEntitiesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsReferences.commands.at(-1)!, referenceEntitiesGetSpecs, { method: "get" });
+const referenceEntitiesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `reference_entities` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/reference_entities`. An id no reference entitie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/reference_entities", hasLimit: true } },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The entity's stable identifier — a domain of records the catalog POINTS AT instead of duplicating, so a brand is edited once and not on nine thousand products. Unique per tenant.", type: "string", required: false },
@@ -333,12 +339,13 @@ const productsReferenceEntitiesUpdateSpecs: PromptSpec[] = [
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsReferences
-  .command(`products-reference-entities-update`)
+  .command(`reference-entities-update`)
   .description(`Updates one reference entity by id. A partial patch: the body names only the columns to change and every column it leaves out keeps its current value, so there is no read-modify-write and no way to blank a field by forgetting it.
 
 A domain of records the catalog POINTS AT instead of duplicating — brands, manufacturers, care instructions. Declaring one is how a brand comes to be edited in one place rather than on nine thousand products. A reference entity has attributes of its own (\`attributes\` rows with \`entity_type: "reference_entity"\` and this entity's code as \`entity_ref\`), which is what makes its records more than a label.
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
+  .alias("products-reference-entities-update")
   .option(`--id <id>`, `The \`reference_entities\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/reference_entities\`. An id no reference entitie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(
     `--active [value]`,
@@ -359,7 +366,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
       async (_options, _command) => {
         const { id, active, code, externalId, externalRefs, image, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
-          productsReferenceEntitiesUpdateSpecs,
+          referenceEntitiesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -412,8 +419,8 @@ A body that names nothing writable is refused with 400 rather than answered as a
       },
     ),
   );
-registerPromptSpecs(productsReferences.commands.at(-1)!, productsReferenceEntitiesUpdateSpecs, { method: "put" });
-const productsReferenceEntityRecordsListSpecs: PromptSpec[] = [
+registerPromptSpecs(productsReferences.commands.at(-1)!, referenceEntitiesUpdateSpecs, { method: "put" });
+const referenceEntityRecordsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -432,12 +439,13 @@ const productsReferenceEntityRecordsListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsReferences
-  .command(`products-reference-entity-records-list`)
+  .command(`reference-entity-records-list`)
   .description(`One record of a reference entity — one brand, one manufacturer. A product that points at it stores this record's CODE, exactly the way a select stores an option code, and the record's own properties live in its scoped \`attribute_values\` document. \`GET /products/attribute-schema\` offers these records as the \`options\` of any attribute that points at their entity, so a picker needs no second call.
 
 Every column of \`reference_entity_records\` is an exact-match query parameter, \`order\` sorts by one column, and \`limit\`/\`offset\` page through \`page.total\`. A query key that is NOT a column is dropped rather than refused, and the \`filter\` object echoes the ones that were understood — that echo is the only way to tell an unfiltered answer from an empty one. It reads rows exactly as they are stored: no join is resolved, no jsonb value is unpacked.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-reference-entity-records-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -469,7 +477,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       async (_options, _command) => {
         const { limit, offset, order, id, referenceEntityId, code, labels, attributeValues, active, externalId, externalRefs, sourceSyncedAt, sourceData, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
-          productsReferenceEntityRecordsListSpecs,
+          referenceEntityRecordsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -540,8 +548,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsReferences.commands.at(-1)!, productsReferenceEntityRecordsListSpecs, { method: "get" });
-const productsReferenceEntityRecordsCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsReferences.commands.at(-1)!, referenceEntityRecordsListSpecs, { method: "get" });
+const referenceEntityRecordsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The record's stable identifier — the value a product stores when it points at this record, the same way a select stores an option code. Unique within the entity.", type: "string", required: true },
   { key: "referenceEntityId", option: "--reference-entity-id <reference-entity-id>", name: "reference_entity_id", description: "Which reference entity this record belongs to.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
@@ -553,12 +561,13 @@ const productsReferenceEntityRecordsCreateSpecs: PromptSpec[] = [
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsReferences
-  .command(`products-reference-entity-records-create`)
+  .command(`reference-entity-records-create`)
   .description(`Creates one reference entity record and answers 201 with the stored row, including the id and the timestamps the database filled in — a client never sends an id, it reads one back and uses it in the path of every later call.
 
 One record of a reference entity — one brand, one manufacturer. A product that points at it stores this record's CODE, exactly the way a select stores an option code, and the record's own properties live in its scoped \`attribute_values\` document. \`GET /products/attribute-schema\` offers these records as the \`options\` of any attribute that points at their entity, so a picker needs no second call.
 
 \`reference_entity_id\` and \`code\` are the only columns the database refuses the row without; everything else has a default or is nullable. A second row with the same \`reference_entity_id\` and \`code\` answers 409.`)
+  .alias("products-reference-entity-records-create")
   .option(`--code <code>`, `The record's stable identifier — the value a product stores when it points at this record, the same way a select stores an option code. Unique within the entity.`)
   .option(`--reference-entity-id <reference-entity-id>`, `Which reference entity this record belongs to.`)
   .option(
@@ -599,7 +608,7 @@ Which attributes a record of this entity has comes from \`attributes\` rows with
       async (_options, _command) => {
         const { code, referenceEntityId, active, attributeValues, externalId, externalRefs, labels, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
-          productsReferenceEntityRecordsCreateSpecs,
+          referenceEntityRecordsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -652,27 +661,28 @@ Which attributes a record of this entity has comes from \`attributes\` rows with
       },
     ),
   );
-registerPromptSpecs(productsReferences.commands.at(-1)!, productsReferenceEntityRecordsCreateSpecs, { method: "post" });
-const productsReferenceEntityRecordsDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(productsReferences.commands.at(-1)!, referenceEntityRecordsCreateSpecs, { method: "post" });
+const referenceEntityRecordsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `reference_entity_records` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/reference_entity_records`. An id no reference entity record of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/reference_entity_records", hasLimit: true } },
 ];
 productsReferences
-  .command(`products-reference-entity-records-delete`)
+  .command(`reference-entity-records-delete`)
   .description(`Deletes one reference entity record by id. It is a hard delete — the row is gone, and the answer is a confirmation rather than a result to branch on.
 
 Nothing in this schema references it, so nothing else changes.
 
 An id no reference entity record of this tenant carries answers 404; there is no 409, because every foreign key pointing at this entity resolves itself on delete rather than blocking one.`)
+  .alias("products-reference-entity-records-delete")
   .option(`--id <id>`, `The \`reference_entity_records\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/reference_entity_records\`. An id no reference entity record of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsReferenceEntityRecordsDeleteSpecs,
+          referenceEntityRecordsDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`products-references products-reference-entity-records-delete`);
+        await confirmDestructive(`products-references reference-entity-records-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/reference_entity_records/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -689,12 +699,12 @@ An id no reference entity record of this tenant carries answers 404; there is no
       },
     ),
   );
-registerPromptSpecs(productsReferences.commands.at(-1)!, productsReferenceEntityRecordsDeleteSpecs, { method: "delete", destructive: true });
-const productsReferenceEntityRecordsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(productsReferences.commands.at(-1)!, referenceEntityRecordsDeleteSpecs, { method: "delete", destructive: true });
+const referenceEntityRecordsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `reference_entity_records` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/reference_entity_records`. An id no reference entity record of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/reference_entity_records", hasLimit: true } },
 ];
 productsReferences
-  .command(`products-reference-entity-records-get`)
+  .command(`reference-entity-records-get`)
   .description(`Reads one reference entity record by its id — the whole row, every column, as it is stored.
 
 One record of a reference entity — one brand, one manufacturer. A product that points at it stores this record's CODE, exactly the way a select stores an option code, and the record's own properties live in its scoped \`attribute_values\` document. \`GET /products/attribute-schema\` offers these records as the \`options\` of any attribute that points at their entity, so a picker needs no second call.
@@ -702,13 +712,14 @@ One record of a reference entity — one brand, one manufacturer. A product that
 An id no reference entity record of this tenant carries answers 404, and so does one belonging to another tenant: row-level security makes that row invisible rather than forbidden. A malformed id answers 400 before the route is reached.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-reference-entity-records-get")
   .option(`--id <id>`, `The \`reference_entity_records\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/reference_entity_records\`. An id no reference entity record of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsReferenceEntityRecordsGetSpecs,
+          referenceEntityRecordsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -727,8 +738,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsReferences.commands.at(-1)!, productsReferenceEntityRecordsGetSpecs, { method: "get" });
-const productsReferenceEntityRecordsUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsReferences.commands.at(-1)!, referenceEntityRecordsGetSpecs, { method: "get" });
+const referenceEntityRecordsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `reference_entity_records` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/reference_entity_records`. An id no reference entity record of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/reference_entity_records", hasLimit: true } },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "attributeValues", option: "--attribute-values <attribute-values>", name: "attribute_values", description: "Every attribute value the record carries, in ONE jsonb document — the core of an attribute-driven PIM. A record's properties are not columns here: they are rows in `attributes`, selected per family by `family_attributes`, and their values live under their attribute CODE inside this object.\n\nFour buckets, and an attribute's own flags decide which one it writes to:\n\n  `common`                    the attribute is neither localizable nor scopable — one value, full stop.\n                              `{\"common\": {\"net_weight\": 2.4, \"colour\": \"black\"}}`\n  `locale_specific`           `localizable`: one value per locale key.\n                              `{\"locale_specific\": {\"de\": {\"name\": \"Akku-Bohrschrauber\"}}}`\n  `channel_specific`          `scopable`: one value per channel.\n                              `{\"channel_specific\": {\"b2b\": {\"minimum_order_quantity\": 6}}}`\n  `channel_locale_specific`   both: one value per channel AND locale key.\n                              `{\"channel_locale_specific\": {\"b2b\": {\"de\": {\"description\": \"…\"}}}}`\n\nA locale key is the WRITE KEY of this tenant's locale policy (`GET /v1/markets/locale-policy`, `locales[].write`): the bare language (`de`) when the tenant keys translations by language, the full locale (`de-DE`) when it keys them by region. Another spelling of the same locale (`de_DE`, `de-de`, `deu`) is accepted and stored under that key; a language no market of the tenant configures is refused with 422 `unknown_locale`, a bare language two regional keys share with 422 `ambiguous_locale`, and anything that is not a language tag with 422 `invalid_locale`. The database refuses any key that is not `xx` or `xx-YY` whichever way it is written.\n\nA reader takes the most specific bucket that carries the code and falls back through locale, then channel, then `common`. `common` is always last and always consulted, because early imports wrote everything there whatever an attribute's flags said — a reader that skipped it reports an imported catalog as empty. `GET /products/attribute-schema` answers, per field, the exact path a value belongs at (`storage.path`) and that full fallback order (`from`), so no client has to re-derive any of this.\n\nThe value itself is whatever the attribute's `type` implies: a string, a number, a boolean, an option CODE for a select (never its label), a list of codes for a multi-select, `{\"amount\": …, \"unit\": …}` for a measure, a list of `{\"amount\": …, \"currency\": …}` for a price, an asset code for media.\n\nDefaults to `{}`, and an empty object is a normal state — a record nobody has enriched yet. The declared type also admits an array only because every jsonb column of this app shares one mapping; an array is not meaningful here and every reader in this app treats a non-object as empty.\n\nWhich attributes a record of this entity has comes from `attributes` rows with `entity_type: \"reference_entity\"` and `entity_ref` equal to the entity's code — `GET /products/attribute-schema?entity_type=reference_entity&entity_ref=brand` answers it in one call.", type: "object", required: false },
@@ -741,12 +752,13 @@ const productsReferenceEntityRecordsUpdateSpecs: PromptSpec[] = [
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsReferences
-  .command(`products-reference-entity-records-update`)
+  .command(`reference-entity-records-update`)
   .description(`Updates one reference entity record by id. A partial patch: the body names only the columns to change and every column it leaves out keeps its current value, so there is no read-modify-write and no way to blank a field by forgetting it.
 
 One record of a reference entity — one brand, one manufacturer. A product that points at it stores this record's CODE, exactly the way a select stores an option code, and the record's own properties live in its scoped \`attribute_values\` document. \`GET /products/attribute-schema\` offers these records as the \`options\` of any attribute that points at their entity, so a picker needs no second call.
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`reference_entity_id\` and \`code\` answers 409.`)
+  .alias("products-reference-entity-records-update")
   .option(`--id <id>`, `The \`reference_entity_records\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/reference_entity_records\`. An id no reference entity record of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(
     `--active [value]`,
@@ -788,7 +800,7 @@ Which attributes a record of this entity has comes from \`attributes\` rows with
       async (_options, _command) => {
         const { id, active, attributeValues, code, externalId, externalRefs, labels, referenceEntityId, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
-          productsReferenceEntityRecordsUpdateSpecs,
+          referenceEntityRecordsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -841,4 +853,4 @@ Which attributes a record of this entity has comes from \`attributes\` rows with
       },
     ),
   );
-registerPromptSpecs(productsReferences.commands.at(-1)!, productsReferenceEntityRecordsUpdateSpecs, { method: "put" });
+registerPromptSpecs(productsReferences.commands.at(-1)!, referenceEntityRecordsUpdateSpecs, { method: "put" });

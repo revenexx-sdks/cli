@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const mailingsMailings = new Command("mailings-mailings")
       `The mailings: one planned send of one marketing mail to one audience under one subscription type. A draft is edited, checked against the checklist, scheduled, sent by the pipeline and read back; once it reached recipients it keeps its content.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

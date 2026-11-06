@@ -1,5 +1,5 @@
 ```bash
 revenexx orders comments-create \
     --id '' \
-    --body Called the customer, delivery agreed for next week.
+    --body 'Called the customer, delivery agreed for next week.'
 ```

@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -22,6 +23,7 @@ export const consentManagerRecords = new Command("consent-manager-records")
       `The evidence: one append-only record per visitor decision, pointing at the version and hash that was shown, with no IP address, no full user agent and no query string. Readable per browser, exportable for a DPO and summarized per purpose; the only mutation is unlinking a contact on an erasure request, and a prune removes records past their retention.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

@@ -1,4 +1,4 @@
 ```bash
 revenexx ads-jobs run \
-    --data '{ "key": "value" }'
+    --body '{ "key": "value" }'
 ```

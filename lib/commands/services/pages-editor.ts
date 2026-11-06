@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -22,6 +23,7 @@ export const pagesEditor = new Command("pages-editor")
       `The unpublished side: one page open in the visual editor, held as a server-side mutation log rather than as edited rows. Load the whole editor state in one call, append mutations, walk the undo/redo pointer, disable a single step, then publish — which materializes the log into the canonical blocks and writes a revision — or revert, which throws it away. An edit state has ONE owner at a time and every write asks for it, so taking a page over from a colleague is its own call. Scheduling, share-links for unpublished previews, machine translation and a person's own editor preferences hang off the same session.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

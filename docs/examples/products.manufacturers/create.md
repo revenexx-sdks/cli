@@ -2,5 +2,5 @@
 revenexx products-manufacturers create \
     --code paul_horn \
     --country DE \
-    --name Paul Horn
+    --name 'Paul Horn'
 ```

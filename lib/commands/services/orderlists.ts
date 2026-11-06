@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const orderlists = new Command("orderlists")
       `Commerce Studio Order Lists App — saved, reusable position collections (shopping & label lists) that turn back into a cart in one call. A list is owned by a contact and can be shared across the organization (shared; read-only unless the tenant makes shared lists team-editable). Whole positions are stored: article (product_id/sku), quantity, unit, price, tax rate, cost center, position texts and custom SKU. GET /orderlists returns the owner's own lists union the organization's shared lists; positions are managed as a nested items resource (list / add / bulk-replace / update / remove). POST /orderlists/{id}/cart hands the positions to the carts app at the price the prices app quotes now; the order is placed through the normal checkout. Both collections answer the platform envelope { items, page, filter } with limit/offset/order.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

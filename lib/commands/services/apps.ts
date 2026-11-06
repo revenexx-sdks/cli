@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveFileParam } from "../utils/deployment.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
@@ -24,6 +25,7 @@ export const apps = new Command("apps")
       `The Revenexx app runtime (Appwrite functions, extended) and marketplace.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

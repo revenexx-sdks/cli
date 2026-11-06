@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,10 +24,11 @@ export const productsDataModel = new Command("products-data-model")
       `The catalog's SHAPE, which in an attribute-driven PIM is tenant data rather than a schema: a new product property is a row here, not a migration. Attributes and the groups and options that go with them, the families and family variants that decide which attributes a product has, measurement families, association types, asset families — plus the one read that answers "which fields does this family have" as a ready-to-render list. Edited rarely and by few people, which is exactly why it is its own group.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
-const productsAssetFamiliesListSpecs: PromptSpec[] = [
+const assetFamiliesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -40,12 +42,13 @@ const productsAssetFamiliesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsDataModel
-  .command(`products-asset-families-list`)
+  .command(`asset-families-list`)
   .description(`A class of media with one shared shape — packshots, datasheets, line drawings. The family decides which attributes an asset of it carries (alt text, copyright, an expiry date) and, through \`naming_convention\`, how a file of it is named — which is what lets an import bind a file to a product with no mapping table.
 
 Every column of \`asset_families\` is an exact-match query parameter, \`order\` sorts by one column, and \`limit\`/\`offset\` page through \`page.total\`. A query key that is NOT a column is dropped rather than refused, and the \`filter\` object echoes the ones that were understood — that echo is the only way to tell an unfiltered answer from an empty one. It reads rows exactly as they are stored: no join is resolved, no jsonb value is unpacked.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-asset-families-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -72,7 +75,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       async (_options, _command) => {
         const { limit, offset, order, id, code, labels, namingConvention, active, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
-          productsAssetFamiliesListSpecs,
+          assetFamiliesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -128,20 +131,21 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAssetFamiliesListSpecs, { method: "get" });
-const productsAssetFamiliesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, assetFamiliesListSpecs, { method: "get" });
+const assetFamiliesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The asset family's stable identifier — a class of media with one shared shape. Unique per tenant.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What the asset family is called, per language tag.", type: "object", required: false },
   { key: "namingConvention", option: "--naming-convention <naming-convention>", name: "naming_convention", description: "How a file of this family is named, so an import can bind a file to a product without a mapping table. `source` is the product value the file name is built from, `pattern` how it is assembled, `allowed_extensions` what may be uploaded.", type: "object", required: false },
 ];
 productsDataModel
-  .command(`products-asset-families-create`)
+  .command(`asset-families-create`)
   .description(`Creates one asset family and answers 201 with the stored row, including the id and the timestamps the database filled in — a client never sends an id, it reads one back and uses it in the path of every later call.
 
 A class of media with one shared shape — packshots, datasheets, line drawings. The family decides which attributes an asset of it carries (alt text, copyright, an expiry date) and, through \`naming_convention\`, how a file of it is named — which is what lets an import bind a file to a product with no mapping table.
 
 \`code\` is the only column the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
+  .alias("products-asset-families-create")
   .option(`--code <code>`, `The asset family's stable identifier — a class of media with one shared shape. Unique per tenant.`)
   .option(
     `--active [value]`,
@@ -156,7 +160,7 @@ A class of media with one shared shape — packshots, datasheets, line drawings.
       async (_options, _command) => {
         const { code, active, labels, namingConvention } = await promptForMissing(
           _options,
-          productsAssetFamiliesCreateSpecs,
+          assetFamiliesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -194,27 +198,28 @@ A class of media with one shared shape — packshots, datasheets, line drawings.
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAssetFamiliesCreateSpecs, { method: "post" });
-const productsAssetFamiliesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, assetFamiliesCreateSpecs, { method: "post" });
+const assetFamiliesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `asset_families` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/asset_families`. An id no asset familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/asset_families", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-asset-families-delete`)
+  .command(`asset-families-delete`)
   .description(`Deletes one asset family by id. It is a hard delete — the row is gone, and the answer is a confirmation rather than a result to branch on.
 
 It takes what hangs off it: assets (\`asset_family_id\`) are deleted with it.
 
 An id no asset family of this tenant carries answers 404; there is no 409, because every foreign key pointing at this entity resolves itself on delete rather than blocking one.`)
+  .alias("products-asset-families-delete")
   .option(`--id <id>`, `The \`asset_families\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/asset_families\`. An id no asset familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsAssetFamiliesDeleteSpecs,
+          assetFamiliesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`products-data-model products-asset-families-delete`);
+        await confirmDestructive(`products-data-model asset-families-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/asset_families/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -231,12 +236,12 @@ An id no asset family of this tenant carries answers 404; there is no 409, becau
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAssetFamiliesDeleteSpecs, { method: "delete", destructive: true });
-const productsAssetFamiliesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, assetFamiliesDeleteSpecs, { method: "delete", destructive: true });
+const assetFamiliesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `asset_families` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/asset_families`. An id no asset familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/asset_families", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-asset-families-get`)
+  .command(`asset-families-get`)
   .description(`Reads one asset family by its id — the whole row, every column, as it is stored.
 
 A class of media with one shared shape — packshots, datasheets, line drawings. The family decides which attributes an asset of it carries (alt text, copyright, an expiry date) and, through \`naming_convention\`, how a file of it is named — which is what lets an import bind a file to a product with no mapping table.
@@ -244,13 +249,14 @@ A class of media with one shared shape — packshots, datasheets, line drawings.
 An id no asset family of this tenant carries answers 404, and so does one belonging to another tenant: row-level security makes that row invisible rather than forbidden. A malformed id answers 400 before the route is reached.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-asset-families-get")
   .option(`--id <id>`, `The \`asset_families\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/asset_families\`. An id no asset familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsAssetFamiliesGetSpecs,
+          assetFamiliesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -269,8 +275,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAssetFamiliesGetSpecs, { method: "get" });
-const productsAssetFamiliesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, assetFamiliesGetSpecs, { method: "get" });
+const assetFamiliesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `asset_families` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/asset_families`. An id no asset familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/asset_families", hasLimit: true } },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The asset family's stable identifier — a class of media with one shared shape. Unique per tenant.", type: "string", required: false },
@@ -278,12 +284,13 @@ const productsAssetFamiliesUpdateSpecs: PromptSpec[] = [
   { key: "namingConvention", option: "--naming-convention <naming-convention>", name: "naming_convention", description: "How a file of this family is named, so an import can bind a file to a product without a mapping table. `source` is the product value the file name is built from, `pattern` how it is assembled, `allowed_extensions` what may be uploaded.", type: "object", required: false },
 ];
 productsDataModel
-  .command(`products-asset-families-update`)
+  .command(`asset-families-update`)
   .description(`Updates one asset family by id. A partial patch: the body names only the columns to change and every column it leaves out keeps its current value, so there is no read-modify-write and no way to blank a field by forgetting it.
 
 A class of media with one shared shape — packshots, datasheets, line drawings. The family decides which attributes an asset of it carries (alt text, copyright, an expiry date) and, through \`naming_convention\`, how a file of it is named — which is what lets an import bind a file to a product with no mapping table.
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
+  .alias("products-asset-families-update")
   .option(`--id <id>`, `The \`asset_families\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/asset_families\`. An id no asset familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(
     `--active [value]`,
@@ -299,7 +306,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
       async (_options, _command) => {
         const { id, active, code, labels, namingConvention } = await promptForMissing(
           _options,
-          productsAssetFamiliesUpdateSpecs,
+          assetFamiliesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -337,8 +344,8 @@ A body that names nothing writable is refused with 400 rather than answered as a
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAssetFamiliesUpdateSpecs, { method: "put" });
-const productsAssociationTypesListSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, assetFamiliesUpdateSpecs, { method: "put" });
+const associationTypesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -353,12 +360,13 @@ const productsAssociationTypesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsDataModel
-  .command(`products-association-types-list`)
+  .command(`association-types-list`)
   .description(`The KIND of relation two products can have — cross-sell, accessory, spare part, bill of materials. \`is_two_way\` declares the relation symmetric and \`is_quantified\` declares that it carries a quantity; both are declarations a client READS rather than behaviour this app performs — it stores one row per direction and never creates the mirror for you.
 
 Every column of \`association_types\` is an exact-match query parameter, \`order\` sorts by one column, and \`limit\`/\`offset\` page through \`page.total\`. A query key that is NOT a column is dropped rather than refused, and the \`filter\` object echoes the ones that were understood — that echo is the only way to tell an unfiltered answer from an empty one. It reads rows exactly as they are stored: no join is resolved, no jsonb value is unpacked.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-association-types-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -396,7 +404,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       async (_options, _command) => {
         const { limit, offset, order, id, code, isTwoWay, isQuantified, labels, active, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
-          productsAssociationTypesListSpecs,
+          associationTypesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -455,8 +463,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAssociationTypesListSpecs, { method: "get" });
-const productsAssociationTypesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, associationTypesListSpecs, { method: "get" });
+const associationTypesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The kind of relation between two products. Unique per tenant.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "isQuantified", option: "--is-quantified <is-quantified>", name: "is_quantified", description: "Declares that a relation of this kind carries a quantity — a bundle, a bill of materials. `product_associations.quantity` is where that number goes, and it is meaningless without this flag.", type: "boolean", required: false },
@@ -464,12 +472,13 @@ const productsAssociationTypesCreateSpecs: PromptSpec[] = [
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What the relation is called in a product form, per language tag.", type: "object", required: false },
 ];
 productsDataModel
-  .command(`products-association-types-create`)
+  .command(`association-types-create`)
   .description(`Creates one association type and answers 201 with the stored row, including the id and the timestamps the database filled in — a client never sends an id, it reads one back and uses it in the path of every later call.
 
 The KIND of relation two products can have — cross-sell, accessory, spare part, bill of materials. \`is_two_way\` declares the relation symmetric and \`is_quantified\` declares that it carries a quantity; both are declarations a client READS rather than behaviour this app performs — it stores one row per direction and never creates the mirror for you.
 
 \`code\` is the only column the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
+  .alias("products-association-types-create")
   .option(`--code <code>`, `The kind of relation between two products. Unique per tenant.`)
   .option(
     `--active [value]`,
@@ -495,7 +504,7 @@ The KIND of relation two products can have — cross-sell, accessory, spare part
       async (_options, _command) => {
         const { code, active, isQuantified, isTwoWay, labels } = await promptForMissing(
           _options,
-          productsAssociationTypesCreateSpecs,
+          associationTypesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -536,27 +545,28 @@ The KIND of relation two products can have — cross-sell, accessory, spare part
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAssociationTypesCreateSpecs, { method: "post" });
-const productsAssociationTypesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, associationTypesCreateSpecs, { method: "post" });
+const associationTypesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `association_types` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/association_types`. An id no association type of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/association_types", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-association-types-delete`)
+  .command(`association-types-delete`)
   .description(`Deletes one association type by id. It is a hard delete — the row is gone, and the answer is a confirmation rather than a result to branch on.
 
 It takes what hangs off it: product associations (\`association_type_id\`) are deleted with it.
 
 An id no association type of this tenant carries answers 404; there is no 409, because every foreign key pointing at this entity resolves itself on delete rather than blocking one.`)
+  .alias("products-association-types-delete")
   .option(`--id <id>`, `The \`association_types\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/association_types\`. An id no association type of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsAssociationTypesDeleteSpecs,
+          associationTypesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`products-data-model products-association-types-delete`);
+        await confirmDestructive(`products-data-model association-types-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/association_types/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -573,12 +583,12 @@ An id no association type of this tenant carries answers 404; there is no 409, b
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAssociationTypesDeleteSpecs, { method: "delete", destructive: true });
-const productsAssociationTypesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, associationTypesDeleteSpecs, { method: "delete", destructive: true });
+const associationTypesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `association_types` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/association_types`. An id no association type of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/association_types", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-association-types-get`)
+  .command(`association-types-get`)
   .description(`Reads one association type by its id — the whole row, every column, as it is stored.
 
 The KIND of relation two products can have — cross-sell, accessory, spare part, bill of materials. \`is_two_way\` declares the relation symmetric and \`is_quantified\` declares that it carries a quantity; both are declarations a client READS rather than behaviour this app performs — it stores one row per direction and never creates the mirror for you.
@@ -586,13 +596,14 @@ The KIND of relation two products can have — cross-sell, accessory, spare part
 An id no association type of this tenant carries answers 404, and so does one belonging to another tenant: row-level security makes that row invisible rather than forbidden. A malformed id answers 400 before the route is reached.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-association-types-get")
   .option(`--id <id>`, `The \`association_types\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/association_types\`. An id no association type of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsAssociationTypesGetSpecs,
+          associationTypesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -611,8 +622,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAssociationTypesGetSpecs, { method: "get" });
-const productsAssociationTypesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, associationTypesGetSpecs, { method: "get" });
+const associationTypesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `association_types` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/association_types`. An id no association type of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/association_types", hasLimit: true } },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The kind of relation between two products. Unique per tenant.", type: "string", required: false },
@@ -621,12 +632,13 @@ const productsAssociationTypesUpdateSpecs: PromptSpec[] = [
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What the relation is called in a product form, per language tag.", type: "object", required: false },
 ];
 productsDataModel
-  .command(`products-association-types-update`)
+  .command(`association-types-update`)
   .description(`Updates one association type by id. A partial patch: the body names only the columns to change and every column it leaves out keeps its current value, so there is no read-modify-write and no way to blank a field by forgetting it.
 
 The KIND of relation two products can have — cross-sell, accessory, spare part, bill of materials. \`is_two_way\` declares the relation symmetric and \`is_quantified\` declares that it carries a quantity; both are declarations a client READS rather than behaviour this app performs — it stores one row per direction and never creates the mirror for you.
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
+  .alias("products-association-types-update")
   .option(`--id <id>`, `The \`association_types\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/association_types\`. An id no association type of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(
     `--active [value]`,
@@ -653,7 +665,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
       async (_options, _command) => {
         const { id, active, code, isQuantified, isTwoWay, labels } = await promptForMissing(
           _options,
-          productsAssociationTypesUpdateSpecs,
+          associationTypesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -694,8 +706,8 @@ A body that names nothing writable is refused with 400 rather than answered as a
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAssociationTypesUpdateSpecs, { method: "put" });
-const productsAttributeSchemaSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, associationTypesUpdateSpecs, { method: "put" });
+const attributeSchemaSpecs: PromptSpec[] = [
   { key: "familyId", option: "--family-id <family-id>", name: "family_id", description: "The family whose fields to describe. A family that does not exist answers 404 — it is not silently ignored.", type: "string", required: false },
   { key: "familyCode", option: "--family-code <family-code>", name: "family_code", description: "Alternative to family_id — a `families.code` THIS TENANT holds, from `GET /products/families`. Wins nothing over family_id: when both are sent, family_id is resolved and family_code ignored. A code no family carries answers 404, so this parameter carries no example — every value is somebody's 404.", type: "string", required: false },
   { key: "entityType", option: "--entity-type <entity-type>", name: "entity_type", description: "Attribute entity when no family is named. Default 'product'. The four this app's own model is built on; the column carries no CHECK, so a tenant that has invented a fifth is answered on it too.", type: "string", required: false, enum: ["product","reference_entity","asset","category"] },
@@ -705,8 +717,9 @@ const productsAttributeSchemaSpecs: PromptSpec[] = [
   { key: "kind", option: "--kind <kind>", name: "kind", description: "The product kind the fields are for. 'model' locks the family's variant axes, which are set on the variants.", type: "string", required: false, enum: ["simple","model","variant"] },
 ];
 productsDataModel
-  .command(`products-attribute-schema`)
+  .command(`attribute-schema`)
   .description(`Which fields does this family have — one ready-to-render list, not six joined tables. The catalog's SHAPE is tenant data: a product's properties are rows in \`attributes\`, grouped by \`attribute_groups\`, selected per family by \`family_attributes\`, with their permitted values in \`attribute_options\` and their variant axes in \`family_variants\`. Reading that shape used to mean five reads, a join, and a private \`attributes.type\` → input mapping in every client — and that mapping is the part that must live here, because the type list carries no CHECK by design and an integrator extends it. Answers one field list instead, ordered by group then by the family's own ordering. Without a family it answers every attribute declared for \`entity_type\`/\`entity_ref\` — the shape of a reference entity's records or an asset family, which have attributes but no family. Writes nothing.`)
+  .alias("products-attribute-schema")
   .option(`--family-id <family-id>`, `The family whose fields to describe. A family that does not exist answers 404 — it is not silently ignored.`)
   .option(`--family-code <family-code>`, `Alternative to family_id — a \`families.code\` THIS TENANT holds, from \`GET /products/families\`. Wins nothing over family_id: when both are sent, family_id is resolved and family_code ignored. A code no family carries answers 404, so this parameter carries no example — every value is somebody's 404.`)
   .option(`--entity-type <entity-type>`, `Attribute entity when no family is named. Default 'product'. The four this app's own model is built on; the column carries no CHECK, so a tenant that has invented a fifth is answered on it too.`)
@@ -719,7 +732,7 @@ productsDataModel
       async (_options, _command) => {
         const { familyId, familyCode, entityType, entityRef, locale, channel, kind } = await promptForMissing(
           _options,
-          productsAttributeSchemaSpecs,
+          attributeSchemaSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -759,8 +772,8 @@ productsDataModel
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeSchemaSpecs, { method: "get" });
-const productsAttributeGroupsListSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributeSchemaSpecs, { method: "get" });
+const attributeGroupsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -779,12 +792,13 @@ const productsAttributeGroupsListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsDataModel
-  .command(`products-attribute-groups-list`)
+  .command(`attribute-groups-list`)
   .description(`An attribute group is a SECTION of a product form — "Technical attributes", "Logistics" — and the thing every attribute is filed under. It carries a \`position\`, which is the order the sections appear in, and per-language \`labels\`, which is what an operator reads; the \`code\` is what an attribute joins on and is never shown. \`GET /products/attribute-schema\` already resolves a group's heading onto every field it returns, so these routes are for MANAGING the sections, not for rendering a form.
 
 Every column of \`attribute_groups\` is an exact-match query parameter, \`order\` sorts by one column, and \`limit\`/\`offset\` page through \`page.total\`. A query key that is NOT a column is dropped rather than refused, and the \`filter\` object echoes the ones that were understood — that echo is the only way to tell an unfiltered answer from an empty one. It reads rows exactly as they are stored: no join is resolved, no jsonb value is unpacked.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-attribute-groups-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -816,7 +830,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       async (_options, _command) => {
         const { limit, offset, order, id, code, position, labels, active, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
-          productsAttributeGroupsListSpecs,
+          attributeGroupsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -887,8 +901,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeGroupsListSpecs, { method: "get" });
-const productsAttributeGroupsCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributeGroupsListSpecs, { method: "get" });
+const attributeGroupsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The group's stable identifier, and the value an `AttributeField` carries as its `group` — a SECTION of the product form, not a label. Unique per tenant and the key an import joins on.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this section has in the system that owns the property model — the block a supplier's data sheet groups its fields under. Unique per tenant where set, and null for a section somebody created here to tidy up a form, which is most of them.", type: "string", required: false },
@@ -900,12 +914,13 @@ const productsAttributeGroupsCreateSpecs: PromptSpec[] = [
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsDataModel
-  .command(`products-attribute-groups-create`)
+  .command(`attribute-groups-create`)
   .description(`Creates one attribute group and answers 201 with the stored row, including the id and the timestamps the database filled in — a client never sends an id, it reads one back and uses it in the path of every later call.
 
 An attribute group is a SECTION of a product form — "Technical attributes", "Logistics" — and the thing every attribute is filed under. It carries a \`position\`, which is the order the sections appear in, and per-language \`labels\`, which is what an operator reads; the \`code\` is what an attribute joins on and is never shown. \`GET /products/attribute-schema\` already resolves a group's heading onto every field it returns, so these routes are for MANAGING the sections, not for rendering a form.
 
 \`code\` is the only column the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
+  .alias("products-attribute-groups-create")
   .option(`--code <code>`, `The group's stable identifier, and the value an \`AttributeField\` carries as its \`group\` — a SECTION of the product form, not a label. Unique per tenant and the key an import joins on.`)
   .option(
     `--active [value]`,
@@ -925,7 +940,7 @@ An attribute group is a SECTION of a product form — "Technical attributes", "L
       async (_options, _command) => {
         const { code, active, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
-          productsAttributeGroupsCreateSpecs,
+          attributeGroupsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -978,27 +993,28 @@ An attribute group is a SECTION of a product form — "Technical attributes", "L
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeGroupsCreateSpecs, { method: "post" });
-const productsAttributeGroupsDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributeGroupsCreateSpecs, { method: "post" });
+const attributeGroupsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `attribute_groups` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/attribute_groups`. An id no attribute group of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/attribute_groups", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-attribute-groups-delete`)
+  .command(`attribute-groups-delete`)
   .description(`Deletes one attribute group by id. It is a hard delete — the row is gone, and the answer is a confirmation rather than a result to branch on.
 
 \`attributes.group_id\` is set to null instead, so the rows that pointed at it survive the delete rather than going with it.
 
 An id no attribute group of this tenant carries answers 404; there is no 409, because every foreign key pointing at this entity resolves itself on delete rather than blocking one.`)
+  .alias("products-attribute-groups-delete")
   .option(`--id <id>`, `The \`attribute_groups\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/attribute_groups\`. An id no attribute group of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsAttributeGroupsDeleteSpecs,
+          attributeGroupsDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`products-data-model products-attribute-groups-delete`);
+        await confirmDestructive(`products-data-model attribute-groups-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/attribute_groups/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1015,12 +1031,12 @@ An id no attribute group of this tenant carries answers 404; there is no 409, be
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeGroupsDeleteSpecs, { method: "delete", destructive: true });
-const productsAttributeGroupsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributeGroupsDeleteSpecs, { method: "delete", destructive: true });
+const attributeGroupsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `attribute_groups` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/attribute_groups`. An id no attribute group of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/attribute_groups", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-attribute-groups-get`)
+  .command(`attribute-groups-get`)
   .description(`Reads one attribute group by its id — the whole row, every column, as it is stored.
 
 An attribute group is a SECTION of a product form — "Technical attributes", "Logistics" — and the thing every attribute is filed under. It carries a \`position\`, which is the order the sections appear in, and per-language \`labels\`, which is what an operator reads; the \`code\` is what an attribute joins on and is never shown. \`GET /products/attribute-schema\` already resolves a group's heading onto every field it returns, so these routes are for MANAGING the sections, not for rendering a form.
@@ -1028,13 +1044,14 @@ An attribute group is a SECTION of a product form — "Technical attributes", "L
 An id no attribute group of this tenant carries answers 404, and so does one belonging to another tenant: row-level security makes that row invisible rather than forbidden. A malformed id answers 400 before the route is reached.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-attribute-groups-get")
   .option(`--id <id>`, `The \`attribute_groups\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/attribute_groups\`. An id no attribute group of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsAttributeGroupsGetSpecs,
+          attributeGroupsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1053,8 +1070,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeGroupsGetSpecs, { method: "get" });
-const productsAttributeGroupsUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributeGroupsGetSpecs, { method: "get" });
+const attributeGroupsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `attribute_groups` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/attribute_groups`. An id no attribute group of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/attribute_groups", hasLimit: true } },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The group's stable identifier, and the value an `AttributeField` carries as its `group` — a SECTION of the product form, not a label. Unique per tenant and the key an import joins on.", type: "string", required: false },
@@ -1067,12 +1084,13 @@ const productsAttributeGroupsUpdateSpecs: PromptSpec[] = [
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsDataModel
-  .command(`products-attribute-groups-update`)
+  .command(`attribute-groups-update`)
   .description(`Updates one attribute group by id. A partial patch: the body names only the columns to change and every column it leaves out keeps its current value, so there is no read-modify-write and no way to blank a field by forgetting it.
 
 An attribute group is a SECTION of a product form — "Technical attributes", "Logistics" — and the thing every attribute is filed under. It carries a \`position\`, which is the order the sections appear in, and per-language \`labels\`, which is what an operator reads; the \`code\` is what an attribute joins on and is never shown. \`GET /products/attribute-schema\` already resolves a group's heading onto every field it returns, so these routes are for MANAGING the sections, not for rendering a form.
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
+  .alias("products-attribute-groups-update")
   .option(`--id <id>`, `The \`attribute_groups\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/attribute_groups\`. An id no attribute group of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(
     `--active [value]`,
@@ -1093,7 +1111,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
       async (_options, _command) => {
         const { id, active, code, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
-          productsAttributeGroupsUpdateSpecs,
+          attributeGroupsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1146,8 +1164,8 @@ A body that names nothing writable is refused with 400 rather than answered as a
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeGroupsUpdateSpecs, { method: "put" });
-const productsAttributeOptionsListSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributeGroupsUpdateSpecs, { method: "put" });
+const attributeOptionsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -1168,12 +1186,13 @@ const productsAttributeOptionsListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsDataModel
-  .command(`products-attribute-options-list`)
+  .command(`attribute-options-list`)
   .description(`The permitted values of one select or multi-select attribute. A record stores the option's CODE and never its label, so renaming an option in every language leaves every product that picked it untouched, and \`position\` is the order it appears in the dropdown. \`GET /products/attribute-schema\` republishes these as a field's \`options\`, already resolved for a locale.
 
 Every column of \`attribute_options\` is an exact-match query parameter, \`order\` sorts by one column, and \`limit\`/\`offset\` page through \`page.total\`. A query key that is NOT a column is dropped rather than refused, and the \`filter\` object echoes the ones that were understood — that echo is the only way to tell an unfiltered answer from an empty one. It reads rows exactly as they are stored: no join is resolved, no jsonb value is unpacked.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-attribute-options-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -1207,7 +1226,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       async (_options, _command) => {
         const { limit, offset, order, id, attributeId, code, position, swatch, labels, active, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
-          productsAttributeOptionsListSpecs,
+          attributeOptionsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1284,8 +1303,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeOptionsListSpecs, { method: "get" });
-const productsAttributeOptionsCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributeOptionsListSpecs, { method: "get" });
+const attributeOptionsCreateSpecs: PromptSpec[] = [
   { key: "attributeId", option: "--attribute-id <attribute-id>", name: "attribute_id", description: "The select / multi-select attribute these are the permitted values of. Deleting the attribute deletes its options with it.", type: "string", required: true },
   { key: "code", option: "--code <code>", name: "code", description: "The value actually STORED in a record's `attribute_values` when this option is picked — never the label. Unique within the attribute.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
@@ -1299,12 +1318,13 @@ const productsAttributeOptionsCreateSpecs: PromptSpec[] = [
   { key: "swatch", option: "--swatch <swatch>", name: "swatch", description: "A colour or texture chip for the picker. Null for an option that is not visual.", type: "object", required: false },
 ];
 productsDataModel
-  .command(`products-attribute-options-create`)
+  .command(`attribute-options-create`)
   .description(`Creates one attribute option and answers 201 with the stored row, including the id and the timestamps the database filled in — a client never sends an id, it reads one back and uses it in the path of every later call.
 
 The permitted values of one select or multi-select attribute. A record stores the option's CODE and never its label, so renaming an option in every language leaves every product that picked it untouched, and \`position\` is the order it appears in the dropdown. \`GET /products/attribute-schema\` republishes these as a field's \`options\`, already resolved for a locale.
 
 \`attribute_id\` and \`code\` are the only columns the database refuses the row without; everything else has a default or is nullable. A second row with the same \`attribute_id\` and \`code\` answers 409.`)
+  .alias("products-attribute-options-create")
   .option(`--attribute-id <attribute-id>`, `The select / multi-select attribute these are the permitted values of. Deleting the attribute deletes its options with it.`)
   .option(`--code <code>`, `The value actually STORED in a record's \`attribute_values\` when this option is picked — never the label. Unique within the attribute.`)
   .option(
@@ -1326,7 +1346,7 @@ The permitted values of one select or multi-select attribute. A record stores th
       async (_options, _command) => {
         const { attributeId, code, active, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt, swatch } = await promptForMissing(
           _options,
-          productsAttributeOptionsCreateSpecs,
+          attributeOptionsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1385,27 +1405,28 @@ The permitted values of one select or multi-select attribute. A record stores th
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeOptionsCreateSpecs, { method: "post" });
-const productsAttributeOptionsDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributeOptionsCreateSpecs, { method: "post" });
+const attributeOptionsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `attribute_options` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/attribute_options`. An id no attribute option of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/attribute_options", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-attribute-options-delete`)
+  .command(`attribute-options-delete`)
   .description(`Deletes one attribute option by id. It is a hard delete — the row is gone, and the answer is a confirmation rather than a result to branch on.
 
 Nothing in this schema references it, so nothing else changes.
 
 An id no attribute option of this tenant carries answers 404; there is no 409, because every foreign key pointing at this entity resolves itself on delete rather than blocking one.`)
+  .alias("products-attribute-options-delete")
   .option(`--id <id>`, `The \`attribute_options\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/attribute_options\`. An id no attribute option of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsAttributeOptionsDeleteSpecs,
+          attributeOptionsDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`products-data-model products-attribute-options-delete`);
+        await confirmDestructive(`products-data-model attribute-options-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/attribute_options/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1422,12 +1443,12 @@ An id no attribute option of this tenant carries answers 404; there is no 409, b
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeOptionsDeleteSpecs, { method: "delete", destructive: true });
-const productsAttributeOptionsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributeOptionsDeleteSpecs, { method: "delete", destructive: true });
+const attributeOptionsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `attribute_options` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/attribute_options`. An id no attribute option of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/attribute_options", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-attribute-options-get`)
+  .command(`attribute-options-get`)
   .description(`Reads one attribute option by its id — the whole row, every column, as it is stored.
 
 The permitted values of one select or multi-select attribute. A record stores the option's CODE and never its label, so renaming an option in every language leaves every product that picked it untouched, and \`position\` is the order it appears in the dropdown. \`GET /products/attribute-schema\` republishes these as a field's \`options\`, already resolved for a locale.
@@ -1435,13 +1456,14 @@ The permitted values of one select or multi-select attribute. A record stores th
 An id no attribute option of this tenant carries answers 404, and so does one belonging to another tenant: row-level security makes that row invisible rather than forbidden. A malformed id answers 400 before the route is reached.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-attribute-options-get")
   .option(`--id <id>`, `The \`attribute_options\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/attribute_options\`. An id no attribute option of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsAttributeOptionsGetSpecs,
+          attributeOptionsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1460,8 +1482,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeOptionsGetSpecs, { method: "get" });
-const productsAttributeOptionsUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributeOptionsGetSpecs, { method: "get" });
+const attributeOptionsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `attribute_options` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/attribute_options`. An id no attribute option of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/attribute_options", hasLimit: true } },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "attributeId", option: "--attribute-id <attribute-id>", name: "attribute_id", description: "The select / multi-select attribute these are the permitted values of. Deleting the attribute deletes its options with it.", type: "string", required: false },
@@ -1476,12 +1498,13 @@ const productsAttributeOptionsUpdateSpecs: PromptSpec[] = [
   { key: "swatch", option: "--swatch <swatch>", name: "swatch", description: "A colour or texture chip for the picker. Null for an option that is not visual.", type: "object", required: false },
 ];
 productsDataModel
-  .command(`products-attribute-options-update`)
+  .command(`attribute-options-update`)
   .description(`Updates one attribute option by id. A partial patch: the body names only the columns to change and every column it leaves out keeps its current value, so there is no read-modify-write and no way to blank a field by forgetting it.
 
 The permitted values of one select or multi-select attribute. A record stores the option's CODE and never its label, so renaming an option in every language leaves every product that picked it untouched, and \`position\` is the order it appears in the dropdown. \`GET /products/attribute-schema\` republishes these as a field's \`options\`, already resolved for a locale.
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`attribute_id\` and \`code\` answers 409.`)
+  .alias("products-attribute-options-update")
   .option(`--id <id>`, `The \`attribute_options\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/attribute_options\`. An id no attribute option of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(
     `--active [value]`,
@@ -1504,7 +1527,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
       async (_options, _command) => {
         const { id, active, attributeId, code, externalId, externalRefs, labels, metadata, position, sourceData, sourceSyncedAt, swatch } = await promptForMissing(
           _options,
-          productsAttributeOptionsUpdateSpecs,
+          attributeOptionsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1563,8 +1586,8 @@ A body that names nothing writable is refused with 400 rather than answered as a
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributeOptionsUpdateSpecs, { method: "put" });
-const productsAttributesListSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributeOptionsUpdateSpecs, { method: "put" });
+const attributesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -1594,12 +1617,13 @@ const productsAttributesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsDataModel
-  .command(`products-attributes-list`)
+  .command(`attributes-list`)
   .description(`An attribute is one property a record can carry, and in an attribute-driven PIM it is a ROW rather than a column: giving the catalog a "net weight" is a create here, not a migration. Its own flags decide everything downstream — \`localizable\` and \`scopable\` pick which of the four \`attribute_values\` buckets its values are written to, \`type\` picks the editor that renders it, \`usable_in_grid\` and \`is_filterable\` are what the product grid reads. \`entity_type\`/\`entity_ref\` say which kind of record carries it: a product, one reference entity's records, one asset family, or a category.
 
 Every column of \`attributes\` is an exact-match query parameter, \`order\` sorts by one column, and \`limit\`/\`offset\` page through \`page.total\`. A query key that is NOT a column is dropped rather than refused, and the \`filter\` object echoes the ones that were understood — that echo is the only way to tell an unfiltered answer from an empty one. It reads rows exactly as they are stored: no join is resolved, no jsonb value is unpacked.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-attributes-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -1667,7 +1691,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       async (_options, _command) => {
         const { limit, offset, order, id, code, entityType, entityRef, type, groupId, localizable, scopable, isUnique, isFilterable, usableInGrid, validation, config, labels, position, active, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
-          productsAttributesListSpecs,
+          attributesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1771,8 +1795,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributesListSpecs, { method: "get" });
-const productsAttributesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributesListSpecs, { method: "get" });
+const attributesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The attribute's stable identifier — the KEY its value is stored under inside `attribute_values`, and the name a category rule addresses as `attribute:<code>`. Unique per (`entity_type`, `entity_ref`) in this tenant.", type: "string", required: true },
   { key: "type", option: "--type <type>", name: "type", description: "Which editor the value asks for — 'text', 'select', 'metric', 'price', 'asset_collection', 'reference_entity'. Carries no CHECK on purpose: an integrator adds a type, and `GET /products/attribute-schema` maps an unknown one onto a text field rather than refusing to answer.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
@@ -1795,12 +1819,13 @@ const productsAttributesCreateSpecs: PromptSpec[] = [
   { key: "validation", option: "--validation <validation>", name: "validation", description: "Limits a value has to satisfy, as a flat object. The seven keys a client can act on are `min`, `max`, `min_length`, `max_length`, `pattern`, `min_items`, `max_items` — `GET /products/attribute-schema` republishes those and leaves anything else the tenant stored untouched.", type: "object", required: false },
 ];
 productsDataModel
-  .command(`products-attributes-create`)
+  .command(`attributes-create`)
   .description(`Creates one attribute and answers 201 with the stored row, including the id and the timestamps the database filled in — a client never sends an id, it reads one back and uses it in the path of every later call.
 
 An attribute is one property a record can carry, and in an attribute-driven PIM it is a ROW rather than a column: giving the catalog a "net weight" is a create here, not a migration. Its own flags decide everything downstream — \`localizable\` and \`scopable\` pick which of the four \`attribute_values\` buckets its values are written to, \`type\` picks the editor that renders it, \`usable_in_grid\` and \`is_filterable\` are what the product grid reads. \`entity_type\`/\`entity_ref\` say which kind of record carries it: a product, one reference entity's records, one asset family, or a category.
 
 \`code\` and \`type\` are the only columns the database refuses the row without; everything else has a default or is nullable. A second row with the same \`entity_type\`, \`entity_ref\`, \`code\` answers 409.`)
+  .alias("products-attributes-create")
   .option(`--code <code>`, `The attribute's stable identifier — the KEY its value is stored under inside \`attribute_values\`, and the name a category rule addresses as \`attribute:<code>\`. Unique per (\`entity_type\`, \`entity_ref\`) in this tenant.`)
   .option(`--type <type>`, `Which editor the value asks for — 'text', 'select', 'metric', 'price', 'asset_collection', 'reference_entity'. Carries no CHECK on purpose: an integrator adds a type, and \`GET /products/attribute-schema\` maps an unknown one onto a text field rather than refusing to answer.`)
   .option(
@@ -1856,7 +1881,7 @@ An attribute is one property a record can carry, and in an attribute-driven PIM 
       async (_options, _command) => {
         const { code, type, active, config, entityRef, entityType, externalId, externalRefs, groupId, isFilterable, isUnique, labels, localizable, metadata, position, scopable, sourceData, sourceSyncedAt, usableInGrid, validation } = await promptForMissing(
           _options,
-          productsAttributesCreateSpecs,
+          attributesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1942,27 +1967,28 @@ An attribute is one property a record can carry, and in an attribute-driven PIM 
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributesCreateSpecs, { method: "post" });
-const productsAttributesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributesCreateSpecs, { method: "post" });
+const attributesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `attributes` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/attributes`. An id no attribute of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/attributes", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-attributes-delete`)
+  .command(`attributes-delete`)
   .description(`Deletes one attribute by id. It is a hard delete — the row is gone, and the answer is a confirmation rather than a result to branch on.
 
 It takes what hangs off it: attribute options (\`attribute_id\`), family attributes (\`attribute_id\`) are deleted with it.
 
 An id no attribute of this tenant carries answers 404; there is no 409, because every foreign key pointing at this entity resolves itself on delete rather than blocking one.`)
+  .alias("products-attributes-delete")
   .option(`--id <id>`, `The \`attributes\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/attributes\`. An id no attribute of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsAttributesDeleteSpecs,
+          attributesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`products-data-model products-attributes-delete`);
+        await confirmDestructive(`products-data-model attributes-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/attributes/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1979,12 +2005,12 @@ An id no attribute of this tenant carries answers 404; there is no 409, because 
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributesDeleteSpecs, { method: "delete", destructive: true });
-const productsAttributesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributesDeleteSpecs, { method: "delete", destructive: true });
+const attributesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `attributes` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/attributes`. An id no attribute of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/attributes", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-attributes-get`)
+  .command(`attributes-get`)
   .description(`Reads one attribute by its id — the whole row, every column, as it is stored.
 
 An attribute is one property a record can carry, and in an attribute-driven PIM it is a ROW rather than a column: giving the catalog a "net weight" is a create here, not a migration. Its own flags decide everything downstream — \`localizable\` and \`scopable\` pick which of the four \`attribute_values\` buckets its values are written to, \`type\` picks the editor that renders it, \`usable_in_grid\` and \`is_filterable\` are what the product grid reads. \`entity_type\`/\`entity_ref\` say which kind of record carries it: a product, one reference entity's records, one asset family, or a category.
@@ -1992,13 +2018,14 @@ An attribute is one property a record can carry, and in an attribute-driven PIM 
 An id no attribute of this tenant carries answers 404, and so does one belonging to another tenant: row-level security makes that row invisible rather than forbidden. A malformed id answers 400 before the route is reached.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-attributes-get")
   .option(`--id <id>`, `The \`attributes\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/attributes\`. An id no attribute of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsAttributesGetSpecs,
+          attributesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2017,8 +2044,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributesGetSpecs, { method: "get" });
-const productsAttributesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributesGetSpecs, { method: "get" });
+const attributesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `attributes` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/attributes`. An id no attribute of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/attributes", hasLimit: true } },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The attribute's stable identifier — the KEY its value is stored under inside `attribute_values`, and the name a category rule addresses as `attribute:<code>`. Unique per (`entity_type`, `entity_ref`) in this tenant.", type: "string", required: false },
@@ -2042,12 +2069,13 @@ const productsAttributesUpdateSpecs: PromptSpec[] = [
   { key: "validation", option: "--validation <validation>", name: "validation", description: "Limits a value has to satisfy, as a flat object. The seven keys a client can act on are `min`, `max`, `min_length`, `max_length`, `pattern`, `min_items`, `max_items` — `GET /products/attribute-schema` republishes those and leaves anything else the tenant stored untouched.", type: "object", required: false },
 ];
 productsDataModel
-  .command(`products-attributes-update`)
+  .command(`attributes-update`)
   .description(`Updates one attribute by id. A partial patch: the body names only the columns to change and every column it leaves out keeps its current value, so there is no read-modify-write and no way to blank a field by forgetting it.
 
 An attribute is one property a record can carry, and in an attribute-driven PIM it is a ROW rather than a column: giving the catalog a "net weight" is a create here, not a migration. Its own flags decide everything downstream — \`localizable\` and \`scopable\` pick which of the four \`attribute_values\` buckets its values are written to, \`type\` picks the editor that renders it, \`usable_in_grid\` and \`is_filterable\` are what the product grid reads. \`entity_type\`/\`entity_ref\` say which kind of record carries it: a product, one reference entity's records, one asset family, or a category.
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`entity_type\`, \`entity_ref\`, \`code\` answers 409.`)
+  .alias("products-attributes-update")
   .option(`--id <id>`, `The \`attributes\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/attributes\`. An id no attribute of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(
     `--active [value]`,
@@ -2104,7 +2132,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
       async (_options, _command) => {
         const { id, active, code, config, entityRef, entityType, externalId, externalRefs, groupId, isFilterable, isUnique, labels, localizable, metadata, position, scopable, sourceData, sourceSyncedAt, type, usableInGrid, validation } = await promptForMissing(
           _options,
-          productsAttributesUpdateSpecs,
+          attributesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2190,13 +2218,14 @@ A body that names nothing writable is refused with 400 rather than answered as a
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsAttributesUpdateSpecs, { method: "put" });
-const productsDefaultsRunSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, attributesUpdateSpecs, { method: "put" });
+const defaultsRunSpecs: PromptSpec[] = [
   { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 productsDataModel
-  .command(`products-defaults-run`)
+  .command(`defaults-run`)
   .description(`Creates the smallest catalog model a tenant can work with, for a tenant that has none: the product attributes \`name\` (text, localizable), \`description\` (textarea, localizable) and \`images\` (asset_collection), and the family \`standard\` („Standard“) carrying the three, with \`name\` as its label attribute and required, and \`images\` as its image attribute. It writes only into a tenant without any attribute or family — the rows an earlier run of this call wrote excepted, so a run that stopped half-way is finished by the next. A tenant with one attribute or family of its own is answered \`seeded: false\` with \`reason: not_empty\` and nothing is written. Idempotent: a second run writes nothing. The model is founded without a market. The install announcement runs the same seeding, but it is not reliably delivered, so support can call this for an existing empty tenant.`)
+  .alias("products-defaults-run")
   .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(
@@ -2208,7 +2237,7 @@ productsDataModel
         }
         const { body } = await promptForMissing(
           _options,
-          productsDefaultsRunSpecs,
+          defaultsRunSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2230,8 +2259,8 @@ productsDataModel
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsDefaultsRunSpecs, { method: "post" });
-const productsFamiliesListSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, defaultsRunSpecs, { method: "post" });
+const familiesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -2251,12 +2280,13 @@ const productsFamiliesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsDataModel
-  .command(`products-families-list`)
+  .command(`families-list`)
   .description(`A family decides WHICH attributes a product has — the set is \`family_attributes\`, and every family-driven surface follows from it. It also names which attribute carries the display name (\`label_attribute\`) and which carries the main image. A product with no family has no required attributes at all, so its completeness cannot be measured and its name never resolves past the SKU; \`POST /products/{id}/family\` is the call that ends that state.
 
 Every column of \`families\` is an exact-match query parameter, \`order\` sorts by one column, and \`limit\`/\`offset\` page through \`page.total\`. A query key that is NOT a column is dropped rather than refused, and the \`filter\` object echoes the ones that were understood — that echo is the only way to tell an unfiltered answer from an empty one. It reads rows exactly as they are stored: no join is resolved, no jsonb value is unpacked.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-families-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -2289,7 +2319,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       async (_options, _command) => {
         const { limit, offset, order, id, code, labelAttribute, imageAttribute, labels, active, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
-          productsFamiliesListSpecs,
+          familiesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2363,8 +2393,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamiliesListSpecs, { method: "get" });
-const productsFamiliesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, familiesListSpecs, { method: "get" });
+const familiesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The family's stable identifier — which set of attributes a product of this family HAS. Unique per tenant, and the value `GET /products/attribute-schema?family_code=` resolves.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this family has in the system that owns the classification — an ETIM class, an eCl@ss class, a supplier's article type. Unique per tenant where set, and what an import joins on to decide which family a delivered article belongs in.", type: "string", required: false },
@@ -2377,12 +2407,13 @@ const productsFamiliesCreateSpecs: PromptSpec[] = [
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsDataModel
-  .command(`products-families-create`)
+  .command(`families-create`)
   .description(`Creates one family and answers 201 with the stored row, including the id and the timestamps the database filled in — a client never sends an id, it reads one back and uses it in the path of every later call.
 
 A family decides WHICH attributes a product has — the set is \`family_attributes\`, and every family-driven surface follows from it. It also names which attribute carries the display name (\`label_attribute\`) and which carries the main image. A product with no family has no required attributes at all, so its completeness cannot be measured and its name never resolves past the SKU; \`POST /products/{id}/family\` is the call that ends that state.
 
 \`code\` is the only column the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
+  .alias("products-families-create")
   .option(`--code <code>`, `The family's stable identifier — which set of attributes a product of this family HAS. Unique per tenant, and the value \`GET /products/attribute-schema?family_code=\` resolves.`)
   .option(
     `--active [value]`,
@@ -2403,7 +2434,7 @@ A family decides WHICH attributes a product has — the set is \`family_attribut
       async (_options, _command) => {
         const { code, active, externalId, externalRefs, imageAttribute, labelAttribute, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
-          productsFamiliesCreateSpecs,
+          familiesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2459,27 +2490,28 @@ A family decides WHICH attributes a product has — the set is \`family_attribut
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamiliesCreateSpecs, { method: "post" });
-const productsFamiliesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, familiesCreateSpecs, { method: "post" });
+const familiesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `families` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/families`. An id no familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/families", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-families-delete`)
+  .command(`families-delete`)
   .description(`Deletes one family by id. It is a hard delete — the row is gone, and the answer is a confirmation rather than a result to branch on.
 
 It takes what hangs off it: family attributes (\`family_id\`), family variants (\`family_id\`) are deleted with it. \`products.family_id\` is set to null instead, so the rows that pointed at it survive the delete rather than going with it.
 
 An id no family of this tenant carries answers 404; there is no 409, because every foreign key pointing at this entity resolves itself on delete rather than blocking one.`)
+  .alias("products-families-delete")
   .option(`--id <id>`, `The \`families\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/families\`. An id no familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsFamiliesDeleteSpecs,
+          familiesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`products-data-model products-families-delete`);
+        await confirmDestructive(`products-data-model families-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/families/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2496,12 +2528,12 @@ An id no family of this tenant carries answers 404; there is no 409, because eve
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamiliesDeleteSpecs, { method: "delete", destructive: true });
-const productsFamiliesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, familiesDeleteSpecs, { method: "delete", destructive: true });
+const familiesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `families` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/families`. An id no familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/families", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-families-get`)
+  .command(`families-get`)
   .description(`Reads one family by its id — the whole row, every column, as it is stored.
 
 A family decides WHICH attributes a product has — the set is \`family_attributes\`, and every family-driven surface follows from it. It also names which attribute carries the display name (\`label_attribute\`) and which carries the main image. A product with no family has no required attributes at all, so its completeness cannot be measured and its name never resolves past the SKU; \`POST /products/{id}/family\` is the call that ends that state.
@@ -2509,13 +2541,14 @@ A family decides WHICH attributes a product has — the set is \`family_attribut
 An id no family of this tenant carries answers 404, and so does one belonging to another tenant: row-level security makes that row invisible rather than forbidden. A malformed id answers 400 before the route is reached.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-families-get")
   .option(`--id <id>`, `The \`families\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/families\`. An id no familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsFamiliesGetSpecs,
+          familiesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2534,8 +2567,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamiliesGetSpecs, { method: "get" });
-const productsFamiliesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, familiesGetSpecs, { method: "get" });
+const familiesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `families` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/families`. An id no familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/families", hasLimit: true } },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The family's stable identifier — which set of attributes a product of this family HAS. Unique per tenant, and the value `GET /products/attribute-schema?family_code=` resolves.", type: "string", required: false },
@@ -2549,12 +2582,13 @@ const productsFamiliesUpdateSpecs: PromptSpec[] = [
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsDataModel
-  .command(`products-families-update`)
+  .command(`families-update`)
   .description(`Updates one family by id. A partial patch: the body names only the columns to change and every column it leaves out keeps its current value, so there is no read-modify-write and no way to blank a field by forgetting it.
 
 A family decides WHICH attributes a product has — the set is \`family_attributes\`, and every family-driven surface follows from it. It also names which attribute carries the display name (\`label_attribute\`) and which carries the main image. A product with no family has no required attributes at all, so its completeness cannot be measured and its name never resolves past the SKU; \`POST /products/{id}/family\` is the call that ends that state.
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
+  .alias("products-families-update")
   .option(`--id <id>`, `The \`families\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/families\`. An id no familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(
     `--active [value]`,
@@ -2576,7 +2610,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
       async (_options, _command) => {
         const { id, active, code, externalId, externalRefs, imageAttribute, labelAttribute, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
-          productsFamiliesUpdateSpecs,
+          familiesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2632,8 +2666,8 @@ A body that names nothing writable is refused with 400 rather than answered as a
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamiliesUpdateSpecs, { method: "put" });
-const productsFamilyAttributesListSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, familiesUpdateSpecs, { method: "put" });
+const familyAttributesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -2648,12 +2682,13 @@ const productsFamilyAttributesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsDataModel
-  .command(`products-family-attributes-list`)
+  .command(`family-attributes-list`)
   .description(`One link between a family and an attribute — the row that puts an attribute INTO a family's form. It carries the family's own ordering of that attribute, which overrides the attribute's default position, and \`is_required\`, which is the flag \`POST /products/{id}/completeness\` measures and nothing else reads. \`required_channels\` narrows "required" to named channels; null or empty means required EVERYWHERE, not nowhere.
 
 Every column of \`family_attributes\` is an exact-match query parameter, \`order\` sorts by one column, and \`limit\`/\`offset\` page through \`page.total\`. A query key that is NOT a column is dropped rather than refused, and the \`filter\` object echoes the ones that were understood — that echo is the only way to tell an unfiltered answer from an empty one. It reads rows exactly as they are stored: no join is resolved, no jsonb value is unpacked.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-family-attributes-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -2681,7 +2716,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       async (_options, _command) => {
         const { limit, offset, order, id, familyId, attributeId, position, isRequired, requiredChannels, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
-          productsFamilyAttributesListSpecs,
+          familyAttributesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2740,8 +2775,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamilyAttributesListSpecs, { method: "get" });
-const productsFamilyAttributesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, familyAttributesListSpecs, { method: "get" });
+const familyAttributesCreateSpecs: PromptSpec[] = [
   { key: "attributeId", option: "--attribute-id <attribute-id>", name: "attribute_id", description: "The attribute the family carries. One row per (family, attribute); deleting either side deletes the link.", type: "string", required: true },
   { key: "familyId", option: "--family-id <family-id>", name: "family_id", description: "The family this link belongs to — one side of the pair that makes an attribute part of a family's form.", type: "string", required: true },
   { key: "isRequired", option: "--is-required <is-required>", name: "is_required", description: "The attribute has to carry a value for a product of this family to count as complete. `POST /products/{id}/completeness` measures exactly these and nothing else.", type: "boolean", required: false },
@@ -2749,12 +2784,13 @@ const productsFamilyAttributesCreateSpecs: PromptSpec[] = [
   { key: "requiredChannels", option: "--required-channels <required-channels>", name: "required_channels", description: "Narrows `is_required` to named channels. NULL or an empty list means required EVERYWHERE, not nowhere — that is how every required link in the wild is stored, and reading an empty list as \"nowhere\" reports a fully configured family as demanding nothing.", type: "object", required: false },
 ];
 productsDataModel
-  .command(`products-family-attributes-create`)
+  .command(`family-attributes-create`)
   .description(`Creates one family attribute and answers 201 with the stored row, including the id and the timestamps the database filled in — a client never sends an id, it reads one back and uses it in the path of every later call.
 
 One link between a family and an attribute — the row that puts an attribute INTO a family's form. It carries the family's own ordering of that attribute, which overrides the attribute's default position, and \`is_required\`, which is the flag \`POST /products/{id}/completeness\` measures and nothing else reads. \`required_channels\` narrows "required" to named channels; null or empty means required EVERYWHERE, not nowhere.
 
 \`family_id\` and \`attribute_id\` are the only columns the database refuses the row without; everything else has a default or is nullable. A second row with the same \`family_id\` and \`attribute_id\` answers 409.`)
+  .alias("products-family-attributes-create")
   .option(`--attribute-id <attribute-id>`, `The attribute the family carries. One row per (family, attribute); deleting either side deletes the link.`)
   .option(`--family-id <family-id>`, `The family this link belongs to — one side of the pair that makes an attribute part of a family's form.`)
   .option(
@@ -2770,7 +2806,7 @@ One link between a family and an attribute — the row that puts an attribute IN
       async (_options, _command) => {
         const { attributeId, familyId, isRequired, position, requiredChannels } = await promptForMissing(
           _options,
-          productsFamilyAttributesCreateSpecs,
+          familyAttributesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2811,27 +2847,28 @@ One link between a family and an attribute — the row that puts an attribute IN
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamilyAttributesCreateSpecs, { method: "post" });
-const productsFamilyAttributesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, familyAttributesCreateSpecs, { method: "post" });
+const familyAttributesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `family_attributes` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/family_attributes`. An id no family attribute of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/family_attributes", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-family-attributes-delete`)
+  .command(`family-attributes-delete`)
   .description(`Deletes one family attribute by id. It is a hard delete — the row is gone, and the answer is a confirmation rather than a result to branch on.
 
 Nothing in this schema references it, so nothing else changes.
 
 An id no family attribute of this tenant carries answers 404; there is no 409, because every foreign key pointing at this entity resolves itself on delete rather than blocking one.`)
+  .alias("products-family-attributes-delete")
   .option(`--id <id>`, `The \`family_attributes\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/family_attributes\`. An id no family attribute of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsFamilyAttributesDeleteSpecs,
+          familyAttributesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`products-data-model products-family-attributes-delete`);
+        await confirmDestructive(`products-data-model family-attributes-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/family_attributes/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -2848,12 +2885,12 @@ An id no family attribute of this tenant carries answers 404; there is no 409, b
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamilyAttributesDeleteSpecs, { method: "delete", destructive: true });
-const productsFamilyAttributesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, familyAttributesDeleteSpecs, { method: "delete", destructive: true });
+const familyAttributesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `family_attributes` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/family_attributes`. An id no family attribute of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/family_attributes", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-family-attributes-get`)
+  .command(`family-attributes-get`)
   .description(`Reads one family attribute by its id — the whole row, every column, as it is stored.
 
 One link between a family and an attribute — the row that puts an attribute INTO a family's form. It carries the family's own ordering of that attribute, which overrides the attribute's default position, and \`is_required\`, which is the flag \`POST /products/{id}/completeness\` measures and nothing else reads. \`required_channels\` narrows "required" to named channels; null or empty means required EVERYWHERE, not nowhere.
@@ -2861,13 +2898,14 @@ One link between a family and an attribute — the row that puts an attribute IN
 An id no family attribute of this tenant carries answers 404, and so does one belonging to another tenant: row-level security makes that row invisible rather than forbidden. A malformed id answers 400 before the route is reached.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-family-attributes-get")
   .option(`--id <id>`, `The \`family_attributes\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/family_attributes\`. An id no family attribute of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsFamilyAttributesGetSpecs,
+          familyAttributesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2886,8 +2924,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamilyAttributesGetSpecs, { method: "get" });
-const productsFamilyAttributesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, familyAttributesGetSpecs, { method: "get" });
+const familyAttributesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `family_attributes` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/family_attributes`. An id no family attribute of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/family_attributes", hasLimit: true } },
   { key: "attributeId", option: "--attribute-id <attribute-id>", name: "attribute_id", description: "The attribute the family carries. One row per (family, attribute); deleting either side deletes the link.", type: "string", required: false },
   { key: "familyId", option: "--family-id <family-id>", name: "family_id", description: "The family this link belongs to — one side of the pair that makes an attribute part of a family's form.", type: "string", required: false },
@@ -2896,12 +2934,13 @@ const productsFamilyAttributesUpdateSpecs: PromptSpec[] = [
   { key: "requiredChannels", option: "--required-channels <required-channels>", name: "required_channels", description: "Narrows `is_required` to named channels. NULL or an empty list means required EVERYWHERE, not nowhere — that is how every required link in the wild is stored, and reading an empty list as \"nowhere\" reports a fully configured family as demanding nothing.", type: "object", required: false },
 ];
 productsDataModel
-  .command(`products-family-attributes-update`)
+  .command(`family-attributes-update`)
   .description(`Updates one family attribute by id. A partial patch: the body names only the columns to change and every column it leaves out keeps its current value, so there is no read-modify-write and no way to blank a field by forgetting it.
 
 One link between a family and an attribute — the row that puts an attribute INTO a family's form. It carries the family's own ordering of that attribute, which overrides the attribute's default position, and \`is_required\`, which is the flag \`POST /products/{id}/completeness\` measures and nothing else reads. \`required_channels\` narrows "required" to named channels; null or empty means required EVERYWHERE, not nowhere.
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`family_id\` and \`attribute_id\` answers 409.`)
+  .alias("products-family-attributes-update")
   .option(`--id <id>`, `The \`family_attributes\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/family_attributes\`. An id no family attribute of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(`--attribute-id <attribute-id>`, `The attribute the family carries. One row per (family, attribute); deleting either side deletes the link.`)
   .option(`--family-id <family-id>`, `The family this link belongs to — one side of the pair that makes an attribute part of a family's form.`)
@@ -2918,7 +2957,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
       async (_options, _command) => {
         const { id, attributeId, familyId, isRequired, position, requiredChannels } = await promptForMissing(
           _options,
-          productsFamilyAttributesUpdateSpecs,
+          familyAttributesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -2959,8 +2998,8 @@ A body that names nothing writable is refused with 400 rather than answered as a
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamilyAttributesUpdateSpecs, { method: "put" });
-const productsFamilyVariantsListSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, familyAttributesUpdateSpecs, { method: "put" });
+const familyVariantsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -2980,12 +3019,13 @@ const productsFamilyVariantsListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsDataModel
-  .command(`products-family-variants-list`)
+  .command(`family-variants-list`)
   .description(`A variant structure of a family: the attribute axes a product model splits its variants on — colour, then size. A product follows one through \`family_variant_id\`, and an attribute named as an axis becomes read-only on the model and is set on each variant instead, which is what \`GET /products/attribute-schema\` reports as \`readonly_reason\`. Two axis shapes are in the wild and both are read: a bare list of codes, or one entry per level.
 
 Every column of \`family_variants\` is an exact-match query parameter, \`order\` sorts by one column, and \`limit\`/\`offset\` page through \`page.total\`. A query key that is NOT a column is dropped rather than refused, and the \`filter\` object echoes the ones that were understood — that echo is the only way to tell an unfiltered answer from an empty one. It reads rows exactly as they are stored: no join is resolved, no jsonb value is unpacked.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-family-variants-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -3018,7 +3058,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       async (_options, _command) => {
         const { limit, offset, order, id, familyId, code, labels, axes, active, externalId, externalRefs, sourceSyncedAt, sourceData, metadata, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
-          productsFamilyVariantsListSpecs,
+          familyVariantsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3092,8 +3132,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamilyVariantsListSpecs, { method: "get" });
-const productsFamilyVariantsCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, familyVariantsListSpecs, { method: "get" });
+const familyVariantsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The variant structure's stable identifier — how this family splits, not which product it splits. Unique per tenant.", type: "string", required: true },
   { key: "familyId", option: "--family-id <family-id>", name: "family_id", description: "The family this variant structure belongs to. A family may carry several, and a product names the one it follows through `family_variant_id`.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
@@ -3106,12 +3146,13 @@ const productsFamilyVariantsCreateSpecs: PromptSpec[] = [
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsDataModel
-  .command(`products-family-variants-create`)
+  .command(`family-variants-create`)
   .description(`Creates one family variant and answers 201 with the stored row, including the id and the timestamps the database filled in — a client never sends an id, it reads one back and uses it in the path of every later call.
 
 A variant structure of a family: the attribute axes a product model splits its variants on — colour, then size. A product follows one through \`family_variant_id\`, and an attribute named as an axis becomes read-only on the model and is set on each variant instead, which is what \`GET /products/attribute-schema\` reports as \`readonly_reason\`. Two axis shapes are in the wild and both are read: a bare list of codes, or one entry per level.
 
 \`family_id\` and \`code\` are the only columns the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
+  .alias("products-family-variants-create")
   .option(`--code <code>`, `The variant structure's stable identifier — how this family splits, not which product it splits. Unique per tenant.`)
   .option(`--family-id <family-id>`, `The family this variant structure belongs to. A family may carry several, and a product names the one it follows through \`family_variant_id\`.`)
   .option(
@@ -3132,7 +3173,7 @@ A variant structure of a family: the attribute axes a product model splits its v
       async (_options, _command) => {
         const { code, familyId, active, axes, externalId, externalRefs, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
-          productsFamilyVariantsCreateSpecs,
+          familyVariantsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3188,27 +3229,28 @@ A variant structure of a family: the attribute axes a product model splits its v
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamilyVariantsCreateSpecs, { method: "post" });
-const productsFamilyVariantsDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, familyVariantsCreateSpecs, { method: "post" });
+const familyVariantsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `family_variants` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/family_variants`. An id no family variant of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/family_variants", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-family-variants-delete`)
+  .command(`family-variants-delete`)
   .description(`Deletes one family variant by id. It is a hard delete — the row is gone, and the answer is a confirmation rather than a result to branch on.
 
 \`products.family_variant_id\` is set to null instead, so the rows that pointed at it survive the delete rather than going with it.
 
 An id no family variant of this tenant carries answers 404; there is no 409, because every foreign key pointing at this entity resolves itself on delete rather than blocking one.`)
+  .alias("products-family-variants-delete")
   .option(`--id <id>`, `The \`family_variants\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/family_variants\`. An id no family variant of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsFamilyVariantsDeleteSpecs,
+          familyVariantsDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`products-data-model products-family-variants-delete`);
+        await confirmDestructive(`products-data-model family-variants-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/family_variants/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -3225,12 +3267,12 @@ An id no family variant of this tenant carries answers 404; there is no 409, bec
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamilyVariantsDeleteSpecs, { method: "delete", destructive: true });
-const productsFamilyVariantsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, familyVariantsDeleteSpecs, { method: "delete", destructive: true });
+const familyVariantsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `family_variants` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/family_variants`. An id no family variant of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/family_variants", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-family-variants-get`)
+  .command(`family-variants-get`)
   .description(`Reads one family variant by its id — the whole row, every column, as it is stored.
 
 A variant structure of a family: the attribute axes a product model splits its variants on — colour, then size. A product follows one through \`family_variant_id\`, and an attribute named as an axis becomes read-only on the model and is set on each variant instead, which is what \`GET /products/attribute-schema\` reports as \`readonly_reason\`. Two axis shapes are in the wild and both are read: a bare list of codes, or one entry per level.
@@ -3238,13 +3280,14 @@ A variant structure of a family: the attribute axes a product model splits its v
 An id no family variant of this tenant carries answers 404, and so does one belonging to another tenant: row-level security makes that row invisible rather than forbidden. A malformed id answers 400 before the route is reached.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-family-variants-get")
   .option(`--id <id>`, `The \`family_variants\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/family_variants\`. An id no family variant of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsFamilyVariantsGetSpecs,
+          familyVariantsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3263,8 +3306,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamilyVariantsGetSpecs, { method: "get" });
-const productsFamilyVariantsUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, familyVariantsGetSpecs, { method: "get" });
+const familyVariantsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `family_variants` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/family_variants`. An id no family variant of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/family_variants", hasLimit: true } },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "axes", option: "--axes <axes>", name: "axes", description: "The attribute codes a product model splits its variants on. Two shapes are in the wild and both are read: a bare list of codes, or one entry per level, outermost first — `[{\"level\": 1, \"axes\": [\"colour\"]}, {\"level\": 2, \"axes\": [\"size\"]}]`. An attribute named here is READ-ONLY on the model and set on each variant, which is what `AttributeField.readonly_reason` reports.", type: "object", required: false },
@@ -3278,12 +3321,13 @@ const productsFamilyVariantsUpdateSpecs: PromptSpec[] = [
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
 ];
 productsDataModel
-  .command(`products-family-variants-update`)
+  .command(`family-variants-update`)
   .description(`Updates one family variant by id. A partial patch: the body names only the columns to change and every column it leaves out keeps its current value, so there is no read-modify-write and no way to blank a field by forgetting it.
 
 A variant structure of a family: the attribute axes a product model splits its variants on — colour, then size. A product follows one through \`family_variant_id\`, and an attribute named as an axis becomes read-only on the model and is set on each variant instead, which is what \`GET /products/attribute-schema\` reports as \`readonly_reason\`. Two axis shapes are in the wild and both are read: a bare list of codes, or one entry per level.
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
+  .alias("products-family-variants-update")
   .option(`--id <id>`, `The \`family_variants\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/family_variants\`. An id no family variant of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(
     `--active [value]`,
@@ -3305,7 +3349,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
       async (_options, _command) => {
         const { id, active, axes, code, externalId, externalRefs, familyId, labels, metadata, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
-          productsFamilyVariantsUpdateSpecs,
+          familyVariantsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3361,8 +3405,8 @@ A body that names nothing writable is refused with 400 rather than answered as a
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsFamilyVariantsUpdateSpecs, { method: "put" });
-const productsMeasurementFamiliesListSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, familyVariantsUpdateSpecs, { method: "put" });
+const measurementFamiliesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -3377,12 +3421,13 @@ const productsMeasurementFamiliesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsDataModel
-  .command(`products-measurement-families-list`)
+  .command(`measurement-families-list`)
   .description(`A family of units and the standard one they all convert to — weight in kilograms, length in metres. A \`measure\` attribute names one and then offers exactly that family's units, and each unit's \`convert_factor\` is what makes two values recorded in different units comparable at all.
 
 Every column of \`measurement_families\` is an exact-match query parameter, \`order\` sorts by one column, and \`limit\`/\`offset\` page through \`page.total\`. A query key that is NOT a column is dropped rather than refused, and the \`filter\` object echoes the ones that were understood — that echo is the only way to tell an unfiltered answer from an empty one. It reads rows exactly as they are stored: no join is resolved, no jsonb value is unpacked.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-measurement-families-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -3410,7 +3455,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       async (_options, _command) => {
         const { limit, offset, order, id, code, standardUnit, units, labels, active, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
-          productsMeasurementFamiliesListSpecs,
+          measurementFamiliesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3469,8 +3514,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsMeasurementFamiliesListSpecs, { method: "get" });
-const productsMeasurementFamiliesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, measurementFamiliesListSpecs, { method: "get" });
+const measurementFamiliesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The measurement family's stable identifier. A `measure` attribute names one and then offers that family's units.", type: "string", required: true },
   { key: "standardUnit", option: "--standard-unit <standard-unit>", name: "standard_unit", description: "The unit every value of this family is converted to before it is compared or sorted — the unit each `convert_factor` is relative to.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
@@ -3478,12 +3523,13 @@ const productsMeasurementFamiliesCreateSpecs: PromptSpec[] = [
   { key: "units", option: "--units <units>", name: "units", description: "The units this family offers. `convert_factor` multiplies a value into `standard_unit`, so a gram is 0.001 kilograms; `symbol` is what a form prints next to the number.", type: "object", required: false },
 ];
 productsDataModel
-  .command(`products-measurement-families-create`)
+  .command(`measurement-families-create`)
   .description(`Creates one measurement family and answers 201 with the stored row, including the id and the timestamps the database filled in — a client never sends an id, it reads one back and uses it in the path of every later call.
 
 A family of units and the standard one they all convert to — weight in kilograms, length in metres. A \`measure\` attribute names one and then offers exactly that family's units, and each unit's \`convert_factor\` is what makes two values recorded in different units comparable at all.
 
 \`code\` and \`standard_unit\` are the only columns the database refuses the row without; everything else has a default or is nullable. A second row with the same \`code\` answers 409.`)
+  .alias("products-measurement-families-create")
   .option(`--code <code>`, `The measurement family's stable identifier. A \`measure\` attribute names one and then offers that family's units.`)
   .option(`--standard-unit <standard-unit>`, `The unit every value of this family is converted to before it is compared or sorted — the unit each \`convert_factor\` is relative to.`)
   .option(
@@ -3499,7 +3545,7 @@ A family of units and the standard one they all convert to — weight in kilogra
       async (_options, _command) => {
         const { code, standardUnit, active, labels, units } = await promptForMissing(
           _options,
-          productsMeasurementFamiliesCreateSpecs,
+          measurementFamiliesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3540,27 +3586,28 @@ A family of units and the standard one they all convert to — weight in kilogra
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsMeasurementFamiliesCreateSpecs, { method: "post" });
-const productsMeasurementFamiliesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, measurementFamiliesCreateSpecs, { method: "post" });
+const measurementFamiliesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `measurement_families` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/measurement_families`. An id no measurement familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/measurement_families", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-measurement-families-delete`)
+  .command(`measurement-families-delete`)
   .description(`Deletes one measurement family by id. It is a hard delete — the row is gone, and the answer is a confirmation rather than a result to branch on.
 
 Nothing in this schema references it, so nothing else changes.
 
 An id no measurement family of this tenant carries answers 404; there is no 409, because every foreign key pointing at this entity resolves itself on delete rather than blocking one.`)
+  .alias("products-measurement-families-delete")
   .option(`--id <id>`, `The \`measurement_families\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/measurement_families\`. An id no measurement familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsMeasurementFamiliesDeleteSpecs,
+          measurementFamiliesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`products-data-model products-measurement-families-delete`);
+        await confirmDestructive(`products-data-model measurement-families-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/measurement_families/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -3577,12 +3624,12 @@ An id no measurement family of this tenant carries answers 404; there is no 409,
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsMeasurementFamiliesDeleteSpecs, { method: "delete", destructive: true });
-const productsMeasurementFamiliesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, measurementFamiliesDeleteSpecs, { method: "delete", destructive: true });
+const measurementFamiliesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `measurement_families` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/measurement_families`. An id no measurement familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/measurement_families", hasLimit: true } },
 ];
 productsDataModel
-  .command(`products-measurement-families-get`)
+  .command(`measurement-families-get`)
   .description(`Reads one measurement family by its id — the whole row, every column, as it is stored.
 
 A family of units and the standard one they all convert to — weight in kilograms, length in metres. A \`measure\` attribute names one and then offers exactly that family's units, and each unit's \`convert_factor\` is what makes two values recorded in different units comparable at all.
@@ -3590,13 +3637,14 @@ A family of units and the standard one they all convert to — weight in kilogra
 An id no measurement family of this tenant carries answers 404, and so does one belonging to another tenant: row-level security makes that row invisible rather than forbidden. A malformed id answers 400 before the route is reached.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-measurement-families-get")
   .option(`--id <id>`, `The \`measurement_families\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/measurement_families\`. An id no measurement familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsMeasurementFamiliesGetSpecs,
+          measurementFamiliesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3615,8 +3663,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsMeasurementFamiliesGetSpecs, { method: "get" });
-const productsMeasurementFamiliesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsDataModel.commands.at(-1)!, measurementFamiliesGetSpecs, { method: "get" });
+const measurementFamiliesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `measurement_families` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/measurement_families`. An id no measurement familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/measurement_families", hasLimit: true } },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this entry. Records that already carry it keep it and every read still answers it, so a stored reference keeps resolving. It is no longer assigned anew: a write that newly names it answers 409 `entry_inactive`, and choice lists leave it out — filter a list with `?active=true` to build a picker. Default true.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The measurement family's stable identifier. A `measure` attribute names one and then offers that family's units.", type: "string", required: false },
@@ -3625,12 +3673,13 @@ const productsMeasurementFamiliesUpdateSpecs: PromptSpec[] = [
   { key: "units", option: "--units <units>", name: "units", description: "The units this family offers. `convert_factor` multiplies a value into `standard_unit`, so a gram is 0.001 kilograms; `symbol` is what a form prints next to the number.", type: "object", required: false },
 ];
 productsDataModel
-  .command(`products-measurement-families-update`)
+  .command(`measurement-families-update`)
   .description(`Updates one measurement family by id. A partial patch: the body names only the columns to change and every column it leaves out keeps its current value, so there is no read-modify-write and no way to blank a field by forgetting it.
 
 A family of units and the standard one they all convert to — weight in kilograms, length in metres. A \`measure\` attribute names one and then offers exactly that family's units, and each unit's \`convert_factor\` is what makes two values recorded in different units comparable at all.
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`code\` answers 409.`)
+  .alias("products-measurement-families-update")
   .option(`--id <id>`, `The \`measurement_families\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/measurement_families\`. An id no measurement familie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(
     `--active [value]`,
@@ -3647,7 +3696,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
       async (_options, _command) => {
         const { id, active, code, labels, standardUnit, units } = await promptForMissing(
           _options,
-          productsMeasurementFamiliesUpdateSpecs,
+          measurementFamiliesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -3688,4 +3737,4 @@ A body that names nothing writable is refused with 400 rather than answered as a
       },
     ),
   );
-registerPromptSpecs(productsDataModel.commands.at(-1)!, productsMeasurementFamiliesUpdateSpecs, { method: "put" });
+registerPromptSpecs(productsDataModel.commands.at(-1)!, measurementFamiliesUpdateSpecs, { method: "put" });

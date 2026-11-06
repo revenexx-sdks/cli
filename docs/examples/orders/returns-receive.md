@@ -2,5 +2,5 @@
 revenexx orders returns-receive \
     --id '' \
     --rid '' \
-    --data '{ "key": "value" }'
+    --body '{ "key": "value" }'
 ```

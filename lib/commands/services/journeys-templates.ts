@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -21,6 +22,7 @@ export const journeysTemplates = new Command("journeys-templates")
       `The shipped flows — cart recovery, welcome, post-purchase, back in stock, and the B2B flows quote expiring, reorder reminder and win-back. Copying one makes a draft journey.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

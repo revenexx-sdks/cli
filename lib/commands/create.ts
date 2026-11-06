@@ -6,6 +6,7 @@ import type { RequestParams } from "../types.js";
 import { apps } from "./services/apps.js";
 import { scaffoldApp, validateAppName, validateEntityName, type AppScaffoldOptions } from "./create/scaffold-app.js";
 import { scaffoldTheme, validateThemeName, type ThemeScaffoldOptions } from "./create/scaffold-theme.js";
+import { DEFAULT_CUBE_TEMPLATE, scaffoldCube, validateCubeName } from "./create/scaffold-cube.js";
 import {
   buildCapabilities,
   emitterTargets,
@@ -18,7 +19,7 @@ import * as path from "path";
 /**
  * Scaffolding for the revenexx platform, contributed by the 'create'
  * plugin: `create app` and `create theme` stamp complete, deployable
- * skeletons; `apps generate` / `apps capabilities` carry the codegen ported
+ * skeletons; `create cube` starts an analytics Cube from the Cube template; `apps generate` / `apps capabilities` carry the codegen ported
  * from @revenexx/app-sdk-cli.
  */
 
@@ -193,8 +194,71 @@ const createTheme = async (name: string, flags: CreateThemeFlags): Promise<void>
   }
 };
 
+interface CreateCubeFlags {
+  title?: string;
+  titleDe?: string;
+  vendor: string;
+  dir: string;
+  template: string;
+  ref: string;
+  yes?: boolean;
+}
+
+const createCube = async (name: string, flags: CreateCubeFlags): Promise<void> => {
+  const nameError = validateCubeName(name);
+  if (nameError) {
+    throw new Error(nameError);
+  }
+
+  let { title, titleDe } = flags;
+  const interactive = !flags.yes && process.stdout.isTTY && !cliConfig.json;
+  if (interactive) {
+    const answers = await inquirer.prompt([
+      {
+        type: "input",
+        name: "title",
+        message: "Cube title (English)",
+        default: title ?? titleize(name),
+        when: () => title === undefined,
+      },
+      {
+        type: "input",
+        name: "titleDe",
+        message: "Cube title (German)",
+        default: (answers: { title?: string }) => titleDe ?? answers.title ?? title ?? titleize(name),
+        when: () => titleDe === undefined,
+      },
+    ]);
+    title = title ?? answers.title;
+    titleDe = titleDe ?? answers.titleDe;
+  }
+  const titleEn = title ?? titleize(name);
+
+  const result = await scaffoldCube({
+    name,
+    vendor: flags.vendor,
+    titleEn,
+    titleDe: titleDe ?? titleEn,
+    dir: flags.dir,
+    template: flags.template,
+    ref: flags.ref,
+  });
+
+  if (cliConfig.output !== "table") {
+    parse(result);
+    return;
+  }
+
+  success(`Cube '${result.cube}' created at ${result.root} from ${result.template}`);
+  log("");
+  log("Next steps:");
+  for (const step of result.nextSteps) {
+    hint(`  ${step}`);
+  }
+};
+
 export const create = new Command("create")
-  .description("Scaffold revenexx platform apps and Blokkli themes")
+  .description("Scaffold revenexx platform apps, Blokkli themes and analytics Cubes")
   .addCommand(
     new Command("app")
       .description("Scaffold a platform app: manifest, schema, function, tests — npm-test-green out of the box")
@@ -218,6 +282,19 @@ export const create = new Command("create")
       .option("--dir <path>", "parent directory to scaffold into", ".")
       .option("-y, --yes", "accept all defaults, never prompt")
       .action(actionRunner(createTheme)),
+  )
+  .addCommand(
+    new Command("cube")
+      .description("Start an analytics Cube from the Cube template: contract files, example dataset, validator")
+      .argument("<name>", "cube name (lowercase letters, digits, single dashes; 2–40 characters)")
+      .option("--title <title>", "English display title (default: derived from the name)")
+      .option("--title-de <title>", "German display title (default: the English one)")
+      .option("--vendor <vendor>", "vendor slug", DEFAULT_VENDOR)
+      .option("--dir <path>", "parent directory to create the Cube in", ".")
+      .option("--template <owner/repo>", "GitHub template repository", DEFAULT_CUBE_TEMPLATE)
+      .option("--ref <ref>", "template branch or tag", "main")
+      .option("-y, --yes", "accept all defaults, never prompt")
+      .action(actionRunner(createCube)),
   )
   .addCommand(
     new Command("site")

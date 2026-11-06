@@ -1,5 +1,5 @@
 ```bash
 revenexx reviews-moderation publish \
     --id '' \
-    --data '{ "key": "value" }'
+    --body '{ "key": "value" }'
 ```

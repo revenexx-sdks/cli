@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -21,6 +22,7 @@ export const campaignsAttribution = new Command("campaigns-attribution")
       `The attribution ledger: one fact per order, campaign and touch, with first- and last-touch flags so a report can pick its model. Facts are never deleted; a return reduces the amount still credited. The sweep records what the owning apps keep to be read.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

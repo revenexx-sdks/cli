@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,16 +24,18 @@ export const consentManagerRegistry = new Command("consent-manager-registry")
       `What a shop asks consent for: purposes with their legal basis (consent, legitimate interest, necessary), the vendors a merchant uses with their company, hosts and cookies, and the shipped vendor catalogue those vendors are adopted from. An adopted vendor is a tenant-owned copy; a newer catalogue entry is flagged and never applied without the merchant.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
-const consentManagerCatalogListSpecs: PromptSpec[] = [
+const catalogListSpecs: PromptSpec[] = [
   { key: "category", option: "--category <category>", name: "category", description: "Only entries of this category: platform, tag_manager, analytics, advertising, marketing_automation, visitor_identification, chat, ab_testing, personalisation, search, external_media, fonts, reviews, payment or security.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 consentManagerRegistry
-  .command(`consent-manager-catalog-list`)
+  .command(`catalog-list`)
   .description(`The vendor catalogue this version of the app ships — the vendors met in B2B shops, each with company, purposes, hosts and cookies in German and English — and, per entry, whether this tenant adopted it and whether the copy is older. \`?category=\` narrows it to one group (analytics, advertising, chat, external_media, …).`)
+  .alias("consent-manager-catalog-list")
   .option(`--category <category>`, `Only entries of this category: platform, tag_manager, analytics, advertising, marketing_automation, visitor_identification, chat, ab_testing, personalisation, search, external_media, fonts, reviews, payment or security.`)
   .option(
     `--filter <column=value>`,
@@ -45,7 +48,7 @@ consentManagerRegistry
       async (_options, _command) => {
         const { category, filter } = await promptForMissing(
           _options,
-          consentManagerCatalogListSpecs,
+          catalogListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -74,15 +77,16 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerCatalogListSpecs, { method: "get" });
-const consentManagerCatalogAdoptSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, catalogListSpecs, { method: "get" });
+const catalogAdoptSpecs: PromptSpec[] = [
   { key: "key", option: "--key <key>", name: "key", description: "The catalogue key.", type: "string", required: true },
   { key: "purposes", option: "--purposes [purposes...]", name: "purposes", description: "Purpose codes to file the vendor under instead of the catalogue's.", type: "array", required: false },
   { key: "refresh", option: "--refresh <refresh>", name: "refresh", description: "Take the current catalogue entry for a vendor already adopted.", type: "boolean", required: false },
 ];
 consentManagerRegistry
-  .command(`consent-manager-catalog-adopt`)
+  .command(`catalog-adopt`)
   .description(`Creates a vendor from a catalogue entry — its fields, its cookies and its purpose links — and records the catalogue key and version it came from. The copy is the tenant's: nothing re-reads the catalogue. Adopting an entry already adopted is refused unless \`refresh: true\` is sent, which takes the catalogue's current fields and replaces the cookies. A \`legal_basis_hint\` that differs from the purposes' basis becomes the vendor's \`legal_basis_override\`.`)
+  .alias("consent-manager-catalog-adopt")
   .option(`--key <key>`, `The catalogue key.`)
   .option(`--purposes [purposes...]`, `Purpose codes to file the vendor under instead of the catalogue's.`)
   .option(
@@ -96,7 +100,7 @@ consentManagerRegistry
       async (_options, _command) => {
         const { key, purposes, refresh } = await promptForMissing(
           _options,
-          consentManagerCatalogAdoptSpecs,
+          catalogAdoptSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -131,8 +135,8 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerCatalogAdoptSpecs, { method: "post" });
-const consentManagerCookiesListSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, catalogAdoptSpecs, { method: "post" });
+const cookiesListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to rows whose `id` is exactly this value. The row's own id, generated by the database. A caller never sends one; it reads one back and puts it in the path of later calls.", type: "string", required: false },
   { key: "vendorId", option: "--vendor-id <vendor-id>", name: "vendor_id", description: "Filter to rows whose `vendor_id` is exactly this value. The vendor this row belongs to.", type: "string", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Filter to rows whose `name` is exactly this value. The cookie or storage key as the browser shows it.", type: "string", required: false },
@@ -147,8 +151,9 @@ const consentManagerCookiesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 consentManagerRegistry
-  .command(`consent-manager-cookies-list`)
+  .command(`cookies-list`)
   .description(`Cookies and storage entries, usually filtered with \`?vendor_id=\`.`)
+  .alias("consent-manager-cookies-list")
   .option(`--id <id>`, `Filter to rows whose \`id\` is exactly this value. The row's own id, generated by the database. A caller never sends one; it reads one back and puts it in the path of later calls.`)
   .option(`--vendor-id <vendor-id>`, `Filter to rows whose \`vendor_id\` is exactly this value. The vendor this row belongs to.`)
   .option(`--name <name>`, `Filter to rows whose \`name\` is exactly this value. The cookie or storage key as the browser shows it.`)
@@ -171,7 +176,7 @@ consentManagerRegistry
       async (_options, _command) => {
         const { id, vendorId, name, kind, host, position, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
-          consentManagerCookiesListSpecs,
+          cookiesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -230,8 +235,8 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerCookiesListSpecs, { method: "get" });
-const consentManagerCookiesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, cookiesListSpecs, { method: "get" });
+const cookiesCreateSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "The cookie or storage key as the browser shows it.", type: "string", required: true },
   { key: "vendorId", option: "--vendor-id <vendor-id>", name: "vendor_id", description: "The vendor that sets this cookie. It has to be a vendor this tenant keeps.", type: "string", required: true },
   { key: "description", option: "--description <description>", name: "description", description: "What the cookie is for, as the banner shows it.", type: "object", required: false },
@@ -241,8 +246,9 @@ const consentManagerCookiesCreateSpecs: PromptSpec[] = [
   { key: "position", option: "--position <position>", name: "position", description: "Where this row sorts in the order a screen and the banner show them, ascending. Presentation only.", type: "integer", required: false },
 ];
 consentManagerRegistry
-  .command(`consent-manager-cookies-create`)
+  .command(`cookies-create`)
   .description(`Declare one cookie or storage entry of a vendor this tenant keeps.`)
+  .alias("consent-manager-cookies-create")
   .option(`--name <name>`, `The cookie or storage key as the browser shows it.`)
   .option(`--vendor-id <vendor-id>`, `The vendor that sets this cookie. It has to be a vendor this tenant keeps.`)
   .option(`--description <description>`, `What the cookie is for, as the banner shows it.`)
@@ -255,7 +261,7 @@ consentManagerRegistry
       async (_options, _command) => {
         const { name, vendorId, description, duration, host, kind, position } = await promptForMissing(
           _options,
-          consentManagerCookiesCreateSpecs,
+          cookiesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -302,23 +308,24 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerCookiesCreateSpecs, { method: "post" });
-const consentManagerCookiesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, cookiesCreateSpecs, { method: "post" });
+const cookiesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The cookie.", type: "string", required: true, resource: { listPath: "/consent-manager/cookies", hasLimit: true } },
 ];
 consentManagerRegistry
-  .command(`consent-manager-cookies-delete`)
+  .command(`cookies-delete`)
   .description(`Removes one cookie.`)
+  .alias("consent-manager-cookies-delete")
   .option(`--id <id>`, `The cookie.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          consentManagerCookiesDeleteSpecs,
+          cookiesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`consent-manager-registry consent-manager-cookies-delete`);
+        await confirmDestructive(`consent-manager-registry cookies-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/consent-manager/cookies/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -335,20 +342,21 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerCookiesDeleteSpecs, { method: "delete", destructive: true });
-const consentManagerCookiesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, cookiesDeleteSpecs, { method: "delete", destructive: true });
+const cookiesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The cookie.", type: "string", required: true, resource: { listPath: "/consent-manager/cookies", hasLimit: true } },
 ];
 consentManagerRegistry
-  .command(`consent-manager-cookies-get`)
+  .command(`cookies-get`)
   .description(`One cookie by id.`)
+  .alias("consent-manager-cookies-get")
   .option(`--id <id>`, `The cookie.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          consentManagerCookiesGetSpecs,
+          cookiesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -367,8 +375,8 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerCookiesGetSpecs, { method: "get" });
-const consentManagerCookiesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, cookiesGetSpecs, { method: "get" });
+const cookiesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The cookie.", type: "string", required: true, resource: { listPath: "/consent-manager/cookies", hasLimit: true } },
   { key: "description", option: "--description <description>", name: "description", description: "What the cookie is for, as the banner shows it.", type: "object", required: false },
   { key: "duration", option: "--duration <duration>", name: "duration", description: "How long it lives, as the banner shows it. A text per language tag, e.g. { \"de\": \"…\", \"en\": \"…\" }.", type: "object", required: false },
@@ -379,8 +387,9 @@ const consentManagerCookiesUpdateSpecs: PromptSpec[] = [
   { key: "vendorId", option: "--vendor-id <vendor-id>", name: "vendor_id", description: "The vendor that sets this cookie. It has to be a vendor this tenant keeps.", type: "string", required: false },
 ];
 consentManagerRegistry
-  .command(`consent-manager-cookies-update`)
+  .command(`cookies-update`)
   .description(`Partial update of one cookie.`)
+  .alias("consent-manager-cookies-update")
   .option(`--id <id>`, `The cookie.`)
   .option(`--description <description>`, `What the cookie is for, as the banner shows it.`)
   .option(`--duration <duration>`, `How long it lives, as the banner shows it. A text per language tag, e.g. { "de": "…", "en": "…" }.`)
@@ -394,7 +403,7 @@ consentManagerRegistry
       async (_options, _command) => {
         const { id, description, duration, host, kind, name, position, vendorId } = await promptForMissing(
           _options,
-          consentManagerCookiesUpdateSpecs,
+          cookiesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -441,13 +450,14 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerCookiesUpdateSpecs, { method: "put" });
-const consentManagerDefaultsRunSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, cookiesUpdateSpecs, { method: "put" });
+const defaultsRunSpecs: PromptSpec[] = [
   { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 consentManagerRegistry
-  .command(`consent-manager-defaults-run`)
+  .command(`defaults-run`)
   .description(`Creates the five standard purposes (necessary, statistics, marketing, comfort, external_media), the shop's banner draft with a German and an English text, and exactly one vendor — \`revenexx\`, the shop's own necessary cookies — whatever of that is missing, and nothing else. The catalogue is a library: every other vendor, necessary ones included, appears only once the tenant adopts it. Idempotent by code: a purpose or draft the merchant changed is left exactly as it is. The install announcement runs the same seeding, but it is not reliably delivered, so a live check calls this first.`)
+  .alias("consent-manager-defaults-run")
   .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(
@@ -459,7 +469,7 @@ consentManagerRegistry
         }
         const { body } = await promptForMissing(
           _options,
-          consentManagerDefaultsRunSpecs,
+          defaultsRunSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -481,8 +491,8 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerDefaultsRunSpecs, { method: "post" });
-const consentManagerPurposesListSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, defaultsRunSpecs, { method: "post" });
+const purposesListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to rows whose `id` is exactly this value. The row's own id, generated by the database. A caller never sends one; it reads one back and puts it in the path of later calls.", type: "string", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "Filter to rows whose `code` is exactly this value. The purpose's fixed identity — `necessary`, `statistics`, `marketing`, `comfort`, `external_media` or one the tenant adds. Vendors, the catalogue, the Tag Manager, the visitor's cookie and every record name it, so it never changes once created.", type: "string", required: false },
   { key: "legalBasis", option: "--legal-basis <legal-basis>", name: "legal_basis", description: "Filter to rows whose `legal_basis` is exactly this value. Why this purpose may process data at all, and therefore whether its tools load before a decision: `consent` waits for the visitor, `legitimate_interest` runs until the visitor objects, `necessary` always runs. A vendor may override it with its own `legal_basis_override`.", type: "string", required: false, enum: ["consent","legitimate_interest","necessary"] },
@@ -497,8 +507,9 @@ const consentManagerPurposesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 consentManagerRegistry
-  .command(`consent-manager-purposes-list`)
+  .command(`purposes-list`)
   .description(`Every purpose of this tenant (and market), with the legal basis that decides whether its tools load before a decision.`)
+  .alias("consent-manager-purposes-list")
   .option(`--id <id>`, `Filter to rows whose \`id\` is exactly this value. The row's own id, generated by the database. A caller never sends one; it reads one back and puts it in the path of later calls.`)
   .option(`--code <code>`, `Filter to rows whose \`code\` is exactly this value. The purpose's fixed identity — \`necessary\`, \`statistics\`, \`marketing\`, \`comfort\`, \`external_media\` or one the tenant adds. Vendors, the catalogue, the Tag Manager, the visitor's cookie and every record name it, so it never changes once created.`)
   .option(`--legal-basis <legal-basis>`, `Filter to rows whose \`legal_basis\` is exactly this value. Why this purpose may process data at all, and therefore whether its tools load before a decision: \`consent\` waits for the visitor, \`legitimate_interest\` runs until the visitor objects, \`necessary\` always runs. A vendor may override it with its own \`legal_basis_override\`.`)
@@ -531,7 +542,7 @@ consentManagerRegistry
       async (_options, _command) => {
         const { id, code, legalBasis, position, isActive, isSystem, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
-          consentManagerPurposesListSpecs,
+          purposesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -590,8 +601,8 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerPurposesListSpecs, { method: "get" });
-const consentManagerPurposesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, purposesListSpecs, { method: "get" });
+const purposesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The purpose's fixed identity — `necessary`, `statistics`, `marketing`, `comfort`, `external_media` or one the tenant adds. Vendors, the catalogue, the Tag Manager, the visitor's cookie and every record name it, so it never changes once created.", type: "string", required: true },
   { key: "legalBasis", option: "--legal-basis <legal-basis>", name: "legal_basis", description: "Why this purpose may process data at all, and therefore whether its tools load before a decision: `consent` waits for the visitor, `legitimate_interest` runs until the visitor objects, `necessary` always runs. A vendor may override it with its own `legal_basis_override`.", type: "string", required: true, enum: ["consent","legitimate_interest","necessary"] },
   { key: "name", option: "--name <name>", name: "name", description: "What a visitor reads for this purpose. A text per language tag, e.g. { \"de\": \"…\", \"en\": \"…\" }.", type: "object", required: true },
@@ -601,8 +612,9 @@ const consentManagerPurposesCreateSpecs: PromptSpec[] = [
   { key: "position", option: "--position <position>", name: "position", description: "Where this row sorts in the order a screen and the banner show them, ascending. Presentation only.", type: "integer", required: false },
 ];
 consentManagerRegistry
-  .command(`consent-manager-purposes-create`)
+  .command(`purposes-create`)
   .description(`Add a purpose beyond the five seeded ones. \`code\`, \`name\` and \`legal_basis\` are owed; the code is fixed once created.`)
+  .alias("consent-manager-purposes-create")
   .option(`--code <code>`, `The purpose's fixed identity — \`necessary\`, \`statistics\`, \`marketing\`, \`comfort\`, \`external_media\` or one the tenant adds. Vendors, the catalogue, the Tag Manager, the visitor's cookie and every record name it, so it never changes once created.`)
   .option(`--legal-basis <legal-basis>`, `Why this purpose may process data at all, and therefore whether its tools load before a decision: \`consent\` waits for the visitor, \`legitimate_interest\` runs until the visitor objects, \`necessary\` always runs. A vendor may override it with its own \`legal_basis_override\`.`)
   .option(`--name <name>`, `What a visitor reads for this purpose. A text per language tag, e.g. { "de": "…", "en": "…" }.`)
@@ -620,7 +632,7 @@ consentManagerRegistry
       async (_options, _command) => {
         const { code, legalBasis, name, description, googleSignals, isActive, position } = await promptForMissing(
           _options,
-          consentManagerPurposesCreateSpecs,
+          purposesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -667,23 +679,24 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerPurposesCreateSpecs, { method: "post" });
-const consentManagerPurposesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, purposesCreateSpecs, { method: "post" });
+const purposesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The purpose.", type: "string", required: true, resource: { listPath: "/consent-manager/purposes", hasLimit: true } },
 ];
 consentManagerRegistry
-  .command(`consent-manager-purposes-delete`)
+  .command(`purposes-delete`)
   .description(`Removes a purpose. Refused while any vendor serves it — switch it inactive instead, which leaves it out of the next version.`)
+  .alias("consent-manager-purposes-delete")
   .option(`--id <id>`, `The purpose.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          consentManagerPurposesDeleteSpecs,
+          purposesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`consent-manager-registry consent-manager-purposes-delete`);
+        await confirmDestructive(`consent-manager-registry purposes-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/consent-manager/purposes/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -700,20 +713,21 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerPurposesDeleteSpecs, { method: "delete", destructive: true });
-const consentManagerPurposesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, purposesDeleteSpecs, { method: "delete", destructive: true });
+const purposesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The purpose.", type: "string", required: true, resource: { listPath: "/consent-manager/purposes", hasLimit: true } },
 ];
 consentManagerRegistry
-  .command(`consent-manager-purposes-get`)
+  .command(`purposes-get`)
   .description(`One purpose by id.`)
+  .alias("consent-manager-purposes-get")
   .option(`--id <id>`, `The purpose.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          consentManagerPurposesGetSpecs,
+          purposesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -732,8 +746,8 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerPurposesGetSpecs, { method: "get" });
-const consentManagerPurposesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, purposesGetSpecs, { method: "get" });
+const purposesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The purpose.", type: "string", required: true, resource: { listPath: "/consent-manager/purposes", hasLimit: true } },
   { key: "code", option: "--code <code>", name: "code", description: "The purpose's fixed identity — `necessary`, `statistics`, `marketing`, `comfort`, `external_media` or one the tenant adds. Vendors, the catalogue, the Tag Manager, the visitor's cookie and every record name it, so it never changes once created.", type: "string", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "The sentence under the purpose in the banner's second layer. A text per language tag, e.g. { \"de\": \"…\", \"en\": \"…\" }.", type: "object", required: false },
@@ -744,8 +758,9 @@ const consentManagerPurposesUpdateSpecs: PromptSpec[] = [
   { key: "position", option: "--position <position>", name: "position", description: "Where this row sorts in the order a screen and the banner show them, ascending. Presentation only.", type: "integer", required: false },
 ];
 consentManagerRegistry
-  .command(`consent-manager-purposes-update`)
+  .command(`purposes-update`)
   .description(`Partial update. The code may be sent only unchanged — vendors, records and the catalogue name it. Changing the legal basis affects versions published afterwards; every record keeps the basis it was made under.`)
+  .alias("consent-manager-purposes-update")
   .option(`--id <id>`, `The purpose.`)
   .option(`--code <code>`, `The purpose's fixed identity — \`necessary\`, \`statistics\`, \`marketing\`, \`comfort\`, \`external_media\` or one the tenant adds. Vendors, the catalogue, the Tag Manager, the visitor's cookie and every record name it, so it never changes once created.`)
   .option(`--description <description>`, `The sentence under the purpose in the banner's second layer. A text per language tag, e.g. { "de": "…", "en": "…" }.`)
@@ -764,7 +779,7 @@ consentManagerRegistry
       async (_options, _command) => {
         const { id, code, description, googleSignals, isActive, legalBasis, name, position } = await promptForMissing(
           _options,
-          consentManagerPurposesUpdateSpecs,
+          purposesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -811,8 +826,8 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerPurposesUpdateSpecs, { method: "put" });
-const consentManagerVendorsListSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, purposesUpdateSpecs, { method: "put" });
+const vendorsListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to rows whose `id` is exactly this value. The row's own id, generated by the database. A caller never sends one; it reads one back and puts it in the path of later calls.", type: "string", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "Filter to rows whose `code` is exactly this value. The vendor's fixed identity, as the Tag Manager, the visitor's cookie and every record name it. Lowercase letters, digits and '-'. For an adopted vendor it is the catalogue key.", type: "string", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Filter to rows whose `name` is exactly this value. The tool as a visitor knows it.", type: "string", required: false },
@@ -839,8 +854,9 @@ const consentManagerVendorsListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 consentManagerRegistry
-  .command(`consent-manager-vendors-list`)
+  .command(`vendors-list`)
   .description(`Every vendor of this tenant (and market). An adopted vendor whose catalogue entry is newer carries \`catalog_update\`; its fields are untouched until the merchant refreshes it.`)
+  .alias("consent-manager-vendors-list")
   .option(`--id <id>`, `Filter to rows whose \`id\` is exactly this value. The row's own id, generated by the database. A caller never sends one; it reads one back and puts it in the path of later calls.`)
   .option(`--code <code>`, `Filter to rows whose \`code\` is exactly this value. The vendor's fixed identity, as the Tag Manager, the visitor's cookie and every record name it. Lowercase letters, digits and '-'. For an adopted vendor it is the catalogue key.`)
   .option(`--name <name>`, `Filter to rows whose \`name\` is exactly this value. The tool as a visitor knows it.`)
@@ -885,7 +901,7 @@ consentManagerRegistry
       async (_options, _command) => {
         const { id, code, name, category, company, address, country, privacyPolicyUrl, dpaUrl, thirdCountryTransfer, transferBasis, registryKey, logo, legalBasisOverride, catalogKey, catalogVersion, position, isActive, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
-          consentManagerVendorsListSpecs,
+          vendorsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -980,8 +996,8 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerVendorsListSpecs, { method: "get" });
-const consentManagerVendorsCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, vendorsListSpecs, { method: "get" });
+const vendorsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The vendor's fixed identity, as the Tag Manager, the visitor's cookie and every record name it. Lowercase letters, digits and '-'. For an adopted vendor it is the catalogue key.", type: "string", required: true },
   { key: "name", option: "--name <name>", name: "name", description: "The tool as a visitor knows it.", type: "string", required: true },
   { key: "address", option: "--address <address>", name: "address", description: "The company's postal address, as the banner names it.", type: "string", required: false },
@@ -1004,8 +1020,9 @@ const consentManagerVendorsCreateSpecs: PromptSpec[] = [
   { key: "transferBasis", option: "--transfer-basis <transfer-basis>", name: "transfer_basis", description: "What a third-country transfer rests on, in the words the banner shows.", type: "string", required: false },
 ];
 consentManagerRegistry
-  .command(`consent-manager-vendors-create`)
+  .command(`vendors-create`)
   .description(`Declare a vendor the catalogue does not carry. \`code\` and \`name\` are owed; \`purposes\` names the purpose codes it serves — a vendor with none cannot be published.`)
+  .alias("consent-manager-vendors-create")
   .option(`--code <code>`, `The vendor's fixed identity, as the Tag Manager, the visitor's cookie and every record name it. Lowercase letters, digits and '-'. For an adopted vendor it is the catalogue key.`)
   .option(`--name <name>`, `The tool as a visitor knows it.`)
   .option(`--address <address>`, `The company's postal address, as the banner names it.`)
@@ -1041,7 +1058,7 @@ consentManagerRegistry
       async (_options, _command) => {
         const { code, name, address, category, chains, company, country, description, dpaUrl, hosts, isActive, legalBasisOverride, logo, position, privacyPolicyUrl, purposes, registryKey, retentionNote, thirdCountryTransfer, transferBasis } = await promptForMissing(
           _options,
-          consentManagerVendorsCreateSpecs,
+          vendorsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1127,23 +1144,24 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerVendorsCreateSpecs, { method: "post" });
-const consentManagerVendorsDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, vendorsCreateSpecs, { method: "post" });
+const vendorsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The vendor.", type: "string", required: true, resource: { listPath: "/consent-manager/vendors", hasLimit: true } },
 ];
 consentManagerRegistry
-  .command(`consent-manager-vendors-delete`)
+  .command(`vendors-delete`)
   .description(`Removes the vendor, its cookies and its purpose links. Published versions keep naming it — they are frozen.`)
+  .alias("consent-manager-vendors-delete")
   .option(`--id <id>`, `The vendor.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          consentManagerVendorsDeleteSpecs,
+          vendorsDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`consent-manager-registry consent-manager-vendors-delete`);
+        await confirmDestructive(`consent-manager-registry vendors-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/consent-manager/vendors/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1160,20 +1178,21 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerVendorsDeleteSpecs, { method: "delete", destructive: true });
-const consentManagerVendorsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, vendorsDeleteSpecs, { method: "delete", destructive: true });
+const vendorsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The vendor.", type: "string", required: true, resource: { listPath: "/consent-manager/vendors", hasLimit: true } },
 ];
 consentManagerRegistry
-  .command(`consent-manager-vendors-get`)
+  .command(`vendors-get`)
   .description(`One vendor, with the codes of the purposes it serves, its cookies and any newer catalogue entry.`)
+  .alias("consent-manager-vendors-get")
   .option(`--id <id>`, `The vendor.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          consentManagerVendorsGetSpecs,
+          vendorsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1192,8 +1211,8 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerVendorsGetSpecs, { method: "get" });
-const consentManagerVendorsUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, vendorsGetSpecs, { method: "get" });
+const vendorsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The vendor.", type: "string", required: true, resource: { listPath: "/consent-manager/vendors", hasLimit: true } },
   { key: "address", option: "--address <address>", name: "address", description: "The company's postal address, as the banner names it.", type: "string", required: false },
   { key: "category", option: "--category <category>", name: "category", description: "What kind of tool this is — analytics, advertising, chat, video — as the catalogue groups it. Presentation only.", type: "string", required: false },
@@ -1217,8 +1236,9 @@ const consentManagerVendorsUpdateSpecs: PromptSpec[] = [
   { key: "transferBasis", option: "--transfer-basis <transfer-basis>", name: "transfer_basis", description: "What a third-country transfer rests on, in the words the banner shows.", type: "string", required: false },
 ];
 consentManagerRegistry
-  .command(`consent-manager-vendors-update`)
+  .command(`vendors-update`)
   .description(`Partial update. \`purposes\`, when sent, replaces the vendor's purposes. The code may be sent only unchanged.`)
+  .alias("consent-manager-vendors-update")
   .option(`--id <id>`, `The vendor.`)
   .option(`--address <address>`, `The company's postal address, as the banner names it.`)
   .option(`--category <category>`, `What kind of tool this is — analytics, advertising, chat, video — as the catalogue groups it. Presentation only.`)
@@ -1255,7 +1275,7 @@ consentManagerRegistry
       async (_options, _command) => {
         const { id, address, category, chains, code, company, country, description, dpaUrl, hosts, isActive, legalBasisOverride, logo, name, position, privacyPolicyUrl, purposes, registryKey, retentionNote, thirdCountryTransfer, transferBasis } = await promptForMissing(
           _options,
-          consentManagerVendorsUpdateSpecs,
+          vendorsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1341,13 +1361,14 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerVendorsUpdateSpecs, { method: "put" });
-const consentManagerVocabulariesListSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, vendorsUpdateSpecs, { method: "put" });
+const vocabulariesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 consentManagerRegistry
-  .command(`consent-manager-vocabularies-list`)
+  .command(`vocabularies-list`)
   .description(`The value sets this app publishes, without their values: legal-bases, cookie-kinds, record-actions, record-surfaces, banner-layouts, google-signals.`)
+  .alias("consent-manager-vocabularies-list")
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -1359,7 +1380,7 @@ consentManagerRegistry
       async (_options, _command) => {
         const { filter } = await promptForMissing(
           _options,
-          consentManagerVocabulariesListSpecs,
+          vocabulariesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1385,20 +1406,21 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerVocabulariesListSpecs, { method: "get" });
-const consentManagerVocabulariesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
+const vocabulariesGetSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "One of legal-bases, cookie-kinds, record-actions, record-surfaces, banner-layouts, google-signals.", type: "string", required: true, enum: ["legal-bases","cookie-kinds","record-actions","record-surfaces","banner-layouts","google-signals"], resource: { listPath: "/consent-manager/vocabularies", hasLimit: false } },
 ];
 consentManagerRegistry
-  .command(`consent-manager-vocabularies-get`)
+  .command(`vocabularies-get`)
   .description(`One value set with every value and its German and English label. The sets are closed: a value outside one is refused by the routes that take it.`)
+  .alias("consent-manager-vocabularies-get")
   .option(`--name <name>`, `One of legal-bases, cookie-kinds, record-actions, record-surfaces, banner-layouts, google-signals.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { name } = await promptForMissing(
           _options,
-          consentManagerVocabulariesGetSpecs,
+          vocabulariesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1417,4 +1439,4 @@ consentManagerRegistry
       },
     ),
   );
-registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, consentManagerVocabulariesGetSpecs, { method: "get" });
+registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, vocabulariesGetSpecs, { method: "get" });

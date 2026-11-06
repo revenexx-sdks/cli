@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const prices = new Command("prices")
       `Commerce Studio Prices App — product prices as PRICE LISTS with the full field repertoire: quantity tiers (Staffelpreise), per-entry validity windows (promo prices), currency per list, priorities and buyer scoping (contact, organization, channel — customer segments dock on later). Every list states whether its amounts are NET or GROSS, and a list that does not falls back to the tenant's declared basis instead of to a column default nobody chose; the resolve answer names which of the two decided. Rounding (decimals, mode, merchant price endings) is tenant policy, not a hardcoded wire scale. A missing price is a first-class state: the resolve call answers on_request instead of 0 — the storefront shows 'price on request', never €0. POST /prices/resolve is THE live price call and the designated override point: ERP-priced tenants replace exactly this one capability with a custom app via the gateway capability override while the configuration CRUD stays standard.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

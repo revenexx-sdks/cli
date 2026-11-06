@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -19,6 +20,7 @@ export const mailingsVariants = new Command("mailings-variants")
       `A/B variants of a mailing — reserved for the A/B test of a later version; empty and read-only in this one.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

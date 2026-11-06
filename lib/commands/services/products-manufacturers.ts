@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const productsManufacturers = new Command("products-manufacturers")
       `The companies that make what this catalog sells, as records of their own: a name and logo for a brand page, a description per language, and the data the EU General Product Safety Regulation requires an online offer to show — legal name, postal address, e-mail address, and the responsible person in the EEA for a manufacturer outside it. Manufacturers are global records that can be restricted to markets. A product points at one through \`manufacturer_id\`; the routes here also list a manufacturer's products, set its logo, check its GPSR data, and move a catalog off the older free-text manufacturer value.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

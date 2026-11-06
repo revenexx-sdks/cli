@@ -1,5 +1,5 @@
 ```bash
 revenexx mailings-mailings unarchive \
     --id '' \
-    --data '{ "key": "value" }'
+    --body '{ "key": "value" }'
 ```

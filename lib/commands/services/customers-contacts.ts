@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,10 +24,11 @@ export const customersContacts = new Command("customers-contacts")
       `The PEOPLE inside the buying companies, and everything that happens to one: the contact rows, the activity timeline (\`contact_events\` — a call, a visit, a note, plus this app's own registration decisions), the approve/reject calls that settle a pending registration, and the effective permissions a contact ends up holding. A contact is the unit that logs in — one platform user, one email, one role inside its organization — and a contact without an organization is a standalone buyer, not an error. Both routes that write a timeline entry are here, including the one addressed by an organization id, because every row is keyed by a contact.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
-const customersContactEventsListSpecs: PromptSpec[] = [
+const contactEventsListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to rows whose `id` is exactly this value. Primary key of the timeline entry.", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Filter to one person's timeline.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Filter to one company timeline — the whole history, without fanning out over its people.", type: "string", required: false },
@@ -45,8 +47,9 @@ const customersContactEventsListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 customersContacts
-  .command(`customers-contact-events-list`)
+  .command(`contact-events-list`)
   .description(`A contact event is one entry on a customer's timeline: an activity somebody logged (a call, a visit, a meeting, a note) or a registration decision this app recorded itself. Every entry is keyed by a CONTACT and stamped with the organization derived from that contact, so a company's history is one indexed read rather than a join. Append-only — there is no update and no delete, which is what makes it usable as evidence. The activity feed, filtered by whichever column the question needs: \`contact_id\` for one person, \`organization_id\` for a whole company, \`kind\` for one type of activity. \`kind: "system"\` is this app's own registration decision trail (\`registration.submitted\` / \`.approved\` / \`.rejected\`), and no caller may file one of those. Paged with \`limit\`/\`offset\`/\`order\`; newest first is \`order=occurred_at.desc\`.`)
+  .alias("customers-contact-events-list")
   .option(`--id <id>`, `Filter to rows whose \`id\` is exactly this value. Primary key of the timeline entry.`)
   .option(`--contact-id <contact-id>`, `Filter to one person's timeline.`)
   .option(`--organization-id <organization-id>`, `Filter to one company timeline — the whole history, without fanning out over its people.`)
@@ -73,7 +76,7 @@ customersContacts
       async (_options, _command) => {
         const { id, contactId, organizationId, kind, name, subject, actor, occurredAt, dueAt, assignee, doneAt, createdAt, limit, offset, order, filter } = await promptForMissing(
           _options,
-          customersContactEventsListSpecs,
+          contactEventsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -144,20 +147,21 @@ customersContacts
       },
     ),
   );
-registerPromptSpecs(customersContacts.commands.at(-1)!, customersContactEventsListSpecs, { method: "get" });
-const customersContactEventsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(customersContacts.commands.at(-1)!, contactEventsListSpecs, { method: "get" });
+const contactEventsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The contact event to read.", type: "string", required: true, resource: { listPath: "/customers/contact_events", hasLimit: true } },
 ];
 customersContacts
-  .command(`customers-contact-events-get`)
+  .command(`contact-events-get`)
   .description(`A contact event is one entry on a customer's timeline: an activity somebody logged (a call, a visit, a meeting, a note) or a registration decision this app recorded itself. Every entry is keyed by a CONTACT and stamped with the organization derived from that contact, so a company's history is one indexed read rather than a join. Append-only — there is no update and no delete, which is what makes it usable as evidence. One timeline entry by id, as it was written. Entries are never edited, so what this answers is what was recorded at the time.`)
+  .alias("customers-contact-events-get")
   .option(`--id <id>`, `The contact event to read.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersContactEventsGetSpecs,
+          contactEventsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -176,7 +180,7 @@ customersContacts
       },
     ),
   );
-registerPromptSpecs(customersContacts.commands.at(-1)!, customersContactEventsGetSpecs, { method: "get" });
+registerPromptSpecs(customersContacts.commands.at(-1)!, contactEventsGetSpecs, { method: "get" });
 const listSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to exactly one person.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Filter to one company's people. The company address book.", type: "string", required: false },
@@ -779,13 +783,14 @@ customersContacts
     ),
   );
 registerPromptSpecs(customersContacts.commands.at(-1)!, permissionsSpecs, { method: "get" });
-const customersRegistrationsApproveSpecs: PromptSpec[] = [
+const registrationsApproveSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The applicant. It is the CONTACT that is approved — the organization it founded is unblocked with it.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
   { key: "decidedBy", option: "--decided-by <decided-by>", name: "decided_by", description: "Who approved it — recorded on the contact and carried in the event. Free text (operator id or email). An operator the gateway authenticated is recorded as themselves instead, so the Cockpit sends none.", type: "string", required: false },
 ];
 customersContacts
-  .command(`customers-registrations-approve`)
+  .command(`registrations-approve`)
   .description(`Only reachable for a contact whose registration_status is 'pending' or 'rejected' (approving a rejection reinstates it). Enables the platform user FIRST — the password the applicant chose at submit time works immediately, no new credential is issued — then sets registration_status='approved' and status='active', and un-blocks the organization this registration itself founded. Approving an already-approved registration is a no-op that emits nothing, so a retry is safe. Writes a contact_events row named 'registration.approved'.`)
+  .alias("customers-registrations-approve")
   .option(`--contact-id <contact-id>`, `The applicant. It is the CONTACT that is approved — the organization it founded is unblocked with it.`)
   .option(`--decided-by <decided-by>`, `Who approved it — recorded on the contact and carried in the event. Free text (operator id or email). An operator the gateway authenticated is recorded as themselves instead, so the Cockpit sends none.`)
   .action(
@@ -793,7 +798,7 @@ customersContacts
       async (_options, _command) => {
         const { contactId, decidedBy } = await promptForMissing(
           _options,
-          customersRegistrationsApproveSpecs,
+          registrationsApproveSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -822,15 +827,16 @@ customersContacts
       },
     ),
   );
-registerPromptSpecs(customersContacts.commands.at(-1)!, customersRegistrationsApproveSpecs, { method: "post" });
-const customersRegistrationsRejectSpecs: PromptSpec[] = [
+registerPromptSpecs(customersContacts.commands.at(-1)!, registrationsApproveSpecs, { method: "post" });
+const registrationsRejectSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The applicant being declined.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
   { key: "reason", option: "--reason <reason>", name: "reason", description: "Why the application was declined. Always stored on the contact. It only reaches the APPLICANT when the tenant's registration_reason_disclosed setting is on — the event payload then carries it, and so does the 403 the login answers.", type: "string", required: true },
   { key: "decidedBy", option: "--decided-by <decided-by>", name: "decided_by", description: "Who rejected it — recorded on the contact and carried in the event. An operator the gateway authenticated is recorded as themselves instead.", type: "string", required: false },
 ];
 customersContacts
-  .command(`customers-registrations-reject`)
+  .command(`registrations-reject`)
   .description(`Only reachable from 'pending'. Sets registration_status='rejected' and status='blocked', keeps the platform user in place but disabled — the email must not fall free for a silent second identity, and the merchant keeps the record. Delete the contact to remove both. 'reason' is mandatory and is stored on the contact plus carried in the event payload, so the applicant can be told why. Rejecting an already-rejected registration is a no-op. Writes a contact_events row named 'registration.rejected'.`)
+  .alias("customers-registrations-reject")
   .option(`--contact-id <contact-id>`, `The applicant being declined.`)
   .option(`--reason <reason>`, `Why the application was declined. Always stored on the contact. It only reaches the APPLICANT when the tenant's registration_reason_disclosed setting is on — the event payload then carries it, and so does the 403 the login answers.`)
   .option(`--decided-by <decided-by>`, `Who rejected it — recorded on the contact and carried in the event. An operator the gateway authenticated is recorded as themselves instead.`)
@@ -839,7 +845,7 @@ customersContacts
       async (_options, _command) => {
         const { contactId, reason, decidedBy } = await promptForMissing(
           _options,
-          customersRegistrationsRejectSpecs,
+          registrationsRejectSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -871,7 +877,7 @@ customersContacts
       },
     ),
   );
-registerPromptSpecs(customersContacts.commands.at(-1)!, customersRegistrationsRejectSpecs, { method: "post" });
+registerPromptSpecs(customersContacts.commands.at(-1)!, registrationsRejectSpecs, { method: "post" });
 const reinviteSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person whose invitation is sent again.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
   { key: "url", option: "--url <url>", name: "url", description: "Where the invitation points. The first link origin when absent.", type: "string", required: false },
@@ -1252,7 +1258,7 @@ customersContacts
     ),
   );
 registerPromptSpecs(customersContacts.commands.at(-1)!, restoreSpecs, { method: "post" });
-const customersOrganizationsEventsCreateSpecs: PromptSpec[] = [
+const organizationsEventsCreateSpecs: PromptSpec[] = [
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "The company the entry is filed under. The `contact_id` in the body has to belong to it.", type: "string", required: true },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person dealt with. Must be a contact of this organization.", type: "string", required: true },
   { key: "subject", option: "--subject <subject>", name: "subject", description: "One line a person can scan in a timeline. Required — an entry nobody can read at a glance is not worth the row.", type: "string", required: true },
@@ -1262,8 +1268,9 @@ const customersOrganizationsEventsCreateSpecs: PromptSpec[] = [
   { key: "occurredAt", option: "--occurred-at <occurred-at>", name: "occurred_at", description: "When it actually happened. Defaults to now — a call logged on Monday about Friday should say Friday.", type: "string", required: false },
 ];
 customersContacts
-  .command(`customers-organizations-events-create`)
+  .command(`organizations-events-create`)
   .description(`Same row as the contact route, reached from the organization. 'contact_id' is required and must belong to THIS organization — the picker offering the contacts is not filtered, so the membership check here is what stops a call with one company being filed under someone else's person.`)
+  .alias("customers-organizations-events-create")
   .option(`--organization-id <organization-id>`, `The company the entry is filed under. The \`contact_id\` in the body has to belong to it.`)
   .option(`--contact-id <contact-id>`, `The person dealt with. Must be a contact of this organization.`)
   .option(`--subject <subject>`, `One line a person can scan in a timeline. Required — an entry nobody can read at a glance is not worth the row.`)
@@ -1276,7 +1283,7 @@ customersContacts
       async (_options, _command) => {
         const { organizationId, contactId, subject, actor, kind, note, occurredAt } = await promptForMissing(
           _options,
-          customersOrganizationsEventsCreateSpecs,
+          organizationsEventsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1320,4 +1327,4 @@ customersContacts
       },
     ),
   );
-registerPromptSpecs(customersContacts.commands.at(-1)!, customersOrganizationsEventsCreateSpecs, { method: "post" });
+registerPromptSpecs(customersContacts.commands.at(-1)!, organizationsEventsCreateSpecs, { method: "post" });

@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const channels = new Command("channels")
       `Commerce Studio Channels App — the sales-channel dimension of the Revenue Cloud. A channel is WHERE business happens: the web shop, a punchout integration, a marketplace, the API, a POS. Channels provides the 'channel' scope dimension to the Entity Scoping Engine, so scopeable entities in other apps (products, categories, ...) can be sliced per channel. It also owns the decision that slicing implies and that nothing else names: Baseline's scoped views are OPEN BY DEFAULT, so a product assigned to no channel is on sale in every channel — a punchout buyer sees the entire catalogue. 'unassigned_channel_visibility' is that answer made explicit (default 'all', reproducing the views exactly) and 'assigned_only' inverts it into the negotiated assortment a punchout contract describes, which the view itself cannot express; a channel may override the tenant answer for itself. GET /channels/context resolves the active channel and the policy; POST /channels/visibility applies it. The channel TYPES are the tenant's own list (channel_types, CRUD under /channels/types): they used to be a CHECK constraint over five values that nothing in the app ever branched on, so a merchant running a feed or print channel needed a release to say so. Statuses and unassigned-visibility stay constraints, because the app does branch on both. Both kinds are served as vocabularies, so no UI keeps its own copy. There is no foreign key behind channels.type — one onto a table that starts empty would fail the migration for every existing tenant — so the app enforces it: a type code is immutable, a type still in use cannot be deleted, and neither can the last one. Tenants always have sensible defaults: the five types and the 'shop' channel are seeded on install and on demand.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

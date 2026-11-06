@@ -612,10 +612,10 @@ describe("release status", () => {
     expect(JSON.parse(stdout.join("\n"))).toEqual({ app: "cost-centers", id: APP_ID, releases: rounds });
   });
 
-  it("refuses a directory that is neither an app nor a theme", async () => {
+  it("refuses a directory that is no release target", async () => {
     const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), "revenexx-not-an-app-"));
     try {
-      await expect(releaseStatus(elsewhere, {})).rejects.toThrow(/neither an app \(manifest.json\) nor a theme/);
+      await expect(releaseStatus(elsewhere, {})).rejects.toThrow(/is not an app \(manifest.json\), theme \(theme.json\), Cube \(cube.json\) or integration package/);
     } finally {
       fs.rmSync(elsewhere, { recursive: true, force: true });
     }

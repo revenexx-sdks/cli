@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,16 +24,18 @@ export const customersValueLists = new Command("customers-value-lists")
       `The value sets a merchant owns, and the fixed ones they do not. Payment terms, address types, lifecycle stages and activity types were CHECK constraints until a wholesaler wanted net 45 and a pipeline step of their own — they are the tenant's ROWS now, so adding one is a call rather than a release of this app, and the document recipient types joined them as the fifth. Alongside them the vocabularies: the enums this app really does fix (status, registration status, membership source, shipping advice), published with the titles, descriptions and badge tones a client needs to render a value it has never seen. Plus the one call that seeds a fresh tenant with every set.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
-const customersAddressTypesListSpecs: PromptSpec[] = [
+const addressTypesListSpecs: PromptSpec[] = [
   { key: "active", option: "--active <active>", name: "active", description: "true answers only the values still on offer (what a picker lists), false only the retired ones. Left out, every value comes back — a read never hides a retired value unless asked.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 customersValueLists
-  .command(`customers-address-types-list`)
+  .command(`address-types-list`)
   .description(`What an address is used for. Billing and shipping are what a checkout needs; a works entrance or a central accounts office is the tenant's own. A fresh install is seeded with billing, shipping, and the set seeds on first read too, so the page is never empty and \`addresses.type\` always has a value it may carry. The whole set comes back in one page in the tenant's own order — this route takes no limit/offset/order, so \`page\` describes the full set. Retired values are included; \`?active=true\` answers only the values on offer, \`?active=false\` only the retired ones. No other filter is taken.`)
+  .alias("customers-address-types-list")
   .option(
     `--active [value]`,
     `true answers only the values still on offer (what a picker lists), false only the retired ones. Left out, every value comes back — a read never hides a retired value unless asked.`,
@@ -50,7 +53,7 @@ customersValueLists
       async (_options, _command) => {
         const { active, filter } = await promptForMissing(
           _options,
-          customersAddressTypesListSpecs,
+          addressTypesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -79,8 +82,8 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersAddressTypesListSpecs, { method: "get" });
-const customersAddressTypesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, addressTypesListSpecs, { method: "get" });
+const addressTypesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "What `addresses.type` will store. Lowercase, starting with a letter; immutable afterwards.", type: "string", required: true },
   { key: "title", option: "--title <title>", name: "title", description: "The fallback name shown when no locale matches.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "Whether pickers offer this value. Default true. An inactive value cannot be created as the default.", type: "boolean", required: false },
@@ -92,8 +95,9 @@ const customersAddressTypesCreateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 customersValueLists
-  .command(`customers-address-types-create`)
+  .command(`address-types-create`)
   .description(`Extends this tenant's address types set with a value of their own — the whole reason these four stopped being CHECK constraints. What an address is used for. Billing and shipping are what a checkout needs; a works entrance or a central accounts office is the tenant's own. The code is lowercase and becomes what \`addresses.type\` stores; it cannot be changed afterwards, because every record carrying it would be orphaned.`)
+  .alias("customers-address-types-create")
   .option(`--code <code>`, `What \`addresses.type\` will store. Lowercase, starting with a letter; immutable afterwards.`)
   .option(`--title <title>`, `The fallback name shown when no locale matches.`)
   .option(
@@ -118,7 +122,7 @@ customersValueLists
       async (_options, _command) => {
         const { code, title, active, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
           _options,
-          customersAddressTypesCreateSpecs,
+          addressTypesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -171,23 +175,24 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersAddressTypesCreateSpecs, { method: "post" });
-const customersAddressTypesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, addressTypesCreateSpecs, { method: "post" });
+const addressTypesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The address type to remove.", type: "string", required: true, resource: { listPath: "/customers/address-types", hasLimit: false } },
 ];
 customersValueLists
-  .command(`customers-address-types-delete`)
+  .command(`address-types-delete`)
   .description(`Takes a value out of the address types set. There is no foreign key behind \`addresses.type\` — one added to a table that starts empty fails the migration of every existing tenant — so this route IS the integrity: it refuses while any record still carries the code, and it refuses to empty the set. Retiring a value that is in use is therefore a two-step job: move the records onto another value first, then remove it.`)
+  .alias("customers-address-types-delete")
   .option(`--id <id>`, `The address type to remove.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersAddressTypesDeleteSpecs,
+          addressTypesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`customers-value-lists customers-address-types-delete`);
+        await confirmDestructive(`customers-value-lists address-types-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/customers/address-types/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -204,20 +209,21 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersAddressTypesDeleteSpecs, { method: "delete", destructive: true });
-const customersAddressTypesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, addressTypesDeleteSpecs, { method: "delete", destructive: true });
+const addressTypesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The address type to read. Note that records store the CODE, not this id.", type: "string", required: true, resource: { listPath: "/customers/address-types", hasLimit: false } },
 ];
 customersValueLists
-  .command(`customers-address-types-get`)
+  .command(`address-types-get`)
   .description(`One value of the address types set, by its id — its code, its fallback title, the per-language \`labels\` an operator reads and the badge \`tone\` a client renders it with. What an address is used for. Billing and shipping are what a checkout needs; a works entrance or a central accounts office is the tenant's own. Reading one value is the rare path: \`GET /customers/address-types\` answers the whole set in a single page, which is what a select needs.`)
+  .alias("customers-address-types-get")
   .option(`--id <id>`, `The address type to read. Note that records store the CODE, not this id.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersAddressTypesGetSpecs,
+          addressTypesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -236,8 +242,8 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersAddressTypesGetSpecs, { method: "get" });
-const customersAddressTypesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, addressTypesGetSpecs, { method: "get" });
+const addressTypesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The address type to edit.", type: "string", required: true, resource: { listPath: "/customers/address-types", hasLimit: false } },
   { key: "active", option: "--active <active>", name: "active", description: "False retires the value: records that carry it keep it, pickers stop offering it. Refused on the default — make another entry the default first.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "One line of help for whoever picks this value.", type: "string", required: false },
@@ -249,8 +255,9 @@ const customersAddressTypesUpdateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 customersValueLists
-  .command(`customers-address-types-update`)
+  .command(`address-types-update`)
   .description(`Everything about a value except the value itself: its titles, its help text, its badge tone, its \`position\` in the select, and which one of the set is the default. The \`code\` is immutable, so no record carrying it is ever orphaned by an edit here — a merchant who retitles \`shipping\` to wording of their own changes what people READ and nothing about what \`addresses.type\` stores. Seeded values (\`is_system\`) are renameable like any other, and re-seeding leaves the rename alone.`)
+  .alias("customers-address-types-update")
   .option(`--id <id>`, `The address type to edit.`)
   .option(
     `--active [value]`,
@@ -275,7 +282,7 @@ customersValueLists
       async (_options, _command) => {
         const { id, active, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
           _options,
-          customersAddressTypesUpdateSpecs,
+          addressTypesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -325,14 +332,15 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersAddressTypesUpdateSpecs, { method: "put" });
-const customersContactEventKindsListSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, addressTypesUpdateSpecs, { method: "put" });
+const contactEventKindsListSpecs: PromptSpec[] = [
   { key: "active", option: "--active <active>", name: "active", description: "true answers only the values still on offer (what a picker lists), false only the retired ones. Left out, every value comes back — a read never hides a retired value unless asked.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 customersValueLists
-  .command(`customers-contact-event-kinds-list`)
+  .command(`contact-event-kinds-list`)
   .description(`What kind of entry lands on a customer timeline. 'system' is the app's own decision trail and a caller may not file one, whatever the set says. A fresh install is seeded with system, note, call, email, meeting, visit, task, and the set seeds on first read too, so the page is never empty and \`contact_events.kind\` always has a value it may carry. The whole set comes back in one page in the tenant's own order — this route takes no limit/offset/order, so \`page\` describes the full set. Retired values are included; \`?active=true\` answers only the values on offer, \`?active=false\` only the retired ones. No other filter is taken.`)
+  .alias("customers-contact-event-kinds-list")
   .option(
     `--active [value]`,
     `true answers only the values still on offer (what a picker lists), false only the retired ones. Left out, every value comes back — a read never hides a retired value unless asked.`,
@@ -350,7 +358,7 @@ customersValueLists
       async (_options, _command) => {
         const { active, filter } = await promptForMissing(
           _options,
-          customersContactEventKindsListSpecs,
+          contactEventKindsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -379,8 +387,8 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactEventKindsListSpecs, { method: "get" });
-const customersContactEventKindsCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, contactEventKindsListSpecs, { method: "get" });
+const contactEventKindsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "What `contact_events.kind` will store. Lowercase, starting with a letter; immutable afterwards.", type: "string", required: true },
   { key: "title", option: "--title <title>", name: "title", description: "The fallback name shown when no locale matches.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "Whether pickers offer this value. Default true. An inactive value cannot be created as the default.", type: "boolean", required: false },
@@ -392,8 +400,9 @@ const customersContactEventKindsCreateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 customersValueLists
-  .command(`customers-contact-event-kinds-create`)
+  .command(`contact-event-kinds-create`)
   .description(`Extends this tenant's activity types set with a value of their own — the whole reason these four stopped being CHECK constraints. What kind of entry lands on a customer timeline. 'system' is the app's own decision trail and a caller may not file one, whatever the set says. The code is lowercase and becomes what \`contact_events.kind\` stores; it cannot be changed afterwards, because every record carrying it would be orphaned.`)
+  .alias("customers-contact-event-kinds-create")
   .option(`--code <code>`, `What \`contact_events.kind\` will store. Lowercase, starting with a letter; immutable afterwards.`)
   .option(`--title <title>`, `The fallback name shown when no locale matches.`)
   .option(
@@ -418,7 +427,7 @@ customersValueLists
       async (_options, _command) => {
         const { code, title, active, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
           _options,
-          customersContactEventKindsCreateSpecs,
+          contactEventKindsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -471,23 +480,24 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactEventKindsCreateSpecs, { method: "post" });
-const customersContactEventKindsDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, contactEventKindsCreateSpecs, { method: "post" });
+const contactEventKindsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The activity type to remove.", type: "string", required: true, resource: { listPath: "/customers/contact-event-kinds", hasLimit: false } },
 ];
 customersValueLists
-  .command(`customers-contact-event-kinds-delete`)
+  .command(`contact-event-kinds-delete`)
   .description(`Takes a value out of the activity types set. There is no foreign key behind \`contact_events.kind\` — one added to a table that starts empty fails the migration of every existing tenant — so this route IS the integrity: it refuses while any record still carries the code, and it refuses to empty the set. Retiring a value that is in use is therefore a two-step job: move the records onto another value first, then remove it.`)
+  .alias("customers-contact-event-kinds-delete")
   .option(`--id <id>`, `The activity type to remove.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersContactEventKindsDeleteSpecs,
+          contactEventKindsDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`customers-value-lists customers-contact-event-kinds-delete`);
+        await confirmDestructive(`customers-value-lists contact-event-kinds-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/customers/contact-event-kinds/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -504,20 +514,21 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactEventKindsDeleteSpecs, { method: "delete", destructive: true });
-const customersContactEventKindsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, contactEventKindsDeleteSpecs, { method: "delete", destructive: true });
+const contactEventKindsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The activity type to read. Note that records store the CODE, not this id.", type: "string", required: true, resource: { listPath: "/customers/contact-event-kinds", hasLimit: false } },
 ];
 customersValueLists
-  .command(`customers-contact-event-kinds-get`)
+  .command(`contact-event-kinds-get`)
   .description(`One value of the activity types set, by its id — its code, its fallback title, the per-language \`labels\` an operator reads and the badge \`tone\` a client renders it with. What kind of entry lands on a customer timeline. 'system' is the app's own decision trail and a caller may not file one, whatever the set says. Reading one value is the rare path: \`GET /customers/contact-event-kinds\` answers the whole set in a single page, which is what a select needs.`)
+  .alias("customers-contact-event-kinds-get")
   .option(`--id <id>`, `The activity type to read. Note that records store the CODE, not this id.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersContactEventKindsGetSpecs,
+          contactEventKindsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -536,8 +547,8 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactEventKindsGetSpecs, { method: "get" });
-const customersContactEventKindsUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, contactEventKindsGetSpecs, { method: "get" });
+const contactEventKindsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The activity type to edit.", type: "string", required: true, resource: { listPath: "/customers/contact-event-kinds", hasLimit: false } },
   { key: "active", option: "--active <active>", name: "active", description: "False retires the value: records that carry it keep it, pickers stop offering it. Refused on the default — make another entry the default first.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "One line of help for whoever picks this value.", type: "string", required: false },
@@ -549,8 +560,9 @@ const customersContactEventKindsUpdateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 customersValueLists
-  .command(`customers-contact-event-kinds-update`)
+  .command(`contact-event-kinds-update`)
   .description(`Everything about a value except the value itself: its titles, its help text, its badge tone, its \`position\` in the select, and which one of the set is the default. The \`code\` is immutable, so no record carrying it is ever orphaned by an edit here — a merchant who retitles \`call\` to wording of their own changes what people READ and nothing about what \`contact_events.kind\` stores. Seeded values (\`is_system\`) are renameable like any other, and re-seeding leaves the rename alone.`)
+  .alias("customers-contact-event-kinds-update")
   .option(`--id <id>`, `The activity type to edit.`)
   .option(
     `--active [value]`,
@@ -575,7 +587,7 @@ customersValueLists
       async (_options, _command) => {
         const { id, active, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
           _options,
-          customersContactEventKindsUpdateSpecs,
+          contactEventKindsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -625,14 +637,15 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactEventKindsUpdateSpecs, { method: "put" });
-const customersContactLifecycleStagesListSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, contactEventKindsUpdateSpecs, { method: "put" });
+const contactLifecycleStagesListSpecs: PromptSpec[] = [
   { key: "active", option: "--active <active>", name: "active", description: "true answers only the values still on offer (what a picker lists), false only the retired ones. Left out, every value comes back — a read never hides a retired value unless asked.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 customersValueLists
-  .command(`customers-contact-lifecycle-stages-list`)
+  .command(`contact-lifecycle-stages-list`)
   .description(`Where a PERSON stands in the marketing and sales funnel, apart from the company's stage. The marketing apps name the six seeded codes; a merchant may rename them and add steps of their own. A fresh install is seeded with subscriber, lead, mql, sql, opportunity, customer, and the set seeds on first read too, so the page is never empty and \`contacts.lifecycle_stage\` always has a value it may carry. The whole set comes back in one page in the tenant's own order — this route takes no limit/offset/order, so \`page\` describes the full set. Retired values are included; \`?active=true\` answers only the values on offer, \`?active=false\` only the retired ones. No other filter is taken.`)
+  .alias("customers-contact-lifecycle-stages-list")
   .option(
     `--active [value]`,
     `true answers only the values still on offer (what a picker lists), false only the retired ones. Left out, every value comes back — a read never hides a retired value unless asked.`,
@@ -650,7 +663,7 @@ customersValueLists
       async (_options, _command) => {
         const { active, filter } = await promptForMissing(
           _options,
-          customersContactLifecycleStagesListSpecs,
+          contactLifecycleStagesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -679,8 +692,8 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactLifecycleStagesListSpecs, { method: "get" });
-const customersContactLifecycleStagesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, contactLifecycleStagesListSpecs, { method: "get" });
+const contactLifecycleStagesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "What `contacts.lifecycle_stage` will store. Lowercase, starting with a letter; immutable afterwards.", type: "string", required: true },
   { key: "title", option: "--title <title>", name: "title", description: "The fallback name shown when no locale matches.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "Whether pickers offer this value. Default true. An inactive value cannot be created as the default.", type: "boolean", required: false },
@@ -692,8 +705,9 @@ const customersContactLifecycleStagesCreateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 customersValueLists
-  .command(`customers-contact-lifecycle-stages-create`)
+  .command(`contact-lifecycle-stages-create`)
   .description(`Extends this tenant's contact stages set with a value of their own — the whole reason these four stopped being CHECK constraints. Where a PERSON stands in the marketing and sales funnel, apart from the company's stage. The marketing apps name the six seeded codes; a merchant may rename them and add steps of their own. The code is lowercase and becomes what \`contacts.lifecycle_stage\` stores; it cannot be changed afterwards, because every record carrying it would be orphaned.`)
+  .alias("customers-contact-lifecycle-stages-create")
   .option(`--code <code>`, `What \`contacts.lifecycle_stage\` will store. Lowercase, starting with a letter; immutable afterwards.`)
   .option(`--title <title>`, `The fallback name shown when no locale matches.`)
   .option(
@@ -718,7 +732,7 @@ customersValueLists
       async (_options, _command) => {
         const { code, title, active, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
           _options,
-          customersContactLifecycleStagesCreateSpecs,
+          contactLifecycleStagesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -771,23 +785,24 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactLifecycleStagesCreateSpecs, { method: "post" });
-const customersContactLifecycleStagesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, contactLifecycleStagesCreateSpecs, { method: "post" });
+const contactLifecycleStagesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The contact stage to remove.", type: "string", required: true, resource: { listPath: "/customers/contact-lifecycle-stages", hasLimit: false } },
 ];
 customersValueLists
-  .command(`customers-contact-lifecycle-stages-delete`)
+  .command(`contact-lifecycle-stages-delete`)
   .description(`Takes a value out of the contact stages set. There is no foreign key behind \`contacts.lifecycle_stage\` — one added to a table that starts empty fails the migration of every existing tenant — so this route IS the integrity: it refuses while any record still carries the code, and it refuses to empty the set. Retiring a value that is in use is therefore a two-step job: move the records onto another value first, then remove it.`)
+  .alias("customers-contact-lifecycle-stages-delete")
   .option(`--id <id>`, `The contact stage to remove.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersContactLifecycleStagesDeleteSpecs,
+          contactLifecycleStagesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`customers-value-lists customers-contact-lifecycle-stages-delete`);
+        await confirmDestructive(`customers-value-lists contact-lifecycle-stages-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/customers/contact-lifecycle-stages/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -804,20 +819,21 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactLifecycleStagesDeleteSpecs, { method: "delete", destructive: true });
-const customersContactLifecycleStagesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, contactLifecycleStagesDeleteSpecs, { method: "delete", destructive: true });
+const contactLifecycleStagesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The contact stage to read. Note that records store the CODE, not this id.", type: "string", required: true, resource: { listPath: "/customers/contact-lifecycle-stages", hasLimit: false } },
 ];
 customersValueLists
-  .command(`customers-contact-lifecycle-stages-get`)
+  .command(`contact-lifecycle-stages-get`)
   .description(`One value of the contact stages set, by its id — its code, its fallback title, the per-language \`labels\` an operator reads and the badge \`tone\` a client renders it with. Where a PERSON stands in the marketing and sales funnel, apart from the company's stage. The marketing apps name the six seeded codes; a merchant may rename them and add steps of their own. Reading one value is the rare path: \`GET /customers/contact-lifecycle-stages\` answers the whole set in a single page, which is what a select needs.`)
+  .alias("customers-contact-lifecycle-stages-get")
   .option(`--id <id>`, `The contact stage to read. Note that records store the CODE, not this id.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersContactLifecycleStagesGetSpecs,
+          contactLifecycleStagesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -836,8 +852,8 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactLifecycleStagesGetSpecs, { method: "get" });
-const customersContactLifecycleStagesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, contactLifecycleStagesGetSpecs, { method: "get" });
+const contactLifecycleStagesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The contact stage to edit.", type: "string", required: true, resource: { listPath: "/customers/contact-lifecycle-stages", hasLimit: false } },
   { key: "active", option: "--active <active>", name: "active", description: "False retires the value: records that carry it keep it, pickers stop offering it. Refused on the default — make another entry the default first.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "One line of help for whoever picks this value.", type: "string", required: false },
@@ -849,8 +865,9 @@ const customersContactLifecycleStagesUpdateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 customersValueLists
-  .command(`customers-contact-lifecycle-stages-update`)
+  .command(`contact-lifecycle-stages-update`)
   .description(`Everything about a value except the value itself: its titles, its help text, its badge tone, its \`position\` in the select, and which one of the set is the default. The \`code\` is immutable, so no record carrying it is ever orphaned by an edit here — a merchant who retitles \`lead\` to wording of their own changes what people READ and nothing about what \`contacts.lifecycle_stage\` stores. Seeded values (\`is_system\`) are renameable like any other, and re-seeding leaves the rename alone.`)
+  .alias("customers-contact-lifecycle-stages-update")
   .option(`--id <id>`, `The contact stage to edit.`)
   .option(
     `--active [value]`,
@@ -875,7 +892,7 @@ customersValueLists
       async (_options, _command) => {
         const { id, active, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
           _options,
-          customersContactLifecycleStagesUpdateSpecs,
+          contactLifecycleStagesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -925,14 +942,15 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactLifecycleStagesUpdateSpecs, { method: "put" });
-const customersContactPointKindsListSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, contactLifecycleStagesUpdateSpecs, { method: "put" });
+const contactPointKindsListSpecs: PromptSpec[] = [
   { key: "active", option: "--active <active>", name: "active", description: "true answers only the values still on offer (what a picker lists), false only the retired ones. Left out, every value comes back — a read never hides a retired value unless asked.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 customersValueLists
-  .command(`customers-contact-point-kinds-list`)
+  .command(`contact-point-kinds-list`)
   .description(`Which document a contact point receives. Four is what an ERP delivers per debtor; a merchant whose own mails a credit note or a statement separately adds theirs. A fresh install is seeded with invoice, order_confirmation, shipping_notice, dunning, and the set seeds on first read too, so the page is never empty. The whole set comes back in one page in the tenant's own order — this route takes no limit/offset/order, so \`page\` describes the full set. Retired values are included; \`?active=true\` answers only the values on offer, \`?active=false\` only the retired ones. No other filter is taken.`)
+  .alias("customers-contact-point-kinds-list")
   .option(
     `--active [value]`,
     `true answers only the values still on offer (what a picker lists), false only the retired ones. Left out, every value comes back — a read never hides a retired value unless asked.`,
@@ -950,7 +968,7 @@ customersValueLists
       async (_options, _command) => {
         const { active, filter } = await promptForMissing(
           _options,
-          customersContactPointKindsListSpecs,
+          contactPointKindsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -979,8 +997,8 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactPointKindsListSpecs, { method: "get" });
-const customersContactPointKindsCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, contactPointKindsListSpecs, { method: "get" });
+const contactPointKindsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "What `contact_points.kind` will store. Lowercase, starting with a letter; immutable afterwards.", type: "string", required: true },
   { key: "title", option: "--title <title>", name: "title", description: "The fallback name shown when no locale matches.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "Whether pickers offer this value. Default true. An inactive value cannot be created as the default.", type: "boolean", required: false },
@@ -992,8 +1010,9 @@ const customersContactPointKindsCreateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 customersValueLists
-  .command(`customers-contact-point-kinds-create`)
+  .command(`contact-point-kinds-create`)
   .description(`Extends this tenant's recipient types set with a value of their own — the whole reason these four stopped being CHECK constraints. Which document a contact point receives. Four is what an ERP delivers per debtor; a merchant whose own mails a credit note or a statement separately adds theirs. The code is lowercase and becomes what \`contact_points.kind\` stores; it cannot be changed afterwards, because every record carrying it would be orphaned.`)
+  .alias("customers-contact-point-kinds-create")
   .option(`--code <code>`, `What \`contact_points.kind\` will store. Lowercase, starting with a letter; immutable afterwards.`)
   .option(`--title <title>`, `The fallback name shown when no locale matches.`)
   .option(
@@ -1018,7 +1037,7 @@ customersValueLists
       async (_options, _command) => {
         const { code, title, active, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
           _options,
-          customersContactPointKindsCreateSpecs,
+          contactPointKindsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1071,23 +1090,24 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactPointKindsCreateSpecs, { method: "post" });
-const customersContactPointKindsDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, contactPointKindsCreateSpecs, { method: "post" });
+const contactPointKindsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The recipient type to remove.", type: "string", required: true, resource: { listPath: "/customers/contact-point-kinds", hasLimit: false } },
 ];
 customersValueLists
-  .command(`customers-contact-point-kinds-delete`)
+  .command(`contact-point-kinds-delete`)
   .description(`Takes a value out of the recipient types set. There is no foreign key behind \`contact_points.kind\` — one added to a table that starts empty fails the migration of every existing tenant — so this route IS the integrity: it refuses while any record still carries the code, and it refuses to empty the set. Retiring a value that is in use is therefore a two-step job: move the records onto another value first, then remove it.`)
+  .alias("customers-contact-point-kinds-delete")
   .option(`--id <id>`, `The recipient type to remove.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersContactPointKindsDeleteSpecs,
+          contactPointKindsDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`customers-value-lists customers-contact-point-kinds-delete`);
+        await confirmDestructive(`customers-value-lists contact-point-kinds-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/customers/contact-point-kinds/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1104,20 +1124,21 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactPointKindsDeleteSpecs, { method: "delete", destructive: true });
-const customersContactPointKindsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, contactPointKindsDeleteSpecs, { method: "delete", destructive: true });
+const contactPointKindsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The recipient type to read. Note that records store the CODE, not this id.", type: "string", required: true, resource: { listPath: "/customers/contact-point-kinds", hasLimit: false } },
 ];
 customersValueLists
-  .command(`customers-contact-point-kinds-get`)
+  .command(`contact-point-kinds-get`)
   .description(`One value of the recipient types set, by its id — its code, its fallback title, the per-language \`labels\` an operator reads and the badge \`tone\` a client renders it with. Which document a contact point receives. Four is what an ERP delivers per debtor; a merchant whose own mails a credit note or a statement separately adds theirs. Reading one value is the rare path: \`GET /customers/contact-point-kinds\` answers the whole set in a single page, which is what a select needs.`)
+  .alias("customers-contact-point-kinds-get")
   .option(`--id <id>`, `The recipient type to read. Note that records store the CODE, not this id.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersContactPointKindsGetSpecs,
+          contactPointKindsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1136,8 +1157,8 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactPointKindsGetSpecs, { method: "get" });
-const customersContactPointKindsUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, contactPointKindsGetSpecs, { method: "get" });
+const contactPointKindsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The recipient type to edit.", type: "string", required: true, resource: { listPath: "/customers/contact-point-kinds", hasLimit: false } },
   { key: "active", option: "--active <active>", name: "active", description: "False retires the value: records that carry it keep it, pickers stop offering it. Refused on the default — make another entry the default first.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "One line of help for whoever picks this value.", type: "string", required: false },
@@ -1149,8 +1170,9 @@ const customersContactPointKindsUpdateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 customersValueLists
-  .command(`customers-contact-point-kinds-update`)
+  .command(`contact-point-kinds-update`)
   .description(`Everything about a value except the value itself: its titles, its help text, its badge tone, its \`position\` in the select, and which one of the set is the default. The \`code\` is immutable, so no record carrying it is ever orphaned by an edit here — a merchant who retitles \`invoice\` to wording of their own changes what people READ and nothing about what \`contact_points.kind\` stores. Seeded values (\`is_system\`) are renameable like any other, and re-seeding leaves the rename alone.`)
+  .alias("customers-contact-point-kinds-update")
   .option(`--id <id>`, `The recipient type to edit.`)
   .option(
     `--active [value]`,
@@ -1175,7 +1197,7 @@ customersValueLists
       async (_options, _command) => {
         const { id, active, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
           _options,
-          customersContactPointKindsUpdateSpecs,
+          contactPointKindsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1225,13 +1247,14 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersContactPointKindsUpdateSpecs, { method: "put" });
-const customersDefaultsSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, contactPointKindsUpdateSpecs, { method: "put" });
+const defaultsSpecs: PromptSpec[] = [
   { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 customersValueLists
-  .command(`customers-defaults`)
+  .command(`defaults`)
   .description(`What the app.installed event runs. It fills all 6 of the value sets a tenant needs before anything else works — the payment terms, the address types, the lifecycle stages, the contact stages, the activity types and the recipient types — in one call. Idempotent by code: a set that already has its rows is left completely alone, so a re-delivered event and a merchant's renames both survive. A tenant installed before these tables existed is seeded lazily instead, by the first read that finds one empty.`)
+  .alias("customers-defaults")
   .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(
@@ -1243,7 +1266,7 @@ customersValueLists
         }
         const { body } = await promptForMissing(
           _options,
-          customersDefaultsSpecs,
+          defaultsSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1265,14 +1288,15 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersDefaultsSpecs, { method: "post" });
-const customersLifecycleStagesListSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, defaultsSpecs, { method: "post" });
+const lifecycleStagesListSpecs: PromptSpec[] = [
   { key: "active", option: "--active <active>", name: "active", description: "true answers only the values still on offer (what a picker lists), false only the retired ones. Left out, every value comes back — a read never hides a retired value unless asked.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 customersValueLists
-  .command(`customers-lifecycle-stages-list`)
+  .command(`lifecycle-stages-list`)
   .description(`Where a company stands in the sales pipeline — a separate axis from status, and one whose steps are a sales team's own. A fresh install is seeded with lead, prospect, customer, churned, and the set seeds on first read too, so the page is never empty and \`organizations.lifecycle_stage\` always has a value it may carry. The whole set comes back in one page in the tenant's own order — this route takes no limit/offset/order, so \`page\` describes the full set. Retired values are included; \`?active=true\` answers only the values on offer, \`?active=false\` only the retired ones. No other filter is taken.`)
+  .alias("customers-lifecycle-stages-list")
   .option(
     `--active [value]`,
     `true answers only the values still on offer (what a picker lists), false only the retired ones. Left out, every value comes back — a read never hides a retired value unless asked.`,
@@ -1290,7 +1314,7 @@ customersValueLists
       async (_options, _command) => {
         const { active, filter } = await promptForMissing(
           _options,
-          customersLifecycleStagesListSpecs,
+          lifecycleStagesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1319,8 +1343,8 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersLifecycleStagesListSpecs, { method: "get" });
-const customersLifecycleStagesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, lifecycleStagesListSpecs, { method: "get" });
+const lifecycleStagesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "What `organizations.lifecycle_stage` will store. Lowercase, starting with a letter; immutable afterwards.", type: "string", required: true },
   { key: "title", option: "--title <title>", name: "title", description: "The fallback name shown when no locale matches.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "Whether pickers offer this value. Default true. An inactive value cannot be created as the default.", type: "boolean", required: false },
@@ -1332,8 +1356,9 @@ const customersLifecycleStagesCreateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 customersValueLists
-  .command(`customers-lifecycle-stages-create`)
+  .command(`lifecycle-stages-create`)
   .description(`Extends this tenant's lifecycle stages set with a value of their own — the whole reason these four stopped being CHECK constraints. Where a company stands in the sales pipeline — a separate axis from status, and one whose steps are a sales team's own. The code is lowercase and becomes what \`organizations.lifecycle_stage\` stores; it cannot be changed afterwards, because every record carrying it would be orphaned.`)
+  .alias("customers-lifecycle-stages-create")
   .option(`--code <code>`, `What \`organizations.lifecycle_stage\` will store. Lowercase, starting with a letter; immutable afterwards.`)
   .option(`--title <title>`, `The fallback name shown when no locale matches.`)
   .option(
@@ -1358,7 +1383,7 @@ customersValueLists
       async (_options, _command) => {
         const { code, title, active, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
           _options,
-          customersLifecycleStagesCreateSpecs,
+          lifecycleStagesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1411,23 +1436,24 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersLifecycleStagesCreateSpecs, { method: "post" });
-const customersLifecycleStagesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, lifecycleStagesCreateSpecs, { method: "post" });
+const lifecycleStagesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The lifecycle stage to remove.", type: "string", required: true, resource: { listPath: "/customers/lifecycle-stages", hasLimit: false } },
 ];
 customersValueLists
-  .command(`customers-lifecycle-stages-delete`)
+  .command(`lifecycle-stages-delete`)
   .description(`Takes a value out of the lifecycle stages set. There is no foreign key behind \`organizations.lifecycle_stage\` — one added to a table that starts empty fails the migration of every existing tenant — so this route IS the integrity: it refuses while any record still carries the code, and it refuses to empty the set. Retiring a value that is in use is therefore a two-step job: move the records onto another value first, then remove it.`)
+  .alias("customers-lifecycle-stages-delete")
   .option(`--id <id>`, `The lifecycle stage to remove.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersLifecycleStagesDeleteSpecs,
+          lifecycleStagesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`customers-value-lists customers-lifecycle-stages-delete`);
+        await confirmDestructive(`customers-value-lists lifecycle-stages-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/customers/lifecycle-stages/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1444,20 +1470,21 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersLifecycleStagesDeleteSpecs, { method: "delete", destructive: true });
-const customersLifecycleStagesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, lifecycleStagesDeleteSpecs, { method: "delete", destructive: true });
+const lifecycleStagesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The lifecycle stage to read. Note that records store the CODE, not this id.", type: "string", required: true, resource: { listPath: "/customers/lifecycle-stages", hasLimit: false } },
 ];
 customersValueLists
-  .command(`customers-lifecycle-stages-get`)
+  .command(`lifecycle-stages-get`)
   .description(`One value of the lifecycle stages set, by its id — its code, its fallback title, the per-language \`labels\` an operator reads and the badge \`tone\` a client renders it with. Where a company stands in the sales pipeline — a separate axis from status, and one whose steps are a sales team's own. Reading one value is the rare path: \`GET /customers/lifecycle-stages\` answers the whole set in a single page, which is what a select needs.`)
+  .alias("customers-lifecycle-stages-get")
   .option(`--id <id>`, `The lifecycle stage to read. Note that records store the CODE, not this id.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersLifecycleStagesGetSpecs,
+          lifecycleStagesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1476,8 +1503,8 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersLifecycleStagesGetSpecs, { method: "get" });
-const customersLifecycleStagesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, lifecycleStagesGetSpecs, { method: "get" });
+const lifecycleStagesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The lifecycle stage to edit.", type: "string", required: true, resource: { listPath: "/customers/lifecycle-stages", hasLimit: false } },
   { key: "active", option: "--active <active>", name: "active", description: "False retires the value: records that carry it keep it, pickers stop offering it. Refused on the default — make another entry the default first.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "One line of help for whoever picks this value.", type: "string", required: false },
@@ -1489,8 +1516,9 @@ const customersLifecycleStagesUpdateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 customersValueLists
-  .command(`customers-lifecycle-stages-update`)
+  .command(`lifecycle-stages-update`)
   .description(`Everything about a value except the value itself: its titles, its help text, its badge tone, its \`position\` in the select, and which one of the set is the default. The \`code\` is immutable, so no record carrying it is ever orphaned by an edit here — a merchant who retitles \`customer\` to wording of their own changes what people READ and nothing about what \`organizations.lifecycle_stage\` stores. Seeded values (\`is_system\`) are renameable like any other, and re-seeding leaves the rename alone.`)
+  .alias("customers-lifecycle-stages-update")
   .option(`--id <id>`, `The lifecycle stage to edit.`)
   .option(
     `--active [value]`,
@@ -1515,7 +1543,7 @@ customersValueLists
       async (_options, _command) => {
         const { id, active, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
           _options,
-          customersLifecycleStagesUpdateSpecs,
+          lifecycleStagesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1565,14 +1593,15 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersLifecycleStagesUpdateSpecs, { method: "put" });
-const customersPaymentTermsListSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, lifecycleStagesUpdateSpecs, { method: "put" });
+const paymentTermsListSpecs: PromptSpec[] = [
   { key: "active", option: "--active <active>", name: "active", description: "true answers only the values still on offer (what a picker lists), false only the retired ones. Left out, every value comes back — a read never hides a retired value unless asked.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 customersValueLists
-  .command(`customers-payment-terms-list`)
+  .command(`payment-terms-list`)
   .description(`When a company has to pay. A wholesaler who agrees net 45 with one customer used to need a release of this app to say so. A fresh install is seeded with prepayment, direct_debit, net_7, net_14, net_30, net_60, net_90, and the set seeds on first read too, so the page is never empty and \`organizations.payment_terms\` always has a value it may carry. The whole set comes back in one page in the tenant's own order — this route takes no limit/offset/order, so \`page\` describes the full set. Retired values are included; \`?active=true\` answers only the values on offer, \`?active=false\` only the retired ones. No other filter is taken.`)
+  .alias("customers-payment-terms-list")
   .option(
     `--active [value]`,
     `true answers only the values still on offer (what a picker lists), false only the retired ones. Left out, every value comes back — a read never hides a retired value unless asked.`,
@@ -1590,7 +1619,7 @@ customersValueLists
       async (_options, _command) => {
         const { active, filter } = await promptForMissing(
           _options,
-          customersPaymentTermsListSpecs,
+          paymentTermsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1619,8 +1648,8 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersPaymentTermsListSpecs, { method: "get" });
-const customersPaymentTermsCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, paymentTermsListSpecs, { method: "get" });
+const paymentTermsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "What `organizations.payment_terms` will store. Lowercase, starting with a letter; immutable afterwards.", type: "string", required: true },
   { key: "title", option: "--title <title>", name: "title", description: "The fallback name shown when no locale matches.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "Whether pickers offer this value. Default true. An inactive value cannot be created as the default.", type: "boolean", required: false },
@@ -1632,8 +1661,9 @@ const customersPaymentTermsCreateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 customersValueLists
-  .command(`customers-payment-terms-create`)
+  .command(`payment-terms-create`)
   .description(`Extends this tenant's payment terms set with a value of their own — the whole reason these four stopped being CHECK constraints. When a company has to pay. A wholesaler who agrees net 45 with one customer used to need a release of this app to say so. The code is lowercase and becomes what \`organizations.payment_terms\` stores; it cannot be changed afterwards, because every record carrying it would be orphaned.`)
+  .alias("customers-payment-terms-create")
   .option(`--code <code>`, `What \`organizations.payment_terms\` will store. Lowercase, starting with a letter; immutable afterwards.`)
   .option(`--title <title>`, `The fallback name shown when no locale matches.`)
   .option(
@@ -1658,7 +1688,7 @@ customersValueLists
       async (_options, _command) => {
         const { code, title, active, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
           _options,
-          customersPaymentTermsCreateSpecs,
+          paymentTermsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1711,23 +1741,24 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersPaymentTermsCreateSpecs, { method: "post" });
-const customersPaymentTermsDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, paymentTermsCreateSpecs, { method: "post" });
+const paymentTermsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The payment term to remove.", type: "string", required: true, resource: { listPath: "/customers/payment-terms", hasLimit: false } },
 ];
 customersValueLists
-  .command(`customers-payment-terms-delete`)
+  .command(`payment-terms-delete`)
   .description(`Takes a value out of the payment terms set. There is no foreign key behind \`organizations.payment_terms\` — one added to a table that starts empty fails the migration of every existing tenant — so this route IS the integrity: it refuses while any record still carries the code, and it refuses to empty the set. Retiring a value that is in use is therefore a two-step job: move the records onto another value first, then remove it.`)
+  .alias("customers-payment-terms-delete")
   .option(`--id <id>`, `The payment term to remove.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersPaymentTermsDeleteSpecs,
+          paymentTermsDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`customers-value-lists customers-payment-terms-delete`);
+        await confirmDestructive(`customers-value-lists payment-terms-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/customers/payment-terms/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1744,20 +1775,21 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersPaymentTermsDeleteSpecs, { method: "delete", destructive: true });
-const customersPaymentTermsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, paymentTermsDeleteSpecs, { method: "delete", destructive: true });
+const paymentTermsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The payment term to read. Note that records store the CODE, not this id.", type: "string", required: true, resource: { listPath: "/customers/payment-terms", hasLimit: false } },
 ];
 customersValueLists
-  .command(`customers-payment-terms-get`)
+  .command(`payment-terms-get`)
   .description(`One value of the payment terms set, by its id — its code, its fallback title, the per-language \`labels\` an operator reads and the badge \`tone\` a client renders it with. When a company has to pay. A wholesaler who agrees net 45 with one customer used to need a release of this app to say so. Reading one value is the rare path: \`GET /customers/payment-terms\` answers the whole set in a single page, which is what a select needs.`)
+  .alias("customers-payment-terms-get")
   .option(`--id <id>`, `The payment term to read. Note that records store the CODE, not this id.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          customersPaymentTermsGetSpecs,
+          paymentTermsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1776,8 +1808,8 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersPaymentTermsGetSpecs, { method: "get" });
-const customersPaymentTermsUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, paymentTermsGetSpecs, { method: "get" });
+const paymentTermsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The payment term to edit.", type: "string", required: true, resource: { listPath: "/customers/payment-terms", hasLimit: false } },
   { key: "active", option: "--active <active>", name: "active", description: "False retires the value: records that carry it keep it, pickers stop offering it. Refused on the default — make another entry the default first.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "One line of help for whoever picks this value.", type: "string", required: false },
@@ -1789,8 +1821,9 @@ const customersPaymentTermsUpdateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 customersValueLists
-  .command(`customers-payment-terms-update`)
+  .command(`payment-terms-update`)
   .description(`Everything about a value except the value itself: its titles, its help text, its badge tone, its \`position\` in the select, and which one of the set is the default. The \`code\` is immutable, so no record carrying it is ever orphaned by an edit here — a merchant who retitles \`net_30\` to wording of their own changes what people READ and nothing about what \`organizations.payment_terms\` stores. Seeded values (\`is_system\`) are renameable like any other, and re-seeding leaves the rename alone.`)
+  .alias("customers-payment-terms-update")
   .option(`--id <id>`, `The payment term to edit.`)
   .option(
     `--active [value]`,
@@ -1815,7 +1848,7 @@ customersValueLists
       async (_options, _command) => {
         const { id, active, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
           _options,
-          customersPaymentTermsUpdateSpecs,
+          paymentTermsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1865,13 +1898,14 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersPaymentTermsUpdateSpecs, { method: "put" });
-const customersVocabulariesListSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, paymentTermsUpdateSpecs, { method: "put" });
+const vocabulariesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 customersValueLists
-  .command(`customers-vocabularies-list`)
+  .command(`vocabularies-list`)
   .description(`Discovery for the vocabulary routes: every enum this app publishes, each as a name, a title and a description. The VALUES are deliberately left out — this is the call that says which vocabularies exist, and the detail route is the one that answers what is in them. Names: address-types, contact-event-kinds, contact-lifecycle-stages, contact-point-kinds, contact-statuses, credit-limit-modes, lead-sources, lifecycle-stages, locales, order-approval-modes, organization-statuses, payment-terms, permissions, registration-statuses, roles, rule-matches, segment-member-types, segment-sources, shipping-advice, shop-access. Fetch one with GET /customers/vocabularies/{name}; a client holding the qualified pair 'customers.<name>' builds that URL from the pair alone.`)
+  .alias("customers-vocabularies-list")
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -1883,7 +1917,7 @@ customersValueLists
       async (_options, _command) => {
         const { filter } = await promptForMissing(
           _options,
-          customersVocabulariesListSpecs,
+          vocabulariesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1909,20 +1943,21 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersVocabulariesListSpecs, { method: "get" });
-const customersVocabulariesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(customersValueLists.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
+const vocabulariesGetSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id.", type: "string", required: true, enum: ["address-types","contact-event-kinds","contact-lifecycle-stages","contact-point-kinds","contact-statuses","credit-limit-modes","lead-sources","lifecycle-stages","locales","order-approval-modes","organization-statuses","payment-terms","permissions","registration-statuses","roles","rule-matches","segment-member-types","segment-sources","shipping-advice","shop-access"], resource: { listPath: "/customers/vocabularies", hasLimit: false } },
 ];
 customersValueLists
-  .command(`customers-vocabularies-get`)
+  .command(`vocabularies-get`)
   .description(`One vocabulary in full: every permitted value, each with its title, its description and the badge tone a client renders it with — enough to build a select without a second call. Two kinds of set, and 'source' says which one answered. 'schema' — the values are read out of the column's CHECK constraint, so the served set IS the enforced set and the two cannot drift; a value added to the constraint appears here even before anyone labels it, titled from its own key. 'table' — the values are the TENANT's own rows (payment terms, address types, lifecycle stages, activity types, roles), so they carry labels/descriptions per locale, is_system, is_default and active, and a merchant may add to them without a release of this app. A value the merchant retired (active: false) is not in 'values', which is what a picker offers; it is in 'inactive', in the same shape, so a screen still renders the title of a record that carries one from this one answer. 'tenant'/'defaults' are the two answers for a set the merchant configures but may not extend. Either way 'closed' is true: the set is exhaustive at this moment, so a value in neither 'values' nor 'inactive' is stale data rather than a missing label. Values come back in the order a select should offer them — lifecycle order for a status, the merchant's own position for a table. Names: address-types, contact-event-kinds, contact-lifecycle-stages, contact-point-kinds, contact-statuses, credit-limit-modes, lead-sources, lifecycle-stages, locales, order-approval-modes, organization-statuses, payment-terms, permissions, registration-statuses, roles, rule-matches, segment-member-types, segment-sources, shipping-advice, shop-access.`)
+  .alias("customers-vocabularies-get")
   .option(`--name <name>`, `The vocabulary name — the part after the dot in the qualified id.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { name } = await promptForMissing(
           _options,
-          customersVocabulariesGetSpecs,
+          vocabulariesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1941,4 +1976,4 @@ customersValueLists
       },
     ),
   );
-registerPromptSpecs(customersValueLists.commands.at(-1)!, customersVocabulariesGetSpecs, { method: "get" });
+registerPromptSpecs(customersValueLists.commands.at(-1)!, vocabulariesGetSpecs, { method: "get" });

@@ -1,5 +1,5 @@
 ```bash
 revenexx marketing-consents-subscriptions confirm \
-    --token '' \
+    --subscriptions-token '' \
     --purchase-request-id ''
 ```

@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,15 +24,17 @@ export const tagManagerTags = new Command("tag-manager-tags")
       `Marketing tags, the triggers that say when one is wanted, and the variables their settings use. A marketing tag names the VENDOR it loads and the PURPOSE it serves, exactly as the consent manager discloses them; the storefront loads it only when the visitor's consent covers that pair. There are two kinds and no third: a registry entry (the @nuxt/scripts registry plus etracker, HubSpot and Tawk.to) with a configuration checked against that entry's schema, or an https script. Custom HTML does not exist. Also here: the registry itself and the theme event vocabulary a trigger and an event map may name.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
-const tagManagerRegistryListSpecs: PromptSpec[] = [
+const registryListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 tagManagerTags
-  .command(`tag-manager-registry-list`)
+  .command(`registry-list`)
   .description(`Every registry key a marketing tag may name, with its label, category, the consent catalogue vendor code it usually discloses as (\`vendor\`, repeated as \`vendor_key\` for looking up the catalogue logo), its hosts, the JSON Schema of its configuration and its default event map. Every configuration property carries \`title\` and \`description\` as English strings and \`x-title\` / \`x-description\` as { de, en } for the tag form.`)
+  .alias("tag-manager-registry-list")
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -43,7 +46,7 @@ tagManagerTags
       async (_options, _command) => {
         const { filter } = await promptForMissing(
           _options,
-          tagManagerRegistryListSpecs,
+          registryListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -69,7 +72,7 @@ tagManagerTags
       },
     ),
   );
-registerPromptSpecs(tagManagerTags.commands.at(-1)!, tagManagerRegistryListSpecs, { method: "get" });
+registerPromptSpecs(tagManagerTags.commands.at(-1)!, registryListSpecs, { method: "get" });
 const listSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
@@ -699,7 +702,7 @@ tagManagerTags
     ),
   );
 registerPromptSpecs(tagManagerTags.commands.at(-1)!, tagManagerTriggersListSpecs, { method: "get" });
-const tagManagerTriggersCreateSpecs: PromptSpec[] = [
+const triggersCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The row's stable handle, unique per tenant: lowercase letters, digits, '-' and '_'.", type: "string", required: false },
   { key: "conditions", option: "--conditions <conditions>", name: "conditions", description: "Narrowing, every key optional and all set keys must match: `path_prefixes` (paths starting with /), `page_types` (the contract's page types), `b2b` (true/false).", type: "object", required: false },
   { key: "eventName", option: "--event-name <event-name>", name: "event_name", description: "For a theme_event trigger: an event of theme-events/1. Empty for a page_view trigger.", type: "string", required: false },
@@ -707,8 +710,9 @@ const tagManagerTriggersCreateSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "What the row is called, as a person reads it.", type: "string", required: false },
 ];
 tagManagerTags
-  .command(`tag-manager-triggers-create`)
+  .command(`triggers-create`)
   .description(`Create one trigger. Every rule is checked and every broken one is named in the 422.`)
+  .alias("tag-manager-triggers-create")
   .option(`--code <code>`, `The row's stable handle, unique per tenant: lowercase letters, digits, '-' and '_'.`)
   .option(`--conditions <conditions>`, `Narrowing, every key optional and all set keys must match: \`path_prefixes\` (paths starting with /), \`page_types\` (the contract's page types), \`b2b\` (true/false).`)
   .option(`--event-name <event-name>`, `For a theme_event trigger: an event of theme-events/1. Empty for a page_view trigger.`)
@@ -719,7 +723,7 @@ tagManagerTags
       async (_options, _command) => {
         const { code, conditions, eventName, kind, name } = await promptForMissing(
           _options,
-          tagManagerTriggersCreateSpecs,
+          triggersCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -760,23 +764,24 @@ tagManagerTags
       },
     ),
   );
-registerPromptSpecs(tagManagerTags.commands.at(-1)!, tagManagerTriggersCreateSpecs, { method: "post" });
-const tagManagerTriggersDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(tagManagerTags.commands.at(-1)!, triggersCreateSpecs, { method: "post" });
+const triggersDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The id of the trigger.", type: "string", required: true, resource: { listPath: "/tag-manager/triggers", hasLimit: true } },
 ];
 tagManagerTags
-  .command(`tag-manager-triggers-delete`)
+  .command(`triggers-delete`)
   .description(`Delete one trigger.`)
+  .alias("tag-manager-triggers-delete")
   .option(`--id <id>`, `The id of the trigger.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          tagManagerTriggersDeleteSpecs,
+          triggersDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`tag-manager-tags tag-manager-triggers-delete`);
+        await confirmDestructive(`tag-manager-tags triggers-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/tag-manager/triggers/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -793,20 +798,21 @@ tagManagerTags
       },
     ),
   );
-registerPromptSpecs(tagManagerTags.commands.at(-1)!, tagManagerTriggersDeleteSpecs, { method: "delete", destructive: true });
-const tagManagerTriggersGetSpecs: PromptSpec[] = [
+registerPromptSpecs(tagManagerTags.commands.at(-1)!, triggersDeleteSpecs, { method: "delete", destructive: true });
+const triggersGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The id of the trigger.", type: "string", required: true, resource: { listPath: "/tag-manager/triggers", hasLimit: true } },
 ];
 tagManagerTags
-  .command(`tag-manager-triggers-get`)
+  .command(`triggers-get`)
   .description(`One trigger by id.`)
+  .alias("tag-manager-triggers-get")
   .option(`--id <id>`, `The id of the trigger.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          tagManagerTriggersGetSpecs,
+          triggersGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -825,8 +831,8 @@ tagManagerTags
       },
     ),
   );
-registerPromptSpecs(tagManagerTags.commands.at(-1)!, tagManagerTriggersGetSpecs, { method: "get" });
-const tagManagerTriggersUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(tagManagerTags.commands.at(-1)!, triggersGetSpecs, { method: "get" });
+const triggersUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The id of the trigger.", type: "string", required: true, resource: { listPath: "/tag-manager/triggers", hasLimit: true } },
   { key: "code", option: "--code <code>", name: "code", description: "The row's stable handle, unique per tenant: lowercase letters, digits, '-' and '_'.", type: "string", required: false },
   { key: "conditions", option: "--conditions <conditions>", name: "conditions", description: "Narrowing, every key optional and all set keys must match: `path_prefixes` (paths starting with /), `page_types` (the contract's page types), `b2b` (true/false).", type: "object", required: false },
@@ -835,8 +841,9 @@ const tagManagerTriggersUpdateSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "What the row is called, as a person reads it.", type: "string", required: false },
 ];
 tagManagerTags
-  .command(`tag-manager-triggers-update`)
+  .command(`triggers-update`)
   .description(`Edit one trigger. The row it would leave is checked whole.`)
+  .alias("tag-manager-triggers-update")
   .option(`--id <id>`, `The id of the trigger.`)
   .option(`--code <code>`, `The row's stable handle, unique per tenant: lowercase letters, digits, '-' and '_'.`)
   .option(`--conditions <conditions>`, `Narrowing, every key optional and all set keys must match: \`path_prefixes\` (paths starting with /), \`page_types\` (the contract's page types), \`b2b\` (true/false).`)
@@ -848,7 +855,7 @@ tagManagerTags
       async (_options, _command) => {
         const { id, code, conditions, eventName, kind, name } = await promptForMissing(
           _options,
-          tagManagerTriggersUpdateSpecs,
+          triggersUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -889,8 +896,8 @@ tagManagerTags
       },
     ),
   );
-registerPromptSpecs(tagManagerTags.commands.at(-1)!, tagManagerTriggersUpdateSpecs, { method: "put" });
-const tagManagerVariablesListSpecs: PromptSpec[] = [
+registerPromptSpecs(tagManagerTags.commands.at(-1)!, triggersUpdateSpecs, { method: "put" });
+const variablesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
@@ -904,8 +911,9 @@ const tagManagerVariablesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 tagManagerTags
-  .command(`tag-manager-variables-list`)
+  .command(`variables-list`)
   .description(`Every variable of this tenant visible in the requested market, paged. Equality filters on plain columns; jsonb columns are answered but not filterable.`)
+  .alias("tag-manager-variables-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
@@ -927,7 +935,7 @@ tagManagerTags
       async (_options, _command) => {
         const { limit, offset, order, id, code, name, kind, path, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
-          tagManagerVariablesListSpecs,
+          variablesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -983,8 +991,8 @@ tagManagerTags
       },
     ),
   );
-registerPromptSpecs(tagManagerTags.commands.at(-1)!, tagManagerVariablesListSpecs, { method: "get" });
-const tagManagerVariablesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(tagManagerTags.commands.at(-1)!, variablesListSpecs, { method: "get" });
+const variablesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The name a placeholder uses: `{{code}}`. Lowercase letters, digits and underscores, starting with a letter.", type: "string", required: false },
   { key: "constantValue", option: "--constant-value <constant-value>", name: "constant_value", description: "For a constant variable: its value, of any JSON type.", type: "any", required: false },
   { key: "kind", option: "--kind <kind>", name: "kind", description: "`constant` (a value kept here), `event_field` (a field of the theme event) or `page` (a field of the page).", type: "string", required: false, enum: ["event_field","constant","page"] },
@@ -992,8 +1000,9 @@ const tagManagerVariablesCreateSpecs: PromptSpec[] = [
   { key: "path", option: "--path <path>", name: "path", description: "For event_field and page variables: the dotted path, e.g. `ecommerce.value_net`.", type: "string", required: false },
 ];
 tagManagerTags
-  .command(`tag-manager-variables-create`)
+  .command(`variables-create`)
   .description(`Create one variable. Every rule is checked and every broken one is named in the 422.`)
+  .alias("tag-manager-variables-create")
   .option(`--code <code>`, `The name a placeholder uses: \`{{code}}\`. Lowercase letters, digits and underscores, starting with a letter.`)
   .option(`--constant-value <constant-value>`, `For a constant variable: its value, of any JSON type.`)
   .option(`--kind <kind>`, `\`constant\` (a value kept here), \`event_field\` (a field of the theme event) or \`page\` (a field of the page).`)
@@ -1004,7 +1013,7 @@ tagManagerTags
       async (_options, _command) => {
         const { code, constantValue, kind, name, path } = await promptForMissing(
           _options,
-          tagManagerVariablesCreateSpecs,
+          variablesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1045,23 +1054,24 @@ tagManagerTags
       },
     ),
   );
-registerPromptSpecs(tagManagerTags.commands.at(-1)!, tagManagerVariablesCreateSpecs, { method: "post" });
-const tagManagerVariablesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(tagManagerTags.commands.at(-1)!, variablesCreateSpecs, { method: "post" });
+const variablesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The id of the variable.", type: "string", required: true, resource: { listPath: "/tag-manager/variables", hasLimit: true } },
 ];
 tagManagerTags
-  .command(`tag-manager-variables-delete`)
+  .command(`variables-delete`)
   .description(`Delete one variable.`)
+  .alias("tag-manager-variables-delete")
   .option(`--id <id>`, `The id of the variable.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          tagManagerVariablesDeleteSpecs,
+          variablesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`tag-manager-tags tag-manager-variables-delete`);
+        await confirmDestructive(`tag-manager-tags variables-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/tag-manager/variables/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1078,20 +1088,21 @@ tagManagerTags
       },
     ),
   );
-registerPromptSpecs(tagManagerTags.commands.at(-1)!, tagManagerVariablesDeleteSpecs, { method: "delete", destructive: true });
-const tagManagerVariablesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(tagManagerTags.commands.at(-1)!, variablesDeleteSpecs, { method: "delete", destructive: true });
+const variablesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The id of the variable.", type: "string", required: true, resource: { listPath: "/tag-manager/variables", hasLimit: true } },
 ];
 tagManagerTags
-  .command(`tag-manager-variables-get`)
+  .command(`variables-get`)
   .description(`One variable by id.`)
+  .alias("tag-manager-variables-get")
   .option(`--id <id>`, `The id of the variable.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          tagManagerVariablesGetSpecs,
+          variablesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1110,8 +1121,8 @@ tagManagerTags
       },
     ),
   );
-registerPromptSpecs(tagManagerTags.commands.at(-1)!, tagManagerVariablesGetSpecs, { method: "get" });
-const tagManagerVariablesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(tagManagerTags.commands.at(-1)!, variablesGetSpecs, { method: "get" });
+const variablesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The id of the variable.", type: "string", required: true, resource: { listPath: "/tag-manager/variables", hasLimit: true } },
   { key: "code", option: "--code <code>", name: "code", description: "The name a placeholder uses: `{{code}}`. Lowercase letters, digits and underscores, starting with a letter.", type: "string", required: false },
   { key: "constantValue", option: "--constant-value <constant-value>", name: "constant_value", description: "For a constant variable: its value, of any JSON type.", type: "any", required: false },
@@ -1120,8 +1131,9 @@ const tagManagerVariablesUpdateSpecs: PromptSpec[] = [
   { key: "path", option: "--path <path>", name: "path", description: "For event_field and page variables: the dotted path, e.g. `ecommerce.value_net`.", type: "string", required: false },
 ];
 tagManagerTags
-  .command(`tag-manager-variables-update`)
+  .command(`variables-update`)
   .description(`Edit one variable. The row it would leave is checked whole.`)
+  .alias("tag-manager-variables-update")
   .option(`--id <id>`, `The id of the variable.`)
   .option(`--code <code>`, `The name a placeholder uses: \`{{code}}\`. Lowercase letters, digits and underscores, starting with a letter.`)
   .option(`--constant-value <constant-value>`, `For a constant variable: its value, of any JSON type.`)
@@ -1133,7 +1145,7 @@ tagManagerTags
       async (_options, _command) => {
         const { id, code, constantValue, kind, name, path } = await promptForMissing(
           _options,
-          tagManagerVariablesUpdateSpecs,
+          variablesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1174,13 +1186,14 @@ tagManagerTags
       },
     ),
   );
-registerPromptSpecs(tagManagerTags.commands.at(-1)!, tagManagerVariablesUpdateSpecs, { method: "put" });
-const tagManagerVocabulariesListSpecs: PromptSpec[] = [
+registerPromptSpecs(tagManagerTags.commands.at(-1)!, variablesUpdateSpecs, { method: "put" });
+const vocabulariesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 tagManagerTags
-  .command(`tag-manager-vocabularies-list`)
+  .command(`vocabularies-list`)
   .description(`The event names of the theme event contract version this app supports (theme-events/1), which a trigger and an event map may name, plus the value sets of tags, triggers and variables.`)
+  .alias("tag-manager-vocabularies-list")
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -1192,7 +1205,7 @@ tagManagerTags
       async (_options, _command) => {
         const { filter } = await promptForMissing(
           _options,
-          tagManagerVocabulariesListSpecs,
+          vocabulariesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1218,4 +1231,4 @@ tagManagerTags
       },
     ),
   );
-registerPromptSpecs(tagManagerTags.commands.at(-1)!, tagManagerVocabulariesListSpecs, { method: "get" });
+registerPromptSpecs(tagManagerTags.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });

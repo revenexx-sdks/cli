@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const markets = new Command("markets")
       `Commerce Studio Markets App — the market/region backbone of the Revenue Cloud. A market is a distinct business context within a tenant (a country, a region, a B2C storefront segment) with its own base currency, locales (language + country), traded currencies and tax classes (standard, reduced, …). Markets provides the 'market' scope dimension to the Entity Scoping Engine, so every other commerce app (products, orders, customers, …) can slice its data per market. Storefronts resolve their full market context (currency, locales, currencies, tax classes) in one call.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

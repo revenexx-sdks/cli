@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -20,6 +21,7 @@ export const mailingsSend = new Command("mailings-send")
       `The send pipeline, run every five minutes and callable by hand: due mailings are prepared chunk by chunk within a time budget and continue on the next run.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

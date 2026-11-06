@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -22,6 +23,7 @@ export const productsAssets = new Command("products-assets")
       `The decoupled media domain: the asset rows a product's media attribute points at, whether their bytes sit in this platform's object store or on somebody else's host. An asset is addressed by code within its family and is never linked to a product by a join table — a product references it through an attribute value. The families that give assets their shape and their file-naming convention live in Data model.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

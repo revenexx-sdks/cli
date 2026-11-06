@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const costCenters = new Command("cost-centers")
       `Commerce Studio Cost Centers App — the money/data half of B2B procurement. Cost centres (booking accounts) with restrictions and an accountable contact, budgets with a change LEDGER (sequential consumption, last budget may go negative), and per-contact personal spending limits. Has zero approval concept: the procurement app owns approval rules, purchase requests and the workflow, and calls this app for condition evaluation (the budget-aware availableBudget plus the per-contact personalLimit gate) and budget movement (reserve, adjusting a held reservation, confirm/withdraw/commit). Ports the cost-centre parts of IntelliShop V8 module-booking-accounts.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

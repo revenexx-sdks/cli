@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const audiencesRules = new Command("audiences-rules")
       `The rule tree of an active audience: groups of all or any holding questions about one person — contact fields and role, lifecycle stage, the organisation's segments and figures, market and locale, subscription state, engagement, membership of another audience, form submissions, loyalty tier, reviews — with negation. Every question names the app that answers it, and an unanswered one excludes the person.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

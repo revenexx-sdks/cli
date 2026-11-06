@@ -1,4 +1,4 @@
 ```bash
 revenexx punchout defaults \
-    --data '{ "key": "value" }'
+    --body '{ "key": "value" }'
 ```

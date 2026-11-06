@@ -1,4 +1,4 @@
 ```bash
 revenexx customers-segments rules-recompute-all \
-    --data '{ "key": "value" }'
+    --body '{ "key": "value" }'
 ```

@@ -1,5 +1,5 @@
 ```bash
 revenexx punchout sessions-claim \
     --psid '' \
-    --data '{ "key": "value" }'
+    --body '{ "key": "value" }'
 ```

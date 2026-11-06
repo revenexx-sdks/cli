@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -20,6 +21,7 @@ export const loyaltyJobs = new Command("loyalty-jobs")
       `The hourly run: orders credited, returned and cancelled in the last two days, points past their date, agreement projections and tiers.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

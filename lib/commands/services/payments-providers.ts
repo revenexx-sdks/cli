@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,16 +24,18 @@ export const paymentsProviders = new Command("payments-providers")
       `WHO moves the money, and what this app needs in order to talk to it. A provider row is one PSP account of this tenant: a catalog code, the credentials its auth scheme expects, whether it is live or in sandbox, and the switches the driver reads. GET /payments/providers/catalog is the closed set of codes a create accepts — about seventy connectors, shipped with the app and identical for every tenant, each saying which auth scheme and which credential FIELD NAMES it wants; the logo route serves the SVG that catalog entry's \`logo_url\` points at, which is why it is the one route in this app that needs no tenant identity. Nothing configured here is ever read back: \`credentials\` and \`webhook_secret\` are write-only, so rotating a secret means writing the new value. What a payment method COSTS or when it is offered is never here — that belongs to the method.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
-const paymentsLogosGetSpecs: PromptSpec[] = [
+const logosGetSpecs: PromptSpec[] = [
   { key: "slug", option: "--slug <slug>", name: "slug", description: "A catalog provider code, as GET /payments/providers/catalog lists it. Case-insensitive, and a trailing '.svg' is ignored. Not tenant data: the logos ship with the app and are identical for everyone.", type: "string", required: true },
   { key: "variant", option: "--variant <variant>", name: "variant", description: "Which image of a connector with brand files on the CDN to redirect to: the full `logo` (default) or the square `symbol`. Without uploaded files both answer the same monogram tile.", type: "string", required: false, default: "logo", enum: ["logo","symbol"] },
 ];
 paymentsProviders
-  .command(`payments-logos-get`)
+  .command(`logos-get`)
   .description(`Answers the SVG document for a catalog provider code (a shipped assets/logos/{code}.svg, otherwise a generated monogram tile), with content-type image/svg+xml and a one-day cache. For a connector whose brand files are on the platform CDN it redirects (302) there instead: to the full logo, or with \`?variant=symbol\` to the square symbol. It is the one route in this app that needs no tenant identity: the logos are bundled with the app rather than owned by anyone, so nothing here is tenant data and no key or tenant header is required to fetch one — which is what lets a storefront or a Cockpit screen point an <img> straight at it: https://api.revenexx.com/v1/payments/logos/stripe. Declared unauthenticated, so the gateway serves it with no header at all and passes the content-type, the cache headers and the redirect through. The app domain itself does not answer the internet.`)
+  .alias("payments-logos-get")
   .option(`--slug <slug>`, `A catalog provider code, as GET /payments/providers/catalog lists it. Case-insensitive, and a trailing '.svg' is ignored. Not tenant data: the logos ship with the app and are identical for everyone.`)
   .option(`--variant <variant>`, `Which image of a connector with brand files on the CDN to redirect to: the full \`logo\` (default) or the square \`symbol\`. Without uploaded files both answer the same monogram tile.`)
   .action(
@@ -40,7 +43,7 @@ paymentsProviders
       async (_options, _command) => {
         const { slug, variant } = await promptForMissing(
           _options,
-          paymentsLogosGetSpecs,
+          logosGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -62,7 +65,7 @@ paymentsProviders
       },
     ),
   );
-registerPromptSpecs(paymentsProviders.commands.at(-1)!, paymentsLogosGetSpecs, { method: "get" });
+registerPromptSpecs(paymentsProviders.commands.at(-1)!, logosGetSpecs, { method: "get" });
 const listSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },

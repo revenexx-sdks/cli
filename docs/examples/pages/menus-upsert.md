@@ -1,5 +1,5 @@
 ```bash
 revenexx pages menus-upsert \
-    --label Main navigation \
+    --label 'Main navigation' \
     --menu-key main
 ```

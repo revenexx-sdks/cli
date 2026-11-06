@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -13,6 +14,7 @@ export const mailingsHealth = new Command("mailings-health")
       `The sending health over 30 days: bounce, complaint and unsubscribe rates, with an alert when complaints pass the limit mailbox providers enforce.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

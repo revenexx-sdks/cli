@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const productsCategories = new Command("products-categories")
       `The category tree and how products get into it. The nodes themselves, the memberships that file a product into a node — hand-picked or materialized by a rule — and the rule engine that maintains the second kind: preview a selector before storing it, recompute one category, or recompute every category that carries rules. Read this group when the question is "which products are in this category, and how did they get there".`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
@@ -813,7 +815,7 @@ Restoring needs the same right as deleting.`)
     ),
   );
 registerPromptSpecs(productsCategories.commands.at(-1)!, restoreSpecs, { method: "post" });
-const productsProductCategoriesListSpecs: PromptSpec[] = [
+const productCategoriesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.", type: "string", required: false },
@@ -827,12 +829,13 @@ const productsProductCategoriesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 productsCategories
-  .command(`products-product-categories-list`)
+  .command(`product-categories-list`)
   .description(`One membership: this product is filed in this category. \`source\` says how it got there — \`manual\` is hand-picked, \`rule\` was materialized by a category rule — and the two never touch each other: a recompute only ever inserts and deletes \`rule\` rows, so a hand-picked membership survives every pass. \`POST /products/{id}/categories\` is the friendlier way to create one, because it takes the product from the path and answers with the category code and the SKU.
 
 Every column of \`product_categories\` is an exact-match query parameter, \`order\` sorts by one column, and \`limit\`/\`offset\` page through \`page.total\`. A query key that is NOT a column is dropped rather than refused, and the \`filter\` object echoes the ones that were understood — that echo is the only way to tell an unfiltered answer from an empty one. It reads rows exactly as they are stored: no join is resolved, no jsonb value is unpacked.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-product-categories-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. Anything else is refused with 400.`)
@@ -854,7 +857,7 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       async (_options, _command) => {
         const { limit, offset, order, id, productId, categoryId, position, source, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
-          productsProductCategoriesListSpecs,
+          productCategoriesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -910,20 +913,21 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsCategories.commands.at(-1)!, productsProductCategoriesListSpecs, { method: "get" });
-const productsProductCategoriesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsCategories.commands.at(-1)!, productCategoriesListSpecs, { method: "get" });
+const productCategoriesCreateSpecs: PromptSpec[] = [
   { key: "categoryId", option: "--category-id <category-id>", name: "category_id", description: "The category it is filed into. One row per (product, category), whichever way it got there.", type: "string", required: true },
   { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The product filed into the category. Deleting the product deletes the membership with it.", type: "string", required: true },
   { key: "position", option: "--position <position>", name: "position", description: "Sort order of this product inside the category.", type: "integer", required: false },
   { key: "source", option: "--source <source>", name: "source", description: "How the membership came about: 'manual' is hand-picked, 'rule' was materialized by a category rule. The two never touch each other — a recompute only ever inserts and deletes `rule` rows, so a hand-picked membership survives every pass.", type: "string", required: false, enum: ["manual","rule"] },
 ];
 productsCategories
-  .command(`products-product-categories-create`)
+  .command(`product-categories-create`)
   .description(`Creates one product category membership and answers 201 with the stored row, including the id and the timestamps the database filled in — a client never sends an id, it reads one back and uses it in the path of every later call.
 
 One membership: this product is filed in this category. \`source\` says how it got there — \`manual\` is hand-picked, \`rule\` was materialized by a category rule — and the two never touch each other: a recompute only ever inserts and deletes \`rule\` rows, so a hand-picked membership survives every pass. \`POST /products/{id}/categories\` is the friendlier way to create one, because it takes the product from the path and answers with the category code and the SKU.
 
 \`product_id\` and \`category_id\` are the only columns the database refuses the row without; everything else has a default or is nullable. A second row with the same \`product_id\` and \`category_id\` answers 409.`)
+  .alias("products-product-categories-create")
   .option(`--category-id <category-id>`, `The category it is filed into. One row per (product, category), whichever way it got there.`)
   .option(`--product-id <product-id>`, `The product filed into the category. Deleting the product deletes the membership with it.`)
   .option(`--position <position>`, `Sort order of this product inside the category.`, parseInteger)
@@ -933,7 +937,7 @@ One membership: this product is filed in this category. \`source\` says how it g
       async (_options, _command) => {
         const { categoryId, productId, position, source } = await promptForMissing(
           _options,
-          productsProductCategoriesCreateSpecs,
+          productCategoriesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -971,27 +975,28 @@ One membership: this product is filed in this category. \`source\` says how it g
       },
     ),
   );
-registerPromptSpecs(productsCategories.commands.at(-1)!, productsProductCategoriesCreateSpecs, { method: "post" });
-const productsProductCategoriesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(productsCategories.commands.at(-1)!, productCategoriesCreateSpecs, { method: "post" });
+const productCategoriesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `product_categories` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/product_categories`. An id no product categorie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/product_categories", hasLimit: true } },
 ];
 productsCategories
-  .command(`products-product-categories-delete`)
+  .command(`product-categories-delete`)
   .description(`Deletes one product category membership by id. It is a hard delete — the row is gone, and the answer is a confirmation rather than a result to branch on.
 
 Nothing in this schema references it, so nothing else changes.
 
 An id no product category membership of this tenant carries answers 404; there is no 409, because every foreign key pointing at this entity resolves itself on delete rather than blocking one.`)
+  .alias("products-product-categories-delete")
   .option(`--id <id>`, `The \`product_categories\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/product_categories\`. An id no product categorie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsProductCategoriesDeleteSpecs,
+          productCategoriesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`products-categories products-product-categories-delete`);
+        await confirmDestructive(`products-categories product-categories-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/products/product_categories/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1008,12 +1013,12 @@ An id no product category membership of this tenant carries answers 404; there i
       },
     ),
   );
-registerPromptSpecs(productsCategories.commands.at(-1)!, productsProductCategoriesDeleteSpecs, { method: "delete", destructive: true });
-const productsProductCategoriesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(productsCategories.commands.at(-1)!, productCategoriesDeleteSpecs, { method: "delete", destructive: true });
+const productCategoriesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `product_categories` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/product_categories`. An id no product categorie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/product_categories", hasLimit: true } },
 ];
 productsCategories
-  .command(`products-product-categories-get`)
+  .command(`product-categories-get`)
   .description(`Reads one product category membership by its id — the whole row, every column, as it is stored.
 
 One membership: this product is filed in this category. \`source\` says how it got there — \`manual\` is hand-picked, \`rule\` was materialized by a category rule — and the two never touch each other: a recompute only ever inserts and deletes \`rule\` rows, so a hand-picked membership survives every pass. \`POST /products/{id}/categories\` is the friendlier way to create one, because it takes the product from the path and answers with the category code and the SKU.
@@ -1021,13 +1026,14 @@ One membership: this product is filed in this category. \`source\` says how it g
 An id no product category membership of this tenant carries answers 404, and so does one belonging to another tenant: row-level security makes that row invisible rather than forbidden. A malformed id answers 400 before the route is reached.
 
 Answered from the gateway's tenant cache for up to 30 minutes and dropped the moment this entity is written, because the data model changes weekly at most and every product page asks the same question.`)
+  .alias("products-product-categories-get")
   .option(`--id <id>`, `The \`product_categories\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/product_categories\`. An id no product categorie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          productsProductCategoriesGetSpecs,
+          productCategoriesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1046,8 +1052,8 @@ Answered from the gateway's tenant cache for up to 30 minutes and dropped the mo
       },
     ),
   );
-registerPromptSpecs(productsCategories.commands.at(-1)!, productsProductCategoriesGetSpecs, { method: "get" });
-const productsProductCategoriesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(productsCategories.commands.at(-1)!, productCategoriesGetSpecs, { method: "get" });
+const productCategoriesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `product_categories` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/product_categories`. An id no product categorie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/product_categories", hasLimit: true } },
   { key: "categoryId", option: "--category-id <category-id>", name: "category_id", description: "The category it is filed into. One row per (product, category), whichever way it got there.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Sort order of this product inside the category.", type: "integer", required: false },
@@ -1055,12 +1061,13 @@ const productsProductCategoriesUpdateSpecs: PromptSpec[] = [
   { key: "source", option: "--source <source>", name: "source", description: "How the membership came about: 'manual' is hand-picked, 'rule' was materialized by a category rule. The two never touch each other — a recompute only ever inserts and deletes `rule` rows, so a hand-picked membership survives every pass.", type: "string", required: false, enum: ["manual","rule"] },
 ];
 productsCategories
-  .command(`products-product-categories-update`)
+  .command(`product-categories-update`)
   .description(`Updates one product category membership by id. A partial patch: the body names only the columns to change and every column it leaves out keeps its current value, so there is no read-modify-write and no way to blank a field by forgetting it.
 
 One membership: this product is filed in this category. \`source\` says how it got there — \`manual\` is hand-picked, \`rule\` was materialized by a category rule — and the two never touch each other: a recompute only ever inserts and deletes \`rule\` rows, so a hand-picked membership survives every pass. \`POST /products/{id}/categories\` is the friendlier way to create one, because it takes the product from the path and answers with the category code and the SKU.
 
 A body that names nothing writable is refused with 400 rather than answered as a no-op, an id nobody carries answers 404, and a value that collides on \`product_id\` and \`category_id\` answers 409.`)
+  .alias("products-product-categories-update")
   .option(`--id <id>`, `The \`product_categories\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/product_categories\`. An id no product categorie of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
   .option(`--category-id <category-id>`, `The category it is filed into. One row per (product, category), whichever way it got there.`)
   .option(`--position <position>`, `Sort order of this product inside the category.`, parseInteger)
@@ -1071,7 +1078,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
       async (_options, _command) => {
         const { id, categoryId, position, productId, source } = await promptForMissing(
           _options,
-          productsProductCategoriesUpdateSpecs,
+          productCategoriesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1109,7 +1116,7 @@ A body that names nothing writable is refused with 400 rather than answered as a
       },
     ),
   );
-registerPromptSpecs(productsCategories.commands.at(-1)!, productsProductCategoriesUpdateSpecs, { method: "put" });
+registerPromptSpecs(productsCategories.commands.at(-1)!, productCategoriesUpdateSpecs, { method: "put" });
 const assignSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The `products` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products`. An id no product of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true },
   { key: "categoryId", option: "--category-id <category-id>", name: "category_id", description: "The category to file the product into.", type: "string", required: true },

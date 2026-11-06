@@ -1,5 +1,5 @@
 ```bash
 revenexx inventories-locations create \
     --code main \
-    --name Main warehouse
+    --name 'Main warehouse'
 ```

@@ -1,4 +1,4 @@
 ```bash
 revenexx loyalty-jobs recalculate \
-    --data '{ "key": "value" }'
+    --body '{ "key": "value" }'
 ```

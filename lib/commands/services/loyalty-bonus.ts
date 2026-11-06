@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -22,6 +23,7 @@ export const loyaltyBonus = new Command("loyalty-bonus")
       `Yearly turnover bonus agreements per company: base turnover of last year, frozen tiers, turnover from orders or ERP imports, progress and projection, and the close of the year — calculate, approve once receivables are paid, pay or forfeit.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

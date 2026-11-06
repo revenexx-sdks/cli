@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -20,6 +21,7 @@ export const customers = new Command("customers")
       `Storefront access: the authentication passthrough a shop front-end calls, and the principal resolver the API gateway calls. Register, log in, log out, recover a password, resolve the current session back to its contact — this app owns the customer DATA while the platform identity service owns the sessions, so these routes forward to it and answer with both halves. Session material travels in the body, which makes the expected caller a trusted BFF rather than a browser. These are the only operations here with no Cockpit screen; every group below is one.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

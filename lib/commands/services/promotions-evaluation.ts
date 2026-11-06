@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -22,6 +23,7 @@ export const promotionsEvaluation = new Command("promotions-evaluation")
       `What a cart is owed. The evaluation takes a priced cart — lines that already carry a resolved unit price, a currency and a tax rate — plus the buyer, the market, the channel and any codes entered, and answers with the effects it is owed, each naming the promotion behind it and the amount it takes off. It writes nothing, so a storefront may call it on every keystroke, and it prices nothing, so a line arriving without a price is refused rather than guessed at. This is the designated override point: a tenant running their own promotion engine replaces exactly this group.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

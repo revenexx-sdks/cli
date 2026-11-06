@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -22,12 +23,14 @@ export const customersRoles = new Command("customers-roles")
       `The role catalogue and the tenant's own role-to-permission mapping. A role is held by a CONTACT and applies inside that contact's organization; there is no global customer role. Permissions are DERIVED from the role on every read and never stored per contact, so a role change takes effect immediately and can never leave a stale grant behind. Five built-in roles answer for a tenant that has written none of its own down; seeding them and replacing a role's permission set are the two writes. What one PERSON ends up holding is read in Contacts.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
 customersRoles
-  .command(`customers-permissions-ledger`)
+  .command(`permissions-ledger`)
   .description(`What the role editor offers: every permission with its words per language, its area, the app that owns it and whether the platform enforces it yet, plus the built-in set of every built-in role — what resetting a role to its default restores.`)
+  .alias("customers-permissions-ledger")
   .action(
     actionRunner(
       async () => {

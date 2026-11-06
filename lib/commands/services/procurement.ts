@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const procurement = new Command("procurement")
       `Commerce Studio E-Procurement App — the approval-workflow half of B2B e-procurement (ADR-0097). Owns approval rules (global or cost-centre-scoped), purchase requests (order-shaped, with their own pending→approved→ordered lifecycle) and pending approvals. Cart → Purchase Request → Order, with the Order created only at final approval; spend with no applicable rule goes Cart → Order directly. Authoritative checkout-submit entry for approval-enabled tenants. Calls the cost-centers app for budget-aware condition evaluation and budget movement, and the orders app to create the placed Order. Ports the approval-workflow parts of IntelliShop V8 module-booking-accounts.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

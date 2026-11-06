@@ -1,5 +1,5 @@
 ```bash
 revenexx ads-syncs request \
     --id '' \
-    --data '{ "key": "value" }'
+    --body '{ "key": "value" }'
 ```

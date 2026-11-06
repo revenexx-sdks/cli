@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,10 +24,11 @@ export const promotionsPromotions = new Command("promotions-promotions")
       `What a merchant writes down: the conditions a purchase has to meet and the effects it then gets. A promotion is reached automatically or only by a voucher code, runs inside a window with an optional weekday or day-of-month recurrence read in its own timezone, and is bounded by a discount budget, a redemption ceiling and per-contact or per-organisation limits. Conditions are a tree — groups of all or any holding questions and further groups, with negation — so an offer a merchant states as one sentence stays one promotion. Stacking groups decide how several promotions are weighed together, and bundles express the offers that count units rather than money.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
-const promotionsBundlesListSpecs: PromptSpec[] = [
+const bundlesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.", type: "string", required: false },
@@ -39,8 +41,9 @@ const promotionsBundlesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 promotionsPromotions
-  .command(`promotions-bundles-list`)
+  .command(`bundles-list`)
   .description(`The offers that count items rather than money: buy three pay two, the cheapest of any four free, a packet of coffee with every machine. A bundle forms from the units a cart holds and repeats up to a cap.`)
+  .alias("promotions-bundles-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.`)
@@ -61,7 +64,7 @@ promotionsPromotions
       async (_options, _command) => {
         const { limit, offset, order, id, promotionId, name, unitsRequired, maxPerCart, allocation, filter } = await promptForMissing(
           _options,
-          promotionsBundlesListSpecs,
+          bundlesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -114,8 +117,8 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsBundlesListSpecs, { method: "get" });
-const promotionsBundlesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, bundlesListSpecs, { method: "get" });
+const bundlesCreateSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "What the bundle is called, and what every discount it produces is attributed to.", type: "string", required: true },
   { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: true },
   { key: "allocation", option: "--allocation <allocation>", name: "allocation", description: "How the units that form a bundle are picked: `best_for_buyer` ranks them by price so whichever unit the effect discounts is worth as much as the cart permits, `cart_order` takes the first it finds. Empty follows the tenant default.", type: "string", required: false, enum: ["best_for_buyer","cart_order"] },
@@ -124,8 +127,9 @@ const promotionsBundlesCreateSpecs: PromptSpec[] = [
   { key: "unitsRequired", option: "--units-required <units-required>", name: "units_required", description: "How many units make one bundle, when no selectors are stated.", type: "integer", required: false },
 ];
 promotionsPromotions
-  .command(`promotions-bundles-create`)
+  .command(`bundles-create`)
   .description(`Define a bundle`)
+  .alias("promotions-bundles-create")
   .option(`--name <name>`, `What the bundle is called, and what every discount it produces is attributed to.`)
   .option(`--promotion-id <promotion-id>`, `The promotion this row belongs to. Deleting the promotion deletes it.`)
   .option(`--allocation <allocation>`, `How the units that form a bundle are picked: \`best_for_buyer\` ranks them by price so whichever unit the effect discounts is worth as much as the cart permits, \`cart_order\` takes the first it finds. Empty follows the tenant default.`)
@@ -137,7 +141,7 @@ promotionsPromotions
       async (_options, _command) => {
         const { name, promotionId, allocation, maxPerCart, selectors, unitsRequired } = await promptForMissing(
           _options,
-          promotionsBundlesCreateSpecs,
+          bundlesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -181,23 +185,24 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsBundlesCreateSpecs, { method: "post" });
-const promotionsBundlesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, bundlesCreateSpecs, { method: "post" });
+const bundlesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/bundles", hasLimit: true } },
 ];
 promotionsPromotions
-  .command(`promotions-bundles-delete`)
+  .command(`bundles-delete`)
   .description(`Remove a bundle`)
+  .alias("promotions-bundles-delete")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsBundlesDeleteSpecs,
+          bundlesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`promotions-promotions promotions-bundles-delete`);
+        await confirmDestructive(`promotions-promotions bundles-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/promotions/bundles/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -214,20 +219,21 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsBundlesDeleteSpecs, { method: "delete", destructive: true });
-const promotionsBundlesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, bundlesDeleteSpecs, { method: "delete", destructive: true });
+const bundlesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/bundles", hasLimit: true } },
 ];
 promotionsPromotions
-  .command(`promotions-bundles-get`)
+  .command(`bundles-get`)
   .description(`Read one bundle`)
+  .alias("promotions-bundles-get")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsBundlesGetSpecs,
+          bundlesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -246,8 +252,8 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsBundlesGetSpecs, { method: "get" });
-const promotionsBundlesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, bundlesGetSpecs, { method: "get" });
+const bundlesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/bundles", hasLimit: true } },
   { key: "allocation", option: "--allocation <allocation>", name: "allocation", description: "How the units that form a bundle are picked: `best_for_buyer` ranks them by price so whichever unit the effect discounts is worth as much as the cart permits, `cart_order` takes the first it finds. Empty follows the tenant default.", type: "string", required: false, enum: ["best_for_buyer","cart_order"] },
   { key: "maxPerCart", option: "--max-per-cart <max-per-cart>", name: "max_per_cart", description: "How often the bundle may repeat in one cart. Empty repeats as often as the cart allows.", type: "integer", required: false },
@@ -257,8 +263,9 @@ const promotionsBundlesUpdateSpecs: PromptSpec[] = [
   { key: "unitsRequired", option: "--units-required <units-required>", name: "units_required", description: "How many units make one bundle, when no selectors are stated.", type: "integer", required: false },
 ];
 promotionsPromotions
-  .command(`promotions-bundles-update`)
+  .command(`bundles-update`)
   .description(`Correct a bundle`)
+  .alias("promotions-bundles-update")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .option(`--allocation <allocation>`, `How the units that form a bundle are picked: \`best_for_buyer\` ranks them by price so whichever unit the effect discounts is worth as much as the cart permits, \`cart_order\` takes the first it finds. Empty follows the tenant default.`)
   .option(`--max-per-cart <max-per-cart>`, `How often the bundle may repeat in one cart. Empty repeats as often as the cart allows.`, parseInteger)
@@ -271,7 +278,7 @@ promotionsPromotions
       async (_options, _command) => {
         const { id, allocation, maxPerCart, name, promotionId, selectors, unitsRequired } = await promptForMissing(
           _options,
-          promotionsBundlesUpdateSpecs,
+          bundlesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -315,8 +322,8 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsBundlesUpdateSpecs, { method: "put" });
-const promotionsConditionsListSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, bundlesUpdateSpecs, { method: "put" });
+const conditionsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.", type: "string", required: false },
@@ -334,8 +341,9 @@ const promotionsConditionsListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 promotionsPromotions
-  .command(`promotions-conditions-list`)
+  .command(`conditions-list`)
   .description(`The tree that decides which purchases a promotion catches. A row is either a group, which says whether all or any of what it holds must hold, or a question, which asks one thing from a closed vocabulary. Read the assembled tree at GET /promotions/promotions/{id}/conditions.`)
+  .alias("promotions-conditions-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.`)
@@ -361,7 +369,7 @@ promotionsPromotions
       async (_options, _command) => {
         const { limit, offset, order, id, promotionId, parentId, kind, matchMode, negate, subject, comparison, rightSubject, summary, position, filter } = await promptForMissing(
           _options,
-          promotionsConditionsListSpecs,
+          conditionsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -429,8 +437,8 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsConditionsListSpecs, { method: "get" });
-const promotionsConditionsCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, conditionsListSpecs, { method: "get" });
+const conditionsCreateSpecs: PromptSpec[] = [
   { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: true },
   { key: "addend", option: "--addend <addend>", name: "addend", description: "Added to the right-hand subject after the factor.", type: "number", required: false },
   { key: "compareValue", option: "--compare-value <compare-value>", name: "compare_value", description: "What the subject is compared against.", type: "any", required: false },
@@ -446,8 +454,9 @@ const promotionsConditionsCreateSpecs: PromptSpec[] = [
   { key: "subject", option: "--subject <subject>", name: "subject", description: "What a question asks about — one of a closed vocabulary. A subject accepted at write time and unrecognised at checkout is a promotion that silently never fires, so an unknown one is refused here.", type: "string", required: false },
 ];
 promotionsPromotions
-  .command(`promotions-conditions-create`)
+  .command(`conditions-create`)
   .description(`Add a condition`)
+  .alias("promotions-conditions-create")
   .option(`--promotion-id <promotion-id>`, `The promotion this row belongs to. Deleting the promotion deletes it.`)
   .option(`--addend <addend>`, `Added to the right-hand subject after the factor.`, parseInteger)
   .option(`--compare-value <compare-value>`, `What the subject is compared against.`)
@@ -471,7 +480,7 @@ promotionsPromotions
       async (_options, _command) => {
         const { promotionId, addend, compareValue, compareValueTo, comparison, factor, kind, matchMode, negate, parentId, position, rightSubject, subject } = await promptForMissing(
           _options,
-          promotionsConditionsCreateSpecs,
+          conditionsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -536,10 +545,11 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsConditionsCreateSpecs, { method: "post" });
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, conditionsCreateSpecs, { method: "post" });
 promotionsPromotions
-  .command(`promotions-conditions-validate`)
+  .command(`conditions-validate`)
   .description(`What an editor calls while a merchant is still typing, so an unknown subject or a comparison that needs a second value is caught in the form rather than on save.`)
+  .alias("promotions-conditions-validate")
   .action(
     actionRunner(
       async () => {
@@ -559,22 +569,23 @@ promotionsPromotions
       },
     ),
   );
-const promotionsConditionsDeleteSpecs: PromptSpec[] = [
+const conditionsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/conditions", hasLimit: true } },
 ];
 promotionsPromotions
-  .command(`promotions-conditions-delete`)
+  .command(`conditions-delete`)
   .description(`Remove a condition`)
+  .alias("promotions-conditions-delete")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsConditionsDeleteSpecs,
+          conditionsDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`promotions-promotions promotions-conditions-delete`);
+        await confirmDestructive(`promotions-promotions conditions-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/promotions/conditions/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -591,20 +602,21 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsConditionsDeleteSpecs, { method: "delete", destructive: true });
-const promotionsConditionsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, conditionsDeleteSpecs, { method: "delete", destructive: true });
+const conditionsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/conditions", hasLimit: true } },
 ];
 promotionsPromotions
-  .command(`promotions-conditions-get`)
+  .command(`conditions-get`)
   .description(`Read one condition`)
+  .alias("promotions-conditions-get")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsConditionsGetSpecs,
+          conditionsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -623,8 +635,8 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsConditionsGetSpecs, { method: "get" });
-const promotionsConditionsUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, conditionsGetSpecs, { method: "get" });
+const conditionsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/conditions", hasLimit: true } },
   { key: "addend", option: "--addend <addend>", name: "addend", description: "Added to the right-hand subject after the factor.", type: "number", required: false },
   { key: "compareValue", option: "--compare-value <compare-value>", name: "compare_value", description: "What the subject is compared against.", type: "any", required: false },
@@ -641,8 +653,9 @@ const promotionsConditionsUpdateSpecs: PromptSpec[] = [
   { key: "subject", option: "--subject <subject>", name: "subject", description: "What a question asks about — one of a closed vocabulary. A subject accepted at write time and unrecognised at checkout is a promotion that silently never fires, so an unknown one is refused here.", type: "string", required: false },
 ];
 promotionsPromotions
-  .command(`promotions-conditions-update`)
+  .command(`conditions-update`)
   .description(`Correct a condition`)
+  .alias("promotions-conditions-update")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .option(`--addend <addend>`, `Added to the right-hand subject after the factor.`, parseInteger)
   .option(`--compare-value <compare-value>`, `What the subject is compared against.`)
@@ -667,7 +680,7 @@ promotionsPromotions
       async (_options, _command) => {
         const { id, addend, compareValue, compareValueTo, comparison, factor, kind, matchMode, negate, parentId, position, promotionId, rightSubject, subject } = await promptForMissing(
           _options,
-          promotionsConditionsUpdateSpecs,
+          conditionsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -732,8 +745,8 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsConditionsUpdateSpecs, { method: "put" });
-const promotionsCustomEffectTypesListSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, conditionsUpdateSpecs, { method: "put" });
+const customEffectTypesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.", type: "string", required: false },
@@ -745,8 +758,9 @@ const promotionsCustomEffectTypesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 promotionsPromotions
-  .command(`promotions-custom-effect-types-list`)
+  .command(`custom-effect-types-list`)
   .description(`Effects a tenant invents: unlock a download, extend a warranty, add a gift message. The engine validates the payload when the promotion is WRITTEN and hands it back verbatim when it applies — it never interprets one.`)
+  .alias("promotions-custom-effect-types-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.`)
@@ -766,7 +780,7 @@ promotionsPromotions
       async (_options, _command) => {
         const { limit, offset, order, id, name, shapeVersion, carriesAmount, active, filter } = await promptForMissing(
           _options,
-          promotionsCustomEffectTypesListSpecs,
+          customEffectTypesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -816,8 +830,8 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsCustomEffectTypesListSpecs, { method: "get" });
-const promotionsCustomEffectTypesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, customEffectTypesListSpecs, { method: "get" });
+const customEffectTypesCreateSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "The identifier whatever consumes this effect dispatches on. Unique per tenant.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "Whether a promotion may newly use this type. An inactive type stays valid on every effect already written against it, which keeps applying and keeps its title; a new effect of it, or an effect moved onto it, is refused with 409. Every type is active until a merchant says otherwise.", type: "boolean", required: false },
   { key: "carriesAmount", option: "--carries-amount <carries-amount>", name: "carries_amount", description: "When true, an effect of this type must also name an amount shape and a target scope, and then goes through exactly the caps, budgets, stacking and rounding a discount does. When false it carries no money at all.", type: "boolean", required: false },
@@ -827,8 +841,9 @@ const promotionsCustomEffectTypesCreateSpecs: PromptSpec[] = [
   { key: "title", option: "--title <title>", name: "title", description: "What the type is called where an effect is written. Per locale.", type: "any", required: false },
 ];
 promotionsPromotions
-  .command(`promotions-custom-effect-types-create`)
+  .command(`custom-effect-types-create`)
   .description(`Register an effect type`)
+  .alias("promotions-custom-effect-types-create")
   .option(`--name <name>`, `The identifier whatever consumes this effect dispatches on. Unique per tenant.`)
   .option(
     `--active [value]`,
@@ -851,7 +866,7 @@ promotionsPromotions
       async (_options, _command) => {
         const { name, active, carriesAmount, description, metadata, payloadShape, title } = await promptForMissing(
           _options,
-          promotionsCustomEffectTypesCreateSpecs,
+          customEffectTypesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -898,23 +913,24 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsCustomEffectTypesCreateSpecs, { method: "post" });
-const promotionsCustomEffectTypesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, customEffectTypesCreateSpecs, { method: "post" });
+const customEffectTypesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/custom-effect-types", hasLimit: true } },
 ];
 promotionsPromotions
-  .command(`promotions-custom-effect-types-delete`)
+  .command(`custom-effect-types-delete`)
   .description(`Delete an effect type nothing uses`)
+  .alias("promotions-custom-effect-types-delete")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsCustomEffectTypesDeleteSpecs,
+          customEffectTypesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`promotions-promotions promotions-custom-effect-types-delete`);
+        await confirmDestructive(`promotions-promotions custom-effect-types-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/promotions/custom-effect-types/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -931,20 +947,21 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsCustomEffectTypesDeleteSpecs, { method: "delete", destructive: true });
-const promotionsCustomEffectTypesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, customEffectTypesDeleteSpecs, { method: "delete", destructive: true });
+const customEffectTypesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/custom-effect-types", hasLimit: true } },
 ];
 promotionsPromotions
-  .command(`promotions-custom-effect-types-get`)
+  .command(`custom-effect-types-get`)
   .description(`Read one effect type`)
+  .alias("promotions-custom-effect-types-get")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsCustomEffectTypesGetSpecs,
+          customEffectTypesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -963,8 +980,8 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsCustomEffectTypesGetSpecs, { method: "get" });
-const promotionsCustomEffectTypesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, customEffectTypesGetSpecs, { method: "get" });
+const customEffectTypesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/custom-effect-types", hasLimit: true } },
   { key: "active", option: "--active <active>", name: "active", description: "Whether a promotion may newly use this type. An inactive type stays valid on every effect already written against it, which keeps applying and keeps its title; a new effect of it, or an effect moved onto it, is refused with 409. Every type is active until a merchant says otherwise.", type: "boolean", required: false },
   { key: "carriesAmount", option: "--carries-amount <carries-amount>", name: "carries_amount", description: "When true, an effect of this type must also name an amount shape and a target scope, and then goes through exactly the caps, budgets, stacking and rounding a discount does. When false it carries no money at all.", type: "boolean", required: false },
@@ -975,8 +992,9 @@ const promotionsCustomEffectTypesUpdateSpecs: PromptSpec[] = [
   { key: "title", option: "--title <title>", name: "title", description: "What the type is called where an effect is written. Per locale.", type: "any", required: false },
 ];
 promotionsPromotions
-  .command(`promotions-custom-effect-types-update`)
+  .command(`custom-effect-types-update`)
   .description(`Change an effect type`)
+  .alias("promotions-custom-effect-types-update")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .option(
     `--active [value]`,
@@ -1000,7 +1018,7 @@ promotionsPromotions
       async (_options, _command) => {
         const { id, active, carriesAmount, description, metadata, name, payloadShape, title } = await promptForMissing(
           _options,
-          promotionsCustomEffectTypesUpdateSpecs,
+          customEffectTypesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1047,8 +1065,8 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsCustomEffectTypesUpdateSpecs, { method: "put" });
-const promotionsEffectsListSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, customEffectTypesUpdateSpecs, { method: "put" });
+const effectsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.", type: "string", required: false },
@@ -1067,8 +1085,9 @@ const promotionsEffectsListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 promotionsPromotions
-  .command(`promotions-effects-list`)
+  .command(`effects-list`)
   .description(`What a promotion takes off. Three amount shapes against six target scopes — the unit price, the line total, the cart subtotal, the grand total, the shipping cost, the payment fee — plus free items, surcharges, notices, bundles and types a tenant registered itself.`)
+  .alias("promotions-effects-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.`)
@@ -1095,7 +1114,7 @@ promotionsPromotions
       async (_options, _command) => {
         const { limit, offset, order, id, promotionId, position, kind, valueType, targetScope, bundleId, unitChoice, unitPosition, spread, freeItemQuantity, requiresChoice, filter } = await promptForMissing(
           _options,
-          promotionsEffectsListSpecs,
+          effectsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1166,8 +1185,8 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsEffectsListSpecs, { method: "get" });
-const promotionsEffectsCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, effectsListSpecs, { method: "get" });
+const effectsCreateSpecs: PromptSpec[] = [
   { key: "promotionId", option: "--promotion-id <promotion-id>", name: "promotion_id", description: "The promotion this row belongs to. Deleting the promotion deletes it.", type: "string", required: true },
   { key: "amount", option: "--amount <amount>", name: "amount", description: "The figure the value type is read with.", type: "number", required: false },
   { key: "appliesTo", option: "--applies-to <applies-to>", name: "applies_to", description: "Which goods the effect touches, as `{skus, product_ids, categories, attribute}`. Empty touches every line.", type: "any", required: false },
@@ -1190,8 +1209,9 @@ const promotionsEffectsCreateSpecs: PromptSpec[] = [
   { key: "valueType", option: "--value-type <value-type>", name: "value_type", description: "How the amount is stated: `percentage`, `amount`, or `fixed_price` (charge this instead).", type: "string", required: false, enum: ["percentage","amount","fixed_price"] },
 ];
 promotionsPromotions
-  .command(`promotions-effects-create`)
+  .command(`effects-create`)
   .description(`Add an effect`)
+  .alias("promotions-effects-create")
   .option(`--promotion-id <promotion-id>`, `The promotion this row belongs to. Deleting the promotion deletes it.`)
   .option(`--amount <amount>`, `The figure the value type is read with.`, parseInteger)
   .option(`--applies-to <applies-to>`, `Which goods the effect touches, as \`{skus, product_ids, categories, attribute}\`. Empty touches every line.`)
@@ -1227,7 +1247,7 @@ promotionsPromotions
       async (_options, _command) => {
         const { promotionId, amount, appliesTo, bundleId, customPayload, customShapeVersion, customTypeId, freeItemQuantity, freeItems, kind, maxDiscount, message, metadata, position, requiresChoice, spread, targetScope, unitChoice, unitPosition, valueType } = await promptForMissing(
           _options,
-          promotionsEffectsCreateSpecs,
+          effectsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1313,23 +1333,24 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsEffectsCreateSpecs, { method: "post" });
-const promotionsEffectsDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, effectsCreateSpecs, { method: "post" });
+const effectsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/effects", hasLimit: true } },
 ];
 promotionsPromotions
-  .command(`promotions-effects-delete`)
+  .command(`effects-delete`)
   .description(`Remove an effect`)
+  .alias("promotions-effects-delete")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsEffectsDeleteSpecs,
+          effectsDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`promotions-promotions promotions-effects-delete`);
+        await confirmDestructive(`promotions-promotions effects-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/promotions/effects/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1346,20 +1367,21 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsEffectsDeleteSpecs, { method: "delete", destructive: true });
-const promotionsEffectsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, effectsDeleteSpecs, { method: "delete", destructive: true });
+const effectsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/effects", hasLimit: true } },
 ];
 promotionsPromotions
-  .command(`promotions-effects-get`)
+  .command(`effects-get`)
   .description(`Read one effect`)
+  .alias("promotions-effects-get")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsEffectsGetSpecs,
+          effectsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1378,8 +1400,8 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsEffectsGetSpecs, { method: "get" });
-const promotionsEffectsUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, effectsGetSpecs, { method: "get" });
+const effectsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/effects", hasLimit: true } },
   { key: "amount", option: "--amount <amount>", name: "amount", description: "The figure the value type is read with.", type: "number", required: false },
   { key: "appliesTo", option: "--applies-to <applies-to>", name: "applies_to", description: "Which goods the effect touches, as `{skus, product_ids, categories, attribute}`. Empty touches every line.", type: "any", required: false },
@@ -1403,8 +1425,9 @@ const promotionsEffectsUpdateSpecs: PromptSpec[] = [
   { key: "valueType", option: "--value-type <value-type>", name: "value_type", description: "How the amount is stated: `percentage`, `amount`, or `fixed_price` (charge this instead).", type: "string", required: false, enum: ["percentage","amount","fixed_price"] },
 ];
 promotionsPromotions
-  .command(`promotions-effects-update`)
+  .command(`effects-update`)
   .description(`Correct an effect`)
+  .alias("promotions-effects-update")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .option(`--amount <amount>`, `The figure the value type is read with.`, parseInteger)
   .option(`--applies-to <applies-to>`, `Which goods the effect touches, as \`{skus, product_ids, categories, attribute}\`. Empty touches every line.`)
@@ -1441,7 +1464,7 @@ promotionsPromotions
       async (_options, _command) => {
         const { id, amount, appliesTo, bundleId, customPayload, customShapeVersion, customTypeId, freeItemQuantity, freeItems, kind, maxDiscount, message, metadata, position, promotionId, requiresChoice, spread, targetScope, unitChoice, unitPosition, valueType } = await promptForMissing(
           _options,
-          promotionsEffectsUpdateSpecs,
+          effectsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1527,8 +1550,8 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsEffectsUpdateSpecs, { method: "put" });
-const promotionsGroupsListSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, effectsUpdateSpecs, { method: "put" });
+const groupsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.", type: "string", required: false },
@@ -1542,8 +1565,9 @@ const promotionsGroupsListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 promotionsPromotions
-  .command(`promotions-groups-list`)
+  .command(`groups-list`)
   .description(`The sets promotions are weighed in. Whether two offers add up, compete on value or shadow each other is a property of the SET, which a flag on one promotion cannot state. Groups nest, and a nested group competes in its parent as one entry worth what it gives in total.`)
+  .alias("promotions-groups-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.`)
@@ -1565,7 +1589,7 @@ promotionsPromotions
       async (_options, _command) => {
         const { limit, offset, order, id, code, name, mode, parentId, position, active, filter } = await promptForMissing(
           _options,
-          promotionsGroupsListSpecs,
+          groupsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1621,8 +1645,8 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsGroupsListSpecs, { method: "get" });
-const promotionsGroupsCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, groupsListSpecs, { method: "get" });
+const groupsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The stable identifier a merchant refers to the group by. Unique per tenant.", type: "string", required: true },
   { key: "name", option: "--name <name>", name: "name", description: "What the group is called in the Cockpit.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "Whether promotions and groups may newly be put into this group. An inactive group keeps what is already in it and goes on weighing those promotions by its mode exactly as before; putting a promotion or a group into it is refused with 409. Every group is active until a merchant says otherwise.", type: "boolean", required: false },
@@ -1633,8 +1657,9 @@ const promotionsGroupsCreateSpecs: PromptSpec[] = [
   { key: "position", option: "--position <position>", name: "position", description: "Order among siblings, ascending. Two rows with the same position are ordered by their id, so a list never shuffles between reads.", type: "integer", required: false },
 ];
 promotionsPromotions
-  .command(`promotions-groups-create`)
+  .command(`groups-create`)
   .description(`Create a stacking group`)
+  .alias("promotions-groups-create")
   .option(`--code <code>`, `The stable identifier a merchant refers to the group by. Unique per tenant.`)
   .option(`--name <name>`, `What the group is called in the Cockpit.`)
   .option(
@@ -1653,7 +1678,7 @@ promotionsPromotions
       async (_options, _command) => {
         const { code, name, active, labels, metadata, mode, parentId, position } = await promptForMissing(
           _options,
-          promotionsGroupsCreateSpecs,
+          groupsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1703,23 +1728,24 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsGroupsCreateSpecs, { method: "post" });
-const promotionsGroupsDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, groupsCreateSpecs, { method: "post" });
+const groupsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/groups", hasLimit: true } },
 ];
 promotionsPromotions
-  .command(`promotions-groups-delete`)
+  .command(`groups-delete`)
   .description(`Delete a stacking group`)
+  .alias("promotions-groups-delete")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsGroupsDeleteSpecs,
+          groupsDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`promotions-promotions promotions-groups-delete`);
+        await confirmDestructive(`promotions-promotions groups-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/promotions/groups/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -1736,20 +1762,21 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsGroupsDeleteSpecs, { method: "delete", destructive: true });
-const promotionsGroupsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, groupsDeleteSpecs, { method: "delete", destructive: true });
+const groupsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/groups", hasLimit: true } },
 ];
 promotionsPromotions
-  .command(`promotions-groups-get`)
+  .command(`groups-get`)
   .description(`Read one stacking group`)
+  .alias("promotions-groups-get")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          promotionsGroupsGetSpecs,
+          groupsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1768,8 +1795,8 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsGroupsGetSpecs, { method: "get" });
-const promotionsGroupsUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, groupsGetSpecs, { method: "get" });
+const groupsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/promotions/groups", hasLimit: true } },
   { key: "active", option: "--active <active>", name: "active", description: "Whether promotions and groups may newly be put into this group. An inactive group keeps what is already in it and goes on weighing those promotions by its mode exactly as before; putting a promotion or a group into it is refused with 409. Every group is active until a merchant says otherwise.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The stable identifier a merchant refers to the group by. Unique per tenant.", type: "string", required: false },
@@ -1781,8 +1808,9 @@ const promotionsGroupsUpdateSpecs: PromptSpec[] = [
   { key: "position", option: "--position <position>", name: "position", description: "Order among siblings, ascending. Two rows with the same position are ordered by their id, so a list never shuffles between reads.", type: "integer", required: false },
 ];
 promotionsPromotions
-  .command(`promotions-groups-update`)
+  .command(`groups-update`)
   .description(`Correct a stacking group`)
+  .alias("promotions-groups-update")
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .option(
     `--active [value]`,
@@ -1802,7 +1830,7 @@ promotionsPromotions
       async (_options, _command) => {
         const { id, active, code, labels, metadata, mode, name, parentId, position } = await promptForMissing(
           _options,
-          promotionsGroupsUpdateSpecs,
+          groupsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1852,7 +1880,7 @@ promotionsPromotions
       },
     ),
   );
-registerPromptSpecs(promotionsPromotions.commands.at(-1)!, promotionsGroupsUpdateSpecs, { method: "put" });
+registerPromptSpecs(promotionsPromotions.commands.at(-1)!, groupsUpdateSpecs, { method: "put" });
 const listSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },

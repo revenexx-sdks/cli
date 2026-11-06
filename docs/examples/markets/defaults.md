@@ -1,4 +1,4 @@
 ```bash
 revenexx markets defaults \
-    --data '{ "key": "value" }'
+    --body '{ "key": "value" }'
 ```

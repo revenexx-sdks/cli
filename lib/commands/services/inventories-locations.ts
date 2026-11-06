@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const inventoriesLocations = new Command("inventories-locations")
       `WHERE stock is kept — the list every other group points at. A location is a warehouse, a shop floor, a supplier that dropships or a virtual bucket for pre-orders and quarantine, and it holds no quantity itself: what is at it is a stock level, and the \`location_id\` on every stock row, every ledger booking and every reservation resolves here. Three columns carry the behaviour and only one of them is obvious: \`type\` is descriptive and nothing branches on it, \`priority\` is what the allocation strategy sorts by when it picks a location to reserve from, and \`enabled\` is the on/off switch — a disabled location keeps its stock and every row that points at it, and simply stops being offered by availability and reserve, which is the reversible thing to do instead of deleting one. Every tenant is seeded with \`main\` on install, because the stock calls fall back to a configured default location code and a tenant with none would answer 400 on its first receipt.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

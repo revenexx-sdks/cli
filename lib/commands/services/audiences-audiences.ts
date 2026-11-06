@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const audiencesAudiences = new Command("audiences-audiences")
       `Named sets of people a marketing send or a journey is pointed at. An active audience is defined by rules and recomputed in budgeted, resumable passes; a static one holds an import, a hand-picked list or a frozen copy of an active one. Preview counts who would be in without writing anything. The closed lists the rules are written in are published here too.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
@@ -666,12 +668,13 @@ audiencesAudiences
     ),
   );
 registerPromptSpecs(audiencesAudiences.commands.at(-1)!, restoreSpecs, { method: "post" });
-const audiencesVocabulariesListSpecs: PromptSpec[] = [
+const vocabulariesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 audiencesAudiences
-  .command(`audiences-vocabularies-list`)
+  .command(`vocabularies-list`)
   .description(`List the closed lists this app enforces`)
+  .alias("audiences-vocabularies-list")
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -683,7 +686,7 @@ audiencesAudiences
       async (_options, _command) => {
         const { filter } = await promptForMissing(
           _options,
-          audiencesVocabulariesListSpecs,
+          vocabulariesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -709,20 +712,21 @@ audiencesAudiences
       },
     ),
   );
-registerPromptSpecs(audiencesAudiences.commands.at(-1)!, audiencesVocabulariesListSpecs, { method: "get" });
-const audiencesVocabulariesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(audiencesAudiences.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
+const vocabulariesGetSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "The vocabulary, e.g. `subjects` or `operators`.", type: "string", required: true, resource: { listPath: "/audiences/vocabularies", hasLimit: false } },
 ];
 audiencesAudiences
-  .command(`audiences-vocabularies-get`)
+  .command(`vocabularies-get`)
   .description(`Read one closed list with its values and labels`)
+  .alias("audiences-vocabularies-get")
   .option(`--name <name>`, `The vocabulary, e.g. \`subjects\` or \`operators\`.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { name } = await promptForMissing(
           _options,
-          audiencesVocabulariesGetSpecs,
+          vocabulariesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -741,4 +745,4 @@ audiencesAudiences
       },
     ),
   );
-registerPromptSpecs(audiencesAudiences.commands.at(-1)!, audiencesVocabulariesGetSpecs, { method: "get" });
+registerPromptSpecs(audiencesAudiences.commands.at(-1)!, vocabulariesGetSpecs, { method: "get" });

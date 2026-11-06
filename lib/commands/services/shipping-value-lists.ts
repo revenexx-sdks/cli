@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,18 +24,20 @@ export const shippingValueLists = new Command("shipping-value-lists")
       `The code lists the other two groups point at, and what each code MEANS. Service levels and weight units were CHECK constraints until a merchant wanted a night-courier tier and a tonne — they are the tenant's own ROWS now, so adding one is a call rather than a release of this app, and both sets seed themselves on first read so neither ever answers empty. A weight unit is the one that is not merely a label: it carries a \`factor\`, kilograms per unit, and that number prices parcels, because every weight matrix converts a rate request through it into the unit its tiers are keyed in. The vocabulary routes sit here as the general form of the same question — they serve these two tenant-owned sets AND the enums this app really does fix (pricing model, matrix basis, carrier status), each with its title, description and badge tone, so no client keeps a second copy of a list it cannot see.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
-const shippingServiceLevelsListSpecs: PromptSpec[] = [
+const serviceLevelsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A value outside the range is clamped rather than refused, and `page.limit` echoes what was applied.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). The next page is `page.offset + page.returned`.", type: "integer", required: false },
   { key: "active", option: "--active <active>", name: "active", description: "true answers only the values on offer, false only the retired ones; omitted, both. The only filter this collection honours.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 shippingValueLists
-  .command(`shipping-service-levels-list`)
+  .command(`service-levels-list`)
   .description(`What class of service a carrier row represents. This used to be a CHECK constraint, which meant a merchant with a night-courier tier or a two-man delivery service needed a release of this app to say so — and nothing in the app ever branched on the value, it only carried it. The set is the tenant's rows now, and the first read seeds it, so this never answers empty. Hand-rolled rather than a generic mount, because seeding is the point: it therefore honours limit/offset and the \`active\` flag AND NOTHING ELSE. There is no \`?code=\` filter and no \`order\` — the rows always come back in \`position\` order, and a sort or another filter sent anyway is accepted, ignored, and answered 200.`)
+  .alias("shipping-service-levels-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A value outside the range is clamped rather than refused, and \`page.limit\` echoes what was applied.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). The next page is \`page.offset + page.returned\`.`, parseInteger)
   .option(
@@ -54,7 +57,7 @@ shippingValueLists
       async (_options, _command) => {
         const { limit, offset, active, filter } = await promptForMissing(
           _options,
-          shippingServiceLevelsListSpecs,
+          serviceLevelsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -89,8 +92,8 @@ shippingValueLists
       },
     ),
   );
-registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingServiceLevelsListSpecs, { method: "get" });
-const shippingServiceLevelsCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, serviceLevelsListSpecs, { method: "get" });
+const serviceLevelsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "Lowercase letters, digits, - or _, starting with a letter. What `shipping_carriers.service_level` stores. Immutable once created — renaming it would orphan every row carrying it.", type: "string", required: true },
   { key: "title", option: "--title <title>", name: "title", description: "What an operator reads in a select. The name a merchant renames; the code underneath never moves.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "Whether this value is offered for new assignments. Defaults to true. An inactive value cannot be created as the default.", type: "boolean", required: false },
@@ -102,8 +105,9 @@ const shippingServiceLevelsCreateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour for a UI listing the set. The client owns what each tone looks like.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 shippingValueLists
-  .command(`shipping-service-levels-create`)
+  .command(`service-levels-create`)
   .description(`A service level is the class of service a carrier row represents, as one of the tenant's own codes. It is carried by \`shipping_carriers.service_level\` and reported on a rate as \`carrier_service_level\`; nothing in this app branches on it. A method never names one — it gets its level through the carrier it ships with. Reach for this when a merchant sells a class this app was not shipped with — a night courier, a two-man delivery, a same-day run. A create cannot omit \`code\` and \`title\`; every other column is optional or defaulted by the database. Two rows of this tenant may not share \`code\` — that is the 409. The code is lowercase and becomes what a carrier stores; it cannot be changed afterwards, because every carrier carrying it would be orphaned. Creating one changes nothing on its own: a carrier has to be moved onto it before it means anything.`)
+  .alias("shipping-service-levels-create")
   .option(`--code <code>`, `Lowercase letters, digits, - or _, starting with a letter. What \`shipping_carriers.service_level\` stores. Immutable once created — renaming it would orphan every row carrying it.`)
   .option(`--title <title>`, `What an operator reads in a select. The name a merchant renames; the code underneath never moves.`)
   .option(
@@ -128,7 +132,7 @@ shippingValueLists
       async (_options, _command) => {
         const { code, title, active, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
           _options,
-          shippingServiceLevelsCreateSpecs,
+          serviceLevelsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -181,23 +185,24 @@ shippingValueLists
       },
     ),
   );
-registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingServiceLevelsCreateSpecs, { method: "post" });
-const shippingServiceLevelsDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, serviceLevelsCreateSpecs, { method: "post" });
+const serviceLevelsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/service-levels", hasLimit: true } },
 ];
 shippingValueLists
-  .command(`shipping-service-levels-delete`)
+  .command(`service-levels-delete`)
   .description(`There is no foreign key doing this: adding one to a table that starts empty would fail the migration of every existing tenant. The refusal lives in the handler instead.`)
+  .alias("shipping-service-levels-delete")
   .option(`--id <id>`, `The row id.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          shippingServiceLevelsDeleteSpecs,
+          serviceLevelsDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`shipping-value-lists shipping-service-levels-delete`);
+        await confirmDestructive(`shipping-value-lists service-levels-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/shipping/service-levels/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -214,20 +219,21 @@ shippingValueLists
       },
     ),
   );
-registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingServiceLevelsDeleteSpecs, { method: "delete", destructive: true });
-const shippingServiceLevelsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, serviceLevelsDeleteSpecs, { method: "delete", destructive: true });
+const serviceLevelsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/service-levels", hasLimit: true } },
 ];
 shippingValueLists
-  .command(`shipping-service-levels-get`)
+  .command(`service-levels-get`)
   .description(`A service level is the class of service a carrier row represents, as one of the tenant's own codes. It is carried by \`shipping_carriers.service_level\` and reported on a rate as \`carrier_service_level\`; nothing in this app branches on it. A method never names one — it gets its level through the carrier it ships with. This reads one of them by ROW ID — which is what an editor holds after listing the set, and not what anything else in the platform stores. A caller holding the CODE (off a carrier row, or off a rate's \`carrier_service_level\`) cannot use this route: there is no \`?code=\` filter on the collection either, so read GET /shipping/vocabularies/service-levels, which is keyed the way the rest of the platform refers to these values.`)
+  .alias("shipping-service-levels-get")
   .option(`--id <id>`, `The row id.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          shippingServiceLevelsGetSpecs,
+          serviceLevelsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -246,8 +252,8 @@ shippingValueLists
       },
     ),
   );
-registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingServiceLevelsGetSpecs, { method: "get" });
-const shippingServiceLevelsUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, serviceLevelsGetSpecs, { method: "get" });
+const serviceLevelsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/service-levels", hasLimit: true } },
   { key: "active", option: "--active <active>", name: "active", description: "False retires the value: whatever already carries it keeps it, and it is no longer offered for a new assignment. Refused on the default — make another entry the default first.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "The sentence under the title, explaining when to pick this service level. Null when the title says enough.", type: "string", required: false },
@@ -259,8 +265,9 @@ const shippingServiceLevelsUpdateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour for a UI listing the set. The client owns what each tone looks like.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 shippingValueLists
-  .command(`shipping-service-levels-update`)
+  .command(`service-levels-update`)
   .description(`A service level is the class of service a carrier row represents, as one of the tenant's own codes. It is carried by \`shipping_carriers.service_level\` and reported on a rate as \`carrier_service_level\`; nothing in this app branches on it. A method never names one — it gets its level through the carrier it ships with. This edits the DISPLAY half of one — title, description, their locale maps, badge tone, position, and the default flag. Everything a carrier or a filter joins on stays put: the code is immutable (a different one in the payload is a 400, not a silent no-op), and no carrier is moved onto or off this level by renaming it. Moving a row's \`position\` does not renumber its neighbours — the collection is returned in position order and ties fall back to whatever the database returns, so a deliberate order means writing every row's position.`)
+  .alias("shipping-service-levels-update")
   .option(`--id <id>`, `The row id.`)
   .option(
     `--active [value]`,
@@ -285,7 +292,7 @@ shippingValueLists
       async (_options, _command) => {
         const { id, active, description, descriptions, isDefault, labels, position, title, tone } = await promptForMissing(
           _options,
-          shippingServiceLevelsUpdateSpecs,
+          serviceLevelsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -335,14 +342,15 @@ shippingValueLists
       },
     ),
   );
-registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingServiceLevelsUpdateSpecs, { method: "put" });
-const shippingServiceLevelsMakeDefaultSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, serviceLevelsUpdateSpecs, { method: "put" });
+const serviceLevelsMakeDefaultSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/service-levels", hasLimit: true } },
   { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 shippingValueLists
-  .command(`shipping-service-levels-make-default`)
+  .command(`service-levels-make-default`)
   .description(`The flag is a single answer, not a per-row opinion: it is what every fallback lands on, so two defaults leave the result to row order and none leaves it to the seeded value. This row takes it and whoever was holding it is demoted in the same call — there is no separate write to clear the old one, and no window in which both carry it. Only the rows whose flag is wrong are written, so repeating the call is free.`)
+  .alias("shipping-service-levels-make-default")
   .option(`--id <id>`, `The row id.`)
   .option(`--body <body>`, `Request body`)
   .action(
@@ -355,7 +363,7 @@ shippingValueLists
         }
         const { id, body } = await promptForMissing(
           _options,
-          shippingServiceLevelsMakeDefaultSpecs,
+          serviceLevelsMakeDefaultSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -377,13 +385,14 @@ shippingValueLists
       },
     ),
   );
-registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingServiceLevelsMakeDefaultSpecs, { method: "post" });
-const shippingVocabulariesListSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, serviceLevelsMakeDefaultSpecs, { method: "post" });
+const vocabulariesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 shippingValueLists
-  .command(`shipping-vocabularies-list`)
+  .command(`vocabularies-list`)
   .description(`Discovery for the vocabulary routes: every enum this app publishes, each with its name, its title and its description, and deliberately without its values — an index stays an index, and the set a value belongs to is one further call. Names: carrier-statuses, matrix-bases, pricing-types, service-levels, weight-units. Fetch one with GET /shipping/vocabularies/{name}; a client holding the qualified pair 'shipping.<name>' builds that URL from the pair alone. \`title\` and \`description\` are either one string or a locale map keyed by locale — every entry here carries the map, because every one of them is curated copy.`)
+  .alias("shipping-vocabularies-list")
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -395,7 +404,7 @@ shippingValueLists
       async (_options, _command) => {
         const { filter } = await promptForMissing(
           _options,
-          shippingVocabulariesListSpecs,
+          vocabulariesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -421,20 +430,21 @@ shippingValueLists
       },
     ),
   );
-registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingVocabulariesListSpecs, { method: "get" });
-const shippingVocabulariesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
+const vocabulariesGetSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id.", type: "string", required: true, enum: ["carrier-statuses","matrix-bases","pricing-types","service-levels","weight-units"], resource: { listPath: "/shipping/vocabularies", hasLimit: false } },
 ];
 shippingValueLists
-  .command(`shipping-vocabularies-get`)
+  .command(`vocabularies-get`)
   .description(`One vocabulary in full: every value it permits, each carrying the title to show, the description to explain it and the badge tone to draw it in — everything a select or a status chip needs, so nothing has to be labelled a second time in a client. Two sources, one guarantee: what is served is what is enforced, so no UI keeps a second copy. 'source: schema' means the values are read out of a CHECK constraint — a value added to the constraint appears here even before anyone labels it, titled from its own key, in constraint order. 'source: table' means the values are the TENANT's own rows (service-levels, weight-units), read per request and seeded on first use, so a merchant may add one without a release of this app; those values also carry labels/descriptions, is_system, is_default and active, and weight-units carries the conversion factor. A value the merchant set inactive is not under \`values\` (what a picker offers) but under \`inactive\`, in the same shape, so a stored code still resolves to its title. 'closed' says the set is exhaustive either way, so a value outside it is stale data rather than a missing label. \`title\` and \`description\` — the vocabulary's and every value's — are either one string or a locale map keyed by locale: curated copy carries the map, a value titled from its own key carries the string. Names: carrier-statuses, matrix-bases, pricing-types, service-levels, weight-units.`)
+  .alias("shipping-vocabularies-get")
   .option(`--name <name>`, `The vocabulary name — the part after the dot in the qualified id.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { name } = await promptForMissing(
           _options,
-          shippingVocabulariesGetSpecs,
+          vocabulariesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -453,16 +463,17 @@ shippingValueLists
       },
     ),
   );
-registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingVocabulariesGetSpecs, { method: "get" });
-const shippingWeightUnitsListSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, vocabulariesGetSpecs, { method: "get" });
+const weightUnitsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A value outside the range is clamped rather than refused, and `page.limit` echoes what was applied.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). The next page is `page.offset + page.returned`.", type: "integer", required: false },
   { key: "active", option: "--active <active>", name: "active", description: "true answers only the values on offer, false only the retired ones; omitted, both. The only filter this collection honours.", type: "boolean", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 shippingValueLists
-  .command(`shipping-weight-units-list`)
+  .command(`weight-units-list`)
   .description(`Not a taxonomy: a unit is a code PLUS a factor, and the factor prices parcels. \`factor\` is how many kilograms one of this unit weighs, so a matrix keyed in one unit can price a request expressed in another. Exactly one row is the BASE (kg, factor 1) — the anchor every other factor and every stored rate tier is expressed in — and it is fixed at install. Seeded on first read, so this never answers empty. Like the service levels it is hand-rolled and honours limit/offset and the \`active\` flag AND NOTHING ELSE: no other column filter, no \`order\`, always \`position\` order, and a sort sent anyway is ignored rather than refused.`)
+  .alias("shipping-weight-units-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A value outside the range is clamped rather than refused, and \`page.limit\` echoes what was applied.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). The next page is \`page.offset + page.returned\`.`, parseInteger)
   .option(
@@ -482,7 +493,7 @@ shippingValueLists
       async (_options, _command) => {
         const { limit, offset, active, filter } = await promptForMissing(
           _options,
-          shippingWeightUnitsListSpecs,
+          weightUnitsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -517,8 +528,8 @@ shippingValueLists
       },
     ),
   );
-registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingWeightUnitsListSpecs, { method: "get" });
-const shippingWeightUnitsCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, weightUnitsListSpecs, { method: "get" });
+const weightUnitsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "Lowercase letters, digits, - or _, starting with a letter. What a rate request names in `weight_unit`, and what a market's `weight_unit` setting stores. Immutable once created — renaming it would orphan every row carrying it.", type: "string", required: true },
   { key: "factor", option: "--factor <factor>", name: "factor", description: "How many BASE units (kilograms) one of this unit weighs — a tonne is 1000, a gram 0.001, a pound 0.45359237. This number prices parcels: every weight matrix converts a request through it. Must be > 0; the base unit is fixed at 1 and rejects a change.", type: "number", required: true },
   { key: "title", option: "--title <title>", name: "title", description: "What an operator reads in a select. The name a merchant renames; the code underneath never moves.", type: "string", required: true },
@@ -531,8 +542,9 @@ const shippingWeightUnitsCreateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour for a UI listing the set. The client owns what each tone looks like.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 shippingValueLists
-  .command(`shipping-weight-units-create`)
+  .command(`weight-units-create`)
   .description(`Reach for this when a merchant weighs goods in something this app was not shipped with — a tonne for pallet freight, a carat for jewellery — and wants a rate matrix keyed in it. \`factor\` is required and must be greater than 0: zero does not convert a weight, it divides by it, and a negative factor turns a parcel into a credit. The new unit is never the base — which unit anchors the others is decided at install, and moving it would silently reprice every weight matrix in the shop.`)
+  .alias("shipping-weight-units-create")
   .option(`--code <code>`, `Lowercase letters, digits, - or _, starting with a letter. What a rate request names in \`weight_unit\`, and what a market's \`weight_unit\` setting stores. Immutable once created — renaming it would orphan every row carrying it.`)
   .option(`--factor <factor>`, `How many BASE units (kilograms) one of this unit weighs — a tonne is 1000, a gram 0.001, a pound 0.45359237. This number prices parcels: every weight matrix converts a request through it. Must be > 0; the base unit is fixed at 1 and rejects a change.`, parseInteger)
   .option(`--title <title>`, `What an operator reads in a select. The name a merchant renames; the code underneath never moves.`)
@@ -558,7 +570,7 @@ shippingValueLists
       async (_options, _command) => {
         const { code, factor, title, active, description, descriptions, isDefault, labels, position, tone } = await promptForMissing(
           _options,
-          shippingWeightUnitsCreateSpecs,
+          weightUnitsCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -614,23 +626,24 @@ shippingValueLists
       },
     ),
   );
-registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingWeightUnitsCreateSpecs, { method: "post" });
-const shippingWeightUnitsDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, weightUnitsCreateSpecs, { method: "post" });
+const weightUnitsDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/weight-units", hasLimit: true } },
 ];
 shippingValueLists
-  .command(`shipping-weight-units-delete`)
+  .command(`weight-units-delete`)
   .description(`The market check is best effort by design — the setting is per market and this request carries one, so another market may still name the unit. That case degrades to the market falling back to the flagged unit rather than failing its quotes.`)
+  .alias("shipping-weight-units-delete")
   .option(`--id <id>`, `The row id.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          shippingWeightUnitsDeleteSpecs,
+          weightUnitsDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`shipping-value-lists shipping-weight-units-delete`);
+        await confirmDestructive(`shipping-value-lists weight-units-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/shipping/weight-units/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -647,20 +660,21 @@ shippingValueLists
       },
     ),
   );
-registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingWeightUnitsDeleteSpecs, { method: "delete", destructive: true });
-const shippingWeightUnitsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, weightUnitsDeleteSpecs, { method: "delete", destructive: true });
+const weightUnitsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/weight-units", hasLimit: true } },
 ];
 shippingValueLists
-  .command(`shipping-weight-units-get`)
+  .command(`weight-units-get`)
   .description(`A weight unit is a code PLUS a factor — how many kilograms one of this unit weighs — and the factor is what prices parcels: a rate request expressed in one unit is converted through the two factors into the unit the market's tiers are keyed in. Exactly one row is the base (kg, factor 1), fixed at install. This reads one of them by ROW ID, which is what an editor holds after listing the set; a caller holding the CODE (a market's \`weight_unit\` setting, a rate request's \`weight_unit\`) has no filter for it here and should read GET /shipping/vocabularies/weight-units instead. Reading the factor back is NOT how a past quote is checked: a rate answer echoes the factors it applied in \`basis.weight_unit_factor\` and \`basis.request_weight_unit_factor\` precisely so it stays re-derivable after this row has been edited.`)
+  .alias("shipping-weight-units-get")
   .option(`--id <id>`, `The row id.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          shippingWeightUnitsGetSpecs,
+          weightUnitsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -679,8 +693,8 @@ shippingValueLists
       },
     ),
   );
-registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingWeightUnitsGetSpecs, { method: "get" });
-const shippingWeightUnitsUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, weightUnitsGetSpecs, { method: "get" });
+const weightUnitsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/weight-units", hasLimit: true } },
   { key: "active", option: "--active <active>", name: "active", description: "False retires the value: whatever already carries it keeps it, and it is no longer offered for a new assignment. Refused on the default — make another entry the default first.", type: "boolean", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "The sentence under the title, explaining when to pick this weight unit. Null when the title says enough.", type: "string", required: false },
@@ -693,8 +707,9 @@ const shippingWeightUnitsUpdateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour for a UI listing the set. The client owns what each tone looks like.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 shippingValueLists
-  .command(`shipping-weight-units-update`)
+  .command(`weight-units-update`)
   .description(`Everything but the code and the base flag. A factor sent for the BASE unit is refused rather than silently ignored: it reads as 1 because every other factor is relative to it, so changing it would rescale the whole table without touching another row.`)
+  .alias("shipping-weight-units-update")
   .option(`--id <id>`, `The row id.`)
   .option(
     `--active [value]`,
@@ -720,7 +735,7 @@ shippingValueLists
       async (_options, _command) => {
         const { id, active, description, descriptions, factor, isDefault, labels, position, title, tone } = await promptForMissing(
           _options,
-          shippingWeightUnitsUpdateSpecs,
+          weightUnitsUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -773,14 +788,15 @@ shippingValueLists
       },
     ),
   );
-registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingWeightUnitsUpdateSpecs, { method: "put" });
-const shippingWeightUnitsMakeBaseSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, weightUnitsUpdateSpecs, { method: "put" });
+const weightUnitsMakeBaseSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/weight-units", hasLimit: true } },
   { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 shippingValueLists
-  .command(`shipping-weight-units-make-base`)
+  .command(`weight-units-make-base`)
   .description(`The only way the base moves. This unit takes factor 1 and the base flag, and every other factor is divided by its old factor in the same call, so each unit still weighs what it did. Rate tiers are left alone: they are keyed in the unit a market quotes in, never in the base. Every new factor is checked before the first write. Calling it on the base itself changes nothing.`)
+  .alias("shipping-weight-units-make-base")
   .option(`--id <id>`, `The row id.`)
   .option(`--body <body>`, `Request body`)
   .action(
@@ -793,7 +809,7 @@ shippingValueLists
         }
         const { id, body } = await promptForMissing(
           _options,
-          shippingWeightUnitsMakeBaseSpecs,
+          weightUnitsMakeBaseSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -815,14 +831,15 @@ shippingValueLists
       },
     ),
   );
-registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingWeightUnitsMakeBaseSpecs, { method: "post" });
-const shippingWeightUnitsMakeDefaultSpecs: PromptSpec[] = [
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, weightUnitsMakeBaseSpecs, { method: "post" });
+const weightUnitsMakeDefaultSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id.", type: "string", required: true, resource: { listPath: "/shipping/weight-units", hasLimit: true } },
   { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 shippingValueLists
-  .command(`shipping-weight-units-make-default`)
+  .command(`weight-units-make-default`)
   .description(`The flag is a single answer, not a per-row opinion: it is what every fallback lands on, so two defaults leave the result to row order and none leaves it to the seeded value. This row takes it and whoever was holding it is demoted in the same call — there is no separate write to clear the old one, and no window in which both carry it. Only the rows whose flag is wrong are written, so repeating the call is free.`)
+  .alias("shipping-weight-units-make-default")
   .option(`--id <id>`, `The row id.`)
   .option(`--body <body>`, `Request body`)
   .action(
@@ -835,7 +852,7 @@ shippingValueLists
         }
         const { id, body } = await promptForMissing(
           _options,
-          shippingWeightUnitsMakeDefaultSpecs,
+          weightUnitsMakeDefaultSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -857,4 +874,4 @@ shippingValueLists
       },
     ),
   );
-registerPromptSpecs(shippingValueLists.commands.at(-1)!, shippingWeightUnitsMakeDefaultSpecs, { method: "post" });
+registerPromptSpecs(shippingValueLists.commands.at(-1)!, weightUnitsMakeDefaultSpecs, { method: "post" });

@@ -1,7 +1,8 @@
-import { Command, InvalidArgumentError } from "commander";
+import { Command, InvalidArgumentError, Option } from "commander";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { spawnSync } from "child_process";
 import { create as createTar } from "tar";
 import { sdkForProject } from "../sdks.js";
 import { resolveTenant } from "../project-config.js";
@@ -30,6 +31,12 @@ import { actionRunner, success, log, warn, hint, parse, drawTable, cliConfig } f
  * approved version; a round still in review ends the command with its state
  * instead of a success claim. `preview accept` gives the vendor's go on a
  * preview candidate, `release status` lists the rounds.
+ *
+ * `deploy cube` and `deploy integration` follow the same shape without the
+ * marketplace steps (PE-1254, PE-1256): the build submits a release round and
+ * the command waits for it like an app's, but there is nothing to publish or
+ * install afterwards. The platform activates the build once the round is
+ * approved. `preview cube|integration` upload a preview candidate.
  */
 
 type Json = Record<string, unknown>;
@@ -100,7 +107,11 @@ const PACK_EXCLUDES = new Set(["node_modules", ".git", ".nuxt", ".output", ".dat
  * region, and node-tar's default old-GNU timestamps turn every entry name
  * into garbage, silently degrading the app to a legacy Function (DX-231).
  */
-export async function packDirectory(dir: string): Promise<File> {
+export async function packDirectory(dir: string, extraExcludes: readonly string[] = []): Promise<File> {
+  // "*.tgz" leaves out top-level files with that suffix; anything else is a
+  // top-level name.
+  const suffixes = extraExcludes.filter((entry) => entry.startsWith("*.")).map((entry) => entry.slice(1));
+  const excluded = new Set([...PACK_EXCLUDES, ...extraExcludes.filter((entry) => !entry.startsWith("*."))]);
   const tempFile = path.join(os.tmpdir(), `revenexx-deploy-${process.pid}-${Date.now()}.tar.gz`);
   await createTar(
     {
@@ -109,8 +120,10 @@ export async function packDirectory(dir: string): Promise<File> {
       file: tempFile,
       cwd: dir,
       filter: (entry) => {
-        const top = entry.replace(/^\.\//, "").split("/")[0];
-        return !PACK_EXCLUDES.has(top) && !entry.endsWith(".tar.gz");
+        const parts = entry.replace(/^\.\//, "").split("/");
+        const top = parts[0];
+        if (parts.length === 1 && suffixes.some((suffix) => top.endsWith(suffix))) return false;
+        return !excluded.has(top) && !entry.endsWith(".tar.gz");
       },
     },
     ["."],
@@ -138,11 +151,11 @@ export class BuildTimeoutError extends Error {
 export const POLL_INTERVAL_MS = 5000;
 
 /**
- * Poll a deployment until it is ready; print build logs when it fails.
+ * Poll a deployment until it is ready or failed and return it either way.
  * `timeoutSeconds` is compared against the wall clock after every read, so
  * `0` gives up right after the first status (used by the tests).
  */
-export async function pollDeployment(deploymentPath: string, timeoutSeconds: number): Promise<Json> {
+export async function settleDeployment(deploymentPath: string, timeoutSeconds: number): Promise<Json> {
   const client = await sdkForProject();
   const startedAt = Date.now();
   let lastStatus = "";
@@ -154,12 +167,7 @@ export async function pollDeployment(deploymentPath: string, timeoutSeconds: num
       log(`  status: ${status}`);
       lastStatus = status;
     }
-    if (status === "ready") return deployment;
-    if (status === "failed") {
-      const buildLogs = deployment.buildLogs ?? deployment.logs ?? "";
-      if (buildLogs) log(String(buildLogs));
-      throw new Error("platform build failed — see the build logs above");
-    }
+    if (status === "ready" || status === "failed") return deployment;
     if (status === "canceled") {
       throw new Error("platform build was canceled — upload a new deployment to try again");
     }
@@ -168,6 +176,17 @@ export async function pollDeployment(deploymentPath: string, timeoutSeconds: num
     }
     await sleep(POLL_INTERVAL_MS);
   }
+}
+
+/** Poll a deployment until it is ready; print build logs when it fails. */
+export async function pollDeployment(deploymentPath: string, timeoutSeconds: number): Promise<Json> {
+  const deployment = await settleDeployment(deploymentPath, timeoutSeconds);
+  if (deployment.status === "failed") {
+    const buildLogs = deployment.buildLogs ?? deployment.logs ?? "";
+    if (buildLogs) log(String(buildLogs));
+    throw new Error("platform build failed — see the build logs above");
+  }
+  return deployment;
 }
 
 /**
@@ -214,14 +233,26 @@ async function isPublished(functionId: string): Promise<boolean | null> {
 
 export type ReleaseMode = "deploy" | "preview";
 
-/** What the release endpoints are addressed by: an app (function) or a theme (site). */
+export type ReleaseKind = "app" | "theme" | "cube" | "integration";
+
+/** What the release endpoints are addressed by: an app (function), a theme (site), a Cube or an integration. */
 export interface ReleaseTarget {
-  kind: "app" | "theme";
+  kind: ReleaseKind;
   id: string;
 }
 
-const releasesPath = (target: ReleaseTarget): string =>
-  target.kind === "app" ? `/apps/${target.id}/releases` : `/sites/${target.id}/releases`;
+/** The platform collection each release kind lives in. */
+const RELEASE_COLLECTION: Record<ReleaseKind, string> = { app: "/apps", theme: "/sites", cube: "/cubes", integration: "/integrations" };
+
+/** The option that names a target of each kind directly. */
+export const RELEASE_ID_FLAG: Record<ReleaseKind, string> = {
+  app: "--function-id",
+  theme: "--site-id",
+  cube: "--cube-id",
+  integration: "--integration-id",
+};
+
+export const releasesPath = (target: ReleaseTarget): string => `${RELEASE_COLLECTION[target.kind]}/${target.id}/releases`;
 
 /** Round states that will not change without a reviewer or a new build. */
 const SETTLED_STATES = new Set(["approved", "rejected"]);
@@ -359,32 +390,35 @@ const releaseSummary = (round: Json | null): Json | null =>
     : null;
 
 /**
- * What the release check means for publish + install. Approved (or no
- * release endpoint on this gateway) → go on. Rejected → fail with the
+ * What the release check means for the steps after the build. Approved (or
+ * no release endpoint on this gateway) → go on. Rejected → fail with the
  * reason. Anything else → stop here: the build is uploaded but not live
  * until a reviewer approves it, and publishing an unapproved version is
- * refused by the registry anyway.
+ * refused by the registry anyway. `skipped` names what did not run; Cubes
+ * and integrations have no step after the build and pass "".
  */
-function releaseGate(check: ReleaseCheck, label: string, target: ReleaseTarget): "proceed" | "hold" {
+export function releaseGate(check: ReleaseCheck, label: string, target: ReleaseTarget, skipped = "publish and install did NOT run"): "proceed" | "hold" {
   if (!check.available) return "proceed";
+  const tail = skipped ? ` — ${skipped}` : "";
+  const statusCommand = `${EXECUTABLE_NAME} release status ${RELEASE_ID_FLAG[target.kind]} ${target.id}`;
   const round = check.round;
   if (!round) {
-    warn(`no release round is recorded for this ${label} yet — publish and install did NOT run`);
-    hint(`check later with '${EXECUTABLE_NAME} release status${target.kind === "app" ? " --function-id " : " --site-id "}${target.id}'`);
+    warn(`no release round is recorded for this ${label} yet${tail}`);
+    hint(`check later with '${statusCommand}'`);
     return "hold";
   }
   const state = roundState(round);
   if (state === "approved") return "proceed";
   if (state === "rejected") {
     const reason = rejectionText(round.rejection);
-    throw new Error(`release ${round.version ?? ""} rc ${roundRc(round) ?? "?"} was rejected${reason ? `: ${reason}` : ""} — publish and install did NOT run`);
+    throw new Error(`release ${round.version ?? ""} rc ${roundRc(round) ?? "?"} was rejected${reason ? `: ${reason}` : ""}${tail}`);
   }
-  warn(`release ${round.version ?? ""} rc ${roundRc(round) ?? "?"} is ${state}: the build is uploaded but not live until it is approved — publish and install did NOT run`);
+  warn(`release ${round.version ?? ""} rc ${roundRc(round) ?? "?"} is ${state}: the build is uploaded but not live until it is approved${tail}`);
   if (round.decision_due_at) hint(`a reviewer decision is due by ${String(round.decision_due_at)}`);
   if (roundMode(round) === "preview") {
-    hint(`it is a preview: once you have checked the candidate, give your go with '${EXECUTABLE_NAME} preview accept'`);
+    hint(`it is a preview: once you have checked the candidate, give your go with '${EXECUTABLE_NAME} preview accept ${RELEASE_ID_FLAG[target.kind]} ${target.id}'`);
   }
-  hint(`follow the review with '${EXECUTABLE_NAME} release status'`);
+  hint(`follow the review with '${statusCommand}'`);
   return "hold";
 }
 
@@ -766,39 +800,491 @@ export const deployTheme = async (dir: string, flags: DeployThemeFlags): Promise
 };
 
 /**
- * Resolve the app or theme a release command talks about: explicit ids win,
- * otherwise the directory decides (manifest.json → app, theme.json → theme)
- * and the target is looked up by name.
+ * Cubes (PE-1254). A Cube deployment does not run anything: the platform
+ * build bundles the directory and submits it to the analytics registry as a
+ * release. `ready` means the release was submitted, `failed` that the registry
+ * refused it — with one line per problem in the build logs. The flow then
+ * waits for the release round like an app's (PE-1256); a gateway without
+ * Cube release rounds ends it at "submitted for review" as before.
  */
-export async function resolveReleaseTarget(
-  dir: string,
-  flags: { functionId?: string; siteId?: string },
-): Promise<{ target: ReleaseTarget; name: string; version: string }> {
-  const root = path.resolve(dir);
-  const manifest = readJsonIf(path.join(root, "manifest.json"));
-  const theme = readJsonIf(path.join(root, "theme.json"));
-  const stringOf = (doc: Json | null, key: string): string => (typeof doc?.[key] === "string" ? (doc[key] as string) : "");
 
-  if (flags.functionId) return { target: { kind: "app", id: flags.functionId }, name: stringOf(manifest, "name"), version: stringOf(manifest, "version") };
-  if (flags.siteId) return { target: { kind: "theme", id: flags.siteId }, name: stringOf(theme, "name"), version: stringOf(theme, "version") };
+/** Never ship a Cube's local build output either. */
+const CUBE_PACK_EXCLUDES = ["dist"];
 
-  const kind: ReleaseTarget["kind"] | null = stringOf(manifest, "name") ? "app" : stringOf(theme, "name") ? "theme" : null;
-  if (!kind) {
-    throw new Error(`${root} is neither an app (manifest.json) nor a theme (theme.json) directory — run from one, or pass --function-id / --site-id`);
+export interface CubeIdentity {
+  vendor: string;
+  name: string;
+  version: string;
+}
+
+const stringField = (doc: Json | null | undefined, key: string): string => (typeof doc?.[key] === "string" ? (doc[key] as string) : "");
+
+/** vendor/name@version, leaving out whatever is not known. */
+export const cubeLabel = (cube: Partial<CubeIdentity>): string => {
+  const ref = cube.vendor && cube.name ? `${cube.vendor}/${cube.name}` : (cube.name ?? "");
+  return cube.version ? `${ref}@${cube.version}` : ref;
+};
+
+/** The identity the build recorded (`manifestJson`), as a string or an object. */
+export const deploymentCubeIdentity = (deployment: Json): Partial<CubeIdentity> => {
+  let manifest: unknown = deployment.manifestJson ?? deployment.manifest ?? null;
+  if (typeof manifest === "string") {
+    try {
+      manifest = JSON.parse(manifest);
+    } catch {
+      manifest = null;
+    }
   }
-  const doc = kind === "app" ? manifest : theme;
-  const name = stringOf(doc, "name");
-  const found = await findByName(kind === "app" ? "/apps" : "/sites", name);
-  if (!found) throw new Error(`no ${kind} named '${name}' is registered — deploy it first, or pass ${kind === "app" ? "--function-id" : "--site-id"}`);
-  return { target: { kind, id: resourceId(found) }, name, version: stringOf(doc, "version") };
+  const doc = (manifest && typeof manifest === "object" ? manifest : {}) as Json;
+  const identity: Partial<CubeIdentity> = {};
+  for (const key of ["vendor", "name", "version"] as const) {
+    const value = stringField(doc, key);
+    if (value) identity[key] = value;
+  }
+  return identity;
+};
+
+export interface CubeBuildOutcome {
+  /** The submitted line as the build wrote it, when it did. */
+  submitted: string | null;
+  /** The rejection line ("Release rejected by analytics-api: …"), when present. */
+  rejected: string | null;
+  /** One entry per problem the registry named: "{document} {path} → {message}". */
+  problems: string[];
+}
+
+/** Read the release outcome out of a Cube deployment's build logs. */
+export const parseCubeBuildLogs = (buildLogs: unknown): CubeBuildOutcome => {
+  const lines = String(buildLogs ?? "").split(/\r?\n/);
+  const outcome: CubeBuildOutcome = { submitted: null, rejected: null, problems: [] };
+  let inRejection = false;
+  for (const line of lines) {
+    if (line.startsWith("Release submitted for review:")) {
+      outcome.submitted = line.trim();
+      inRejection = false;
+      continue;
+    }
+    if (line.startsWith("Release rejected by ")) {
+      outcome.rejected = line.trim();
+      inRejection = true;
+      continue;
+    }
+    if (inRejection) {
+      if (/^\s+\S/.test(line)) outcome.problems.push(line.trim());
+      else if (line.trim() !== "") inRejection = false;
+    }
+  }
+  return outcome;
+};
+
+/**
+ * Run the Cube repo's own validator when it ships one. The registry runs the
+ * same checks; failing here saves a build round-trip. Output goes to stderr so
+ * a machine-readable stdout stays the result document alone.
+ */
+export function validateCubeLocally(root: string): "passed" | "skipped" {
+  const script = path.join(root, "scripts", "cube.mjs");
+  if (!fs.existsSync(script)) return "skipped";
+  const args = [script, "validate", root];
+  const catalog = path.join(root, "test", "catalog.json");
+  if (fs.existsSync(catalog)) args.push("--catalog", catalog);
+
+  log("Validating the Cube (scripts/cube.mjs validate)");
+  const run = spawnSync("node", args, { cwd: root, encoding: "utf8" });
+  if (run.error) {
+    warn(`could not run the local validator (${errorMessage(run.error)}) — the registry still validates the release`);
+    return "skipped";
+  }
+  const output = `${run.stdout ?? ""}${run.stderr ?? ""}`.trimEnd();
+  if (run.status !== 0) {
+    if (output) process.stderr.write(`${output}\n`);
+    throw new Error("local validation failed — fix the problems above, or pass --skip-validate to let the registry decide");
+  }
+  return "passed";
+}
+
+/**
+ * Integrations (PE-1256). An integration repo is a node package of workflow
+ * nodes: package.json depends on the node SDK and its build ends with
+ * `rvnxx-nodes manifest`, which writes dist/manifest.json. Most repos also
+ * keep a manifest.json at the root, and that one names the integration in
+ * the registry. The platform build installs, builds and `npm pack`s the
+ * package, publishes the tarball to the integrations API and opens the
+ * release round in Console.
+ */
+
+/** The node SDK every integration package depends on. */
+export const INTEGRATION_SDK_PACKAGE = "@revenexx/integrations-node-sdk";
+
+/** Leave out the local build output and stray `npm pack` tarballs. */
+const INTEGRATION_PACK_EXCLUDES = ["dist", "*.tgz"];
+
+export interface IntegrationPackage {
+  /** Registry name: manifest.json's name, else the package name without its scope. */
+  name: string;
+  vendor: string;
+  version: string;
+  /** The npm package name as package.json states it. */
+  packageName: string;
+}
+
+/**
+ * Read an integration package from a directory, or `null` when the directory
+ * is not one. The node SDK's own repo depends on nothing and is not one.
+ */
+export const readIntegrationPackage = (root: string): IntegrationPackage | null => {
+  const pkg = readJsonIf(path.join(root, "package.json"));
+  if (!pkg) return null;
+  const packageName = stringField(pkg, "name");
+  if (packageName === INTEGRATION_SDK_PACKAGE) return null;
+  const dependsOnSdk = ["dependencies", "peerDependencies", "devDependencies"].some((key) => {
+    const deps = pkg[key];
+    return Boolean(deps && typeof deps === "object" && INTEGRATION_SDK_PACKAGE in (deps as Json));
+  }) || (Array.isArray(pkg.bundledDependencies) && pkg.bundledDependencies.includes(INTEGRATION_SDK_PACKAGE));
+  const scripts = (pkg.scripts && typeof pkg.scripts === "object" ? pkg.scripts : {}) as Json;
+  const buildsManifest = Object.values(scripts).some((script) => typeof script === "string" && script.includes("rvnxx-nodes manifest"));
+  if (!dependsOnSdk && !buildsManifest) return null;
+
+  const manifest = readJsonIf(path.join(root, "manifest.json"));
+  const name = stringField(manifest, "name") || packageName.replace(/^@[^/]+\//, "");
+  if (!name) return null;
+  return {
+    name,
+    vendor: stringField(manifest, "vendor"),
+    version: stringField(manifest, "version") || stringField(pkg, "version"),
+    packageName,
+  };
+};
+
+/** What differs between the two resources that build into a release round. */
+interface PackageResource {
+  kind: "cube" | "integration";
+  /** Human noun in messages, and the same at the start of a sentence. */
+  noun: string;
+  title: string;
+  collection: string;
+  /** The id parameter of the create call. */
+  idParam: string;
+  packExcludes: readonly string[];
+}
+
+const CUBE_RESOURCE: PackageResource = { kind: "cube", noun: "Cube", title: "Cube", collection: "/cubes", idParam: "cubeId", packExcludes: CUBE_PACK_EXCLUDES };
+const INTEGRATION_RESOURCE: PackageResource = {
+  kind: "integration",
+  noun: "integration",
+  title: "Integration",
+  collection: "/integrations",
+  idParam: "integrationId",
+  packExcludes: INTEGRATION_PACK_EXCLUDES,
+};
+
+interface PackageDeployFlags {
+  deploymentId?: string;
+  /** Deploy from the connected repository instead of uploading the directory. */
+  fromGit?: boolean;
+  ref?: string;
+  refType?: "branch" | "commit" | "tag";
+  timeout: number;
+  /** `deploy` (default) or `preview` — set by the `deploy` / `preview` command group. */
+  releaseMode?: ReleaseMode;
+  /** How long to wait for the release round to settle after the build, in seconds. */
+  releaseWait?: number;
+}
+
+const packageResumeCommand = (res: PackageResource, releaseMode: ReleaseMode, id: string, deploymentId: string): string =>
+  `${EXECUTABLE_NAME} ${releaseMode === "preview" ? "preview" : "deploy"} ${res.kind} ${RELEASE_ID_FLAG[res.kind]} ${id} --deployment-id ${deploymentId}`;
+
+interface PackageDeploy {
+  res: PackageResource;
+  root: string;
+  name: string;
+  /** The id given on the command line, if any. */
+  id: string;
+  /** What the directory says about the release; the build's manifest fills the gaps. */
+  local: Partial<CubeIdentity>;
+  flags: PackageDeployFlags;
+  /** Extra keys for the result document. */
+  extra?: Json;
+}
+
+/**
+ * The flow `deploy cube` and `deploy integration` share: find-or-create,
+ * upload (or trigger a Git build), wait for the build, then wait for the
+ * release round it opened. A rejected build names every problem; a round in
+ * review ends the command with its state. Git builds always run in deploy
+ * mode.
+ */
+async function deployPackage(d: PackageDeploy): Promise<void> {
+  const { res, root, name, flags } = d;
+  const client = await sdkForProject();
+  const resuming = Boolean(flags.deploymentId);
+  const releaseMode: ReleaseMode = flags.fromGit ? "deploy" : (flags.releaseMode ?? "deploy");
+  const idFlag = RELEASE_ID_FLAG[res.kind];
+
+  let id = d.id;
+  let resource: Json | null = null;
+  if (!id) {
+    resource = await findByName(res.collection, name);
+    if (resource) {
+      id = resourceId(resource);
+      log(`Using existing ${res.noun} '${name}' (${id})`);
+    } else if (resuming) {
+      throw new Error(`no ${res.noun} named '${name}' exists — pass ${idFlag} together with --deployment-id`);
+    } else if (flags.fromGit) {
+      throw new Error(`no ${res.noun} named '${name}' exists — connect it to its repository in Cockpit first, or deploy the directory without --from-git`);
+    } else {
+      log(`Creating ${res.noun} '${name}'`);
+      resource = (await client.call("post", res.collection, JSON_HEADERS, { [res.idParam]: "unique()", name })) as Json;
+      id = resourceId(resource);
+    }
+  }
+  if (!id) throw new Error(`could not resolve the ${res.noun} id`);
+
+  let deploymentId = flags.deploymentId ?? "";
+  if (deploymentId) {
+    log(`Resuming deployment ${deploymentId} of '${name}' (${id}) — skipping packaging and upload`);
+  } else if (flags.fromGit) {
+    if (!resource || resourceId(resource) !== id) {
+      resource = (await client.call("get", `${res.collection}/${id}`, JSON_HEADERS, {})) as Json;
+    }
+    if (!stringField(resource, "installationId") || !stringField(resource, "providerRepositoryId")) {
+      throw new Error(`${res.title} '${name}' (${id}) is not connected to a repository — connect it in Cockpit, or deploy the directory without --from-git`);
+    }
+    const refType = flags.refType ?? "branch";
+    const reference = flags.ref ?? (refType === "branch" ? stringField(resource, "providerBranch") : "");
+    if (!reference) throw new Error(`no reference to deploy — pass --ref <${refType}>`);
+    log(`Triggering a deployment from ${refType} '${reference}' (activate=true)`);
+    const deployment = (await client.call("post", `${res.collection}/${id}/deployments/vcs`, JSON_HEADERS, {
+      type: refType,
+      reference,
+      activate: true,
+    })) as Json;
+    deploymentId = resourceId(deployment);
+    if (!deploymentId) throw new Error("the platform returned no deployment id");
+  } else {
+    log(`Packaging the ${res.noun}`);
+    const code = await packDirectory(root, res.packExcludes);
+    // activate is a request, not a promise: the platform puts the build live
+    // only once its release round is approved.
+    log(`Uploading deployment (activate=true, releaseMode=${releaseMode})`);
+    const deployment = (await client.call(
+      "post",
+      `${res.collection}/${id}/deployments`,
+      { "content-type": "multipart/form-data" },
+      { code, activate: true, releaseMode },
+    )) as Json;
+    deploymentId = resourceId(deployment);
+    if (!deploymentId) throw new Error("the upload returned no deployment id");
+  }
+
+  log("Waiting for the platform build");
+  let deployment: Json;
+  try {
+    deployment = await settleDeployment(`${res.collection}/${id}/deployments/${deploymentId}`, flags.timeout);
+  } catch (err) {
+    if (!(err instanceof BuildTimeoutError)) throw err;
+    return rethrowWithContext(
+      err,
+      [
+        "  The build is still running on the platform; the release has NOT been submitted yet.",
+        "  Wait longer with --timeout <seconds>, or pick this deployment up later without re-uploading:",
+        `    ${packageResumeCommand(res, releaseMode, id, deploymentId)}`,
+      ].join("\n"),
+    );
+  }
+
+  const outcome = parseCubeBuildLogs(deployment.buildLogs ?? deployment.logs);
+  const identity = { ...d.local, ...deploymentCubeIdentity(deployment) };
+  const label = cubeLabel(identity) || name;
+  const machine = cliConfig.output !== "table";
+  const result: Json = {
+    [res.kind]: identity.vendor && identity.name ? `${identity.vendor}/${identity.name}` : name,
+    version: identity.version ?? null,
+    [res.idParam]: id,
+    deploymentId,
+    resumed: resuming,
+    source: flags.fromGit ? "git" : "upload",
+    releaseMode,
+    ...d.extra,
+  };
+
+  if (deployment.status === "failed") {
+    if (machine) {
+      parse({ ...result, status: "rejected", reason: outcome.rejected, problems: outcome.problems });
+    } else {
+      if (outcome.rejected) warn(outcome.rejected);
+      for (const problem of outcome.problems) warn(`  ${problem}`);
+      if (!outcome.rejected && outcome.problems.length === 0) {
+        const raw = String(deployment.buildLogs ?? deployment.logs ?? "").trimEnd();
+        if (raw) process.stderr.write(`${raw}\n`);
+      }
+    }
+    const count = outcome.problems.length;
+    throw new Error(
+      outcome.rejected
+        ? `release of ${label} was rejected${count ? ` (${count} problem${count === 1 ? "" : "s"})` : ""} — fix ${count === 1 ? "it" : "them"} and deploy again`
+        : `the ${res.noun} build failed${machine ? "" : " — see the build logs above"}`,
+    );
+  }
+
+  log("Checking the release round");
+  const target: ReleaseTarget = { kind: res.kind, id };
+  const check = await awaitReleaseRound(target, deploymentId, identity.version ?? "", flags.releaseWait ?? DEFAULT_RELEASE_WAIT_SECONDS);
+
+  // A gateway without release rounds: the build submitted the release and
+  // that is all the platform can tell.
+  if (!check.available) {
+    if (machine) {
+      parse({ ...result, status: "submitted", review: "pending", release: null });
+      return;
+    }
+    success(outcome.submitted ?? `Release submitted for review: ${label} (review pending).`);
+    hint("the review happens in Console; the release goes live once it is approved");
+    return;
+  }
+
+  const release = releaseSummary(check.round);
+  const state = check.round ? roundState(check.round) : "";
+  if (machine && state !== "approved") {
+    parse({ ...result, status: state === "rejected" ? "rejected" : "submitted", review: state || "pending", release });
+  }
+  if (outcome.submitted && !machine) log(outcome.submitted);
+  if (releaseGate(check, `${res.noun} deployment`, target, "") === "hold") {
+    if (!machine) success(`${res.title} ${label} uploaded and built (${id}) — waiting for release approval`);
+    return;
+  }
+
+  if (machine) {
+    parse({ ...result, status: "approved", review: "approved", release });
+    return;
+  }
+  success(`${res.title} ${label} approved and deployed (${id})`);
+}
+
+export interface DeployCubeFlags extends PackageDeployFlags {
+  cubeId?: string;
+  /** Skip `node scripts/cube.mjs validate` before the upload. */
+  skipValidate?: boolean;
+}
+
+export const deployCube = async (dir: string, flags: DeployCubeFlags): Promise<void> => {
+  const root = path.resolve(dir);
+  const cubeJson = readJsonIf(path.join(root, "cube.json"));
+  const resuming = Boolean(flags.deploymentId);
+  const local: Partial<CubeIdentity> = {};
+  for (const key of ["vendor", "name", "version"] as const) {
+    const value = stringField(cubeJson, key);
+    if (value) local[key] = value;
+  }
+
+  // Resuming may run from anywhere: the name then comes from the Cube itself.
+  let name = local.name ?? "";
+  if (!name && flags.cubeId && (resuming || flags.fromGit)) {
+    const client = await sdkForProject();
+    const cube = (await client.call("get", `/cubes/${flags.cubeId}`, JSON_HEADERS, {})) as Json;
+    name = stringField(cube, "name");
+  }
+  if (!name) {
+    throw new Error(`${root} is not a Cube directory (no cube.json with a name) — start one with '${EXECUTABLE_NAME} create cube'`);
+  }
+
+  let validation: "passed" | "skipped" = "skipped";
+  if (!resuming && !flags.fromGit && flags.skipValidate !== true) {
+    validation = validateCubeLocally(root);
+  }
+
+  await deployPackage({ res: CUBE_RESOURCE, root, name, id: flags.cubeId ?? "", local, flags, extra: { validation } });
+};
+
+export interface DeployIntegrationFlags extends PackageDeployFlags {
+  integrationId?: string;
+  /** Registry name override (default: manifest.json name, else the package name without its scope). */
+  name?: string;
+}
+
+export const deployIntegration = async (dir: string, flags: DeployIntegrationFlags): Promise<void> => {
+  const root = path.resolve(dir);
+  const pkg = readIntegrationPackage(root);
+  const resuming = Boolean(flags.deploymentId);
+
+  let name = flags.name ?? pkg?.name ?? "";
+  if (!name && flags.integrationId && (resuming || flags.fromGit)) {
+    const client = await sdkForProject();
+    const integration = (await client.call("get", `/integrations/${flags.integrationId}`, JSON_HEADERS, {})) as Json;
+    name = stringField(integration, "name");
+  }
+  if (!name) {
+    throw new Error(
+      `${root} is not an integration package (no package.json depending on ${INTEGRATION_SDK_PACKAGE}) — run from one, or pass --integration-id together with --deployment-id`,
+    );
+  }
+  const local: Partial<CubeIdentity> = { name };
+  if (pkg?.vendor) local.vendor = pkg.vendor;
+  if (pkg?.version) local.version = pkg.version;
+
+  await deployPackage({ res: INTEGRATION_RESOURCE, root, name, id: flags.integrationId ?? "", local, flags });
+};
+
+/**
+ * Which kind of release target a directory holds. cube.json and an
+ * integration package are checked before manifest.json, because integration
+ * repos keep a manifest.json of their own.
+ */
+export const detectReleaseKind = (root: string): { kind: ReleaseKind; name: string; version: string } | null => {
+  const cube = readJsonIf(path.join(root, "cube.json"));
+  if (stringField(cube, "name")) return { kind: "cube", name: stringField(cube, "name"), version: stringField(cube, "version") };
+  const integration = readIntegrationPackage(root);
+  if (integration) return { kind: "integration", name: integration.name, version: integration.version };
+  const manifest = readJsonIf(path.join(root, "manifest.json"));
+  if (stringField(manifest, "name")) return { kind: "app", name: stringField(manifest, "name"), version: stringField(manifest, "version") };
+  const theme = readJsonIf(path.join(root, "theme.json"));
+  if (stringField(theme, "name")) return { kind: "theme", name: stringField(theme, "name"), version: stringField(theme, "version") };
+  return null;
+};
+
+export interface ReleaseTargetFlags {
+  functionId?: string;
+  siteId?: string;
+  cubeId?: string;
+  integrationId?: string;
+}
+
+/**
+ * Resolve the app, theme, Cube or integration a release command talks about:
+ * explicit ids win, otherwise the directory decides (cube.json → Cube,
+ * integration package → integration, manifest.json → app, theme.json →
+ * theme) and the target is looked up by name.
+ */
+export async function resolveReleaseTarget(dir: string, flags: ReleaseTargetFlags): Promise<{ target: ReleaseTarget; name: string; version: string }> {
+  const root = path.resolve(dir);
+  const detected = detectReleaseKind(root);
+  const given: Array<[ReleaseKind, string | undefined]> = [
+    ["app", flags.functionId],
+    ["theme", flags.siteId],
+    ["cube", flags.cubeId],
+    ["integration", flags.integrationId],
+  ];
+  for (const [kind, id] of given) {
+    if (!id) continue;
+    const local = detected?.kind === kind ? detected : null;
+    return { target: { kind, id }, name: local?.name ?? "", version: local?.version ?? "" };
+  }
+
+  if (!detected) {
+    throw new Error(
+      `${root} is not an app (manifest.json), theme (theme.json), Cube (cube.json) or integration package directory — run from one, or pass --function-id / --site-id / --cube-id / --integration-id`,
+    );
+  }
+  const { kind, name, version } = detected;
+  const found = await findByName(RELEASE_COLLECTION[kind], name);
+  if (!found) throw new Error(`no ${kind} named '${name}' is registered — deploy it first, or pass ${RELEASE_ID_FLAG[kind]}`);
+  return { target: { kind, id: resourceId(found) }, name, version };
 }
 
 const releaseUnavailable = (): Error =>
   new Error("this gateway does not offer release rounds yet — update the platform, or follow the review in Cockpit");
 
-export interface PreviewAcceptFlags {
-  functionId?: string;
-  siteId?: string;
+export interface PreviewAcceptFlags extends ReleaseTargetFlags {
   releaseVersion?: string;
   rc?: number;
 }
@@ -841,12 +1327,9 @@ export const previewAccept = async (dir: string, flags: PreviewAcceptFlags): Pro
   if (round.state && round.state !== "approved") hint("it goes live once a reviewer has approved it as well");
 };
 
-export interface ReleaseStatusFlags {
-  functionId?: string;
-  siteId?: string;
-}
+export type ReleaseStatusFlags = ReleaseTargetFlags;
 
-/** The release rounds of an app or theme, newest first. */
+/** The release rounds of an app, theme, Cube or integration, newest first. */
 export const releaseStatus = async (dir: string, flags: ReleaseStatusFlags): Promise<void> => {
   const { target, name } = await resolveReleaseTarget(dir, flags);
   const rounds = await fetchReleaseRounds(target);
@@ -883,6 +1366,7 @@ export const parseRound = (value: string): number => {
 const BUILD_TIMEOUT_HELP = "how long to wait for the platform build, in seconds (the per-request HTTP limit is the global --request-timeout <ms>)";
 const RESUME_HELP = "finish an existing deployment instead of uploading a new one: skips packaging + upload, waits for its build, then runs the remaining steps";
 const RELEASE_WAIT_HELP = "how long to wait after the build for the release round to be approved or rejected, in seconds";
+const PACKAGE_RESUME_HELP = "pick up an existing deployment instead of uploading a new one: waits for its build and its release round";
 
 const siteOptions = (command: Command): Command =>
   command
@@ -896,6 +1380,19 @@ const siteOptions = (command: Command): Command =>
     .option("--build-command <command>", "build command", "npm run build")
     .option("--output-directory <dir>", "build output directory", ".output")
     .option("--timeout <seconds>", BUILD_TIMEOUT_HELP, parseSeconds, 600);
+
+/** `--from-git` and its ref options; deploy only, since Git builds always run in deploy mode. */
+const gitOptions = (command: Command, noun: string): Command =>
+  command
+    .option("--from-git", `deploy from the ${noun}'s connected repository instead of uploading the directory`)
+    .option("--ref <ref>", `with --from-git: the branch, tag or commit to deploy (default: the ${noun}'s production branch)`)
+    .addOption(new Option("--ref-type <type>", "with --from-git: what --ref names").choices(["branch", "tag", "commit"]).default("branch"));
+
+/** The wait options of a Cube or integration deploy. */
+const packageWaitOptions = (command: Command): Command =>
+  command
+    .option("--timeout <seconds>", BUILD_TIMEOUT_HELP, parseSeconds, 600)
+    .option("--release-wait <seconds>", RELEASE_WAIT_HELP, parseSeconds, DEFAULT_RELEASE_WAIT_SECONDS);
 
 /** `deploy app` and `preview app` share everything but the release mode. */
 const appCommand = (releaseMode: ReleaseMode, description: string): Command =>
@@ -925,8 +1422,42 @@ const themeCommand = (releaseMode: ReleaseMode, description: string): Command =>
     .option("--release-wait <seconds>", RELEASE_WAIT_HELP, parseSeconds, DEFAULT_RELEASE_WAIT_SECONDS)
     .action(actionRunner((dir: string, flags: DeployThemeFlags) => deployTheme(dir, { ...flags, releaseMode })));
 
+const cubeCommand = (releaseMode: ReleaseMode, description: string): Command => {
+  const command = new Command("cube")
+    .description(description)
+    .argument("[dir]", "Cube directory (needs cube.json)", ".")
+    .option("--cube-id <id>", "deploy to this existing Cube (skips find-or-create by name)")
+    .option("--deployment-id <id>", PACKAGE_RESUME_HELP)
+    .option("--skip-validate", "do not run scripts/cube.mjs validate before the upload");
+  if (releaseMode === "deploy") gitOptions(command, "Cube");
+  return packageWaitOptions(command).action(actionRunner((dir: string, flags: DeployCubeFlags) => deployCube(dir, { ...flags, releaseMode })));
+};
+
+const integrationCommand = (releaseMode: ReleaseMode, description: string): Command => {
+  const command = new Command("integration")
+    .description(description)
+    .argument("[dir]", "integration package directory (package.json depending on the node SDK)", ".")
+    .option("--integration-id <id>", "deploy to this existing integration (skips find-or-create by name)")
+    .option("--deployment-id <id>", PACKAGE_RESUME_HELP)
+    .option("--name <name>", "integration name (default: manifest.json name, else the package name without its scope)");
+  if (releaseMode === "deploy") gitOptions(command, "integration");
+  return packageWaitOptions(command).action(
+    actionRunner((dir: string, flags: DeployIntegrationFlags) => deployIntegration(dir, { ...flags, releaseMode })),
+  );
+};
+
+/** The id options of `preview accept` and `release status`. */
+const targetOptions = (command: Command, verb: string): Command =>
+  command
+    .option("--function-id <id>", `the app to ${verb} (skips the lookup by name)`)
+    .option("--site-id <id>", `the theme to ${verb} (skips the lookup by name)`)
+    .option("--cube-id <id>", `the Cube to ${verb} (skips the lookup by name)`)
+    .option("--integration-id <id>", `the integration to ${verb} (skips the lookup by name)`);
+
+const TARGET_DIR_HELP = "app, theme, Cube or integration directory (manifest.json / theme.json / cube.json / package.json)";
+
 export const deploy = new Command("deploy")
-  .description("Deploy apps, themes and sites to the revenexx platform")
+  .description("Deploy apps, themes, sites, Cubes and integrations to the revenexx platform")
   .addCommand(appCommand("deploy", "Deploy a platform app: register if new, upload, build, then publish + install once the release is approved"))
   .addCommand(themeCommand("deploy", "Deploy a Blokkli theme: site deploy + automatic registry registration, then publish + install once the release is approved"))
   .addCommand(
@@ -935,30 +1466,35 @@ export const deploy = new Command("deploy")
         .description("Deploy any directory as a platform Site (find-or-create by name, upload, build)")
         .argument("[dir]", "site directory", "."),
     ).action(actionRunner(deploySite)),
-  );
+  )
+  .addCommand(cubeCommand("deploy", "Deploy an analytics Cube: validate, create if new, upload, build, then wait for the release to be approved"))
+  .addCommand(integrationCommand("deploy", "Deploy an integration package: create if new, upload, build, then wait for the release to be approved"));
 
 export const preview = new Command("preview")
   .description("Release a preview: you check the running candidate and accept it before it goes live")
   .addCommand(appCommand("preview", "Upload and build an app as a preview candidate (reachable on its own host until accepted and approved)"))
   .addCommand(themeCommand("preview", "Upload and build a theme as a preview candidate (live once accepted and approved)"))
+  .addCommand(cubeCommand("preview", "Upload and build a Cube as a preview candidate (live once accepted and approved)"))
+  .addCommand(integrationCommand("preview", "Upload and build an integration as a preview candidate (live once accepted and approved)"))
   .addCommand(
-    new Command("accept")
-      .description("Accept a preview candidate: your go as the vendor, next to the reviewer's approval")
-      .argument("[dir]", "app or theme directory (manifest.json / theme.json)", ".")
-      .option("--function-id <id>", "the app to accept (skips the lookup by name)")
-      .option("--site-id <id>", "the theme to accept (skips the lookup by name)")
-      .option("--release-version <version>", "version to accept (default: manifest/theme version, else the newest preview candidate)")
+    targetOptions(
+      new Command("accept")
+        .description("Accept a preview candidate: your go as the vendor, next to the reviewer's approval")
+        .argument("[dir]", TARGET_DIR_HELP, "."),
+      "accept",
+    )
+      .option("--release-version <version>", "version to accept (default: the directory's version, else the newest preview candidate)")
       .option("--rc <n>", "release round to accept (default: the version's current candidate)", parseRound)
       .action(actionRunner(previewAccept)),
   );
 
 export const release = new Command("release")
-  .description("Follow the review of your app and theme releases")
+  .description("Follow the review of your app, theme, Cube and integration releases")
   .addCommand(
-    new Command("status")
-      .description("List the release rounds of an app or theme: version, round, mode, state, gates, decision date")
-      .argument("[dir]", "app or theme directory (manifest.json / theme.json)", ".")
-      .option("--function-id <id>", "the app to show (skips the lookup by name)")
-      .option("--site-id <id>", "the theme to show (skips the lookup by name)")
-      .action(actionRunner(releaseStatus)),
+    targetOptions(
+      new Command("status")
+        .description("List the release rounds of an app, theme, Cube or integration: version, round, mode, state, gates, decision date")
+        .argument("[dir]", TARGET_DIR_HELP, "."),
+      "show",
+    ).action(actionRunner(releaseStatus)),
   );

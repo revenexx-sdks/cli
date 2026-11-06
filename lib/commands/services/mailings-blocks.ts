@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -13,6 +14,7 @@ export const mailingsBlocks = new Command("mailings-blocks")
       `The contract of the three blocks this app adds to the mail editor — product, voucher and the mandatory footer — and the variables that fill them per recipient.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

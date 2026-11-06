@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const documentsKinds = new Command("documents-kinds")
       `What sort of record a document is, as a list the MERCHANT keeps. Four kinds arrive with the app because an order produces them — invoice, delivery note, credit note, return receipt — and every trade has more: a proforma invoice, a dunning letter, a works certificate. Nothing in this app branches on a kind, so a closed set bought no safety and would have cost a release per trade; \`documents.kind\` therefore publishes no enum, and a value the merchant added this morning is accepted at once. Three rules replace the foreign key these rows have on purpose not got: a \`code\` is fixed once created (it is what every document stores), a kind at least one document carries cannot be deleted, and the last kind cannot be deleted at all. Exactly one row is the default, and moving the flag is its own call. The same two vocabulary addresses every app serves answer these values with the title and tone a screen renders, alongside \`visibilities\`, whose set is the database CHECK and closed to a merchant because the app really does branch on it.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
@@ -478,12 +480,13 @@ documentsKinds
     ),
   );
 registerPromptSpecs(documentsKinds.commands.at(-1)!, makeDefaultSpecs, { method: "post" });
-const documentsVocabulariesListSpecs: PromptSpec[] = [
+const vocabulariesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 documentsKinds
-  .command(`documents-vocabularies-list`)
+  .command(`vocabularies-list`)
   .description(`The index of the value sets this app owns, with their titles and no values — the cheap read a client makes once. Two are published, and they differ in WHO owns the set: \`kinds\` is the merchant's own table, so it is read per request and a merchant may extend it; \`visibilities\` is the database CHECK, so it is closed and a merchant cannot. A client holding \`'documents.kinds'\` builds \`GET /documents/vocabularies/kinds\` with no further knowledge, which is the point of every app serving these two routes under its own prefix.`)
+  .alias("documents-vocabularies-list")
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -495,7 +498,7 @@ documentsKinds
       async (_options, _command) => {
         const { filter } = await promptForMissing(
           _options,
-          documentsVocabulariesListSpecs,
+          vocabulariesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -521,20 +524,21 @@ documentsKinds
       },
     ),
   );
-registerPromptSpecs(documentsKinds.commands.at(-1)!, documentsVocabulariesListSpecs, { method: "get" });
-const documentsVocabulariesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(documentsKinds.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
+const vocabulariesGetSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "The vocabulary to read, as GET /documents/vocabularies names it.", type: "string", required: true, enum: ["kinds","visibilities"], resource: { listPath: "/documents/vocabularies", hasLimit: false } },
 ];
 documentsKinds
-  .command(`documents-vocabularies-get`)
+  .command(`vocabularies-get`)
   .description(`One vocabulary and every value in it, each with the title, description and badge tone a screen renders — which is the reason this route exists at all: a UI that keeps its own copy of the list is a UI that eventually offers a value the data refuses. \`source\` says where the set comes from and is the field to branch on: 'table' means the merchant owns it (\`kinds\`), so the answer is their rows in their order and \`is_default\` marks the fallback; 'schema' means a database CHECK owns it (\`visibilities\`), so the served set is the enforced set by construction. \`closed\` is true either way — the set is exhaustive at this moment, so a value outside it is stale data rather than a missing label. Reading \`kinds\` SEEDS an empty table, exactly as the kinds list does.`)
+  .alias("documents-vocabularies-get")
   .option(`--name <name>`, `The vocabulary to read, as GET /documents/vocabularies names it.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { name } = await promptForMissing(
           _options,
-          documentsVocabulariesGetSpecs,
+          vocabulariesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -553,4 +557,4 @@ documentsKinds
       },
     ),
   );
-registerPromptSpecs(documentsKinds.commands.at(-1)!, documentsVocabulariesGetSpecs, { method: "get" });
+registerPromptSpecs(documentsKinds.commands.at(-1)!, vocabulariesGetSpecs, { method: "get" });

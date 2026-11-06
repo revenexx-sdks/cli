@@ -1,5 +1,5 @@
 ```bash
 revenexx campaigns-assets detach \
     --id '' \
-    --data '{ "key": "value" }'
+    --body '{ "key": "value" }'
 ```

@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -22,6 +23,7 @@ export const shippingCarriers = new Command("shipping-carriers")
       `WHO carries the parcel. A carrier row is one company shipping one class of service: it owns the tracking-URL template, the service level, the transit days, the pickup cut-off and the handling days, and every shipping method that ships with it INHERITS all of those unless it states its own. A carrier selling both a parcel and an express product is therefore two rows — one row cannot hold two delivery promises. Pausing or retiring one takes every method that ships with it out of the quote in a single edit, which is the reason the table exists. The tracking resolver lives here too, because the template it substitutes into is a column of this row: ask the carrier for the link rather than copying one carrier's URL shape into every shipment. What a carrier COSTS is never here — the price is the method's.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
@@ -459,15 +461,16 @@ shippingCarriers
     ),
   );
 registerPromptSpecs(shippingCarriers.commands.at(-1)!, updateSpecs, { method: "put" });
-const shippingTrackingSpecs: PromptSpec[] = [
+const trackingSpecs: PromptSpec[] = [
   { key: "carrier", option: "--carrier <carrier>", name: "carrier", description: "Carrier code (what an order shipment already stores) or the carrier row id — a value matching the uuid form is read as the id, anything else as a code, case-insensitively. Must name a carrier THIS tenant keeps; one that does not is a 404.", type: "string", required: true },
   { key: "country", option: "--country <country>", name: "country", description: "Destination ISO 3166-1 alpha-2 code — only needed by a template that names {country}. Upper-cased before substitution.", type: "string", required: false },
   { key: "postalCode", option: "--postal-code <postal-code>", name: "postal_code", description: "Destination postcode — only needed by a template that names {postal_code}.", type: "string", required: false },
   { key: "trackingCode", option: "--tracking-code <tracking-code>", name: "tracking_code", description: "The carrier's tracking number. Required by every template that names {tracking_code}, which is all of them in the shipped catalog. URL-encoded before substitution, so a code with a space or a slash cannot reshape the link.", type: "string", required: false },
 ];
 shippingCarriers
-  .command(`shipping-tracking`)
+  .command(`tracking`)
   .description(`Hand in a carrier code and the tracking number printed on the label, and this answers the URL a buyer follows. The carrier owns the URL format, so nobody else has to. \`order_shipments\` stores a tracking_url per shipment today, which is one carrier's URL shape copied into every row — the day it changes, every historic link is wrong. Ask here instead. Tracking is NOT gated on carrier status: a retired carrier's old shipments stay resolvable.`)
+  .alias("shipping-tracking")
   .option(`--carrier <carrier>`, `Carrier code (what an order shipment already stores) or the carrier row id — a value matching the uuid form is read as the id, anything else as a code, case-insensitively. Must name a carrier THIS tenant keeps; one that does not is a 404.`)
   .option(`--country <country>`, `Destination ISO 3166-1 alpha-2 code — only needed by a template that names {country}. Upper-cased before substitution.`)
   .option(`--postal-code <postal-code>`, `Destination postcode — only needed by a template that names {postal_code}.`)
@@ -477,7 +480,7 @@ shippingCarriers
       async (_options, _command) => {
         const { carrier, country, postalCode, trackingCode } = await promptForMissing(
           _options,
-          shippingTrackingSpecs,
+          trackingSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -515,4 +518,4 @@ shippingCarriers
       },
     ),
   );
-registerPromptSpecs(shippingCarriers.commands.at(-1)!, shippingTrackingSpecs, { method: "post" });
+registerPromptSpecs(shippingCarriers.commands.at(-1)!, trackingSpecs, { method: "post" });

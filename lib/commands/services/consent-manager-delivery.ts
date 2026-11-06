@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -18,6 +19,7 @@ export const consentManagerDelivery = new Command("consent-manager-delivery")
       `What the storefront reads: the latest published policy of the market (else the shop's), cached at the gateway per market and dropped on every publish, and a draft preview by token.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

@@ -1,4 +1,4 @@
 ```bash
 revenexx mailings-send run \
-    --data '{ "key": "value" }'
+    --body '{ "key": "value" }'
 ```

@@ -1,6 +1,8 @@
 site_name: Revenexx CLI
 site_description: "Revenexx CLI."
 docs_dir: docs
+exclude_docs: |
+  /examples/
 
 theme:
   name: material

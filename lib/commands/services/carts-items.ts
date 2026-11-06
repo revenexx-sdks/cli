@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -22,6 +23,7 @@ export const cartsItems = new Command("carts-items")
       `The lines inside one cart, always addressed through the cart that owns them (\`/carts/{cart_id}/items\`) — a line is never reachable on its own, and an id from another cart answers 404 rather than the row. A line is a catalogue product, a configured product or a free position, and it carries its price twice: the working \`unit_price\` and the \`snapshot\` the buyer was shown. Adding the same article at the same price folds into the line that is already there instead of opening a second one; a configured line always stands alone. Every write here recomputes the owning cart's \`item_count\` and \`subtotal\`, so a cart can never disagree with its own lines.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

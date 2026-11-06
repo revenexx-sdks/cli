@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const paymentsMethods = new Command("payments-methods")
       `WHAT a buyer may pay with, and what it costs them. A payment method is the line a checkout offers: a \`code\`, buyer-facing \`labels\`, a kind ('self_managed' for invoice and prepayment, 'psp' for anything an acquirer moves), a fee ('none', 'fixed' or 'percent' of the order), the countries it may be offered into and the order-value bounds it applies between. POST /payments/methods/eligible is the read side of everything in here — it takes the buyer context and answers only the methods that apply, with their computed fees, plus an \`excluded\` list naming the ones that did not and why. Note what eligibility does NOT ask: whether the method's PSP is configured and enabled. A method is joined to the ledger by CODE and not by a foreign key, which is why both deleting one and renaming its \`code\` are refused while a payment still names it.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
@@ -495,19 +497,20 @@ paymentsMethods
     ),
   );
 registerPromptSpecs(paymentsMethods.commands.at(-1)!, updateSpecs, { method: "put" });
-const paymentsTaxClassesUsageSpecs: PromptSpec[] = [
+const taxClassesUsageSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The tax-class CODE, as markets spells it — not a row id. Matched against the `tax_class` of every payment method visible in the request's market (every method when it names none) and against that market's `payment_fee_tax_class` setting.", type: "string", required: true },
 ];
 paymentsMethods
-  .command(`payments-tax-classes-usage`)
+  .command(`tax-classes-usage`)
   .description(`markets.tax_classes is the source of record for the rate and this app points at it by CODE from two places: a method's own tax_class and the market's payment_fee_tax_class fallback. Neither is a foreign key and neither could be — a cross-app FK is what ADR-0055 forbids — so integrity is a question one app asks the other, and this is the answering half: markets calls it when an operator tries to delete a tax class, and a count above zero is what stops the delete. A tax class is unique per market, so 'reduced' may exist in several: the caller names the class's market in \`x-revenexx-market\`, and only the methods visible in that market count — the ones assigned to it plus the unassigned ones, which are offered in every market and so are taxed through its class too. Without the header every method of the tenant counts. Reports at most 500 methods and names the first 20. Every code answers, used or not — a code nobody points at is \`in_use: false\`, never a 404.`)
+  .alias("payments-tax-classes-usage")
   .option(`--code <code>`, `The tax-class CODE, as markets spells it — not a row id. Matched against the \`tax_class\` of every payment method visible in the request's market (every method when it names none) and against that market's \`payment_fee_tax_class\` setting.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { code } = await promptForMissing(
           _options,
-          paymentsTaxClassesUsageSpecs,
+          taxClassesUsageSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -526,4 +529,4 @@ paymentsMethods
       },
     ),
   );
-registerPromptSpecs(paymentsMethods.commands.at(-1)!, paymentsTaxClassesUsageSpecs, { method: "get" });
+registerPromptSpecs(paymentsMethods.commands.at(-1)!, taxClassesUsageSpecs, { method: "get" });

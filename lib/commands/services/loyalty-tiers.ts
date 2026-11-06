@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const loyaltyTiers = new Command("loyalty-tiers")
       `Tiers of a programme: a threshold in points or turnover, or a percentage of last year's turnover, a bonus percentage, a points multiplier and the perks a tier stands for. Perks are promotions with a loyalty_tier condition; a tier discounts nothing by itself.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

@@ -1,5 +1,5 @@
 ```bash
 revenexx forms submissions-create \
-    --data '{ "key": "value" }' \
+    --submission-data '{ "key": "value" }' \
     --form-id ''
 ```

@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -19,6 +20,7 @@ export const mailingsRecipients = new Command("mailings-recipients")
       `One row per audience member of a sent mailing: sent, or held back with a reason — no consent, graymail, suppressed, invalid or excluded. Written by the send pipeline only.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -18,6 +19,7 @@ export const journeysVocabularies = new Command("journeys-vocabularies")
       `The closed lists this app enforces — step kinds with their edges, trigger topics with their fields, condition subjects, operators — so the canvas never hardcodes one.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

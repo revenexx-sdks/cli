@@ -1,4 +1,4 @@
 ```bash
 revenexx customers-organizations create \
-    --name Beispiel Industrietechnik GmbH
+    --name 'Beispiel Industrietechnik GmbH'
 ```

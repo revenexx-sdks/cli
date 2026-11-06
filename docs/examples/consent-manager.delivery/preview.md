@@ -1,4 +1,4 @@
 ```bash
 revenexx consent-manager-delivery preview \
-    --token ''
+    --preview-token ''
 ```

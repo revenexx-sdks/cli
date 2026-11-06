@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
 import {
@@ -18,6 +19,7 @@ export const campaignsCalendar = new Command("campaigns-calendar")
       `The marketing calendar: campaign windows, mail send times, promotion windows, automation live periods, page publish dates and due tasks in one range, each read from the app that owns it.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

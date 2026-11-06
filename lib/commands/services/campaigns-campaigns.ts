@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -22,6 +23,7 @@ export const campaignsCampaigns = new Command("campaigns-campaigns")
       `The campaign records: a named marketing effort with a window, a goal, an owner and a UTM value. The stored status is what the marketer set; the effective state is that status read against the window. Attaching and releasing assets, the performance figures and the UTM link builder hang off one campaign.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

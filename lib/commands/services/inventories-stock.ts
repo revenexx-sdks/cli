@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const inventoriesStock = new Command("inventories-stock")
       `How much is there, what may still be sold, and every call that changes the number. A stock level is one item at one location and it carries two figures, neither of which is the sellable one: \`on_hand\` counts what is physically there INCLUDING everything already promised, \`reserved\` counts the promises and never reduces \`on_hand\`, and what a shop may sell is the difference, \`available\`, which the database works out from the two on every write (a generated column) — readable, filterable and sortable, never writable. The balance is not editable either: every change is a booking in the movements ledger, which is why \`receive\` (goods in), \`adjust\` (a signed correction with a reason), \`restock\` (a return coming back) and the row-scoped adjust are the only things that move a number, and why the ledger reads sit in this same group rather than a section of their own — a movement is the receipt for the call above it, not a subject. POST /inventories/availability is the read side of all of it, and the one capability an ERP-stocked tenant replaces wholesale through the gateway override. The vocabulary routes are here because the code a caller cannot guess is a movement's \`type\`: it decides the SIGN of the quantity. Two things a stock row carries that are not quantities at all sit here too, and they answer the question a buyer telephones sales about: \`expected_at\`, the date the item is due back, and \`availability_code\`, what the source system says about it — as one of the codes THIS TENANT keeps. Those codes are the availability states, the one set in this app a merchant extends themselves, and each of them carries \`orderable\`: whether a shop offers the order button in that state, held next to the value instead of hardcoded in a theme.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
@@ -93,7 +95,7 @@ inventoriesStock
     ),
   );
 registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesAdjustSpecs, { method: "post" });
-const inventoriesAvailabilitySpecs: PromptSpec[] = [
+const availabilitySpecs: PromptSpec[] = [
   { key: "items", option: "--items [items...]", name: "items", description: "The items to check, at most 200 in one call. A cart, a category page, a feed row — one call answers them all, which is why this route is the batch one.", type: "array", required: false },
   { key: "locationCode", option: "--location-code <location-code>", name: "location_code", description: "Restrict the check to ONE location, by its code — the stock a click-and-collect store can promise today. Omitted, every ENABLED location is summed; a disabled one is never counted either way, so a disabled location's code answers every item untracked. A code no location carries is answered 404 `unknown_location`.", type: "string", required: false },
   { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "Inline single-item form: the product to move, instead of a one-entry `items` array. The two forms are equivalent — nothing downstream knows which arrived.", type: "string", required: false },
@@ -101,8 +103,9 @@ const inventoriesAvailabilitySpecs: PromptSpec[] = [
   { key: "sku", option: "--sku <sku>", name: "sku", description: "Inline single-item form: the article number to move (instead of `product_id`).", type: "string", required: false },
 ];
 inventoriesStock
-  .command(`inventories-availability`)
+  .command(`availability`)
   .description(`THE stock call of this app, and a batch one: name any number of items and each comes back with \`on_hand\`, \`reserved\` and the derived \`available\` (their difference), summed across the locations in scope and broken down per location, plus \`orderable\` — whether this much of it can be promised at this moment. An item this app has never seen is NOT an error: it comes back tracked:false, and the storefront decides whether an untracked item sells freely. It answers the two facts a buyer would otherwise telephone sales about, per location and rolled up for the item: \`expected_at\`, when it is due back, and \`availability_code\`, what the source system says about it as one of the codes this tenant keeps — and \`orderable\` weighs that code's \`orderable\` policy as well as the quantity, with \`unorderable_reason\` saying which of the two said no. It is also the most customised surface this product has in the field. A tenant whose stock really lives in an ERP — SAP live stock is the ordinary case, not the exotic one — replaces exactly this one capability, 1:1, with a custom app through the gateway's capability override, while every other route here keeps doing the stock-keeping CRUD unchanged. That is why the request and response shapes below read as a contract to be implemented rather than as an implementation detail: whatever ends up answering this path has to answer in these terms, these six fields included.`)
+  .alias("inventories-availability")
   .option(`--items [items...]`, `The items to check, at most 200 in one call. A cart, a category page, a feed row — one call answers them all, which is why this route is the batch one.`)
   .option(`--location-code <location-code>`, `Restrict the check to ONE location, by its code — the stock a click-and-collect store can promise today. Omitted, every ENABLED location is summed; a disabled one is never counted either way, so a disabled location's code answers every item untracked. A code no location carries is answered 404 \`unknown_location\`.`)
   .option(`--product-id <product-id>`, `Inline single-item form: the product to move, instead of a one-entry \`items\` array. The two forms are equivalent — nothing downstream knows which arrived.`)
@@ -113,7 +116,7 @@ inventoriesStock
       async (_options, _command) => {
         const { items, locationCode, productId, quantity, sku } = await promptForMissing(
           _options,
-          inventoriesAvailabilitySpecs,
+          availabilitySpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -154,8 +157,8 @@ inventoriesStock
       },
     ),
   );
-registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesAvailabilitySpecs, { method: "post" });
-const inventoriesAvailabilityStatesListSpecs: PromptSpec[] = [
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, availabilitySpecs, { method: "post" });
+const availabilityStatesListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc' — a bare column sorts ascending. The column has to be one this entity has; anything else is refused with 400.", type: "string", required: false },
@@ -176,8 +179,9 @@ const inventoriesAvailabilityStatesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 inventoriesStock
-  .command(`inventories-availability-states-list`)
+  .command(`availability-states-list`)
   .description(`An availability state is one of the codes THIS TENANT keeps for what a source system says about an article: a stock row stores one in \`availability_code\`, and the row's \`expected_at\` says when the article is due back. The set is a table rather than a fixed list because the number a source system delivers for availability is that system's number and what it means is the merchant's to state. Each value carries \`orderable\` — whether an item in this state may still be ordered — which is the fact a storefront needs in order to offer or withhold the order button without keeping a list of its own. This is the operator's view of the set — the rows, filterable and paged, in whatever order you ask for. A CLIENT that only wants to render a code does not want this route: GET /inventories/vocabularies/availability-states answers the same set keyed by code, ordered by \`position\`, with the titles per language and the \`orderable\` flag already merged, and it is the shape every other vocabulary in this platform is read in. A tenant who has never been seeded reads an EMPTY list here, because the seed runs on install and on POST /inventories/locations/defaults; the vocabulary route seeds on an empty read and this one does not.`)
+  .alias("inventories-availability-states-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc' — a bare column sorts ascending. The column has to be one this entity has; anything else is refused with 400.`)
@@ -226,7 +230,7 @@ inventoriesStock
       async (_options, _command) => {
         const { limit, offset, order, id, code, title, description, labels, descriptions, orderable, isDefault, active, tone, position, isSystem, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
-          inventoriesAvailabilityStatesListSpecs,
+          availabilityStatesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -303,8 +307,8 @@ inventoriesStock
       },
     ),
   );
-registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesAvailabilityStatesListSpecs, { method: "get" });
-const inventoriesAvailabilityStatesCreateSpecs: PromptSpec[] = [
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, availabilityStatesListSpecs, { method: "get" });
+const availabilityStatesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The value a stock row's `availability_code` stores, and the key the vocabulary serves it under. Lowercase letters, digits, '-' and '_' (CHECK `code ~ '^[a-z][a-z0-9_-]*$'`), unique per tenant. Treat it as permanent: nothing in the database points at it, so renaming it here leaves every stock row carrying the old one, and the honest move is a new code plus an update of the rows that name it.", type: "string", required: true },
   { key: "title", option: "--title <title>", name: "title", description: "What a person reads for this state, in the tenant's working language. At least one character (CHECK `length(title) > 0`). A value nobody titled is served with its own code made readable, so this is a better label rather than the only one.", type: "string", required: true },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this state (RAD-255). It stays valid on every stock row that already carries it, its title still resolves and its `orderable` still governs the stock call, but it is no longer assigned: a stock create, or an edit that moves a row onto it, is refused with 409 'availability_state_inactive', and GET /inventories/vocabularies/availability-states answers it under `inactive` instead of `values`, so no picker offers it while its title still resolves. Nothing in this app derives a code on its own, so that write guard is the whole of 'not newly assigned'. The default cannot be inactive: retiring it is 409 'default_must_stay_active', making a retired state the default is 409 'inactive_cannot_be_default'. A seeded state may be retired like any other; the seed never switches one back on. Defaults to true. False retires the state: rows that carry it keep it, nothing new is assigned it. Refused (409 'default_must_stay_active') on the default — make another entry the default first.", type: "boolean", required: false },
@@ -318,8 +322,9 @@ const inventoriesAvailabilityStatesCreateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour for this state — what it MEANS, not what it looks like: 'success' for sellable, 'info' for on its way, 'warning' for not right now, 'danger' for gone for good, 'neutral' for anything else. The client owns the palette. One of five (CHECK `tone in ('neutral', 'info', 'success', 'warning', 'danger')`), defaulting to 'neutral'. Defaults to 'neutral'.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 inventoriesStock
-  .command(`inventories-availability-states-create`)
+  .command(`availability-states-create`)
   .description(`An availability state is one of the codes THIS TENANT keeps for what a source system says about an article: a stock row stores one in \`availability_code\`, and the row's \`expected_at\` says when the article is due back. The set is a table rather than a fixed list because the number a source system delivers for availability is that system's number and what it means is the merchant's to state. Each value carries \`orderable\` — whether an item in this state may still be ordered — which is the fact a storefront needs in order to offer or withhold the order button without keeping a list of its own. Reach for this when a source system distinguishes something the four seeded states do not — a partial delivery, a made-to-order line, a stock held for one customer. A create cannot omit \`code\` and \`title\`; every other column is optional or defaulted by the database. Two rows of this tenant may not share \`code\` — that is the 409, and it answers an update that moves a row onto a sibling's value exactly as it answers a second insert. Two fields decide what the state DOES rather than how it reads: \`orderable\`, which defaults to true and is what a shop acts on, and \`code\`, which is what a stock row stores and should be treated as permanent — nothing points at it, so renaming it later leaves every row carrying the old one. Creating a state changes nothing on its own: a stock row has to carry its code before it means anything, and the mapping from a source system's own values onto these codes is made where the import runs.`)
+  .alias("inventories-availability-states-create")
   .option(`--code <code>`, `The value a stock row's \`availability_code\` stores, and the key the vocabulary serves it under. Lowercase letters, digits, '-' and '_' (CHECK \`code ~ '^[a-z][a-z0-9_-]*\$'\`), unique per tenant. Treat it as permanent: nothing in the database points at it, so renaming it here leaves every stock row carrying the old one, and the honest move is a new code plus an update of the rows that name it.`)
   .option(`--title <title>`, `What a person reads for this state, in the tenant's working language. At least one character (CHECK \`length(title) > 0\`). A value nobody titled is served with its own code made readable, so this is a better label rather than the only one.`)
   .option(
@@ -356,7 +361,7 @@ inventoriesStock
       async (_options, _command) => {
         const { code, title, active, description, descriptions, isDefault, isSystem, labels, orderable, position, tone } = await promptForMissing(
           _options,
-          inventoriesAvailabilityStatesCreateSpecs,
+          availabilityStatesCreateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -415,23 +420,24 @@ inventoriesStock
       },
     ),
   );
-registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesAvailabilityStatesCreateSpecs, { method: "post" });
-const inventoriesAvailabilityStatesDeleteSpecs: PromptSpec[] = [
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, availabilityStatesCreateSpecs, { method: "post" });
+const availabilityStatesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id of the availability state to remove, as the list answered it.", type: "string", required: true, resource: { listPath: "/inventories/availability-states", hasLimit: true } },
 ];
 inventoriesStock
-  .command(`inventories-availability-states-delete`)
+  .command(`availability-states-delete`)
   .description(`Removes one of the tenant's availability codes. An availability state is one of the codes THIS TENANT keeps for what a source system says about an article: a stock row stores one in \`availability_code\`, and the row's \`expected_at\` says when the article is due back. The set is a table rather than a fixed list because the number a source system delivers for availability is that system's number and what it means is the merchant's to state. Each value carries \`orderable\` — whether an item in this state may still be ordered — which is the fact a storefront needs in order to offer or withhold the order button without keeping a list of its own. Nothing points at it by foreign key, so the database takes nothing else with it. Read that carefully before calling it, because the thing that is NOT checked is the thing that matters: a stock row stores the CODE and not this id, so nothing refuses the delete while rows still carry it, and those rows keep a code the vocabulary no longer resolves. The vocabulary is \`closed\`, so a client reads such a value as stale data rather than as a missing label — but it reads no \`orderable\` for it either, and a shop that was withholding the order button on that state stops knowing to. Move the rows onto another code first (PUT /inventories/stock/{id}), or leave the state in place and give it a \`title\` that says it is retired. Deleting all of them is undone by the next read of GET /inventories/vocabularies/availability-states, which seeds the shipped set back into an empty table.`)
+  .alias("inventories-availability-states-delete")
   .option(`--id <id>`, `The row id of the availability state to remove, as the list answered it.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          inventoriesAvailabilityStatesDeleteSpecs,
+          availabilityStatesDeleteSpecs,
           _command,
         );
-        await confirmDestructive(`inventories-stock inventories-availability-states-delete`);
+        await confirmDestructive(`inventories-stock availability-states-delete`);
         const _client = await sdkForProject();
         const _apiPath = `/inventories/availability-states/{id}`.replace(`{id}`, id);
         const _payload: RequestParams = {};
@@ -448,20 +454,21 @@ inventoriesStock
       },
     ),
   );
-registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesAvailabilityStatesDeleteSpecs, { method: "delete", destructive: true });
-const inventoriesAvailabilityStatesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, availabilityStatesDeleteSpecs, { method: "delete", destructive: true });
+const availabilityStatesGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id of the availability state, as the list answered it. Not the code — a stock row carries the code, and this route does not accept one.", type: "string", required: true, resource: { listPath: "/inventories/availability-states", hasLimit: true } },
 ];
 inventoriesStock
-  .command(`inventories-availability-states-get`)
+  .command(`availability-states-get`)
   .description(`An availability state is one of the codes THIS TENANT keeps for what a source system says about an article: a stock row stores one in \`availability_code\`, and the row's \`expected_at\` says when the article is due back. The set is a table rather than a fixed list because the number a source system delivers for availability is that system's number and what it means is the merchant's to state. Each value carries \`orderable\` — whether an item in this state may still be ordered — which is the fact a storefront needs in order to offer or withhold the order button without keeping a list of its own. This reads one of them by ROW ID, which is what an editor holds after listing the set and is not what anything else stores: a stock row carries the CODE. A caller holding a code cannot use this route — filter the collection with \`?code=\`, or read GET /inventories/vocabularies/availability-states, which is keyed the way the rest of the platform refers to these values.`)
+  .alias("inventories-availability-states-get")
   .option(`--id <id>`, `The row id of the availability state, as the list answered it. Not the code — a stock row carries the code, and this route does not accept one.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          inventoriesAvailabilityStatesGetSpecs,
+          availabilityStatesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -480,8 +487,8 @@ inventoriesStock
       },
     ),
   );
-registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesAvailabilityStatesGetSpecs, { method: "get" });
-const inventoriesAvailabilityStatesUpdateSpecs: PromptSpec[] = [
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, availabilityStatesGetSpecs, { method: "get" });
+const availabilityStatesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id of the availability state to change, as the list answered it.", type: "string", required: true, resource: { listPath: "/inventories/availability-states", hasLimit: true } },
   { key: "active", option: "--active <active>", name: "active", description: "False when the merchant retired this state (RAD-255). It stays valid on every stock row that already carries it, its title still resolves and its `orderable` still governs the stock call, but it is no longer assigned: a stock create, or an edit that moves a row onto it, is refused with 409 'availability_state_inactive', and GET /inventories/vocabularies/availability-states answers it under `inactive` instead of `values`, so no picker offers it while its title still resolves. Nothing in this app derives a code on its own, so that write guard is the whole of 'not newly assigned'. The default cannot be inactive: retiring it is 409 'default_must_stay_active', making a retired state the default is 409 'inactive_cannot_be_default'. A seeded state may be retired like any other; the seed never switches one back on. Defaults to true. False retires the state: rows that carry it keep it, nothing new is assigned it. Refused (409 'default_must_stay_active') on the default — make another entry the default first.", type: "boolean", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The value a stock row's `availability_code` stores, and the key the vocabulary serves it under. Lowercase letters, digits, '-' and '_' (CHECK `code ~ '^[a-z][a-z0-9_-]*$'`), unique per tenant. Treat it as permanent: nothing in the database points at it, so renaming it here leaves every stock row carrying the old one, and the honest move is a new code plus an update of the rows that name it.", type: "string", required: false },
@@ -496,8 +503,9 @@ const inventoriesAvailabilityStatesUpdateSpecs: PromptSpec[] = [
   { key: "tone", option: "--tone <tone>", name: "tone", description: "Semantic badge colour for this state — what it MEANS, not what it looks like: 'success' for sellable, 'info' for on its way, 'warning' for not right now, 'danger' for gone for good, 'neutral' for anything else. The client owns the palette. One of five (CHECK `tone in ('neutral', 'info', 'success', 'warning', 'danger')`), defaulting to 'neutral'. Defaults to 'neutral'.", type: "string", required: false, enum: ["neutral","info","success","warning","danger"] },
 ];
 inventoriesStock
-  .command(`inventories-availability-states-update`)
+  .command(`availability-states-update`)
   .description(`Partial update: send the fields that change. An availability state is one of the codes THIS TENANT keeps for what a source system says about an article: a stock row stores one in \`availability_code\`, and the row's \`expected_at\` says when the article is due back. The set is a table rather than a fixed list because the number a source system delivers for availability is that system's number and what it means is the merchant's to state. Each value carries \`orderable\` — whether an item in this state may still be ordered — which is the fact a storefront needs in order to offer or withhold the order button without keeping a list of its own. The safe edits are the readable ones — \`title\`, \`labels\`, \`description\`, \`descriptions\`, \`tone\`, \`position\` — and they reach every screen at once, which is the point of the set living here. \`orderable\` is the consequential one: flipping it to false takes the order button away from every article in this state on the next read, with no stock row touched and no movement booked. \`code\` is the one to leave alone — a stock row stores the code, nothing in the database points at it, so moving it orphans every row that names the old value. Two rows of this tenant may not share \`code\` — that is the 409, and it answers an update that moves a row onto a sibling's value exactly as it answers a second insert.`)
+  .alias("inventories-availability-states-update")
   .option(`--id <id>`, `The row id of the availability state to change, as the list answered it.`)
   .option(
     `--active [value]`,
@@ -535,7 +543,7 @@ inventoriesStock
       async (_options, _command) => {
         const { id, active, code, description, descriptions, isDefault, isSystem, labels, orderable, position, title, tone } = await promptForMissing(
           _options,
-          inventoriesAvailabilityStatesUpdateSpecs,
+          availabilityStatesUpdateSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -594,8 +602,8 @@ inventoriesStock
       },
     ),
   );
-registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesAvailabilityStatesUpdateSpecs, { method: "put" });
-const inventoriesMovementsListSpecs: PromptSpec[] = [
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, availabilityStatesUpdateSpecs, { method: "put" });
+const movementsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc' — a bare column sorts ascending. The column has to be one this entity has; anything else is refused with 400.", type: "string", required: false },
@@ -612,8 +620,9 @@ const inventoriesMovementsListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 inventoriesStock
-  .command(`inventories-movements-list`)
+  .command(`movements-list`)
   .description(`The movements ledger, read end to end. Every stock change this app has ever made is a booking row in it — a receipt, a correction, a hold, a release, a shipment, a return — which is what lets one list be an audit trail and an event feed at the same time: these are the rows the \`stock_movement.created\` event carries, so a consumer that missed an event catches up by paging here. Append-only: the ledger has no update and no delete, because a correction is another booking. \`order=created_at.desc\` is the feed order.`)
+  .alias("inventories-movements-list")
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc' — a bare column sorts ascending. The column has to be one this entity has; anything else is refused with 400.`)
@@ -638,7 +647,7 @@ inventoriesStock
       async (_options, _command) => {
         const { limit, offset, order, id, locationId, productId, sku, type, quantity, orderRef, reason, metadata, createdAt, filter } = await promptForMissing(
           _options,
-          inventoriesMovementsListSpecs,
+          movementsListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -703,20 +712,21 @@ inventoriesStock
       },
     ),
   );
-registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesMovementsListSpecs, { method: "get" });
-const inventoriesMovementsGetSpecs: PromptSpec[] = [
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, movementsListSpecs, { method: "get" });
+const movementsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The ledger booking.", type: "string", required: true, resource: { listPath: "/inventories/movements", hasLimit: true } },
 ];
 inventoriesStock
-  .command(`inventories-movements-get`)
+  .command(`movements-get`)
   .description(`A movement is one booking row in the ledger, and the ledger is append-only: there is no update and no delete, because a correction is another booking. \`quantity\` is SIGNED and its sign follows the \`type\` — a receipt books +5 and the reserve that promises those goods books −5, even though the reservation it created carries +5 as a positive hold. GET /inventories/vocabularies/movement-types is the list of types with the words for them. A booking says what changed, not what the balance became: it carries no running total, so the row's story is read by listing the ledger for that location and item rather than by fetching one id. \`location_id\` is a plain uuid and not a foreign key, so a booking outlives the location it was made at and this route will happily hand back one whose location no longer resolves — that is the audit trail doing its job, not a broken row. Fixing a wrong booking is another booking (POST /inventories/adjust); nothing here can be edited or removed.`)
+  .alias("inventories-movements-get")
   .option(`--id <id>`, `The ledger booking.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { id } = await promptForMissing(
           _options,
-          inventoriesMovementsGetSpecs,
+          movementsGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -735,8 +745,8 @@ inventoriesStock
       },
     ),
   );
-registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesMovementsGetSpecs, { method: "get" });
-const inventoriesReceiveSpecs: PromptSpec[] = [
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, movementsGetSpecs, { method: "get" });
+const receiveSpecs: PromptSpec[] = [
   { key: "items", option: "--items [items...]", name: "items", description: "The goods that arrived, at most 200 in one call — a delivery, a production batch, an opening balance.", type: "array", required: false },
   { key: "locationCode", option: "--location-code <location-code>", name: "location_code", description: "Which location took the delivery. Omitted, the `default_location_code` setting decides; a code no location carries is answered 400 rather than booked somewhere else.", type: "string", required: false },
   { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "Inline single-item form: the product to move, instead of a one-entry `items` array. The two forms are equivalent — nothing downstream knows which arrived.", type: "string", required: false },
@@ -745,8 +755,9 @@ const inventoriesReceiveSpecs: PromptSpec[] = [
   { key: "sku", option: "--sku <sku>", name: "sku", description: "Inline single-item form: the article number to move (instead of `product_id`).", type: "string", required: false },
 ];
 inventoriesStock
-  .command(`inventories-receive`)
+  .command(`receive`)
   .description(`Books a delivery into the receiving location (the caller's location_code, else the default_location_code setting), creating the stock row if the item is new. A reason is optional unless movement_reason_required is 'all'. Takes a batch or one item inline.`)
+  .alias("inventories-receive")
   .option(`--items [items...]`, `The goods that arrived, at most 200 in one call — a delivery, a production batch, an opening balance.`)
   .option(`--location-code <location-code>`, `Which location took the delivery. Omitted, the \`default_location_code\` setting decides; a code no location carries is answered 400 rather than booked somewhere else.`)
   .option(`--product-id <product-id>`, `Inline single-item form: the product to move, instead of a one-entry \`items\` array. The two forms are equivalent — nothing downstream knows which arrived.`)
@@ -758,7 +769,7 @@ inventoriesStock
       async (_options, _command) => {
         const { items, locationCode, productId, quantity, reason, sku } = await promptForMissing(
           _options,
-          inventoriesReceiveSpecs,
+          receiveSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -802,10 +813,11 @@ inventoriesStock
       },
     ),
   );
-registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesReceiveSpecs, { method: "post" });
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, receiveSpecs, { method: "post" });
 inventoriesStock
-  .command(`inventories-reorder-alerts`)
+  .command(`reorder-alerts`)
   .description(`The replenishment worklist: the stock rows that have run down far enough that somebody has to order more, in one list rather than as a query a caller has to build. Computed on read, so it is never stale: a row alerts when available (on_hand − reserved) has fallen to or below its own reorder_point, or the reorder_point_default setting when it carries none. A point of 0 never alerts. Answers enabled:false with an empty list when reorder_alert_enabled is off — a tenant replenishing from an ERP should not be told twice.`)
+  .alias("inventories-reorder-alerts")
   .action(
     actionRunner(
       async () => {
@@ -825,12 +837,13 @@ inventoriesStock
       },
     ),
   );
-const inventoriesReorderScanSpecs: PromptSpec[] = [
+const reorderScanSpecs: PromptSpec[] = [
   { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
 ];
 inventoriesStock
-  .command(`inventories-reorder-scan`)
+  .command(`reorder-scan`)
   .description(`Publishes \`stock_level.low\` on the event bus for every row GET /inventories/reorder-alerts currently lists, so replenishment can be driven by a subscriber instead of by somebody refreshing that page. Also runs hourly as the \`reorder-scan\` schedule; this route is for driving it on demand. The event id is derived from the stock row and the day, so a re-run — a second click, a retried cron tick — publishes nothing new and returns the ids the first run produced. Nothing is written to the app's own data: this reads the same figures the alerts list computes and hands them to the bus. Answers enabled:false without publishing when reorder_alert_enabled is off.`)
+  .alias("inventories-reorder-scan")
   .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(
@@ -842,7 +855,7 @@ inventoriesStock
         }
         const { body } = await promptForMissing(
           _options,
-          inventoriesReorderScanSpecs,
+          reorderScanSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -864,8 +877,8 @@ inventoriesStock
       },
     ),
   );
-registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesReorderScanSpecs, { method: "post" });
-const inventoriesRestockSpecs: PromptSpec[] = [
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, reorderScanSpecs, { method: "post" });
+const restockSpecs: PromptSpec[] = [
   { key: "items", option: "--items [items...]", name: "items", description: "The goods that came back, at most 200 in one call. Whether they rejoin sellable stock is `restock`, not this list.", type: "array", required: false },
   { key: "locationCode", option: "--location-code <location-code>", name: "location_code", description: "Where the goods came back to — a returns warehouse is a location like any other. Omitted, the `default_location_code` setting decides.", type: "string", required: false },
   { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", description: "The order the goods came back from. It is written onto the ledger booking, so the return shows up in that order's stock history next to its reserve and shipment — no reservation is touched by it.", type: "string", required: false },
@@ -876,8 +889,9 @@ const inventoriesRestockSpecs: PromptSpec[] = [
   { key: "sku", option: "--sku <sku>", name: "sku", description: "Inline single-item form: the article number to move (instead of `product_id`).", type: "string", required: false },
 ];
 inventoriesStock
-  .command(`inventories-restock`)
+  .command(`restock`)
   .description(`Whether a return rejoins sellable stock follows restock_on_return_default, overridable per call with 'restock'. When the answer is no the response says restocked:false and nothing moves — there is no movement to book, because no stock moved. That branch is why this route answers 200 and its sibling \`receive\` answers 201: a restock may legitimately create nothing.`)
+  .alias("inventories-restock")
   .option(`--items [items...]`, `The goods that came back, at most 200 in one call. Whether they rejoin sellable stock is \`restock\`, not this list.`)
   .option(`--location-code <location-code>`, `Where the goods came back to — a returns warehouse is a location like any other. Omitted, the \`default_location_code\` setting decides.`)
   .option(`--order-ref <order-ref>`, `The order the goods came back from. It is written onto the ledger booking, so the return shows up in that order's stock history next to its reserve and shipment — no reservation is touched by it.`)
@@ -896,7 +910,7 @@ inventoriesStock
       async (_options, _command) => {
         const { items, locationCode, orderRef, productId, quantity, reason, restock, sku } = await promptForMissing(
           _options,
-          inventoriesRestockSpecs,
+          restockSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -946,7 +960,7 @@ inventoriesStock
       },
     ),
   );
-registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesRestockSpecs, { method: "post" });
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, restockSpecs, { method: "post" });
 const listSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
@@ -1361,12 +1375,13 @@ inventoriesStock
     ),
   );
 registerPromptSpecs(inventoriesStock.commands.at(-1)!, adjustSpecs, { method: "post" });
-const inventoriesVocabulariesListSpecs: PromptSpec[] = [
+const vocabulariesListSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 inventoriesStock
-  .command(`inventories-vocabularies-list`)
+  .command(`vocabularies-list`)
   .description(`Discovery for the vocabulary routes: the enums this app publishes, each with its name, its title and its description and deliberately WITHOUT its values, so finding out what exists costs one small call and not one per vocabulary. Names: availability-states, location-types, movement-types, reservation-statuses. Fetch one with GET /inventories/vocabularies/{name}; a client holding the qualified pair 'inventories.<name>' builds that URL from the pair alone.`)
+  .alias("inventories-vocabularies-list")
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -1378,7 +1393,7 @@ inventoriesStock
       async (_options, _command) => {
         const { filter } = await promptForMissing(
           _options,
-          inventoriesVocabulariesListSpecs,
+          vocabulariesListSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1404,20 +1419,21 @@ inventoriesStock
       },
     ),
   );
-registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesVocabulariesListSpecs, { method: "get" });
-const inventoriesVocabulariesGetSpecs: PromptSpec[] = [
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
+const vocabulariesGetSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "The vocabulary name — the part after the dot in the qualified id. One of: availability-states, location-types, movement-types, reservation-statuses. Anything else is a 404, so the enum is the complete set and not a suggestion.", type: "string", required: true, enum: ["availability-states","location-types","movement-types","reservation-statuses"], resource: { listPath: "/inventories/vocabularies", hasLimit: false } },
 ];
 inventoriesStock
-  .command(`inventories-vocabularies-get`)
+  .command(`vocabularies-get`)
   .description(`One vocabulary in full: every permitted value, each carrying the title and description a person reads for it and the badge tone a UI colours it with, so a client renders a status or a movement type without a hard-coded table of its own. \`source\` says who OWNS the set. 'schema' — the values are read out of the column's CHECK constraint, so the served set IS the enforced set and the two cannot drift; a value added to the constraint appears here even before anyone labels it, titled from its own key, and they come back in constraint order, which is lifecycle order for a status. 'table' — the values are the TENANT's own rows, read per request and ordered by the position they gave them, so a merchant extends the set without waiting for a release of this app; those values carry \`orderable\`, \`is_default\`, \`is_system\` and their per-language labels as well, and reading the set is what seeds the shipped one into a tenant that has never had it. 'closed' is true either way: the set is exhaustive at this moment, so a value outside it is stale data rather than a missing label. Names: availability-states, location-types, movement-types, reservation-statuses.`)
+  .alias("inventories-vocabularies-get")
   .option(`--name <name>`, `The vocabulary name — the part after the dot in the qualified id. One of: availability-states, location-types, movement-types, reservation-statuses. Anything else is a 404, so the enum is the complete set and not a suggestion.`)
   .action(
     actionRunner(
       async (_options, _command) => {
         const { name } = await promptForMissing(
           _options,
-          inventoriesVocabulariesGetSpecs,
+          vocabulariesGetSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -1436,4 +1452,4 @@ inventoriesStock
       },
     ),
   );
-registerPromptSpecs(inventoriesStock.commands.at(-1)!, inventoriesVocabulariesGetSpecs, { method: "get" });
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, vocabulariesGetSpecs, { method: "get" });

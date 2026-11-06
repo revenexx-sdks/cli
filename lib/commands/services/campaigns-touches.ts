@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -21,6 +22,7 @@ export const campaignsTouches = new Command("campaigns-touches")
       `Touches a campaign heard of before any order — impressions and clicks in the shop, ad clicks, clicked mails, redeemed promotions — and the outcomes it counts: new subscriptions and new leads.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

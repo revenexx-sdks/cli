@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const carts = new Command("carts")
       `The cart itself and every move it makes. Who owns one — a customer as \`contact_id\`, or a guest as the storefront's own \`session_key\`, never neither — how it is opened, read, renamed and thrown away, which of an owner's carts is THE current one, and the lifecycle a cart travels: abandoned and taken back, handed to order management, folded into another cart, or claimed for a contact on login. The scheduled sweep that abandons and deletes on a clock is the same lifecycle without a human, so it lives here too, as do the vocabularies behind the enums these routes enforce. The LINES inside a cart are their own group, and so is moving carts in and out as files.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

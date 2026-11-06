@@ -1,6 +1,6 @@
 ```bash
 revenexx orderlists create \
-    --name Weekly office supplies \
+    --name 'Weekly office supplies' \
     --owner-id '' \
-    --owner-name Jamie Rivera
+    --owner-name 'Jamie Rivera'
 ```

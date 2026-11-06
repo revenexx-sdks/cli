@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const forms = new Command("forms")
       `Experience Studio Forms App — operator-built forms (contact request, price request, RMA, …) authored as FormKit schemas, plus a submissions inbox. Every submission is a row that emits form.submitted onto the tenant event bus for automations (Integration Studio workflows, email). The form definition is a FormKit schema rendered verbatim by the storefront (cover), so a form built in the Cockpit drops straight into a storefront page.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

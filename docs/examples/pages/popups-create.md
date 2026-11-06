@@ -1,4 +1,4 @@
 ```bash
 revenexx pages popups-create \
-    --label Newsletter-Anmeldung Herbst
+    --label 'Newsletter-Anmeldung Herbst'
 ```

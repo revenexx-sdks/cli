@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,10 +24,11 @@ export const cartsIo = new Command("carts-io")
       `Moving carts in and out as JSON, CSV or Excel — the bulk data plane, which a storefront checkout never touches. An import/export profile (Baseline-IO-compatible) declares which direction it runs in, whether it carries whole carts or bare lines, the format, how the external columns are named, and what an import does with the lines a target cart already has; six templates ship with the app and are seeded idempotently by name. The two routes that actually move data are here as well: export one cart through an export profile or ad hoc, and import a payload into a new cart or an existing one. A profile only ever runs in the direction it declares — handing an import profile to the export route is a 400.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
-const cartsExportAllSpecs: PromptSpec[] = [
+const exportAllSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Only the carts this contact owns.", type: "string", required: false },
   { key: "createdFrom", option: "--created-from <created-from>", name: "created_from", description: "Only carts opened at or after this ISO date or timestamp.", type: "string", required: false },
   { key: "createdTo", option: "--created-to <created-to>", name: "created_to", description: "Only carts opened at or before this ISO date or timestamp. A bare date includes the whole day.", type: "string", required: false },
@@ -38,8 +40,9 @@ const cartsExportAllSpecs: PromptSpec[] = [
   { key: "status", option: "--status <status>", name: "status", description: "Only carts in these states — one status, an array, or a comma-separated list. An unknown status is a 400.", type: "any", required: false },
 ];
 cartsIo
-  .command(`carts-export-all`)
+  .command(`export-all`)
   .description(`Renders every cart a filter selects, through one export profile, a page at a time. Each cart's document is exactly what carts.export answers for it through the same profile — as JSON \`{carts: [{cart, items}, …]}\`, every element importable on its own through carts.import; as CSV the lines of every cart under one header, each row led by \`cart_id\`. Owner, status, a creation-date range and a market narrow the selection; \`filter\` echoes what was applied. The call never answers "all": it scans at most \`limit\` carts in id order and hands back \`next_cursor\` until the scan is through. Because the end of the date range and the market are held against each scanned cart, a page can carry fewer carts than \`limit\`, even none, and still have a next one — keep calling until \`next_cursor\` is null. Nothing is stored and nothing about any cart changes.`)
+  .alias("carts-export-all")
   .option(`--contact-id <contact-id>`, `Only the carts this contact owns.`)
   .option(`--created-from <created-from>`, `Only carts opened at or after this ISO date or timestamp.`)
   .option(`--created-to <created-to>`, `Only carts opened at or before this ISO date or timestamp. A bare date includes the whole day.`)
@@ -54,7 +57,7 @@ cartsIo
       async (_options, _command) => {
         const { contactId, createdFrom, createdTo, cursor, format, limit, market, profileId, status } = await promptForMissing(
           _options,
-          cartsExportAllSpecs,
+          exportAllSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -107,8 +110,8 @@ cartsIo
       },
     ),
   );
-registerPromptSpecs(cartsIo.commands.at(-1)!, cartsExportAllSpecs, { method: "post" });
-const cartsImportSpecs: PromptSpec[] = [
+registerPromptSpecs(cartsIo.commands.at(-1)!, exportAllSpecs, { method: "post" });
+const importSpecs: PromptSpec[] = [
   { key: "sessionKey", option: "--session-key <session-key>", name: "session_key", description: "For a call acting for a contact: the session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Such a cart answers 404 to a buyer who does not present its key. A contact's cart is never reached by a key. Ignored on a call acting for no contact.", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Owner of the cart this import creates. Ignored when target_cart_id is sent.", type: "string", required: false },
   { key: "csvRows", option: "--csv-rows <csv-rows>", name: "csv", description: "The CSV rows, when that is easier than putting them in `payload`. First line is the header, and its names are the ones the profile's mapping expects (the bundled quick-order template reads sku, name, quantity, unit_price). Numbers are coerced; a JSON column survives as a JSON string.", type: "string", required: false },
@@ -121,8 +124,9 @@ const cartsImportSpecs: PromptSpec[] = [
   { key: "xlsx", option: "--xlsx <xlsx>", name: "xlsx", description: "An Excel workbook (.xlsx), base64-encoded — read when the profile is an xlsx one, or ad hoc when no profile is named. The first sheet is read: its first non-empty row is the header, named as the profile's mapping expects (the bundled template reads sku, name, quantity, unit_price); empty rows are skipped, number cells stay numbers and date cells become ISO dates. A file that is not an .xlsx workbook, or cannot be opened, is a 400 `invalid_xlsx`.", type: "string", required: false },
 ];
 cartsIo
-  .command(`carts-import`)
+  .command(`import`)
   .description(`Reads a payload of lines into a cart — the bulk-order path a buyer pastes a spreadsheet into. With \`target_cart_id\` the lines land in that cart, which must be active, and the profile's \`apply_mode\` decides what happens to the lines already there: 'replace' clears them first, 'insert' and 'append' both add. Without a target a new cart is created, and an OWNER is then required — \`contact_id\` or \`session_key\` — because a cart with neither cannot exist. \`profile_id\` names an IMPORT profile; without one the payload is read ad hoc, as Excel when \`xlsx\` is present, as CSV when \`csv\` is present and as JSON otherwise. The lines fold into identical product lines exactly as carts.items.create does, so \`imported_lines\` counts the lines READ and the cart may have gained fewer rows than that. A payload that parses to no line at all is a 400 rather than a quiet no-op.`)
+  .alias("carts-import")
   .option(`--session-key <session-key>`, `For a call acting for a contact: the session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Such a cart answers 404 to a buyer who does not present its key. A contact's cart is never reached by a key. Ignored on a call acting for no contact.`)
   .option(`--contact-id <contact-id>`, `Owner of the cart this import creates. Ignored when target_cart_id is sent.`)
   .option(`--csv-rows <csv-rows>`, `The CSV rows, when that is easier than putting them in \`payload\`. First line is the header, and its names are the ones the profile's mapping expects (the bundled quick-order template reads sku, name, quantity, unit_price). Numbers are coerced; a JSON column survives as a JSON string.`)
@@ -138,7 +142,7 @@ cartsIo
       async (_options, _command) => {
         const { sessionKey, contactId, csvRows, name, organizationId, payload, profileId, sessionKeyBody, targetCartId, xlsx } = await promptForMissing(
           _options,
-          cartsImportSpecs,
+          importSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -194,7 +198,7 @@ cartsIo
       },
     ),
   );
-registerPromptSpecs(cartsIo.commands.at(-1)!, cartsImportSpecs, { method: "post" });
+registerPromptSpecs(cartsIo.commands.at(-1)!, importSpecs, { method: "post" });
 const fieldsSpecs: PromptSpec[] = [
   { key: "entity", option: "--entity <entity>", name: "entity", description: "The profile's entity. Default 'carts'.", type: "string", required: false, enum: ["carts","cart_items"] },
   { key: "role", option: "--role <role>", name: "role", description: "'column' (default) for every mappable field, 'key' for the match keys only.", type: "string", required: false, enum: ["column","key"] },
@@ -676,15 +680,16 @@ cartsIo
     ),
   );
 registerPromptSpecs(cartsIo.commands.at(-1)!, profilesCopySpecs, { method: "post" });
-const cartsExportSpecs: PromptSpec[] = [
+const exportSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The cart, by its id — the `id` every cart answer carries. A uuid: the data plane casts the segment, so a code or a slug is refused before the cart is looked up.", type: "string", required: true },
   { key: "sessionKey", option: "--session-key <session-key>", name: "session_key", description: "For a call acting for a contact: the session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Such a cart answers 404 to a buyer who does not present its key. A contact's cart is never reached by a key. Ignored on a call acting for no contact.", type: "string", required: false },
   { key: "format", option: "--format <format>", name: "format", description: "Format of an ad-hoc export, read only when no profile_id is sent. 'json' returns the whole `{cart, items}` document, 'csv' the lines alone, 'xlsx' the lines as an Excel workbook (base64). Default 'json'.", type: "string", required: false, enum: ["json","csv","xlsx"] },
   { key: "profileId", option: "--profile-id <profile-id>", name: "profile_id", description: "The export profile to run — one of the ids `GET /carts/io/profiles?direction=export&active=true` lists. Omit it for an ad-hoc export in the canonical shape, which is what `format` is for.", type: "string", required: false },
 ];
 cartsIo
-  .command(`carts-export`)
+  .command(`export`)
   .description(`Renders one cart as a document somebody can take away. With \`profile_id\` the named EXPORT profile decides the format, the entity and the column names; handing it an import profile is a 400, because a profile only runs the way it declares. Without one the call runs ad hoc — JSON, unless \`format: 'csv'\` says otherwise. The JSON form is \`{cart: {…}, items: […]}\` and is exactly what carts.import takes back, so an export round-trips; the CSV form is the lines only, header first, and drops everything that lives on the cart rather than on a line. Nothing is stored and nothing about the cart changes — \`filename\` is a suggestion for a browser download, not a file this app keeps — and a cart of any status can be exported, including one already ordered.`)
+  .alias("carts-export")
   .option(`--id <id>`, `The cart, by its id — the \`id\` every cart answer carries. A uuid: the data plane casts the segment, so a code or a slug is refused before the cart is looked up.`)
   .option(`--session-key <session-key>`, `For a call acting for a contact: the session key of a cart owned by no contact — a guest's, or a punchout visit's pSid. Such a cart answers 404 to a buyer who does not present its key. A contact's cart is never reached by a key. Ignored on a call acting for no contact.`)
   .option(`--format <format>`, `Format of an ad-hoc export, read only when no profile_id is sent. 'json' returns the whole \`{cart, items}\` document, 'csv' the lines alone, 'xlsx' the lines as an Excel workbook (base64). Default 'json'.`)
@@ -694,7 +699,7 @@ cartsIo
       async (_options, _command) => {
         const { id, sessionKey, format, profileId } = await promptForMissing(
           _options,
-          cartsExportSpecs,
+          exportSpecs,
           _command,
         );
         const _client = await sdkForProject();
@@ -729,4 +734,4 @@ cartsIo
       },
     ),
   );
-registerPromptSpecs(cartsIo.commands.at(-1)!, cartsExportSpecs, { method: "post" });
+registerPromptSpecs(cartsIo.commands.at(-1)!, exportSpecs, { method: "post" });

@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -21,6 +22,7 @@ export const mailingsAnalysis = new Command("mailings-analysis")
       `What a mailing achieved: deliveries, opens with machine opens apart, clicks, rates, unsubscribes, complaints, revenue from the campaign ledger, and the click map. Built from sequencer announcements.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 

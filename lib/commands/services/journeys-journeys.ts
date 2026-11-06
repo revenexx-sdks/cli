@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hiddenAliasHelp } from "../../legacy-names.js";
 import { resolveBodyParam } from "../../utils.js";
 import { sdkForProject } from "../../sdks.js";
 import type { RequestParams } from "../../types.js";
@@ -23,6 +24,7 @@ export const journeysJourneys = new Command("journeys-journeys")
       `The journeys: a named flow with a trigger, an optional goal, re-enrolment rules and a campaign. The canvas reads and saves its draft graph here; publishing makes the draft live as a whole, pausing holds everyone where they are, archiving lets everyone out. The report gives per-step counts.`,
   )
   .configureHelp({
+    ...hiddenAliasHelp,
     helpWidth: process.stdout.columns || 80,
   });
 
