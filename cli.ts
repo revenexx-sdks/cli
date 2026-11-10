@@ -66,6 +66,7 @@ import { consentManagerRegistry } from './lib/commands/services/consent-manager-
 import { consentManagerDelivery } from './lib/commands/services/consent-manager-delivery.js';
 import { consentManagerRecords } from './lib/commands/services/consent-manager-records.js';
 import { costCenters } from './lib/commands/services/cost-centers.js';
+import { cubes } from './lib/commands/services/cubes.js';
 import { customersOrganizations } from './lib/commands/services/customers-organizations.js';
 import { customersValueLists } from './lib/commands/services/customers-value-lists.js';
 import { customers } from './lib/commands/services/customers.js';
@@ -385,6 +386,7 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(consentManagerDelivery)
         .addCommand(consentManagerRecords)
         .addCommand(costCenters)
+        .addCommand(cubes)
         .addCommand(customersOrganizations)
         .addCommand(customersValueLists)
         .addCommand(customers)

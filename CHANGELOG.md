@@ -1,3 +1,6 @@
+## v0.7.8
+- New: DELETE /v1/cubes/{cubeId}, GET /v1/cubes, GET /v1/cubes/{cubeId}, GET /v1/cubes/{cubeId}/deployments and 5 more. Regenerated from the latest API specification.
+
 ## v0.7.7
 - Add Cube commands: create cube, deploy cube, preview cube, and --cube-id on release status and preview accept
 

@@ -593,9 +593,7 @@ revenexx deploy app           # register if new, upload, build, publish + instal
 \`\`\`
 
 For continuous deploys, push the repo to GitHub and wire it to the platform
-function via the VCS connector — the \`revenexx-app-builder\` skill (agent
-skill) documents the full pipeline and the live E2E definition of done
-against the gateway.
+function via the VCS connector.
 
 Hard rules (enforced by the scaffold, keep them true):
 
@@ -696,8 +694,7 @@ export function scaffoldApp(opts: AppScaffoldOptions): ScaffoldResult {
       "npm install && npm test",
       "edit schema.json, then: npm run capabilities && revenexx apps generate",
       "revenexx deploy app            # register if new, upload, build, publish + install",
-      `gh repo create revenexx-apps/${opts.name} --private --source . --remote origin --push   # optional: VCS-wired deploys`,
-      "install the revenexx-app-builder agent skill for the full pipeline (revenexx skills add)",
+      `gh repo create <your-org>/${opts.name} --private --source . --remote origin --push   # optional: VCS-wired deploys`,
     ],
   };
 }

@@ -11,6 +11,10 @@ name: Publish Homebrew Formula
 #
 # Run it with dry_run first: that renders the formula and prints it, touching
 # neither the tap nor any token.
+#
+# Like publish.yml it runs the CI gate (ci.yml) first and pushes nothing when
+# that fails (DX-758). A red main therefore blocks a repair too: fix main, then
+# run this again.
 on:
   workflow_dispatch:
     inputs:
@@ -26,8 +30,13 @@ permissions:
   contents: read
 
 jobs:
+  # The gate in front of the tap push: the checks a pull request runs (ci.yml).
+  check:
+    uses: ./.github/workflows/ci.yml
+
   publish-formula:
     name: Render and publish the formula
+    needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

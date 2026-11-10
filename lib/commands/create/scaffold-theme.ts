@@ -301,8 +301,7 @@ revenexx deploy theme         # find-or-create the Site, upload, build, publish 
 Theme registration is automatic — a \`ready\` site deployment IS a registered,
 completed and recorded theme version. Afterwards activate the theme per domain
 in Cockpit → Experience → Themes. For continuous deploys, wire the repo to the
-Site via the git connector instead — the \`revenexx-theme-builder\` agent skill
-documents the full pipeline.
+Site via the git connector instead.
 `;
 }
 
@@ -347,7 +346,6 @@ export function scaffoldTheme(opts: ThemeScaffoldOptions): ThemeScaffoldResult {
       "npm install && npm run dev     # local storefront",
       "revenexx deploy theme          # find-or-create Site, upload, build, publish + install",
       "bind your domain in Cockpit → Experience → Themes",
-      "install the revenexx-theme-builder agent skill for the git-connector pipeline (revenexx skills add)",
     ],
   };
 }
