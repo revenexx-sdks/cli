@@ -1,3 +1,6 @@
+## v0.7.9
+- Fixes the release pipeline: v0.7.8 never reached npm or Homebrew.
+
 ## v0.7.8
 - New: DELETE /v1/cubes/{cubeId}, GET /v1/cubes, GET /v1/cubes/{cubeId}, GET /v1/cubes/{cubeId}/deployments and 5 more. Regenerated from the latest API specification.
 

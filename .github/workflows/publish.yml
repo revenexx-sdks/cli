@@ -25,11 +25,13 @@ jobs:
         with:
           bun-version: latest
 
+      # pkg (windows-arm64) runs an arm64 node to build bytecode. The action
+      # registers binfmt itself, so it does not depend on the runner's apt
+      # packages (ubuntu 26.04 has no qemu-user-static).
       - name: Setup binfmt with QEMU
-        run: | 
-          sudo apt update
-          sudo apt install qemu-system binfmt-support qemu-user-static
-          update-binfmts --display
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
 
       - name: Setup ldid
         run: |
