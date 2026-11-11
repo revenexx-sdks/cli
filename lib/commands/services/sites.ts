@@ -112,6 +112,8 @@ const createSpecs: PromptSpec[] = [
   { key: "providerSilentMode", option: "--provider-silent-mode <provider-silent-mode>", name: "providerSilentMode", description: "Is the VCS (Version Control System) connection in silent mode for the repo linked to the site? In silent mode, comments will not be made on commits and pull requests.", type: "boolean", required: false },
   { key: "specification", option: "--specification <specification>", name: "specification", description: "Framework specification for the site and builds.", type: "string", required: false },
   { key: "timeout", option: "--timeout <timeout>", name: "timeout", description: "Maximum request time in seconds.", type: "integer", required: false },
+  { key: "vcsPreviewsEnabled", option: "--vcs-previews-enabled <vcs-previews-enabled>", name: "vcsPreviewsEnabled", description: "Whether pull request events create preview deployments and PR comments.", type: "boolean", required: false },
+  { key: "vcsTriggerMode", option: "--vcs-trigger-mode <vcs-trigger-mode>", name: "vcsTriggerMode", description: "Controls when a VCS deployment is triggered. \"push\" deploys on every branch push, \"tag\" deploys only when a tag is pushed or a GitHub release is published.", type: "string", required: false, enum: ["push","tag"] },
 ];
 sites
   .command(`create`)
@@ -149,10 +151,17 @@ sites
   )
   .option(`--specification <specification>`, `Framework specification for the site and builds.`)
   .option(`--timeout <timeout>`, `Maximum request time in seconds.`, parseInteger)
+  .option(
+    `--vcs-previews-enabled [value]`,
+    `Whether pull request events create preview deployments and PR comments.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--vcs-trigger-mode <vcs-trigger-mode>`, `Controls when a VCS deployment is triggered. "push" deploys on every branch push, "tag" deploys only when a tag is pushed or a GitHub release is published.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { buildRuntime, framework, name, siteId, adapter, buildCommand, enabled, fallbackFile, installCommand, installationId, logging, outputDirectory, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, specification, timeout } = await promptForMissing(
+        const { buildRuntime, framework, name, siteId, adapter, buildCommand, enabled, fallbackFile, installCommand, installationId, logging, outputDirectory, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, specification, timeout, vcsPreviewsEnabled, vcsTriggerMode } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -220,6 +229,12 @@ sites
         }
         if (timeout !== undefined) {
           _payload[`timeout`] = timeout;
+        }
+        if (vcsPreviewsEnabled !== undefined) {
+          _payload[`vcsPreviewsEnabled`] = vcsPreviewsEnabled;
+        }
+        if (vcsTriggerMode !== undefined) {
+          _payload[`vcsTriggerMode`] = vcsTriggerMode;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -407,6 +422,8 @@ const updateSpecs: PromptSpec[] = [
   { key: "providerSilentMode", option: "--provider-silent-mode <provider-silent-mode>", name: "providerSilentMode", description: "Is the VCS (Version Control System) connection in silent mode for the repo linked to the site? In silent mode, comments will not be made on commits and pull requests.", type: "boolean", required: false },
   { key: "specification", option: "--specification <specification>", name: "specification", description: "Framework specification for the site and builds.", type: "string", required: false },
   { key: "timeout", option: "--timeout <timeout>", name: "timeout", description: "Maximum request time in seconds.", type: "integer", required: false },
+  { key: "vcsPreviewsEnabled", option: "--vcs-previews-enabled <vcs-previews-enabled>", name: "vcsPreviewsEnabled", description: "Whether pull request events create preview deployments and PR comments.", type: "boolean", required: false },
+  { key: "vcsTriggerMode", option: "--vcs-trigger-mode <vcs-trigger-mode>", name: "vcsTriggerMode", description: "Controls when a VCS deployment is triggered. \"push\" deploys on every branch push, \"tag\" deploys only when a tag is pushed or a GitHub release is published.", type: "string", required: false, enum: ["push","tag"] },
 ];
 sites
   .command(`update`)
@@ -444,10 +461,17 @@ sites
   )
   .option(`--specification <specification>`, `Framework specification for the site and builds.`)
   .option(`--timeout <timeout>`, `Maximum request time in seconds.`, parseInteger)
+  .option(
+    `--vcs-previews-enabled [value]`,
+    `Whether pull request events create preview deployments and PR comments.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--vcs-trigger-mode <vcs-trigger-mode>`, `Controls when a VCS deployment is triggered. "push" deploys on every branch push, "tag" deploys only when a tag is pushed or a GitHub release is published.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { siteId, framework, name, adapter, buildCommand, buildRuntime, enabled, fallbackFile, installCommand, installationId, logging, outputDirectory, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, specification, timeout } = await promptForMissing(
+        const { siteId, framework, name, adapter, buildCommand, buildRuntime, enabled, fallbackFile, installCommand, installationId, logging, outputDirectory, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, specification, timeout, vcsPreviewsEnabled, vcsTriggerMode } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -512,6 +536,12 @@ sites
         }
         if (timeout !== undefined) {
           _payload[`timeout`] = timeout;
+        }
+        if (vcsPreviewsEnabled !== undefined) {
+          _payload[`vcsPreviewsEnabled`] = vcsPreviewsEnabled;
+        }
+        if (vcsTriggerMode !== undefined) {
+          _payload[`vcsTriggerMode`] = vcsTriggerMode;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -644,6 +674,7 @@ const createDeploymentSpecs: PromptSpec[] = [
   { key: "buildCommand", option: "--build-command <build-command>", name: "buildCommand", description: "Build Commands.", type: "string", required: false },
   { key: "installCommand", option: "--install-command <install-command>", name: "installCommand", description: "Install Commands.", type: "string", required: false },
   { key: "outputDirectory", option: "--output-directory <output-directory>", name: "outputDirectory", description: "Output Directory.", type: "string", required: false },
+  { key: "releaseMode", option: "--release-mode <release-mode>", name: "releaseMode", description: "Release mode: `deploy` releases the version once its round is approved; `preview` makes it a candidate the vendor accepts after seeing it run. Only meaningful for App and Theme deployments.", type: "string", required: false, enum: ["deploy","preview"] },
 ];
 sites
   .command(`create-deployment`)
@@ -654,10 +685,11 @@ sites
   .option(`--build-command <build-command>`, `Build Commands.`)
   .option(`--install-command <install-command>`, `Install Commands.`)
   .option(`--output-directory <output-directory>`, `Output Directory.`)
+  .option(`--release-mode <release-mode>`, `Release mode: \`deploy\` releases the version once its round is approved; \`preview\` makes it a candidate the vendor accepts after seeing it run. Only meaningful for App and Theme deployments.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { siteId, activate, code, buildCommand, installCommand, outputDirectory } = await promptForMissing(
+        const { siteId, activate, code, buildCommand, installCommand, outputDirectory, releaseMode } = await promptForMissing(
           _options,
           createDeploymentSpecs,
           _command,
@@ -686,6 +718,9 @@ sites
         }
         if (outputDirectory !== undefined) {
           _payload[`outputDirectory`] = outputDirectory;
+        }
+        if (releaseMode !== undefined) {
+          _payload[`releaseMode`] = releaseMode;
         }
         const _headers: Record<string, string> = {
           "content-type": "multipart/form-data",

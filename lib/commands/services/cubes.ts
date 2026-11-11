@@ -10,6 +10,7 @@ import {
   cliConfig,
   parse,
   parseBool,
+  parseInteger,
 } from "../../parser.js";
 import {
   confirmDestructive,
@@ -428,6 +429,7 @@ const createDeploymentSpecs: PromptSpec[] = [
   { key: "cubeId", option: "--cube-id <cube-id>", name: "cubeId", description: "Cube ID.", type: "string", required: true, resource: { listPath: "/cubes", hasLimit: false, search: true } },
   { key: "code", option: "--code <code>", name: "code", description: "The Cube directory packaged as a gzipped tar archive (`.tar.gz`) with `cube.json` at its root, sent as the file part of the multipart request.", type: "file", required: true },
   { key: "activate", option: "--activate <activate>", name: "activate", description: "Automatically activate the deployment when it is finished building.", type: "boolean", required: false },
+  { key: "releaseMode", option: "--release-mode <release-mode>", name: "releaseMode", description: "Release mode: `deploy` releases the Cube once its round is approved; `preview` makes it a candidate the vendor accepts after checking it.", type: "string", required: false, enum: ["deploy","preview"] },
 ];
 cubes
   .command(`create-deployment`)
@@ -440,10 +442,11 @@ cubes
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--release-mode <release-mode>`, `Release mode: \`deploy\` releases the Cube once its round is approved; \`preview\` makes it a candidate the vendor accepts after checking it.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { cubeId, code, activate } = await promptForMissing(
+        const { cubeId, code, activate, releaseMode } = await promptForMissing(
           _options,
           createDeploymentSpecs,
           _command,
@@ -463,6 +466,9 @@ cubes
         }
         if (code !== undefined) {
           _payload[`code`] = code !== undefined ? await resolveFileParam(code) : undefined;
+        }
+        if (releaseMode !== undefined) {
+          _payload[`releaseMode`] = releaseMode;
         }
         const _headers: Record<string, string> = {
           "content-type": "multipart/form-data",
@@ -573,3 +579,162 @@ cubes
     ),
   );
 registerPromptSpecs(cubes.commands.at(-1)!, getDeploymentSpecs, { method: "get" });
+const listReleasesSpecs: PromptSpec[] = [
+  { key: "cubeId", option: "--cube-id <cube-id>", name: "cubeId", description: "Cube ID.", type: "string", required: true, resource: { listPath: "/cubes", hasLimit: false, search: true } },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+cubes
+  .command(`list-releases`)
+  .description(`List the release rounds of this Cube as the registry holds
+them: version, round number, state (submitted, candidate,
+approved, rejected), release mode, gate results, decision
+deadline, rejection reason and the deployment that opened it.`)
+  .option(`--cube-id <cube-id>`, `Cube ID.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { cubeId, filter } = await promptForMissing(
+          _options,
+          listReleasesSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/cubes/{cubeId}/releases`.replace(`{cubeId}`, cubeId);
+        const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(cubes.commands.at(-1)!, listReleasesSpecs, { method: "get" });
+const acceptReleaseSpecs: PromptSpec[] = [
+  { key: "cubeId", option: "--cube-id <cube-id>", name: "cubeId", description: "Cube ID.", type: "string", required: true, resource: { listPath: "/cubes", hasLimit: false, search: true } },
+  { key: "rc", option: "--rc <rc>", name: "rc", description: "Release round to accept. Defaults to the newest candidate round of the version.", type: "integer", required: false },
+  { key: "cubesVersion", option: "--cubes-version <cubes-version>", name: "version", description: "Version to accept. Defaults to the version of the latest released deployment.", type: "string", required: false },
+];
+cubes
+  .command(`accept-release`)
+  .description(`Accept a preview candidate of this Cube after checking it.
+Without \`version\` the version of the latest released
+deployment is accepted; without \`rc\` its newest candidate
+round. Only the Cube's vendor can accept, and only a candidate
+in preview mode.`)
+  .option(`--cube-id <cube-id>`, `Cube ID.`)
+  .option(`--rc <rc>`, `Release round to accept. Defaults to the newest candidate round of the version.`, parseInteger)
+  .option(`--cubes-version <cubes-version>`, `Version to accept. Defaults to the version of the latest released deployment.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { cubeId, rc, cubesVersion } = await promptForMissing(
+          _options,
+          acceptReleaseSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/cubes/{cubeId}/releases/accept`.replace(`{cubeId}`, cubeId);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (rc !== undefined) {
+          _payload[`rc`] = rc;
+        }
+        if (cubesVersion !== undefined) {
+          _payload[`version`] = cubesVersion;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(cubes.commands.at(-1)!, acceptReleaseSpecs, { method: "post" });
+const rebuildReleaseSpecs: PromptSpec[] = [
+  { key: "cubeId", option: "--cube-id <cube-id>", name: "cubeId", description: "Cube ID.", type: "string", required: true, resource: { listPath: "/cubes", hasLimit: false, search: true } },
+  { key: "cubesVersion", option: "--cubes-version <cubes-version>", name: "version", description: "Version to rebuild.", type: "string", required: true },
+  { key: "commit", option: "--commit <commit>", name: "commit", description: "Commit SHA the round recorded (7 to 64 hex characters). Optional.", type: "string", required: false },
+  { key: "deploymentId", option: "--deployment-id <deployment-id>", name: "deploymentId", description: "Deployment the round was built as. Optional.", type: "string", required: false },
+];
+cubes
+  .command(`rebuild-release`)
+  .description(`Release the source a version of this Cube was built from
+again, so it is linted and judged again in a new release
+round. Takes the round's deployment, or the newest deployment
+whose manifest names this version; \`commit\` narrows that.`)
+  .option(`--cube-id <cube-id>`, `Cube ID.`)
+  .option(`--cubes-version <cubes-version>`, `Version to rebuild.`)
+  .option(`--commit <commit>`, `Commit SHA the round recorded (7 to 64 hex characters). Optional.`)
+  .option(`--deployment-id <deployment-id>`, `Deployment the round was built as. Optional.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { cubeId, cubesVersion, commit, deploymentId } = await promptForMissing(
+          _options,
+          rebuildReleaseSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/cubes/{cubeId}/releases/rebuild`.replace(`{cubeId}`, cubeId);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (commit !== undefined) {
+          _payload[`commit`] = commit;
+        }
+        if (deploymentId !== undefined) {
+          _payload[`deploymentId`] = deploymentId;
+        }
+        if (cubesVersion !== undefined) {
+          _payload[`version`] = cubesVersion;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(cubes.commands.at(-1)!, rebuildReleaseSpecs, { method: "post" });

@@ -109,9 +109,11 @@ const createSpecs: PromptSpec[] = [
   { key: "providerRootDirectory", option: "--provider-root-directory <provider-root-directory>", name: "providerRootDirectory", description: "Path to function code in the linked repo.", type: "string", required: false },
   { key: "providerSilentMode", option: "--provider-silent-mode <provider-silent-mode>", name: "providerSilentMode", description: "Is the VCS (Version Control System) connection in silent mode for the repo linked to the function? In silent mode, comments will not be made on commits and pull requests.", type: "boolean", required: false },
   { key: "schedule", option: "--schedule <schedule>", name: "schedule", description: "Schedule CRON syntax.", type: "string", required: false },
-  { key: "scopes", option: "--scopes [scopes...]", name: "scopes", description: "List of scopes allowed for API key auto-generated for every execution. Maximum of 100 scopes are allowed.", type: "array", required: false, enum: ["sessions.write","users.read","users.write","teams.read","teams.write","databases.read","databases.write","collections.read","collections.write","tables.read","tables.write","attributes.read","attributes.write","columns.read","columns.write","indexes.read","indexes.write","documents.read","documents.write","rows.read","rows.write","files.read","files.write","buckets.read","buckets.write","functions.read","functions.write","sites.read","sites.write","log.read","log.write","execution.read","execution.write","locale.read","avatars.read","health.read","providers.read","providers.write","messages.read","messages.write","topics.read","topics.write","subscribers.read","subscribers.write","targets.read","targets.write","rules.read","rules.write","migrations.read","migrations.write","vcs.read","vcs.write","assistant.read","tokens.read","tokens.write"] },
+  { key: "scopes", option: "--scopes [scopes...]", name: "scopes", description: "List of scopes allowed for API key auto-generated for every execution. Maximum of 100 scopes are allowed.", type: "array", required: false, enum: ["sessions.write","users.read","users.write","teams.read","teams.write","databases.read","databases.write","collections.read","collections.write","tables.read","tables.write","attributes.read","attributes.write","columns.read","columns.write","indexes.read","indexes.write","documents.read","documents.write","rows.read","rows.write","files.read","files.write","buckets.read","buckets.write","functions.read","functions.write","sites.read","sites.write","integrations.read","integrations.write","cubes.read","cubes.write","log.read","log.write","execution.read","execution.write","locale.read","avatars.read","health.read","providers.read","providers.write","messages.read","messages.write","topics.read","topics.write","subscribers.read","subscribers.write","targets.read","targets.write","rules.read","rules.write","migrations.read","migrations.write","vcs.read","vcs.write","assistant.read","tokens.read","tokens.write"] },
   { key: "specification", option: "--specification <specification>", name: "specification", description: "Runtime specification for the function and builds.", type: "string", required: false },
   { key: "timeout", option: "--timeout <timeout>", name: "timeout", description: "Function maximum execution time in seconds.", type: "integer", required: false },
+  { key: "vcsPreviewsEnabled", option: "--vcs-previews-enabled <vcs-previews-enabled>", name: "vcsPreviewsEnabled", description: "Whether pull request events create preview deployments and PR comments.", type: "boolean", required: false },
+  { key: "vcsTriggerMode", option: "--vcs-trigger-mode <vcs-trigger-mode>", name: "vcsTriggerMode", description: "Controls when a VCS deployment is triggered. \"push\" deploys on every branch push, \"tag\" deploys only when a tag is pushed or a GitHub release is published.", type: "string", required: false, enum: ["push","tag"] },
 ];
 apps
   .command(`create`)
@@ -151,10 +153,17 @@ Phase 1 mirrors the underlying Functions runtime 1:1; future phases will add man
   .option(`--scopes [scopes...]`, `List of scopes allowed for API key auto-generated for every execution. Maximum of 100 scopes are allowed.`)
   .option(`--specification <specification>`, `Runtime specification for the function and builds.`)
   .option(`--timeout <timeout>`, `Function maximum execution time in seconds.`, parseInteger)
+  .option(
+    `--vcs-previews-enabled [value]`,
+    `Whether pull request events create preview deployments and PR comments.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--vcs-trigger-mode <vcs-trigger-mode>`, `Controls when a VCS deployment is triggered. "push" deploys on every branch push, "tag" deploys only when a tag is pushed or a GitHub release is published.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { functionId, name, runtime, commands, enabled, entrypoint, events, execute, installationId, logging, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, schedule, scopes, specification, timeout } = await promptForMissing(
+        const { functionId, name, runtime, commands, enabled, entrypoint, events, execute, installationId, logging, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, schedule, scopes, specification, timeout, vcsPreviewsEnabled, vcsTriggerMode } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -222,6 +231,12 @@ Phase 1 mirrors the underlying Functions runtime 1:1; future phases will add man
         }
         if (timeout !== undefined) {
           _payload[`timeout`] = timeout;
+        }
+        if (vcsPreviewsEnabled !== undefined) {
+          _payload[`vcsPreviewsEnabled`] = vcsPreviewsEnabled;
+        }
+        if (vcsTriggerMode !== undefined) {
+          _payload[`vcsTriggerMode`] = vcsTriggerMode;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -343,6 +358,61 @@ apps
     ),
   );
 registerPromptSpecs(apps.commands.at(-1)!, installFromMarketplaceSpecs, { method: "post" });
+const rebuildReleaseSpecs: PromptSpec[] = [
+  { key: "name", option: "--name <name>", name: "name", description: "App name as in its manifest.", type: "string", required: true },
+  { key: "appsVersion", option: "--apps-version <apps-version>", name: "version", description: "Version to rebuild.", type: "string", required: true },
+  { key: "commit", option: "--commit <commit>", name: "commit", description: "Commit SHA the round recorded (7 to 64 hex characters). Optional.", type: "string", required: false },
+];
+apps
+  .command(`rebuild-release`)
+  .description(`Rebuild the source a release of this App was built from, so
+its release gates run again and a new release round opens.
+Picks the newest deployment whose manifest names this app and
+version; \`commit\` narrows it to that commit.`)
+  .option(`--name <name>`, `App name as in its manifest.`)
+  .option(`--apps-version <apps-version>`, `Version to rebuild.`)
+  .option(`--commit <commit>`, `Commit SHA the round recorded (7 to 64 hex characters). Optional.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { name, appsVersion, commit } = await promptForMissing(
+          _options,
+          rebuildReleaseSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/apps/releases/rebuild`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (commit !== undefined) {
+          _payload[`commit`] = commit;
+        }
+        if (name !== undefined) {
+          _payload[`name`] = name;
+        }
+        if (appsVersion !== undefined) {
+          _payload[`version`] = appsVersion;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(apps.commands.at(-1)!, rebuildReleaseSpecs, { method: "post" });
 const listRuntimesSpecs: PromptSpec[] = [
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
@@ -667,9 +737,11 @@ const updateSpecs: PromptSpec[] = [
   { key: "providerSilentMode", option: "--provider-silent-mode <provider-silent-mode>", name: "providerSilentMode", description: "Is the VCS (Version Control System) connection in silent mode for the repo linked to the function? In silent mode, comments will not be made on commits and pull requests.", type: "boolean", required: false },
   { key: "runtime", option: "--runtime <runtime>", name: "runtime", description: "Execution runtime.", type: "string", required: false, enum: ["node-18.0","node-20.0","node-22","node-23","node-24","node-25","php-8.1","php-8.2","php-8.3","php-8.4","ruby-3.1","ruby-3.2","ruby-3.3","ruby-3.4","ruby-4.0","python-3.9","python-3.10","python-3.11","python-3.12","python-3.13","python-3.14","python-ml-3.11","python-ml-3.12","python-ml-3.13","deno-1.46","deno-2.0","deno-2.5","deno-2.6","dart-2.18","dart-2.19","dart-3.0","dart-3.1","dart-3.3","dart-3.5","dart-3.8","dart-3.9","dart-3.10","dotnet-8.0","dotnet-10","java-8.0","java-11.0","java-17.0","java-21.0","java-22","java-25","swift-5.8","swift-5.9","swift-5.10","swift-6.2","kotlin-1.8","kotlin-1.9","kotlin-2.0","kotlin-2.3","cpp-17","cpp-20","cpp-23","bun-1.0","bun-1.1","bun-1.2","bun-1.3","go-1.23","go-1.24","go-1.25","go-1.26","static-1","flutter-3.24","flutter-3.27","flutter-3.29","flutter-3.32","flutter-3.35","flutter-3.38"] },
   { key: "schedule", option: "--schedule <schedule>", name: "schedule", description: "Schedule CRON syntax.", type: "string", required: false },
-  { key: "scopes", option: "--scopes [scopes...]", name: "scopes", description: "List of scopes allowed for API Key auto-generated for every execution. Maximum of 100 scopes are allowed.", type: "array", required: false, enum: ["sessions.write","users.read","users.write","teams.read","teams.write","databases.read","databases.write","collections.read","collections.write","tables.read","tables.write","attributes.read","attributes.write","columns.read","columns.write","indexes.read","indexes.write","documents.read","documents.write","rows.read","rows.write","files.read","files.write","buckets.read","buckets.write","functions.read","functions.write","sites.read","sites.write","log.read","log.write","execution.read","execution.write","locale.read","avatars.read","health.read","providers.read","providers.write","messages.read","messages.write","topics.read","topics.write","subscribers.read","subscribers.write","targets.read","targets.write","rules.read","rules.write","migrations.read","migrations.write","vcs.read","vcs.write","assistant.read","tokens.read","tokens.write"] },
+  { key: "scopes", option: "--scopes [scopes...]", name: "scopes", description: "List of scopes allowed for API Key auto-generated for every execution. Maximum of 100 scopes are allowed.", type: "array", required: false, enum: ["sessions.write","users.read","users.write","teams.read","teams.write","databases.read","databases.write","collections.read","collections.write","tables.read","tables.write","attributes.read","attributes.write","columns.read","columns.write","indexes.read","indexes.write","documents.read","documents.write","rows.read","rows.write","files.read","files.write","buckets.read","buckets.write","functions.read","functions.write","sites.read","sites.write","integrations.read","integrations.write","cubes.read","cubes.write","log.read","log.write","execution.read","execution.write","locale.read","avatars.read","health.read","providers.read","providers.write","messages.read","messages.write","topics.read","topics.write","subscribers.read","subscribers.write","targets.read","targets.write","rules.read","rules.write","migrations.read","migrations.write","vcs.read","vcs.write","assistant.read","tokens.read","tokens.write"] },
   { key: "specification", option: "--specification <specification>", name: "specification", description: "Runtime specification for the function and builds.", type: "string", required: false },
   { key: "timeout", option: "--timeout <timeout>", name: "timeout", description: "Maximum execution time in seconds.", type: "integer", required: false },
+  { key: "vcsPreviewsEnabled", option: "--vcs-previews-enabled <vcs-previews-enabled>", name: "vcsPreviewsEnabled", description: "Whether pull request events create preview deployments and PR comments.", type: "boolean", required: false },
+  { key: "vcsTriggerMode", option: "--vcs-trigger-mode <vcs-trigger-mode>", name: "vcsTriggerMode", description: "Controls when a VCS deployment is triggered. \"push\" deploys on every branch push, \"tag\" deploys only when a tag is pushed or a GitHub release is published.", type: "string", required: false, enum: ["push","tag"] },
 ];
 apps
   .command(`update`)
@@ -707,10 +779,17 @@ apps
   .option(`--scopes [scopes...]`, `List of scopes allowed for API Key auto-generated for every execution. Maximum of 100 scopes are allowed.`)
   .option(`--specification <specification>`, `Runtime specification for the function and builds.`)
   .option(`--timeout <timeout>`, `Maximum execution time in seconds.`, parseInteger)
+  .option(
+    `--vcs-previews-enabled [value]`,
+    `Whether pull request events create preview deployments and PR comments.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--vcs-trigger-mode <vcs-trigger-mode>`, `Controls when a VCS deployment is triggered. "push" deploys on every branch push, "tag" deploys only when a tag is pushed or a GitHub release is published.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { functionId, name, commands, enabled, entrypoint, events, execute, installationId, logging, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, runtime, schedule, scopes, specification, timeout } = await promptForMissing(
+        const { functionId, name, commands, enabled, entrypoint, events, execute, installationId, logging, providerBranch, providerRepositoryId, providerRootDirectory, providerSilentMode, runtime, schedule, scopes, specification, timeout, vcsPreviewsEnabled, vcsTriggerMode } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -775,6 +854,12 @@ apps
         }
         if (timeout !== undefined) {
           _payload[`timeout`] = timeout;
+        }
+        if (vcsPreviewsEnabled !== undefined) {
+          _payload[`vcsPreviewsEnabled`] = vcsPreviewsEnabled;
+        }
+        if (vcsTriggerMode !== undefined) {
+          _payload[`vcsTriggerMode`] = vcsTriggerMode;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -906,6 +991,7 @@ const createDeploymentSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "Your source directory packaged as a gzipped tar archive (`.tar.gz`), sent as the file part of the multipart request.", type: "file", required: true },
   { key: "commands", option: "--commands <commands>", name: "commands", description: "Build Commands.", type: "string", required: false },
   { key: "entrypoint", option: "--entrypoint <entrypoint>", name: "entrypoint", description: "Entrypoint File.", type: "string", required: false },
+  { key: "releaseMode", option: "--release-mode <release-mode>", name: "releaseMode", description: "Release mode: `deploy` releases the version once its round is approved; `preview` makes it a candidate the vendor accepts after seeing it run. Only meaningful for App and Theme deployments.", type: "string", required: false, enum: ["deploy","preview"] },
 ];
 apps
   .command(`create-deployment`)
@@ -918,10 +1004,11 @@ Registry before kicking off the build.`)
   .option(`--code <code>`, `Your source directory packaged as a gzipped tar archive (\`.tar.gz\`), sent as the file part of the multipart request.`)
   .option(`--commands <commands>`, `Build Commands.`)
   .option(`--entrypoint <entrypoint>`, `Entrypoint File.`)
+  .option(`--release-mode <release-mode>`, `Release mode: \`deploy\` releases the version once its round is approved; \`preview\` makes it a candidate the vendor accepts after seeing it run. Only meaningful for App and Theme deployments.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { functionId, activate, code, commands, entrypoint } = await promptForMissing(
+        const { functionId, activate, code, commands, entrypoint, releaseMode } = await promptForMissing(
           _options,
           createDeploymentSpecs,
           _command,
@@ -947,6 +1034,9 @@ Registry before kicking off the build.`)
         }
         if (entrypoint !== undefined) {
           _payload[`entrypoint`] = entrypoint;
+        }
+        if (releaseMode !== undefined) {
+          _payload[`releaseMode`] = releaseMode;
         }
         const _headers: Record<string, string> = {
           "content-type": "multipart/form-data",
@@ -1495,7 +1585,7 @@ const getMarketplaceStatusSpecs: PromptSpec[] = [
 ];
 apps
   .command(`get-marketplace-status`)
-  .description(`Read-through view of the App's App Registry row — visibility + Marketplace publish flag. Used by Cockpit to render the Publish/Unpublish button correctly on cold load.`)
+  .description(`Read-through view of the App's App Registry row — app type + Marketplace publish flag. Used by Cockpit to render the Publish/Unpublish button correctly on cold load.`)
   .option(`--function-id <function-id>`, `App ID.`)
   .action(
     actionRunner(
@@ -1562,8 +1652,8 @@ apps
   .command(`publish`)
   .description(`Publish this App to the Marketplace. The App must have at
 least one \`ready\` deployment with a registered manifest,
-and its visibility (derived from \`billing.json\`) must be
-\`public\` or \`included\`. Idempotent.`)
+and its manifest field \`type\` must not be \`private\`.
+Idempotent.`)
   .option(`--function-id <function-id>`, `App ID.`)
   .action(
     actionRunner(
@@ -1590,6 +1680,108 @@ and its visibility (derived from \`billing.json\`) must be
     ),
   );
 registerPromptSpecs(apps.commands.at(-1)!, publishSpecs, { method: "post" });
+const listReleasesSpecs: PromptSpec[] = [
+  { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "App ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false, search: true } },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+apps
+  .command(`list-releases`)
+  .description(`List the release rounds of this App as the App Registry holds
+them: version, round number, state (submitted, candidate,
+approved, rejected), release mode, gate results, decision
+deadline and rejection reason.`)
+  .option(`--function-id <function-id>`, `App ID.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { functionId, filter } = await promptForMissing(
+          _options,
+          listReleasesSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/apps/{functionId}/releases`.replace(`{functionId}`, functionId);
+        const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(apps.commands.at(-1)!, listReleasesSpecs, { method: "get" });
+const acceptReleaseSpecs: PromptSpec[] = [
+  { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "App ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false, search: true } },
+  { key: "rc", option: "--rc <rc>", name: "rc", description: "Release round to accept. Defaults to the newest candidate round of the version.", type: "integer", required: false },
+  { key: "appsVersion", option: "--apps-version <apps-version>", name: "version", description: "Version to accept. Defaults to the version of the latest registered deployment.", type: "string", required: false },
+];
+apps
+  .command(`accept-release`)
+  .description(`Accept a preview candidate of this App after seeing it run.
+Without \`version\` the version of the latest registered
+deployment is accepted; without \`rc\` its newest candidate
+round. Only the App's vendor can accept, and only a candidate
+in preview mode.`)
+  .option(`--function-id <function-id>`, `App ID.`)
+  .option(`--rc <rc>`, `Release round to accept. Defaults to the newest candidate round of the version.`, parseInteger)
+  .option(`--apps-version <apps-version>`, `Version to accept. Defaults to the version of the latest registered deployment.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { functionId, rc, appsVersion } = await promptForMissing(
+          _options,
+          acceptReleaseSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/apps/{functionId}/releases/accept`.replace(`{functionId}`, functionId);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (rc !== undefined) {
+          _payload[`rc`] = rc;
+        }
+        if (appsVersion !== undefined) {
+          _payload[`version`] = appsVersion;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(apps.commands.at(-1)!, acceptReleaseSpecs, { method: "post" });
 const getUsageSpecs: PromptSpec[] = [
   { key: "functionId", option: "--function-id <function-id>", name: "functionId", description: "Function ID.", type: "string", required: true, resource: { listPath: "/apps", hasLimit: false, search: true } },
   { key: "range", option: "--range <range>", name: "range", description: "Date range.", type: "string", required: false, enum: ["24h","30d","90d"] },
@@ -1862,3 +2054,175 @@ apps
     ),
   );
 registerPromptSpecs(apps.commands.at(-1)!, updateVariableSpecs, { method: "put" });
+const unpublishThemeSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true },
+];
+apps
+  .command(`unpublish-theme`)
+  .description(`Unpublish this Theme from the Marketplace. Existing tenant
+installations are unaffected; only future Marketplace
+discovery is gated. Idempotent.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { siteId } = await promptForMissing(
+          _options,
+          unpublishThemeSpecs,
+          _command,
+        );
+        await confirmDestructive(`apps unpublish-theme`);
+        const _client = await sdkForProject();
+        const _apiPath = `/sites/{siteId}/publish`.replace(`{siteId}`, siteId);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `delete`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(apps.commands.at(-1)!, unpublishThemeSpecs, { method: "delete", destructive: true });
+const publishThemeSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true },
+];
+apps
+  .command(`publish-theme`)
+  .description(`Publish this Theme to the Marketplace. The Site must have at
+least one \`ready\` deployment with a registered theme manifest
+(theme.json) declaring \`kind: theme\`, and its manifest field
+\`type\` must not be \`private\`. Idempotent.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { siteId } = await promptForMissing(
+          _options,
+          publishThemeSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/sites/{siteId}/publish`.replace(`{siteId}`, siteId);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(apps.commands.at(-1)!, publishThemeSpecs, { method: "post" });
+const listThemeReleasesSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true },
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+apps
+  .command(`list-theme-releases`)
+  .description(`List the release rounds of this Theme as the App Registry holds
+them: version, round number, state (submitted, candidate,
+approved, rejected), release mode, gate results, decision
+deadline and rejection reason.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { siteId, filter } = await promptForMissing(
+          _options,
+          listThemeReleasesSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/sites/{siteId}/releases`.replace(`{siteId}`, siteId);
+        const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(apps.commands.at(-1)!, listThemeReleasesSpecs, { method: "get" });
+const acceptThemeReleaseSpecs: PromptSpec[] = [
+  { key: "siteId", option: "--site-id <site-id>", name: "siteId", description: "Site ID.", type: "string", required: true },
+  { key: "rc", option: "--rc <rc>", name: "rc", description: "Release round to accept. Defaults to the newest candidate round of the version.", type: "integer", required: false },
+  { key: "appsVersion", option: "--apps-version <apps-version>", name: "version", description: "Version to accept. Defaults to the version of the latest registered deployment.", type: "string", required: false },
+];
+apps
+  .command(`accept-theme-release`)
+  .description(`Accept a preview candidate of this Theme after seeing it run.
+Without \`version\` the version of the latest registered
+deployment is accepted; without \`rc\` its newest candidate
+round. Only the Theme's vendor can accept, and only a candidate
+in preview mode.`)
+  .option(`--site-id <site-id>`, `Site ID.`)
+  .option(`--rc <rc>`, `Release round to accept. Defaults to the newest candidate round of the version.`, parseInteger)
+  .option(`--apps-version <apps-version>`, `Version to accept. Defaults to the version of the latest registered deployment.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { siteId, rc, appsVersion } = await promptForMissing(
+          _options,
+          acceptThemeReleaseSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/sites/{siteId}/releases/accept`.replace(`{siteId}`, siteId);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (rc !== undefined) {
+          _payload[`rc`] = rc;
+        }
+        if (appsVersion !== undefined) {
+          _payload[`version`] = appsVersion;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(apps.commands.at(-1)!, acceptThemeReleaseSpecs, { method: "post" });

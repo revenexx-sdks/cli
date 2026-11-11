@@ -37,6 +37,16 @@ revenexx apps install-from-marketplace \
     --owner ''
 ```
 
+## rebuild-release
+
+Rebuild app release
+
+```bash
+revenexx apps rebuild-release \
+    --name '' \
+    --apps-version ''
+```
+
 ## list-runtimes
 
 List app runtimes
@@ -276,6 +286,24 @@ revenexx apps publish \
     --function-id ''
 ```
 
+## list-releases
+
+List app releases
+
+```bash
+revenexx apps list-releases \
+    --function-id ''
+```
+
+## accept-release
+
+Accept app release candidate
+
+```bash
+revenexx apps accept-release \
+    --function-id ''
+```
+
 ## get-usage
 
 Get app usage
@@ -334,4 +362,40 @@ revenexx apps update-variable \
     --function-id '' \
     --variable-id '' \
     --key ''
+```
+
+## unpublish-theme
+
+Unpublish theme from Marketplace
+
+```bash
+revenexx apps unpublish-theme \
+    --site-id ''
+```
+
+## publish-theme
+
+Publish theme to Marketplace
+
+```bash
+revenexx apps publish-theme \
+    --site-id ''
+```
+
+## list-theme-releases
+
+List theme releases
+
+```bash
+revenexx apps list-theme-releases \
+    --site-id ''
+```
+
+## accept-theme-release
+
+Accept theme release candidate
+
+```bash
+revenexx apps accept-theme-release \
+    --site-id ''
 ```

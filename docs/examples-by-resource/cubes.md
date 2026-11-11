@@ -85,3 +85,31 @@ revenexx cubes get-deployment \
     --cube-id '' \
     --deployment-id ''
 ```
+
+## list-releases
+
+List cube releases
+
+```bash
+revenexx cubes list-releases \
+    --cube-id ''
+```
+
+## accept-release
+
+Accept cube release candidate
+
+```bash
+revenexx cubes accept-release \
+    --cube-id ''
+```
+
+## rebuild-release
+
+Rebuild cube release
+
+```bash
+revenexx cubes rebuild-release \
+    --cube-id '' \
+    --cubes-version ''
+```

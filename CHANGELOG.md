@@ -1,3 +1,28 @@
+## v0.7.10
+- New: DELETE /v1/integrations/{integrationId}
+- New: DELETE /v1/sites/{siteId}/publish
+- New: GET /v1/apps/{functionId}/releases
+- New: GET /v1/cubes/{cubeId}/releases
+- New: GET /v1/integrations
+- New: GET /v1/integrations/{integrationId}
+- New: GET /v1/integrations/{integrationId}/deployments
+- New: GET /v1/integrations/{integrationId}/deployments/{deploymentId}
+- New: GET /v1/integrations/{integrationId}/releases
+- New: GET /v1/sites/{siteId}/releases
+- New: POST /v1/apps/{functionId}/releases/accept
+- New: POST /v1/apps/releases/rebuild
+- New: POST /v1/cubes/{cubeId}/releases/accept
+- New: POST /v1/cubes/{cubeId}/releases/rebuild
+- New: POST /v1/integrations
+- New: POST /v1/integrations/{integrationId}/deployments
+- New: POST /v1/integrations/{integrationId}/deployments/vcs
+- New: POST /v1/integrations/{integrationId}/releases/accept
+- New: POST /v1/integrations/{integrationId}/releases/rebuild
+- New: POST /v1/sites/{siteId}/publish
+- New: POST /v1/sites/{siteId}/releases/accept
+- New: PUT /v1/integrations/{integrationId}
+- 7 operations changed
+
 ## v0.7.9
 - Fixes the release pipeline: v0.7.8 never reached npm or Homebrew.
 

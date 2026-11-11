@@ -79,6 +79,7 @@ import { documentsRegister } from './lib/commands/services/documents-register.js
 import { documentsKinds } from './lib/commands/services/documents-kinds.js';
 import { events } from './lib/commands/services/events.js';
 import { forms } from './lib/commands/services/forms.js';
+import { integrations } from './lib/commands/services/integrations.js';
 import { inventoriesStock } from './lib/commands/services/inventories-stock.js';
 import { inventoriesReservations } from './lib/commands/services/inventories-reservations.js';
 import { inventoriesLocations } from './lib/commands/services/inventories-locations.js';
@@ -399,6 +400,7 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(documentsKinds)
         .addCommand(events)
         .addCommand(forms)
+        .addCommand(integrations)
         .addCommand(inventoriesStock)
         .addCommand(inventoriesReservations)
         .addCommand(inventoriesLocations)
