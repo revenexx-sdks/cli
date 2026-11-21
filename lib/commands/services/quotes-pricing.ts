@@ -66,6 +66,48 @@ quotesPricing
     ),
   );
 registerPromptSpecs(quotesPricing.commands.at(-1)!, expireSpecs, { method: "post" });
+const syncFollowUpsSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "How many quotes of each kind this call settles at most. Default 25.", type: "integer", required: false },
+];
+quotesPricing
+  .command(`sync-follow-ups`)
+  .description(`The follow-up backfill. Closes the open task of every decided or expired quote that still names one, and logs a task on the contact for every open quote whose follow-up customers does not know yet — one set before 1.2.0, or one whose task customers could not take at the time. An open task of the quote for that day is reused. Bounded (\`limit\`, default 25, at most 100 quotes of each kind per call) and idempotent: a settled quote is not selected again, so repeated calls work through the rest. It also closes the task an open quote still holds as a pending close — a follow-up cleared while customers could not close its task. One quote whose task keeps failing holds up no other; a customers app that does not answer, or a run past its time budget (8 s), stops it (\`stopped\`). The hourly expiry sweep runs it too.`)
+  .option(`--limit <limit>`, `How many quotes of each kind this call settles at most. Default 25.`, parseInteger)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { limit } = await promptForMissing(
+          _options,
+          syncFollowUpsSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/quotes/follow-ups/sync`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(quotesPricing.commands.at(-1)!, syncFollowUpsSpecs, { method: "post" });
 const removeItemSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The position.", type: "string", required: true },
   { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
@@ -110,17 +152,19 @@ quotesPricing
 registerPromptSpecs(quotesPricing.commands.at(-1)!, removeItemSpecs, { method: "post" });
 const followUpSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The quote.", type: "string", required: true },
+  { key: "assignee", option: "--assignee <assignee>", name: "assignee", description: "Who does the follow-up — a name or a sales-rep code. Carried onto the task in customers.", type: "string", required: false },
   { key: "followUpAt", option: "--follow-up-at <follow-up-at>", name: "follow_up_at", description: "The day, YYYY-MM-DD. `null` clears it.", type: "string", required: false },
 ];
 quotesPricing
   .command(`follow-up`)
-  .description(`Sets or clears \`follow_up_at\` on an open quote and writes it to the internal trail. The buyer is not told; nothing happens on the day by itself.`)
+  .description(`Sets or clears \`follow_up_at\` on an open quote and writes it to the internal trail. The buyer is not told; nothing happens on the day by itself. Where the quote names a contact, the follow-up is also a task with that due date on the contact in customers (\`follow_up_event_id\`), so the desk works one list of follow-ups and marks each done there. A task of this quote still open for the same day (and the same assignee, when one is named) is reused, so a retry logs nothing new; every other open task of the quote is closed, and a close that fails is named in the trail (\`close_failed_event_ids\`). Moving the day without an assignee keeps the one the task had. A new task is logged first: when customers refuses or cannot be reached, the quote is left as it was. A contact customers no longer knows keeps the day on the quote alone. Accepting the whole quote, declining, rejecting or expiring it closes the task.`)
   .option(`--id <id>`, `The quote.`)
+  .option(`--assignee <assignee>`, `Who does the follow-up — a name or a sales-rep code. Carried onto the task in customers.`)
   .option(`--follow-up-at <follow-up-at>`, `The day, YYYY-MM-DD. \`null\` clears it.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, followUpAt } = await promptForMissing(
+        const { id, assignee, followUpAt } = await promptForMissing(
           _options,
           followUpSpecs,
           _command,
@@ -134,6 +178,9 @@ quotesPricing
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (assignee !== undefined) {
+          _payload[`assignee`] = assignee;
         }
         if (followUpAt !== undefined) {
           _payload[`follow_up_at`] = followUpAt;

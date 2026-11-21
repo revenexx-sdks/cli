@@ -20,9 +20,27 @@ revenexx documents-register documents-create \
     --kind invoice
 ```
 
+## documents-empty-trash
+
+Delete every document in the trash for good
+
+```bash
+revenexx documents-register documents-empty-trash \
+    --body '{ "key": "value" }'
+```
+
+## documents-purge
+
+Delete for good what outlived the trash retention
+
+```bash
+revenexx documents-register documents-purge \
+    --body '{ "key": "value" }'
+```
+
 ## documents-delete
 
-Remove one document from the register
+Move one document to the trash, or delete a trashed one for good
 
 ```bash
 revenexx documents-register documents-delete \
@@ -53,5 +71,14 @@ Mint a short-lived link to one document's bytes
 
 ```bash
 revenexx documents-register documents-link \
+    --id ''
+```
+
+## documents-restore
+
+Take one document back out of the trash
+
+```bash
+revenexx documents-register documents-restore \
     --id ''
 ```

@@ -64,7 +64,7 @@ Send a second-factor code
 
 ```bash
 revenexx customers auth-mfa-challenge \
-    --user-id ''
+    --session-secret ''
 ```
 
 ## auth-mfa-challenge-confirm
@@ -93,8 +93,8 @@ Sign in with a mailed code
 
 ```bash
 revenexx customers auth-otp-confirm \
-    --secret '' \
-    --user-id ''
+    --email einkauf@example.com \
+    --secret ''
 ```
 
 ## auth-recovery

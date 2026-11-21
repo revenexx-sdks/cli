@@ -92,7 +92,7 @@ const listSpecs: PromptSpec[] = [
 ];
 quotesQuotes
   .command(`list`)
-  .description(`The quote list — a merchant's work queue and a buyer's history, depending on who is asking. Filter \`?status=quoted\` for what is waiting on the customer, \`?status=requested\` for what nobody has picked up yet, and \`?owner_id=\` for one salesperson's desk; \`status\` takes several values separated by commas. A call the gateway attributes to a buyer is narrowed to that buyer's organisation whatever it asks for. Newest first unless \`order\` says otherwise.`)
+  .description(`The quote list — a merchant's work queue and a buyer's history, depending on who is asking. Filter \`?status=quoted\` for what is waiting on the customer, \`?status=requested\` for what nobody has picked up yet, and \`?owner_id=\` for one salesperson's desk; \`status\` takes several values separated by commas. A call the gateway attributes to a buyer is narrowed to that buyer's organisation whatever it asks for. Newest first unless \`order\` says otherwise. A SALES REP (a caller the rep portal asserts) is answered only the quotes of the organizations they cover in sales-reps — any other quote is absent from a list and its total, and a 404 at its address — and reads the detail as the customer does.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. The column has to be one this entity has.`)
@@ -292,7 +292,7 @@ const getSpecs: PromptSpec[] = [
 ];
 quotesQuotes
   .command(`get`)
-  .description(`The quote record without its positions. For everything at once — positions, trail and attachments — read the detail.`)
+  .description(`The quote record without its positions. For everything at once — positions, trail and attachments — read the detail. A SALES REP (a caller the rep portal asserts) is answered only the quotes of the organizations they cover in sales-reps — any other quote is absent from a list and its total, and a 404 at its address — and reads the detail as the customer does.`)
   .option(`--id <id>`, `The quote.`)
   .action(
     actionRunner(
@@ -369,7 +369,7 @@ const detailSpecs: PromptSpec[] = [
 ];
 quotesQuotes
   .command(`detail`)
-  .description(`The whole quote in one call: the record, its positions in order, the trail of every move and note, and the attachments. This is what a record page and a storefront both read. A buyer — or any caller asking with \`audience=customer\` — reads only the entries and files meant for the customer; the merchant's internal notes stay on the merchant's side. Another organisation's quote does not exist for a buyer.`)
+  .description(`The whole quote in one call: the record, its positions in order, the trail of every move and note, and the attachments. This is what a record page and a storefront both read. A buyer — or any caller asking with \`audience=customer\` — reads only the entries and files meant for the customer; the merchant's internal notes stay on the merchant's side. Another organisation's quote does not exist for a buyer. A SALES REP (a caller the rep portal asserts) is answered only the quotes of the organizations they cover in sales-reps — any other quote is absent from a list and its total, and a 404 at its address — and reads the detail as the customer does.`)
   .option(`--id <id>`, `The quote.`)
   .option(`--audience <audience>`, `Read the quote as its customer sees it: internal notes and files left out.`)
   .action(

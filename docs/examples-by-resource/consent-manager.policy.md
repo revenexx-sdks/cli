@@ -16,6 +16,15 @@ Save the banner draft for this market
 revenexx consent-manager-policy banner-update
 ```
 
+## banner-update-by-id
+
+Save one banner draft by its id
+
+```bash
+revenexx consent-manager-policy banner-update-by-id \
+    --id ''
+```
+
 ## versions-list
 
 List the published versions

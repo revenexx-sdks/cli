@@ -87,12 +87,38 @@ revenexx products product-associations-update \
     --id ''
 ```
 
+## release-migration
+
+Release the enabled drafts from before the release status, once
+
+```bash
+revenexx products release-migration
+```
+
 ## setup
 
 Read the setup checklist
 
 ```bash
 revenexx products setup
+```
+
+## setup-unmark
+
+Remove the hand mark from a setup step
+
+```bash
+revenexx products setup-unmark \
+    --key release
+```
+
+## setup-mark
+
+Mark a setup step done by hand
+
+```bash
+revenexx products setup-mark \
+    --key release
 ```
 
 ## tax-classes-usage
@@ -102,6 +128,14 @@ Count the products using a tax class
 ```bash
 revenexx products tax-classes-usage \
     --code reduced
+```
+
+## thumbnails-refresh
+
+Store the thumbnail of every product again
+
+```bash
+revenexx products thumbnails-refresh
 ```
 
 ## empty-trash

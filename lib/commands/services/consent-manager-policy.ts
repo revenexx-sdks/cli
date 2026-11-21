@@ -108,6 +108,86 @@ consentManagerPolicy
     ),
   );
 registerPromptSpecs(consentManagerPolicy.commands.at(-1)!, bannerUpdateSpecs, { method: "put" });
+const bannerUpdateByIdSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The banner draft.", type: "string", required: true, resource: { listPath: "/consent-manager/banner", hasLimit: false } },
+  { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "As a form echoes it. Ignored — server-set.", type: "string", required: false },
+  { key: "idBody", option: "--id-body <id-body>", name: "id_body", description: "The row's id, as a form echoes it. Ignored — the path names the row.", type: "string", required: false },
+  { key: "imprintUrl", option: "--imprint-url <imprint-url>", name: "imprint_url", description: "The shop's imprint, linked from the first layer.", type: "string", required: false },
+  { key: "layout", option: "--layout <layout>", name: "layout", description: "The layout this draft asks for — box, bar or modal — or null to follow the `banner_layout` setting.", type: "string", required: false, enum: ["box","bar","modal"] },
+  { key: "market", option: "--market <market>", name: "market", description: "The draft's market as stored. Another market is refused with 422 `market_immutable`.", type: "string", required: false },
+  { key: "privacyUrl", option: "--privacy-url <privacy-url>", name: "privacy_url", description: "The shop's privacy policy, linked from the first layer.", type: "string", required: false },
+  { key: "texts", option: "--texts <texts>", name: "texts", description: "The banner's labels per language: { \"de\": { \"title\": …, \"body\": …, \"accept_all\": …, \"reject_all\": …, \"settings\": …, \"save\": … } }. Required per language before publishing: title, body, accept_all, reject_all, settings, save. Optional: preferences_title, preferences_body, object, load_once, gate_text, privacy_link, cookie_details, always_active, close.", type: "object", required: false },
+  { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "As a form echoes it. Ignored — server-set.", type: "string", required: false },
+];
+consentManagerPolicy
+  .command(`banner-update-by-id`)
+  .description(`Partial update of one market's draft, named by its own id — for a screen that lists every market's draft and edits the row it was given. The draft keeps its market; the rules are those of PUT /consent-manager/banner. Nothing a visitor sees changes until the next publish.`)
+  .alias("consent-manager-banner-update-by-id")
+  .option(`--id <id>`, `The banner draft.`)
+  .option(`--created-at <created-at>`, `As a form echoes it. Ignored — server-set.`)
+  .option(`--id-body <id-body>`, `The row's id, as a form echoes it. Ignored — the path names the row.`)
+  .option(`--imprint-url <imprint-url>`, `The shop's imprint, linked from the first layer.`)
+  .option(`--layout <layout>`, `The layout this draft asks for — box, bar or modal — or null to follow the \`banner_layout\` setting.`)
+  .option(`--market <market>`, `The draft's market as stored. Another market is refused with 422 \`market_immutable\`.`)
+  .option(`--privacy-url <privacy-url>`, `The shop's privacy policy, linked from the first layer.`)
+  .option(`--texts <texts>`, `The banner's labels per language: { "de": { "title": …, "body": …, "accept_all": …, "reject_all": …, "settings": …, "save": … } }. Required per language before publishing: title, body, accept_all, reject_all, settings, save. Optional: preferences_title, preferences_body, object, load_once, gate_text, privacy_link, cookie_details, always_active, close.`)
+  .option(`--updated-at <updated-at>`, `As a form echoes it. Ignored — server-set.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, createdAt, idBody, imprintUrl, layout, market, privacyUrl, texts, updatedAt } = await promptForMissing(
+          _options,
+          bannerUpdateByIdSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/consent-manager/banner/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (createdAt !== undefined) {
+          _payload[`created_at`] = createdAt;
+        }
+        if (idBody !== undefined) {
+          _payload[`id`] = idBody;
+        }
+        if (imprintUrl !== undefined) {
+          _payload[`imprint_url`] = imprintUrl;
+        }
+        if (layout !== undefined) {
+          _payload[`layout`] = layout;
+        }
+        if (market !== undefined) {
+          _payload[`market`] = market;
+        }
+        if (privacyUrl !== undefined) {
+          _payload[`privacy_url`] = privacyUrl;
+        }
+        if (texts !== undefined) {
+          _payload[`texts`] = resolveBodyParam(texts);
+        }
+        if (updatedAt !== undefined) {
+          _payload[`updated_at`] = updatedAt;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `put`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(consentManagerPolicy.commands.at(-1)!, bannerUpdateByIdSpecs, { method: "put" });
 const versionsListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to rows whose `id` is exactly this value. The row's own id, generated by the database. A caller never sends one; it reads one back and puts it in the path of later calls.", type: "string", required: false },
   { key: "number", option: "--number <number>", name: "number", description: "Filter to rows whose `number` is exactly this value. The version's number. It rises with every publish across what the publishing call can see, and the visitor's cookie remembers the number it was asked under.", type: "integer", required: false },

@@ -122,3 +122,12 @@ Update a form
 revenexx forms update \
     --id ''
 ```
+
+## preview-grant
+
+Issue a preview grant
+
+```bash
+revenexx forms preview-grant \
+    --id ''
+```

@@ -129,18 +129,20 @@ const pagesSpecs: PromptSpec[] = [
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. A column this entity does not have, or any other shape, is refused with 400.", type: "string", required: false },
   { key: "bundle", option: "--bundle <bundle>", name: "bundle", description: "Exact page type — how a theme asks for just its landing pages. The value set belongs to the active theme.", type: "string", required: false },
+  { key: "updatedSince", option: "--updated-since <updated-since>", name: "updated_since", description: "Only pages whose record changed at or after this moment (`updated_at`). A publish, a status change and a restore all change it. Anything that is not an ISO 8601 date-time is refused with 400.", type: "string", required: false },
 ];
 pagesDelivery
   .command(`pages`)
-  .description(`The route a sitemap, a static build or a link picker is generated from. Only published pages, never a soft-deleted one — \`filter\` echoes both predicates the route applies on its own. A \`?status=\` of your own is ignored: this route is the published view by definition.`)
+  .description(`The route a sitemap, a static build or a link picker is generated from. Only pages that can be delivered — published AND pointing at the revision a publish wrote, so a page created under a "published" default and never published is not listed — and never a soft-deleted one; \`filter\` echoes the predicates the route applies on its own. A \`?status=\` of your own is ignored: this route is the published view by definition. Each page comes with its addresses in every language, the storefront route it is served at when that is not its slug, when it went live, whether it may be indexed, and whether it renders as another record's template. \`?updated_since=\` keeps a rebuild to the pages that changed. A page that stops being published drops out of this list; that is announced as \`page.unpublished\`, \`page.archived\` or \`page.trashed\`, and a page deleted outright as \`page.deleted\`, each with the page id as \`topic_id\`.`)
   .option(`--limit <limit>`, `Page size (default 100, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. A column this entity does not have, or any other shape, is refused with 400.`)
   .option(`--bundle <bundle>`, `Exact page type — how a theme asks for just its landing pages. The value set belongs to the active theme.`)
+  .option(`--updated-since <updated-since>`, `Only pages whose record changed at or after this moment (\`updated_at\`). A publish, a status change and a restore all change it. Anything that is not an ISO 8601 date-time is refused with 400.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, bundle } = await promptForMissing(
+        const { limit, offset, order, bundle, updatedSince } = await promptForMissing(
           _options,
           pagesSpecs,
           _command,
@@ -159,6 +161,9 @@ pagesDelivery
         }
         if (bundle !== undefined) {
           _payload[`bundle`] = bundle;
+        }
+        if (updatedSince !== undefined) {
+          _payload[`updated_since`] = updatedSince;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

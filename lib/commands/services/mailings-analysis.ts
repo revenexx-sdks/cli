@@ -295,7 +295,7 @@ const statsSpecs: PromptSpec[] = [
 ];
 mailingsAnalysis
   .command(`stats`)
-  .description(`Recipient outcomes, deliveries, bounces, opens by people and by machines apart, clicks, click rate, click-to-open, unsubscribes, complaints and revenue. Rates are computed from unique clicks and human opens only. \`funnel\`, \`attention\` and \`outcomes\` carry the same figures as rows of label and value, worded in the caller language.`)
+  .description(`Recipient outcomes, deliveries, bounces, opens by people and by machines apart, clicks, click rate, click-to-open, unsubscribes, complaints and revenue. Rates are computed from unique clicks and human opens only. \`funnel\`, \`attention\` and \`outcomes\` carry the same figures as rows of label and value, worded in the caller language. A mailing with A/B variants also answers \`ab\` (rule, state, winner, how and when it was decided) and \`variants\` with the figures of each.`)
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(

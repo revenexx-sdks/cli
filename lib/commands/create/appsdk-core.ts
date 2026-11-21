@@ -47,6 +47,10 @@ export interface BuiltEntity {
   pk: string;
   columns: Record<string, ColumnDef>;
   ops: Op[];
+  /** schema.json `trash: true` — carried so the runtime knows the columns it adds. */
+  trash?: true;
+  /** schema.json `external_id: true` — carried so the runtime knows the column it adds. */
+  external_id?: true;
 }
 
 export interface Manifest {
@@ -69,8 +73,26 @@ export interface BuiltEvent {
 }
 
 export interface Schema {
-  entities?: Record<string, { columns?: Record<string, ColumnDef> }>;
+  entities?: Record<string, { columns?: Record<string, ColumnDef>; trash?: boolean; external_id?: boolean }>;
 }
+
+/**
+ * The columns Baseline adds for an entity's schema flags (schema.schema.json):
+ * `trash: true` adds five nullable columns, `external_id: true` adds one. They
+ * exist in the table whether or not the App declares them, so the generated
+ * descriptor lists them — the runtime refuses a write naming a key that is not
+ * a column, and the trash routes and an import write exactly these.
+ */
+export const TRASH_FLAG_COLUMNS: Record<string, ColumnDef> = {
+  deleted_at: { type: "timestamptz" },
+  deleted_by: { type: "text" },
+  deleted_by_id: { type: "text" },
+  trash_batch: { type: "uuid" },
+  purge_blocked_reason: { type: "text" },
+};
+export const EXTERNAL_ID_FLAG_COLUMNS: Record<string, ColumnDef> = {
+  external_id: { type: "text" },
+};
 
 /** Lowercase snake_case, mirroring Baseline's NamespaceResolver::normalizeSlug. */
 export function slug(raw: string): string {
@@ -102,9 +124,18 @@ export function buildEntities(args: {
   const out: Record<string, BuiltEntity> = {};
 
   for (const [name, def] of Object.entries(args.schema.entities ?? {})) {
-    const columns = def.columns ?? {};
+    // A column the App declares itself wins: Baseline keeps it (it may be
+    // notNull, or a plain timestamp), so its declaration is the truth.
+    const columns: Record<string, ColumnDef> = {
+      ...(def.trash === true ? TRASH_FLAG_COLUMNS : {}),
+      ...(def.external_id === true ? EXTERNAL_ID_FLAG_COLUMNS : {}),
+      ...(def.columns ?? {}),
+    };
+    // Declared order first, the added columns after it.
+    const ordered: Record<string, ColumnDef> = { ...(def.columns ?? {}) };
+    for (const [col, c] of Object.entries(columns)) if (!(col in ordered)) ordered[col] = c;
     let pk = "id";
-    for (const [col, c] of Object.entries(columns)) {
+    for (const [col, c] of Object.entries(ordered)) {
       if (c?.pk) {
         pk = col;
         break;
@@ -113,8 +144,10 @@ export function buildEntities(args: {
     out[name] = {
       table: tableName(args.vendor, args.app, name),
       pk,
-      columns,
+      columns: ordered,
       ops: [...opsFromAccess(access[name] ?? [])],
+      ...(def.trash === true ? { trash: true as const } : {}),
+      ...(def.external_id === true ? { external_id: true as const } : {}),
     };
   }
   return out;
@@ -434,9 +467,18 @@ function emitJs(
   emitFn: string,
   runtimeModule: string,
 ): string {
-  const descriptor: Record<string, Pick<BuiltEntity, "table" | "pk" | "ops" | "columns">> = {};
+  const descriptor: Record<string, Pick<BuiltEntity, "table" | "pk" | "ops" | "columns" | "trash" | "external_id">> = {};
   for (const [name, e] of Object.entries(entities)) {
-    descriptor[name] = { table: e.table, pk: e.pk, ops: e.ops, columns: e.columns };
+    // The flags only when set: an entity without them generates exactly what
+    // it generated before.
+    descriptor[name] = {
+      table: e.table,
+      pk: e.pk,
+      ops: e.ops,
+      columns: e.columns,
+      ...(e.trash ? { trash: e.trash } : {}),
+      ...(e.external_id ? { external_id: e.external_id } : {}),
+    };
   }
 
   // An App that fires nothing generates exactly what it generated before: no
@@ -565,7 +607,7 @@ export interface CreateDbConfig {
 }
 
 export declare function createDb(config: CreateDbConfig): Db;
-export declare const ENTITIES: Record<string, { table: string; pk: string; ops: string[]; columns: Record<string, unknown> }>;
+export declare const ENTITIES: Record<string, { table: string; pk: string; ops: string[]; columns: Record<string, unknown>; trash?: true; external_id?: true }>;
 `;
 }
 
@@ -722,6 +764,9 @@ ${methods.join("\n\n")}
 }
 
 function entityFactory(name: string, entity: BuiltEntity): string {
+  // The flags are not passed as named arguments: an older PHP runtime has no
+  // such parameter and would fail at boot. The added columns are in `columns`
+  // already, which every runtime reads.
   const cols = JSON.stringify(entity.columns);
   const ops = entity.ops.map((o) => `'${o}'`).join(", ");
   return `            '${name}' => new Entity(

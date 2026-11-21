@@ -136,7 +136,7 @@ const createSpecs: PromptSpec[] = [
   { key: "externalConversionRef", option: "--external-conversion-ref <external-conversion-ref>", name: "external_conversion_ref", description: "The conversion action or event name on the platform.", type: "string", required: false },
   { key: "fixedValue", option: "--fixed-value <fixed-value>", name: "fixed_value", description: "The value when value_source is fixed.", type: "number", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
-  { key: "valueSource", option: "--value-source <value-source>", name: "value_source", description: "`order_net` (goods after discount, no tax or freight), `order_gross`, `fixed` or `none`.", type: "string", required: false, enum: ["order_net","order_gross","fixed","none"] },
+  { key: "valueSource", option: "--value-source <value-source>", name: "value_source", description: "`order_net` (goods after discount, no tax or freight), `order_gross`, `fixed` or `none`. A sign-up or a form has no order, so it reports a value only when it is `fixed`.", type: "string", required: false, enum: ["order_net","order_gross","fixed","none"] },
 ];
 adsRules
   .command(`create`)
@@ -154,7 +154,7 @@ adsRules
   .option(`--external-conversion-ref <external-conversion-ref>`, `The conversion action or event name on the platform.`)
   .option(`--fixed-value <fixed-value>`, `The value when value_source is fixed.`, parseInteger)
   .option(`--metadata <metadata>`, `Free-form JSON a caller may keep on the row. Nothing here reads it.`)
-  .option(`--value-source <value-source>`, `\`order_net\` (goods after discount, no tax or freight), \`order_gross\`, \`fixed\` or \`none\`.`)
+  .option(`--value-source <value-source>`, `\`order_net\` (goods after discount, no tax or freight), \`order_gross\`, \`fixed\` or \`none\`. A sign-up or a form has no order, so it reports a value only when it is \`fixed\`.`)
   .action(
     actionRunner(
       async (_options, _command) => {
@@ -289,7 +289,7 @@ const updateSpecs: PromptSpec[] = [
   { key: "fixedValue", option: "--fixed-value <fixed-value>", name: "fixed_value", description: "The value when value_source is fixed.", type: "number", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "What the merchant calls the rule.", type: "string", required: false },
-  { key: "valueSource", option: "--value-source <value-source>", name: "value_source", description: "`order_net` (goods after discount, no tax or freight), `order_gross`, `fixed` or `none`.", type: "string", required: false, enum: ["order_net","order_gross","fixed","none"] },
+  { key: "valueSource", option: "--value-source <value-source>", name: "value_source", description: "`order_net` (goods after discount, no tax or freight), `order_gross`, `fixed` or `none`. A sign-up or a form has no order, so it reports a value only when it is `fixed`.", type: "string", required: false, enum: ["order_net","order_gross","fixed","none"] },
 ];
 adsRules
   .command(`update`)
@@ -308,7 +308,7 @@ adsRules
   .option(`--fixed-value <fixed-value>`, `The value when value_source is fixed.`, parseInteger)
   .option(`--metadata <metadata>`, `Free-form JSON a caller may keep on the row. Nothing here reads it.`)
   .option(`--name <name>`, `What the merchant calls the rule.`)
-  .option(`--value-source <value-source>`, `\`order_net\` (goods after discount, no tax or freight), \`order_gross\`, \`fixed\` or \`none\`.`)
+  .option(`--value-source <value-source>`, `\`order_net\` (goods after discount, no tax or freight), \`order_gross\`, \`fixed\` or \`none\`. A sign-up or a form has no order, so it reports a value only when it is \`fixed\`.`)
   .action(
     actionRunner(
       async (_options, _command) => {

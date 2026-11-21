@@ -18,6 +18,14 @@ revenexx payments-methods create \
     --name Invoice
 ```
 
+## cleanup
+
+Remove copied description languages
+
+```bash
+revenexx payments-methods cleanup
+```
+
 ## defaults
 
 Seed the default methods and providers

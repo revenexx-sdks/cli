@@ -283,6 +283,15 @@ revenexx products-data-model families-update \
     --id ''
 ```
 
+## families-completeness
+
+Re-measure a family's products
+
+```bash
+revenexx products-data-model families-completeness \
+    --id ''
+```
+
 ## family-attributes-list
 
 List family attributes

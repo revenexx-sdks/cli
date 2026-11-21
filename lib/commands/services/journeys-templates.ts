@@ -33,6 +33,7 @@ const listSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Keep only rows whose `id` equals this.", type: "string", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "Keep only rows whose `code` equals this.", type: "string", required: false },
   { key: "tier", option: "--tier <tier>", name: "tier", description: "Keep only rows whose `tier` equals this.", type: "string", required: false },
+  { key: "availability", option: "--availability <availability>", name: "availability", description: "Keep only rows whose `availability` equals this.", type: "string", required: false },
   { key: "triggerKind", option: "--trigger-kind <trigger-kind>", name: "trigger_kind", description: "Keep only rows whose `trigger_kind` equals this.", type: "string", required: false },
   { key: "position", option: "--position <position>", name: "position", description: "Keep only rows whose `position` equals this.", type: "string", required: false },
   { key: "active", option: "--active <active>", name: "active", description: "Keep only rows whose `active` equals this.", type: "string", required: false },
@@ -47,6 +48,7 @@ journeysTemplates
   .option(`--id <id>`, `Keep only rows whose \`id\` equals this.`)
   .option(`--code <code>`, `Keep only rows whose \`code\` equals this.`)
   .option(`--tier <tier>`, `Keep only rows whose \`tier\` equals this.`)
+  .option(`--availability <availability>`, `Keep only rows whose \`availability\` equals this.`)
   .option(`--trigger-kind <trigger-kind>`, `Keep only rows whose \`trigger_kind\` equals this.`)
   .option(`--position <position>`, `Keep only rows whose \`position\` equals this.`)
   .option(`--active <active>`, `Keep only rows whose \`active\` equals this.`)
@@ -59,7 +61,7 @@ journeysTemplates
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, code, tier, triggerKind, position, active, filter } = await promptForMissing(
+        const { limit, offset, order, id, code, tier, availability, triggerKind, position, active, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -84,6 +86,9 @@ journeysTemplates
         }
         if (tier !== undefined) {
           _payload[`tier`] = tier;
+        }
+        if (availability !== undefined) {
+          _payload[`availability`] = availability;
         }
         if (triggerKind !== undefined) {
           _payload[`trigger_kind`] = triggerKind;
@@ -115,6 +120,86 @@ journeysTemplates
     ),
   );
 registerPromptSpecs(journeysTemplates.commands.at(-1)!, listSpecs, { method: "get" });
+const defaultsSpecs: PromptSpec[] = [
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
+];
+journeysTemplates
+  .command(`defaults`)
+  .description(`Deprecated since 0.4.1: use \`POST /journeys/templates/ensure\` (\`journeys.templates.ensure\`). This alias runs the same handler and gives the same answer. Idempotent: writes every shipped template that has no row and corrects one whose flow changed. A template another request wrote in the meantime is answered as existing. Always runs on real time, never backdated.`)
+  .option(`--body <body>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { body } = await promptForMissing(
+          _options,
+          defaultsSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/journeys/templates/defaults`;
+        const _payload: RequestParams = {};
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(journeysTemplates.commands.at(-1)!, defaultsSpecs, { method: "post" });
+const ensureSpecs: PromptSpec[] = [
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
+];
+journeysTemplates
+  .command(`ensure`)
+  .description(`Idempotent: writes every shipped template that has no row and corrects one whose flow changed. Installing the app does the same; this is the write for a tenant installed without them. Reading the template list never writes. A template another request wrote in the meantime is answered as existing. Always runs on real time, never backdated.`)
+  .option(`--body <body>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { body } = await promptForMissing(
+          _options,
+          ensureSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/journeys/templates/ensure`;
+        const _payload: RequestParams = {};
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(journeysTemplates.commands.at(-1)!, ensureSpecs, { method: "post" });
 const copySpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "e.g. cart_recovery", type: "string", required: true, resource: { listPath: "/journeys/templates", hasLimit: true } },
   { key: "name", option: "--name <name>", name: "name", description: "Defaults to the template name.", type: "string", required: false },

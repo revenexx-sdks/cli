@@ -43,6 +43,7 @@ const listSpecs: PromptSpec[] = [
   { key: "starter", option: "--starter <starter>", name: "starter", description: "Keep only rows whose `starter` equals this.", type: "string", required: false },
   { key: "timezoneMode", option: "--timezone-mode <timezone-mode>", name: "timezone_mode", description: "Keep only rows whose `timezone_mode` equals this.", type: "string", required: false },
   { key: "duplicatedFromId", option: "--duplicated-from-id <duplicated-from-id>", name: "duplicated_from_id", description: "Keep only rows whose `duplicated_from_id` equals this.", type: "string", required: false },
+  { key: "abStatus", option: "--ab-status <ab-status>", name: "ab_status", description: "Keep only rows whose `ab_status` equals this.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 mailingsMailings
@@ -62,6 +63,7 @@ mailingsMailings
   .option(`--starter <starter>`, `Keep only rows whose \`starter\` equals this.`)
   .option(`--timezone-mode <timezone-mode>`, `Keep only rows whose \`timezone_mode\` equals this.`)
   .option(`--duplicated-from-id <duplicated-from-id>`, `Keep only rows whose \`duplicated_from_id\` equals this.`)
+  .option(`--ab-status <ab-status>`, `Keep only rows whose \`ab_status\` equals this.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -71,7 +73,7 @@ mailingsMailings
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, trashed, id, state, folder, campaignRef, audienceId, subscriptionType, templateKey, starter, timezoneMode, duplicatedFromId, filter } = await promptForMissing(
+        const { limit, offset, order, trashed, id, state, folder, campaignRef, audienceId, subscriptionType, templateKey, starter, timezoneMode, duplicatedFromId, abStatus, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -121,6 +123,9 @@ mailingsMailings
         if (duplicatedFromId !== undefined) {
           _payload[`duplicated_from_id`] = duplicatedFromId;
         }
+        if (abStatus !== undefined) {
+          _payload[`ab_status`] = abStatus;
+        }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
           if (_eq <= 0) {
@@ -144,6 +149,8 @@ mailingsMailings
 registerPromptSpecs(mailingsMailings.commands.at(-1)!, listSpecs, { method: "get" });
 const createSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "What the marketer calls the mailing, e.g. Black Week Newsletter. Not shown to recipients.", type: "string", required: true },
+  { key: "abWaitHours", option: "--ab-wait-hours <ab-wait-hours>", name: "ab_wait_hours", description: "Hours after the variants went out before the rule decides, 1 to 168. Default 4.", type: "integer", required: false },
+  { key: "abWinnerRule", option: "--ab-winner-rule <ab-winner-rule>", name: "ab_winner_rule", description: "How the winner of an A/B test is decided: open_rate or click_rate after ab_wait_hours, or manual. Default click_rate.", type: "string", required: false, enum: ["open_rate","click_rate","manual"] },
   { key: "audienceId", option: "--audience-id <audience-id>", name: "audience_id", description: "The audiences app audience the mailing goes to.", type: "string", required: false },
   { key: "campaignRef", option: "--campaign-ref <campaign-ref>", name: "campaign_ref", description: "The campaign that claimed this mailing. Written by the campaigns app; filter `?campaign_ref=` to list a campaign mails.", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "Three-letter currency code, e.g. EUR.", type: "string", required: false },
@@ -167,6 +174,8 @@ mailingsMailings
   .command(`create`)
   .description(`A new draft. The sender and its name default to the market settings when not given.`)
   .option(`--name <name>`, `What the marketer calls the mailing, e.g. Black Week Newsletter. Not shown to recipients.`)
+  .option(`--ab-wait-hours <ab-wait-hours>`, `Hours after the variants went out before the rule decides, 1 to 168. Default 4.`, parseInteger)
+  .option(`--ab-winner-rule <ab-winner-rule>`, `How the winner of an A/B test is decided: open_rate or click_rate after ab_wait_hours, or manual. Default click_rate.`)
   .option(`--audience-id <audience-id>`, `The audiences app audience the mailing goes to.`)
   .option(`--campaign-ref <campaign-ref>`, `The campaign that claimed this mailing. Written by the campaigns app; filter \`?campaign_ref=\` to list a campaign mails.`)
   .option(`--currency <currency>`, `Three-letter currency code, e.g. EUR.`)
@@ -193,7 +202,7 @@ mailingsMailings
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { name, audienceId, campaignRef, currency, excludeAudienceIds, graymail, graymailSends, metadata, previewText, replyTo, sendAt, sender, senderName, starter, subject, subscriptionType, templateKey, timezoneMode, voucherBatchId } = await promptForMissing(
+        const { name, abWaitHours, abWinnerRule, audienceId, campaignRef, currency, excludeAudienceIds, graymail, graymailSends, metadata, previewText, replyTo, sendAt, sender, senderName, starter, subject, subscriptionType, templateKey, timezoneMode, voucherBatchId } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -207,6 +216,12 @@ mailingsMailings
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (abWaitHours !== undefined) {
+          _payload[`ab_wait_hours`] = abWaitHours;
+        }
+        if (abWinnerRule !== undefined) {
+          _payload[`ab_winner_rule`] = abWinnerRule;
         }
         if (audienceId !== undefined) {
           _payload[`audience_id`] = audienceId;
@@ -390,6 +405,8 @@ mailingsMailings
 registerPromptSpecs(mailingsMailings.commands.at(-1)!, getSpecs, { method: "get" });
 const updateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/mailings/mailings", hasLimit: true } },
+  { key: "abWaitHours", option: "--ab-wait-hours <ab-wait-hours>", name: "ab_wait_hours", description: "Hours after the variants went out before the rule decides, 1 to 168. Default 4.", type: "integer", required: false },
+  { key: "abWinnerRule", option: "--ab-winner-rule <ab-winner-rule>", name: "ab_winner_rule", description: "How the winner of an A/B test is decided: open_rate or click_rate after ab_wait_hours, or manual. Default click_rate.", type: "string", required: false, enum: ["open_rate","click_rate","manual"] },
   { key: "audienceId", option: "--audience-id <audience-id>", name: "audience_id", description: "The audiences app audience the mailing goes to.", type: "string", required: false },
   { key: "campaignRef", option: "--campaign-ref <campaign-ref>", name: "campaign_ref", description: "The campaign that claimed this mailing. Written by the campaigns app; filter `?campaign_ref=` to list a campaign mails.", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "Three-letter currency code, e.g. EUR.", type: "string", required: false },
@@ -414,6 +431,8 @@ mailingsMailings
   .command(`update`)
   .description(`A draft (or a cancelled or failed mailing nobody received) changes freely. In every other state only \`name\`, \`campaign_ref\` and \`metadata\` change — the campaigns app claims a mailing in any state.`)
   .option(`--id <id>`, `The row id, as it came back from the list.`)
+  .option(`--ab-wait-hours <ab-wait-hours>`, `Hours after the variants went out before the rule decides, 1 to 168. Default 4.`, parseInteger)
+  .option(`--ab-winner-rule <ab-winner-rule>`, `How the winner of an A/B test is decided: open_rate or click_rate after ab_wait_hours, or manual. Default click_rate.`)
   .option(`--audience-id <audience-id>`, `The audiences app audience the mailing goes to.`)
   .option(`--campaign-ref <campaign-ref>`, `The campaign that claimed this mailing. Written by the campaigns app; filter \`?campaign_ref=\` to list a campaign mails.`)
   .option(`--currency <currency>`, `Three-letter currency code, e.g. EUR.`)
@@ -441,7 +460,7 @@ mailingsMailings
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, audienceId, campaignRef, currency, excludeAudienceIds, graymail, graymailSends, metadata, name, previewText, replyTo, sendAt, sender, senderName, starter, subject, subscriptionType, templateKey, timezoneMode, voucherBatchId } = await promptForMissing(
+        const { id, abWaitHours, abWinnerRule, audienceId, campaignRef, currency, excludeAudienceIds, graymail, graymailSends, metadata, name, previewText, replyTo, sendAt, sender, senderName, starter, subject, subscriptionType, templateKey, timezoneMode, voucherBatchId } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -455,6 +474,12 @@ mailingsMailings
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (abWaitHours !== undefined) {
+          _payload[`ab_wait_hours`] = abWaitHours;
+        }
+        if (abWinnerRule !== undefined) {
+          _payload[`ab_winner_rule`] = abWinnerRule;
         }
         if (audienceId !== undefined) {
           _payload[`audience_id`] = audienceId;
@@ -616,7 +641,7 @@ const checklistSpecs: PromptSpec[] = [
 ];
 mailingsMailings
   .command(`checklist`)
-  .description(`Every item with ok, severity (error or warning), state (ok, warning or error), its label and the problem as a sentence in the caller language (Accept-Language; German unless English is asked for), and where to put it right (action: route and label); errors first, then warnings: subject, preview text, sender, audience, subscription type, marketing template, footer address, unsubscribe link, links, image descriptions, voucher batch, send time. \`ready\` is true when no error stands.`)
+  .description(`Every item with ok, severity (error or warning), state (ok, warning or error), its label and the problem as a sentence in the caller language (Accept-Language; German unless English is asked for), and where to put it right (action: route and label); errors first, then warnings: subject, preview text, sender, audience, subscription type, marketing template, footer address, unsubscribe link, links, image descriptions, voucher batch, send time, and the A/B variants when the mailing has any. \`ready\` is true when no error stands.`)
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(
@@ -694,6 +719,7 @@ const previewSpecs: PromptSpec[] = [
   { key: "lastName", option: "--last-name <last-name>", name: "last_name", type: "string", required: false },
   { key: "locale", option: "--locale <locale>", name: "locale", type: "string", required: false },
   { key: "market", option: "--market <market>", name: "market", description: "The market code to price and render for.", type: "string", required: false },
+  { key: "variantId", option: "--variant-id <variant-id>", name: "variant_id", description: "Render one A/B variant of this mailing.", type: "string", required: false },
 ];
 mailingsMailings
   .command(`preview`)
@@ -706,10 +732,11 @@ mailingsMailings
   .option(`--last-name <last-name>`, ``)
   .option(`--locale <locale>`, ``)
   .option(`--market <market>`, `The market code to price and render for.`)
+  .option(`--variant-id <variant-id>`, `Render one A/B variant of this mailing.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, contactId, device, email, firstName, lastName, locale, market } = await promptForMissing(
+        const { id, contactId, device, email, firstName, lastName, locale, market, variantId } = await promptForMissing(
           _options,
           previewSpecs,
           _command,
@@ -744,6 +771,9 @@ mailingsMailings
         }
         if (market !== undefined) {
           _payload[`market`] = market;
+        }
+        if (variantId !== undefined) {
+          _payload[`variant_id`] = variantId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -887,6 +917,7 @@ const testSpecs: PromptSpec[] = [
   { key: "locale", option: "--locale <locale>", name: "locale", type: "string", required: false },
   { key: "market", option: "--market <market>", name: "market", type: "string", required: false },
   { key: "recipients", option: "--recipients [recipients...]", name: "recipients", type: "array", required: false },
+  { key: "variantId", option: "--variant-id <variant-id>", name: "variant_id", description: "Send one A/B variant of this mailing.", type: "string", required: false },
 ];
 mailingsMailings
   .command(`test`)
@@ -895,10 +926,11 @@ mailingsMailings
   .option(`--locale <locale>`, ``)
   .option(`--market <market>`, ``)
   .option(`--recipients [recipients...]`, ``)
+  .option(`--variant-id <variant-id>`, `Send one A/B variant of this mailing.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, locale, market, recipients } = await promptForMissing(
+        const { id, locale, market, recipients, variantId } = await promptForMissing(
           _options,
           testSpecs,
           _command,
@@ -921,6 +953,9 @@ mailingsMailings
         }
         if (recipients !== undefined) {
           _payload[`recipients`] = recipients;
+        }
+        if (variantId !== undefined) {
+          _payload[`variant_id`] = variantId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

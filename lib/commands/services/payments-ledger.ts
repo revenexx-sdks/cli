@@ -164,9 +164,12 @@ const createSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The paying customer contact. Not a foreign key — a payment must survive a contact being merged or erased. Indexed.", type: "string", required: false },
   { key: "country", option: "--country <country>", name: "country", description: "The buyer's ISO 3166-1 alpha-2 country code, for the eligibility check. A method restricted to countries is refused with 422 without it.", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code the amount and the fee are in. The database bounds the length at three characters and nothing else, so lower case is stored as written. Defaults to EUR.", type: "string", required: false },
+  { key: "customer", option: "--customer <customer>", name: "customer", description: "Who pays, for a provider that asks for it (Novalnet does): handed over with the payment and stored nowhere. Every field optional. A complete `billing` lets the provider's payment page skip its own address form.", type: "object", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this payment has in the system that BOOKED it — the ERP's own document number for the receipt. A different thing from `psp_payment_id`, which is the provider's own transaction id: one payment is known to two systems and this is the merchant's side of that pair, which is what makes a reconciliation run possible at all. Free text, nullable, and deliberately NOT unique — a payment cannot be updated here, so there is no upsert for a uniqueness rule to serve, and an import that must not book twice sends its key as `idempotency_key` too and gets the same payment back with 200. null for a payment a checkout made, which is the ordinary case.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this payment, keyed by system name — a second ERP, a bank statement reference, a dunning platform. `external_id` is the leading system and `psp_payment_id` is the provider's own; this is the rest. Free jsonb: the database constrains neither the keys nor the values. Not a query parameter — such a column is compared as a WHOLE document, so a filter over part of one is refused rather than answered.", type: "object", required: false },
   { key: "idempotencyKey", option: "--idempotency-key <idempotency-key>", name: "idempotency_key", description: "The caller's own key for this creation attempt. Sending it again answers the SAME payment with 200 instead of creating a second one — which is what makes a retried checkout safe. Unique per tenant, so a filter on it answers at most one row. The replay answers 200, not 201.", type: "string", required: false },
+  { key: "instrument", option: "--instrument <instrument>", name: "instrument", description: "What the buyer pays with, handed to the provider for this one call and written nowhere. A typed instrument is `{ type: '<connector>_<kind>', …fields }` — a type opening with a catalog code and an underscore; any other `type` (`{ type: 'card', token }`) is an untyped token as before — produced by the provider's own card field in the browser: `{ type: 'novalnet_card', pan_hash, unique_id }` from Novalnet's card iframe. The untyped `{ token }` (or the top-level `token`) is a provider token such as Stripe's `pm_…`. No instrument at a connector with a payment page sends the buyer there (`requires_action`, redirect). A connector refuses what it does not take with 422 `instrument_not_accepted` — Novalnet takes no card data and no plain token, only its card field's reference.", type: "object", required: false },
+  { key: "language", option: "--language <language>", name: "language", description: "The language the provider's payment page speaks to the buyer, as a two-letter code. German when absent.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data to keep on the payment. Merged with the keys this app writes itself (`provider_method`, `return_url`, later the cancel/refund reasons), which win on a collision.", type: "object", required: false },
   { key: "orderId", option: "--order-id <order-id>", name: "order_id", description: "The order this payment is for, as the orders app knows it (its uuid). Optional. When it is sent, the payment is checked against the order before anything is written: its currency must be the order's (409 `currency_mismatch`), and together with every payment of the order that is created, requires_action, authorized or captured it must not exceed the order's `grand_total` (409 `amount_exceeds_order`) — several payments per order are fine. A `cancelled` order takes no payment (409 `order_not_payable`); every other order status passes. An order that does not exist is 400 `unknown_order`; an orders app that cannot be asked is 502 `orders_unavailable` and nothing is created. On a buyer's own call the order must be the buyer's (400 `buyer_mismatch`). Left out, the payment is accepted unchecked, as before 1.0 — a purchase under approval has no order yet.", type: "string", required: false },
   { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", description: "The external order reference the checkout wrote onto the payment. It is what POST /payments/orders/{order_ref}/capture resolves and the fallback key a PSP webhook is matched on when it carries no transaction id — so an integration that leaves it null gives up both. Free text with no uniqueness: several payments may share one reference. When a payment is created without `order_id`, a reference that names exactly one order of the tenant — its id or its number — in the payment's currency, with a total the payment fits into, links the payment to that order (`order_id`, `organization_id`); one that does not, or an orders app that does not answer within three seconds, leaves the payment unlinked and is never a refusal.", type: "string", required: false },
@@ -184,9 +187,12 @@ paymentsLedger
   .option(`--contact-id <contact-id>`, `The paying customer contact. Not a foreign key — a payment must survive a contact being merged or erased. Indexed.`)
   .option(`--country <country>`, `The buyer's ISO 3166-1 alpha-2 country code, for the eligibility check. A method restricted to countries is refused with 422 without it.`)
   .option(`--currency <currency>`, `ISO 4217 code the amount and the fee are in. The database bounds the length at three characters and nothing else, so lower case is stored as written. Defaults to EUR.`)
+  .option(`--customer <customer>`, `Who pays, for a provider that asks for it (Novalnet does): handed over with the payment and stored nowhere. Every field optional. A complete \`billing\` lets the provider's payment page skip its own address form.`)
   .option(`--external-id <external-id>`, `The key this payment has in the system that BOOKED it — the ERP's own document number for the receipt. A different thing from \`psp_payment_id\`, which is the provider's own transaction id: one payment is known to two systems and this is the merchant's side of that pair, which is what makes a reconciliation run possible at all. Free text, nullable, and deliberately NOT unique — a payment cannot be updated here, so there is no upsert for a uniqueness rule to serve, and an import that must not book twice sends its key as \`idempotency_key\` too and gets the same payment back with 200. null for a payment a checkout made, which is the ordinary case.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this payment, keyed by system name — a second ERP, a bank statement reference, a dunning platform. \`external_id\` is the leading system and \`psp_payment_id\` is the provider's own; this is the rest. Free jsonb: the database constrains neither the keys nor the values. Not a query parameter — such a column is compared as a WHOLE document, so a filter over part of one is refused rather than answered.`)
   .option(`--idempotency-key <idempotency-key>`, `The caller's own key for this creation attempt. Sending it again answers the SAME payment with 200 instead of creating a second one — which is what makes a retried checkout safe. Unique per tenant, so a filter on it answers at most one row. The replay answers 200, not 201.`)
+  .option(`--instrument <instrument>`, `What the buyer pays with, handed to the provider for this one call and written nowhere. A typed instrument is \`{ type: '<connector>_<kind>', …fields }\` — a type opening with a catalog code and an underscore; any other \`type\` (\`{ type: 'card', token }\`) is an untyped token as before — produced by the provider's own card field in the browser: \`{ type: 'novalnet_card', pan_hash, unique_id }\` from Novalnet's card iframe. The untyped \`{ token }\` (or the top-level \`token\`) is a provider token such as Stripe's \`pm_…\`. No instrument at a connector with a payment page sends the buyer there (\`requires_action\`, redirect). A connector refuses what it does not take with 422 \`instrument_not_accepted\` — Novalnet takes no card data and no plain token, only its card field's reference.`)
+  .option(`--language <language>`, `The language the provider's payment page speaks to the buyer, as a two-letter code. German when absent.`)
   .option(`--metadata <metadata>`, `Free-form data to keep on the payment. Merged with the keys this app writes itself (\`provider_method\`, \`return_url\`, later the cancel/refund reasons), which win on a collision.`)
   .option(`--order-id <order-id>`, `The order this payment is for, as the orders app knows it (its uuid). Optional. When it is sent, the payment is checked against the order before anything is written: its currency must be the order's (409 \`currency_mismatch\`), and together with every payment of the order that is created, requires_action, authorized or captured it must not exceed the order's \`grand_total\` (409 \`amount_exceeds_order\`) — several payments per order are fine. A \`cancelled\` order takes no payment (409 \`order_not_payable\`); every other order status passes. An order that does not exist is 400 \`unknown_order\`; an orders app that cannot be asked is 502 \`orders_unavailable\` and nothing is created. On a buyer's own call the order must be the buyer's (400 \`buyer_mismatch\`). Left out, the payment is accepted unchecked, as before 1.0 — a purchase under approval has no order yet.`)
   .option(`--order-ref <order-ref>`, `The external order reference the checkout wrote onto the payment. It is what POST /payments/orders/{order_ref}/capture resolves and the fallback key a PSP webhook is matched on when it carries no transaction id — so an integration that leaves it null gives up both. Free text with no uniqueness: several payments may share one reference. When a payment is created without \`order_id\`, a reference that names exactly one order of the tenant — its id or its number — in the payment's currency, with a total the payment fits into, links the payment to that order (\`order_id\`, \`organization_id\`); one that does not, or an orders app that does not answer within three seconds, leaves the payment unlinked and is never a refusal.`)
@@ -196,7 +202,7 @@ paymentsLedger
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { amount, methodCode, cartId, contactId, country, currency, externalId, externalRefs, idempotencyKey, metadata, orderId, orderRef, returnUrl, sourceData, sourceSyncedAt } = await promptForMissing(
+        const { amount, methodCode, cartId, contactId, country, currency, customer, externalId, externalRefs, idempotencyKey, instrument, language, metadata, orderId, orderRef, returnUrl, sourceData, sourceSyncedAt } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -226,6 +232,9 @@ paymentsLedger
         if (currency !== undefined) {
           _payload[`currency`] = currency;
         }
+        if (customer !== undefined) {
+          _payload[`customer`] = resolveBodyParam(customer);
+        }
         if (externalId !== undefined) {
           _payload[`external_id`] = externalId;
         }
@@ -234,6 +243,12 @@ paymentsLedger
         }
         if (idempotencyKey !== undefined) {
           _payload[`idempotency_key`] = idempotencyKey;
+        }
+        if (instrument !== undefined) {
+          _payload[`instrument`] = resolveBodyParam(instrument);
+        }
+        if (language !== undefined) {
+          _payload[`language`] = language;
         }
         if (metadata !== undefined) {
           _payload[`metadata`] = resolveBodyParam(metadata);
@@ -483,7 +498,7 @@ paymentsLedger
   );
 registerPromptSpecs(paymentsLedger.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
 const vocabulariesGetSpecs: PromptSpec[] = [
-  { key: "name", option: "--name <name>", name: "name", description: "Which vocabulary to read. The set is closed: GET /payments/vocabularies lists exactly these.", type: "string", required: true, enum: ["connection-states","dunning-stages","fee-types","method-kinds","provider-methods","providers","statuses"], resource: { listPath: "/payments/vocabularies", hasLimit: false } },
+  { key: "name", option: "--name <name>", name: "name", description: "Which vocabulary to read. The set is closed: GET /payments/vocabularies lists exactly these.", type: "string", required: true, enum: ["checkout-modes","connection-states","dunning-stages","fee-types","method-kinds","provider-methods","providers","statuses"], resource: { listPath: "/payments/vocabularies", hasLimit: false } },
 ];
 paymentsLedger
   .command(`vocabularies-get`)
@@ -518,21 +533,23 @@ registerPromptSpecs(paymentsLedger.commands.at(-1)!, vocabulariesGetSpecs, { met
 const webhooksIngestSpecs: PromptSpec[] = [
   { key: "provider", option: "--provider <provider>", name: "provider", description: "The catalog provider code whose callback shape to normalize. Anything the normalizer does not recognise is read as the generic {event, psp_payment_id?, order_ref?, error?} envelope rather than refused.", type: "string", required: true },
   { key: "id", option: "--id <id>", name: "id", description: "The dispatcher's delivery id. Echoed back as `delivery_id` so a delivery and what the ledger did can be correlated.", type: "any", required: false },
+  { key: "receivedAt", option: "--received-at <received-at>", name: "received_at", description: "When the ingress received the callback. A Stripe signature must lie within 300 seconds of it — of the receipt, not of the delivery, so a retry or a redelivery later is still genuine.", type: "any", required: false },
   { key: "request", option: "--request <request>", name: "request", description: "The captured HTTP request as the PSP sent it.", type: "object", required: false },
-  { key: "verified", option: "--verified <verified>", name: "verified", description: "Whether the ingress verified the callback signature against the provider's `webhook_secret`. Only `true` is applied; false, missing or anything else is refused with 422: an endpoint may run in annotate mode, and the ledger stays sovereign over one that does.", type: "any", required: false },
+  { key: "verified", option: "--verified <verified>", name: "verified", description: "Whether the ingress verified the callback at the edge. `true` is taken on the edge's word. Anything else — the payments endpoint runs the edge profile `none`, so its envelopes always say `false` — is verified by this app per provider (`webhook_verification`): a callback it cannot verify is refused with 422 `webhook_unverified`.", type: "any", required: false },
 ];
 paymentsLedger
   .command(`webhooks-ingest`)
-  .description(`The sink a PSP callback ends up in, and an inbound ingress endpoint in the sense of ADR-0066: the provider never posts here directly, it posts to webhooks.revenexx.com, which verifies and captures the delivery and dispatches its envelope to this route through the gateway. That indirection is also what makes this the one override point for PSP callback handling — everything a callback does to the ledger happens here and nowhere else, so a deployment that needs a provider's callbacks normalized differently replaces this operation instead of touching the lifecycle routes. Consumes the dispatch envelope from webhooks.revenexx.com: normalizes the provider callback (stripe payment intents + a generic shape), resolves the payment by psp_payment_id or order_ref and moves the ledger. Facts only move forward — provider retries and redeliveries are idempotent no-ops; unverified envelopes are refused.`)
+  .description(`The sink a PSP callback ends up in, and an inbound ingress endpoint in the sense of ADR-0066: the provider never posts here directly, it posts to webhooks.revenexx.com, which verifies and captures the delivery and dispatches its envelope to this route through the gateway. That indirection is also what makes this the one override point for PSP callback handling — everything a callback does to the ledger happens here and nowhere else, so a deployment that needs a provider's callbacks normalized differently replaces this operation instead of touching the lifecycle routes. Consumes the dispatch envelope from webhooks.revenexx.com: normalizes the provider callback (stripe payment intents, PayPal events, the payment SDK's reading of the provider's own shape + a generic shape), resolves the payment by psp_payment_id or order_ref and moves the ledger. An envelope the edge did not verify is verified here, per the provider's \`webhook_verification\`: the payment SDK checks the provider's signature (prism), the app checks Stripe's signature header or asks PayPal's verify API, or — for a provider whose callback cannot be verified but whose payment can be read back — only the payment id is taken and the status is fetched from the provider (refetch); PayPal or the provider not answering is a 502 the dispatcher retries. Facts only move forward — provider retries and redeliveries are idempotent no-ops; a callback nobody verified is refused.`)
   .alias("payments-webhooks-ingest")
   .option(`--provider <provider>`, `The catalog provider code whose callback shape to normalize. Anything the normalizer does not recognise is read as the generic {event, psp_payment_id?, order_ref?, error?} envelope rather than refused.`)
   .option(`--id <id>`, `The dispatcher's delivery id. Echoed back as \`delivery_id\` so a delivery and what the ledger did can be correlated.`)
+  .option(`--received-at <received-at>`, `When the ingress received the callback. A Stripe signature must lie within 300 seconds of it — of the receipt, not of the delivery, so a retry or a redelivery later is still genuine.`)
   .option(`--request <request>`, `The captured HTTP request as the PSP sent it.`)
-  .option(`--verified <verified>`, `Whether the ingress verified the callback signature against the provider's \`webhook_secret\`. Only \`true\` is applied; false, missing or anything else is refused with 422: an endpoint may run in annotate mode, and the ledger stays sovereign over one that does.`)
+  .option(`--verified <verified>`, `Whether the ingress verified the callback at the edge. \`true\` is taken on the edge's word. Anything else — the payments endpoint runs the edge profile \`none\`, so its envelopes always say \`false\` — is verified by this app per provider (\`webhook_verification\`): a callback it cannot verify is refused with 422 \`webhook_unverified\`.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { provider, id, request, verified } = await promptForMissing(
+        const { provider, id, receivedAt, request, verified } = await promptForMissing(
           _options,
           webhooksIngestSpecs,
           _command,
@@ -549,6 +566,9 @@ paymentsLedger
         }
         if (id !== undefined) {
           _payload[`id`] = id;
+        }
+        if (receivedAt !== undefined) {
+          _payload[`received_at`] = receivedAt;
         }
         if (request !== undefined) {
           _payload[`request`] = resolveBodyParam(request);
@@ -683,16 +703,18 @@ paymentsLedger
 registerPromptSpecs(paymentsLedger.commands.at(-1)!, captureSpecs, { method: "post" });
 const confirmSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The payment. A uuid — the data plane casts this segment and answers 400, not 404, for anything else.", type: "string", required: true, resource: { listPath: "/payments", hasLimit: true } },
+  { key: "returnParams", option: "--return-params <return-params>", name: "return_params", description: "Every query parameter the provider appended when it sent the buyer back, as received. The app checks what proves the return genuine (Novalnet: `checksum` over `tid`, `status` and the secret the app kept) and then reads the status from the provider itself — the parameters' own status is never believed. A failed return without a checksum moves nothing: the payment stays `requires_action` until the provider's callback or the page's expiry closes it.", type: "object", required: false },
 ];
 paymentsLedger
   .command(`confirm`)
-  .description(`The other half of a redirect. POST /payments answered \`requires_action\` with a \`next_action\` the storefront carried out — a 3-D Secure step, a wallet approval, a bank login — and this is the call that asks the PSP how it went and writes the answer to the ledger. It starts from \`requires_action\` and from nothing else, so a payment that already came back authorized needs no confirm and the lattice answers 400 rather than repeating one. \`next_action\` is cleared by this call whatever the outcome. Where the tenant's \`auto_capture_policy\` is 'immediate' the money is taken straight after the authorization, in the same request, so a successful confirm can come back \`captured\` rather than \`authorized\`; a failed auto-capture does not fail the confirm, because a good authorization is worth more than a tidy status. On a buyer's own call a payment of another contact answers 404.`)
+  .description(`The other half of a redirect. POST /payments answered \`requires_action\` with a \`next_action\` the storefront carried out — a 3-D Secure step, a wallet approval, a bank login — and this is the call that asks the PSP how it went and writes the answer to the ledger. It starts from \`requires_action\` and from nothing else, so a payment that already came back authorized needs no confirm and the lattice answers 400 rather than repeating one — except a payment a checkout flow made, which answers as it stands (200). \`next_action\` is cleared by this call whatever the outcome. Where the tenant's \`auto_capture_policy\` is 'immediate' the money is taken straight after the authorization, in the same request, so a successful confirm can come back \`captured\` rather than \`authorized\`; a failed auto-capture does not fail the confirm, because a good authorization is worth more than a tidy status. On a buyer's own call a payment of another contact answers 404.`)
   .alias("payments-confirm")
   .option(`--id <id>`, `The payment. A uuid — the data plane casts this segment and answers 400, not 404, for anything else.`)
+  .option(`--return-params <return-params>`, `Every query parameter the provider appended when it sent the buyer back, as received. The app checks what proves the return genuine (Novalnet: \`checksum\` over \`tid\`, \`status\` and the secret the app kept) and then reads the status from the provider itself — the parameters' own status is never believed. A failed return without a checksum moves nothing: the payment stays \`requires_action\` until the provider's callback or the page's expiry closes it.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id } = await promptForMissing(
+        const { id, returnParams } = await promptForMissing(
           _options,
           confirmSpecs,
           _command,
@@ -700,6 +722,16 @@ paymentsLedger
         const _client = await sdkForProject();
         const _apiPath = `/payments/{id}/confirm`.replace(`{id}`, id);
         const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (returnParams !== undefined) {
+          _payload[`return_params`] = resolveBodyParam(returnParams);
+        }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
         };

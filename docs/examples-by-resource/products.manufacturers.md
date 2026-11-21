@@ -27,6 +27,15 @@ Move free-text manufacturers onto records
 revenexx products-manufacturers migrate
 ```
 
+## resolve
+
+Resolve a manufacturer by name and address
+
+```bash
+revenexx products-manufacturers resolve \
+    --name 'Paul Horn GmbH'
+```
+
 ## empty-trash
 
 Empty the trash of manufacturers
@@ -87,6 +96,16 @@ Set a manufacturer's logo
 ```bash
 revenexx products-manufacturers logo-set \
     --id ''
+```
+
+## merge
+
+Merge manufacturers into one
+
+```bash
+revenexx products-manufacturers merge \
+    --id '' \
+    --from one two three
 ```
 
 ## products

@@ -600,6 +600,48 @@ campaignsCampaigns
     ),
   );
 registerPromptSpecs(campaignsCampaigns.commands.at(-1)!, attachSpecs, { method: "post" });
+const collectSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/campaigns/campaigns", hasLimit: true } },
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
+];
+campaignsCampaigns
+  .command(`collect`)
+  .description(`Reads promotions, mailings, journeys and forms filtered by \`campaign_ref\` and makes the asset rows follow them: an asset that names this campaign gets a row (moved here from another campaign if needed), a row whose asset no longer names it is released. Pages and ad campaigns are untouched. Idempotent; the hourly \`sweep-attribution\` run does the same for every campaign that is not archived. An app that did not answer is \`false\` in \`sources\` and changes nothing.`)
+  .option(`--id <id>`, `The row id, as it came back from the list.`)
+  .option(`--body <body>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { id, body } = await promptForMissing(
+          _options,
+          collectSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/campaigns/campaigns/{id}/collect`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(campaignsCampaigns.commands.at(-1)!, collectSpecs, { method: "post" });
 const detachSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/campaigns/campaigns", hasLimit: true } },
   { key: "adCampaignLinkId", option: "--ad-campaign-link-id <ad-campaign-link-id>", name: "ad_campaign_link_id", description: "Shorthand for an ad campaign link of the ads app.", type: "string", required: false },

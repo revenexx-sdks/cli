@@ -8,6 +8,41 @@ Explain the price an item gets
 revenexx prices check
 ```
 
+## entry-create
+
+Add a price entry to the list it names
+
+```bash
+revenexx prices entry-create \
+    --price-list-id ''
+```
+
+## entries-migrate-products
+
+Link SKU-only entries to their product
+
+```bash
+revenexx prices entries-migrate-products
+```
+
+## entry-delete
+
+Delete a price entry by its own id
+
+```bash
+revenexx prices entry-delete \
+    --id ''
+```
+
+## entry-update
+
+Update a price entry by its own id
+
+```bash
+revenexx prices entry-update \
+    --id ''
+```
+
 ## lists-list
 
 List price lists

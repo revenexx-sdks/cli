@@ -8,6 +8,24 @@ List the shipped flows
 revenexx journeys-templates list
 ```
 
+## defaults
+
+Write the shipped templates if they are missing (deprecated, use ensure)
+
+```bash
+revenexx journeys-templates defaults \
+    --body '{ "key": "value" }'
+```
+
+## ensure
+
+Write the shipped templates if they are missing
+
+```bash
+revenexx journeys-templates ensure \
+    --body '{ "key": "value" }'
+```
+
 ## copy
 
 Copy a template into a new draft journey

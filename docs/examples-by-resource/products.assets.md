@@ -61,3 +61,12 @@ Restore asset from the trash
 revenexx products-assets restore \
     --id ''
 ```
+
+## usage
+
+Count the products using an asset
+
+```bash
+revenexx products-assets usage \
+    --id ''
+```

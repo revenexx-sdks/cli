@@ -608,6 +608,51 @@ tagManagerTags
     ),
   );
 registerPromptSpecs(tagManagerTags.commands.at(-1)!, triggersDetachSpecs, { method: "delete", destructive: true });
+const themeEventsListSpecs: PromptSpec[] = [
+  { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
+];
+tagManagerTags
+  .command(`theme-events-list`)
+  .description(`The theme event contract version this app speaks (theme-events/1), its event names in the contract's order, which a trigger and an event map may name, and the page types a page view names.`)
+  .alias("tag-manager-theme-events-list")
+  .option(
+    `--filter <column=value>`,
+    `Filter rows by column equality (repeatable).`,
+    (value: string, previous: string[]) => [...previous, value],
+    [] as string[],
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { filter } = await promptForMissing(
+          _options,
+          themeEventsListSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/tag-manager/theme-events`;
+        const _payload: RequestParams = {};
+        for (const _filter of filter as string[]) {
+          const _eq = _filter.indexOf("=");
+          if (_eq <= 0) {
+            throw new Error(`--filter expects column=value, got "${_filter}"`);
+          }
+          _payload[_filter.slice(0, _eq)] = _filter.slice(_eq + 1);
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(tagManagerTags.commands.at(-1)!, themeEventsListSpecs, { method: "get" });
 const tagManagerTriggersListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
@@ -1192,7 +1237,7 @@ const vocabulariesListSpecs: PromptSpec[] = [
 ];
 tagManagerTags
   .command(`vocabularies-list`)
-  .description(`The event names of the theme event contract version this app supports (theme-events/1), which a trigger and an event map may name, plus the value sets of tags, triggers and variables.`)
+  .description(`The value sets this app publishes, without their values: tag-kinds, load-timings, trigger-kinds, variable-kinds, page-types, check-reasons. Read one with GET /tag-manager/vocabularies/{name}, and the theme event names with GET /tag-manager/theme-events. The flat fields after \`vocabularies\` are the earlier shape of this answer, kept as deprecated aliases until 2.0.`)
   .alias("tag-manager-vocabularies-list")
   .option(
     `--filter <column=value>`,
@@ -1232,3 +1277,36 @@ tagManagerTags
     ),
   );
 registerPromptSpecs(tagManagerTags.commands.at(-1)!, vocabulariesListSpecs, { method: "get" });
+const vocabulariesGetSpecs: PromptSpec[] = [
+  { key: "name", option: "--name <name>", name: "name", description: "One of tag-kinds, load-timings, trigger-kinds, variable-kinds, page-types, check-reasons.", type: "string", required: true, enum: ["tag-kinds","load-timings","trigger-kinds","variable-kinds","page-types","check-reasons"], resource: { listPath: "/tag-manager/vocabularies", hasLimit: false } },
+];
+tagManagerTags
+  .command(`vocabularies-get`)
+  .description(`One value set with every value and its German and English label. The sets are closed: a value outside one is refused by the routes that take it.`)
+  .alias("tag-manager-vocabularies-get")
+  .option(`--name <name>`, `One of tag-kinds, load-timings, trigger-kinds, variable-kinds, page-types, check-reasons.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { name } = await promptForMissing(
+          _options,
+          vocabulariesGetSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/tag-manager/vocabularies/{name}`.replace(`{name}`, name);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(tagManagerTags.commands.at(-1)!, vocabulariesGetSpecs, { method: "get" });

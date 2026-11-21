@@ -97,6 +97,22 @@ revenexx pages pages-create \
     --title 'About us'
 ```
 
+## pages-bundles
+
+List the page types in use
+
+```bash
+revenexx pages pages-bundles
+```
+
+## pages-publish-source-translations
+
+Publish the source language of live pages
+
+```bash
+revenexx pages pages-publish-source-translations
+```
+
 ## pages-delete
 
 Soft-delete a page
@@ -273,6 +289,15 @@ Read one template
 
 ```bash
 revenexx pages templates-get \
+    --id ''
+```
+
+## templates-patch
+
+Patch a template
+
+```bash
+revenexx pages templates-patch \
     --id ''
 ```
 

@@ -164,6 +164,7 @@ pages
 registerPromptSpecs(pages.commands.at(-1)!, libraryGetSpecs, { method: "get" });
 const libraryUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The library item id.", type: "string", required: true, resource: { listPath: "/pages/library", hasLimit: true } },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "bundle", option: "--bundle <bundle>", name: "bundle", description: "The block type this item instantiates. Changing it moves the item to a different part of the picker.", type: "string", required: false },
   { key: "label", option: "--label <label>", name: "label", description: "What the item is called in the picker.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "The item's own bag, replaced wholesale. This route is the only way to write it — the library item itself is made by the `make_reusable` editor step, which writes none — so an importer creates the item and then names it here.", type: "object", required: false },
@@ -173,6 +174,7 @@ pages
   .command(`library-update`)
   .description(`The one write in this app whose blast radius is not a single page. Delivery expands a library reference against this row every time it serves, so replacing \`tree\` re-renders every page that points at the item — published ones included — without any of them being edited, republished or even touched. Nothing warns you first and no revision records it, because the pages did not change; the item did. Changing \`label\` or \`bundle\` only moves the item around the picker. Detaching one page from the item, so it keeps a copy of its own, is an editor mutation and not this route.`)
   .option(`--id <id>`, `The library item id.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--bundle <bundle>`, `The block type this item instantiates. Changing it moves the item to a different part of the picker.`)
   .option(`--label <label>`, `What the item is called in the picker.`)
   .option(`--metadata <metadata>`, `The item's own bag, replaced wholesale. This route is the only way to write it — the library item itself is made by the \`make_reusable\` editor step, which writes none — so an importer creates the item and then names it here.`)
@@ -180,7 +182,7 @@ pages
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, bundle, label, metadata, tree } = await promptForMissing(
+        const { id, actor, bundle, label, metadata, tree } = await promptForMissing(
           _options,
           libraryUpdateSpecs,
           _command,
@@ -194,6 +196,9 @@ pages
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (bundle !== undefined) {
           _payload[`bundle`] = bundle;
@@ -283,6 +288,7 @@ registerPromptSpecs(pages.commands.at(-1)!, menusListSpecs, { method: "get" });
 const menusUpsertSpecs: PromptSpec[] = [
   { key: "label", option: "--label <label>", name: "label", description: "What this menu is called for the people who edit it. Required on a create; an update keeps the label it had when this is left out.", type: "string", required: true },
   { key: "menuKey", option: "--menu-key <menu-key>", name: "menuKey", description: "The stable slot the theme asks for this menu by. Idempotency is keyed on it: sending an existing key replaces that menu instead of creating a second one.", type: "string", required: true },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "items", option: "--items [items...]", name: "items", description: "The ordered navigation tree. Replaces the stored one completely.", type: "array", required: false },
 ];
 pages
@@ -290,11 +296,12 @@ pages
   .description(`Writes a menu by its KEY rather than by its id, which is what makes theme seeding safe to repeat: a key the tenant already has has its label and items replaced in place, a key it does not have is created. \`items\` is replaced wholesale and never merged, so sending an empty list empties the navigation. One caveat worth reading before you rely on the idempotence: the key's uniqueness is this route's doing and not the database's — \`menu_key\` carries an index but no unique constraint — so a duplicate key created any other way leaves this route updating whichever row it finds first.`)
   .option(`--label <label>`, `What this menu is called for the people who edit it. Required on a create; an update keeps the label it had when this is left out.`)
   .option(`--menu-key <menu-key>`, `The stable slot the theme asks for this menu by. Idempotency is keyed on it: sending an existing key replaces that menu instead of creating a second one.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--items [items...]`, `The ordered navigation tree. Replaces the stored one completely.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { label, menuKey, items } = await promptForMissing(
+        const { label, menuKey, actor, items } = await promptForMissing(
           _options,
           menusUpsertSpecs,
           _command,
@@ -308,6 +315,9 @@ pages
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (items !== undefined) {
           _payload[`items`] = items;
@@ -399,6 +409,7 @@ pages
 registerPromptSpecs(pages.commands.at(-1)!, menusGetSpecs, { method: "get" });
 const menusUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The menu row id.", type: "string", required: true, resource: { listPath: "/pages/menus", hasLimit: true } },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "items", option: "--items [items...]", name: "items", description: "The ordered navigation tree. Replaces the stored one completely.", type: "array", required: false },
   { key: "label", option: "--label <label>", name: "label", description: "What this menu is called for the people who edit it.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "The menu's own bag, replaced wholesale. This route is the only way to write it — the upsert reads `menuKey`, `label` and `items` and nothing else — so a caller that seeds a menu by key names its metadata here afterwards.", type: "object", required: false },
@@ -407,13 +418,14 @@ pages
   .command(`menus-update`)
   .description(`The same write as the upsert, for a caller that already holds the row id — use this when editing a menu a person picked from a list, and the upsert when reconciling a theme's defaults. \`menu_key\` is deliberately not editable here: the key is the handle every theme reads the menu by, so changing it would empty whatever is rendering that key without anything reporting an error.`)
   .option(`--id <id>`, `The menu row id.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--items [items...]`, `The ordered navigation tree. Replaces the stored one completely.`)
   .option(`--label <label>`, `What this menu is called for the people who edit it.`)
   .option(`--metadata <metadata>`, `The menu's own bag, replaced wholesale. This route is the only way to write it — the upsert reads \`menuKey\`, \`label\` and \`items\` and nothing else — so a caller that seeds a menu by key names its metadata here afterwards.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, items, label, metadata } = await promptForMissing(
+        const { id, actor, items, label, metadata } = await promptForMissing(
           _options,
           menusUpdateSpecs,
           _command,
@@ -427,6 +439,9 @@ pages
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (items !== undefined) {
           _payload[`items`] = items;
@@ -457,7 +472,7 @@ const pagesListSpecs: PromptSpec[] = [
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. A column this entity does not have, or any other shape, is refused with 400.", type: "string", required: false },
   { key: "bundle", option: "--bundle <bundle>", name: "bundle", description: "Exact page type. The value set belongs to the active theme, so this app constrains it to a non-empty string and nothing more.", type: "string", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Exact lifecycle status.", type: "string", required: false, enum: ["draft","published","archived"] },
-  { key: "q", option: "--q <q>", name: "q", description: "Case-insensitive substring search over the page title. Runs in the query, so `page.total` counts the matches. Empty means no search.", type: "string", required: false },
+  { key: "q", option: "--q <q>", name: "q", description: "Case-insensitive substring search over the page title and the slug: a page matches when either holds it. `%`, `_` and a backslash match themselves; an asterisk matches any one character, itself included. Runs in the query, so `page.total` counts the matches. Empty means no search.", type: "string", required: false },
   { key: "deleted", option: "--deleted <deleted>", name: "deleted", description: "Send `only` for the trash: soft-deleted pages instead of live ones, default order `deleted_at.desc`. Every other filter, the search and `order` apply as on the live list. Any other value is refused with 400.", type: "string", required: false, enum: ["only"] },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
@@ -469,7 +484,7 @@ pages
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. A column this entity does not have, or any other shape, is refused with 400.`)
   .option(`--bundle <bundle>`, `Exact page type. The value set belongs to the active theme, so this app constrains it to a non-empty string and nothing more.`)
   .option(`--status <status>`, `Exact lifecycle status.`)
-  .option(`--q <q>`, `Case-insensitive substring search over the page title. Runs in the query, so \`page.total\` counts the matches. Empty means no search.`)
+  .option(`--q <q>`, `Case-insensitive substring search over the page title and the slug: a page matches when either holds it. \`%\`, \`_\` and a backslash match themselves; an asterisk matches any one character, itself included. Runs in the query, so \`page.total\` counts the matches. Empty means no search.`)
   .option(`--deleted <deleted>`, `Send \`only\` for the trash: soft-deleted pages instead of live ones, default order \`deleted_at.desc\`. Every other filter, the search and \`order\` apply as on the live list. Any other value is refused with 400.`)
   .option(
     `--filter <column=value>`,
@@ -532,27 +547,31 @@ pages
 registerPromptSpecs(pages.commands.at(-1)!, pagesListSpecs, { method: "get" });
 const pagesCreateSpecs: PromptSpec[] = [
   { key: "title", option: "--title <title>", name: "title", description: "What the page is called, in its source language. Shown in the editorial list and searched by `?q=`.", type: "string", required: true },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "bundle", option: "--bundle <bundle>", name: "bundle", description: "The page type. Omit to take the default_page_bundle setting.", type: "string", required: false },
   { key: "hostOptions", option: "--host-options <host-options>", name: "hostOptions", description: "Page-level blökkli display options as a flat `option key → value` map. Theme-defined; usually left out and set later from the editor.", type: "object", required: false },
   { key: "meta", option: "--meta <meta>", name: "meta", description: "The page's metadata bag (SEO and social fields). Stored and handed back untouched — this app reads no key of it, so the theme decides what goes in.", type: "object", required: false },
+  { key: "route", option: "--route <route>", name: "route", description: "The storefront route the page is served at, when it is not served at its own slug — `/` for the home. Omit or send null for a page served at its slug. A path starting with `/`, without spaces, `?` or `#`; anything else is refused with 400.", type: "string", required: false },
   { key: "slug", option: "--slug <slug>", name: "slug", description: "The path segment the storefront routes it under, without a leading slash. Unique per tenant among live pages; omit or send null for a page reached only by id. Nothing here derives one from the title.", type: "string", required: false },
   { key: "sourceLanguage", option: "--source-language <source-language>", name: "sourceLanguage", description: "The language you are authoring in, and the fallback for every later translation. Omit to take the default_source_language setting for the request market.", type: "string", required: false },
-  { key: "templateId", option: "--template-id <template-id>", name: "templateId", description: "Start from a template instead of an empty page: its blocks become the page's blocks, with new ids, in the template's `field_name` (or `content` when it has none), and the page takes the template's `page_bundle` as its type. Nothing is published — the page starts at default_page_status like any other. `GET /pages/templates?page_bundle=` lists the templates for a type, and `is_default` marks the one to offer first. Omit or send null for an empty page.", type: "string", required: false },
+  { key: "templateId", option: "--template-id <template-id>", name: "templateId", description: "Start from a template instead of an empty page: its blocks become the page's blocks, with new ids, in the template's `field_name` (or `content` when it has none), and the page takes the template's `page_bundle` as its type. Nothing is published — the page starts at default_page_status like any other. `GET /pages/templates?page_bundle=` lists the templates for a type, and `is_page_default` marks the one to offer first. Omit or send null for an empty page — the starting point of the type is a suggestion for the dialog and is not applied by itself.", type: "string", required: false },
 ];
 pages
   .command(`pages-create`)
   .description(`Writes two rows, not one: the page itself and the translation row for its source language, so a page is never without the language it was authored in and \`GET /pages/delivery/page?slug=\` can match a localized URL from the first moment. Everything the caller leaves out comes from the tenant's settings, not from a literal in this app: \`bundle\` from default_page_bundle, \`sourceLanguage\` from default_source_language (resolved for the request's market), and the status of both the page and its source translation from default_page_status (draft | published).`)
   .option(`--title <title>`, `What the page is called, in its source language. Shown in the editorial list and searched by \`?q=\`.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--bundle <bundle>`, `The page type. Omit to take the default_page_bundle setting.`)
   .option(`--host-options <host-options>`, `Page-level blökkli display options as a flat \`option key → value\` map. Theme-defined; usually left out and set later from the editor.`)
   .option(`--meta <meta>`, `The page's metadata bag (SEO and social fields). Stored and handed back untouched — this app reads no key of it, so the theme decides what goes in.`)
+  .option(`--route <route>`, `The storefront route the page is served at, when it is not served at its own slug — \`/\` for the home. Omit or send null for a page served at its slug. A path starting with \`/\`, without spaces, \`?\` or \`#\`; anything else is refused with 400.`)
   .option(`--slug <slug>`, `The path segment the storefront routes it under, without a leading slash. Unique per tenant among live pages; omit or send null for a page reached only by id. Nothing here derives one from the title.`)
   .option(`--source-language <source-language>`, `The language you are authoring in, and the fallback for every later translation. Omit to take the default_source_language setting for the request market.`)
-  .option(`--template-id <template-id>`, `Start from a template instead of an empty page: its blocks become the page's blocks, with new ids, in the template's \`field_name\` (or \`content\` when it has none), and the page takes the template's \`page_bundle\` as its type. Nothing is published — the page starts at default_page_status like any other. \`GET /pages/templates?page_bundle=\` lists the templates for a type, and \`is_default\` marks the one to offer first. Omit or send null for an empty page.`)
+  .option(`--template-id <template-id>`, `Start from a template instead of an empty page: its blocks become the page's blocks, with new ids, in the template's \`field_name\` (or \`content\` when it has none), and the page takes the template's \`page_bundle\` as its type. Nothing is published — the page starts at default_page_status like any other. \`GET /pages/templates?page_bundle=\` lists the templates for a type, and \`is_page_default\` marks the one to offer first. Omit or send null for an empty page — the starting point of the type is a suggestion for the dialog and is not applied by itself.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { title, bundle, hostOptions, meta, slug, sourceLanguage, templateId } = await promptForMissing(
+        const { title, actor, bundle, hostOptions, meta, route, slug, sourceLanguage, templateId } = await promptForMissing(
           _options,
           pagesCreateSpecs,
           _command,
@@ -567,6 +586,9 @@ pages
           }
           Object.assign(_payload, body as RequestParams);
         }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
+        }
         if (bundle !== undefined) {
           _payload[`bundle`] = bundle;
         }
@@ -575,6 +597,9 @@ pages
         }
         if (meta !== undefined) {
           _payload[`meta`] = resolveBodyParam(meta);
+        }
+        if (route !== undefined) {
+          _payload[`route`] = route;
         }
         if (slug !== undefined) {
           _payload[`slug`] = slug;
@@ -602,12 +627,109 @@ pages
     ),
   );
 registerPromptSpecs(pages.commands.at(-1)!, pagesCreateSpecs, { method: "post" });
+const pagesBundlesSpecs: PromptSpec[] = [
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
+  { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
+  { key: "deleted", option: "--deleted <deleted>", name: "deleted", description: "Send `only` for the types in the trash instead of the live pages. Any other value is refused with 400.", type: "string", required: false, enum: ["only"] },
+];
+pages
+  .command(`pages-bundles`)
+  .description(`Every page type at least one live page has, with how many pages have it — what a type filter on the editorial list offers. The value set belongs to the active theme and is never published by this app, so this is the only place a client learns which types a tenant actually uses. A type whose last page was deleted is not listed. With \`?deleted=only\` the same answer is given over the trash. Sorted by type; \`bundle\` is the value \`GET /pages/pages?bundle=\` filters by.`)
+  .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
+  .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
+  .option(`--deleted <deleted>`, `Send \`only\` for the types in the trash instead of the live pages. Any other value is refused with 400.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { limit, offset, deleted } = await promptForMissing(
+          _options,
+          pagesBundlesSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/pages/bundles`;
+        const _payload: RequestParams = {};
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        if (offset !== undefined) {
+          _payload[`offset`] = offset;
+        }
+        if (deleted !== undefined) {
+          _payload[`deleted`] = deleted;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, pagesBundlesSpecs, { method: "get" });
+const pagesPublishSourceTranslationsSpecs: PromptSpec[] = [
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
+  { key: "dryRun", option: "--dry-run <dry-run>", name: "dry_run", description: "True (the default) answers what would change and writes nothing. False writes it.", type: "boolean", required: false, default: "true" },
+];
+pages
+  .command(`pages-publish-source-translations`)
+  .description(`A one-off repair for pages published before version 1.0.1. A publish then kept the status the page's own language was created with, so \`GET /pages/delivery/pages\` listed a live page's source language as \`draft\` with no \`published_at\`. A publish now marks it published; this route does the same for every live, published page whose source language is not, and creates the entry where a page has none. No other language is touched and nothing is published. Each changed page has its \`updated_at\` stamped, so a reader of the delivery list with \`updated_since\` picks the change up. A dry run — the default — writes nothing and answers what a real run would change; a second real run finds nothing to change.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
+  .option(
+    `--dry-run [value]`,
+    `True (the default) answers what would change and writes nothing. False writes it.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { actor, dryRun } = await promptForMissing(
+          _options,
+          pagesPublishSourceTranslationsSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/pages/publish-source-translations`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
+        }
+        if (dryRun !== undefined) {
+          _payload[`dry_run`] = dryRun;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, pagesPublishSourceTranslationsSpecs, { method: "post" });
 const pagesDeleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The page id.", type: "string", required: true, resource: { listPath: "/pages/pages", hasLimit: true } },
 ];
 pages
   .command(`pages-delete`)
-  .description(`Writes a tombstone. The page leaves every list, every read and all delivery at once, and its slug is immediately free for another page — the unique index counts live rows only. Nothing is erased: the translations, blocks, edit state, revisions, comments and preview grants that hang off the page all keep their rows, because their \`on delete cascade\` belongs to a hard delete and this is not one. So a page comes back intact through \`POST /pages/pages/{id}/restore\`, and until then it is listed in the trash at \`GET /pages/pages?deleted=only\`.`)
+  .description(`Writes a tombstone. The page leaves every list, every read and all delivery at once, and its slug is immediately free for another page — the unique index counts live rows only. Nothing is erased: the translations, blocks, edit state, revisions, comments and preview grants that hang off the page all keep their rows, because their \`on delete cascade\` belongs to a hard delete and this is not one. So a page comes back intact through \`POST /pages/pages/{id}/restore\`, and until then it is listed in the trash at \`GET /pages/pages?deleted=only\`. Announced as \`page.trashed\`, with the page id as \`topic_id\`.`)
   .option(`--id <id>`, `The page id.`)
   .action(
     actionRunner(
@@ -669,25 +791,29 @@ pages
 registerPromptSpecs(pages.commands.at(-1)!, pagesGetSpecs, { method: "get" });
 const pagesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The page id.", type: "string", required: true, resource: { listPath: "/pages/pages", hasLimit: true } },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "bundle", option: "--bundle <bundle>", name: "bundle", description: "The page type. Changing it changes which template the theme renders.", type: "string", required: false },
   { key: "meta", option: "--meta <meta>", name: "meta", description: "The page's metadata bag. Replaced wholesale, not merged.", type: "object", required: false },
+  { key: "route", option: "--route <route>", name: "route", description: "The storefront route the page is served at — `/` makes it the home. A route another live page holds answers 409 naming that page; null or an empty string clears it, and the page is served at its slug again. A path starting with `/`, without spaces, `?` or `#`; anything else is refused with 400.", type: "string", required: false },
   { key: "slug", option: "--slug <slug>", name: "slug", description: "The path segment the storefront routes it under. Sending a slug another live page holds answers 409; sending null makes the page unreachable by path.", type: "string", required: false },
-  { key: "status", option: "--status <status>", name: "status", description: "The lifecycle status. Setting `published` here does NOT publish content — delivery still needs a revision, which only `POST /pages/editor/{page_id}/publish` writes.", type: "string", required: false, enum: ["draft","published","archived"] },
+  { key: "status", option: "--status <status>", name: "status", description: "The lifecycle status. `draft` and `archived` take a page off the storefront. `published` is refused unless the page already is published — only `POST /pages/editor/{page_id}/publish` makes a page published, because it writes the revision delivery serves.", type: "string", required: false, enum: ["draft","published","archived"] },
   { key: "title", option: "--title <title>", name: "title", description: "The page title in its source language.", type: "string", required: false },
 ];
 pages
   .command(`pages-update`)
-  .description(`Corrects the page RECORD — the five fields an editor changes without opening the visual editor, which are \`title\`, \`slug\`, \`status\`, \`meta\` and \`bundle\`, and no others. Anything else in the body is dropped rather than refused, and the block tree is unreachable from here by design: content moves only through the editor's mutation log, so a caller cannot half-edit a page behind the undo history's back. Two consequences worth knowing before you call it: a slug is unique among live pages, so claiming one that is held answers 409; and setting \`status\` to published does NOT put anything in front of a visitor — delivery needs a revision, which only \`POST /pages/editor/{page_id}/publish\` writes.`)
+  .description(`Corrects the page RECORD — the six fields an editor changes without opening the visual editor, which are \`title\`, \`slug\`, \`route\`, \`status\`, \`meta\` and \`bundle\`, and no others. Any other key in the body is refused with 400 (\`unknown_field\`, naming the keys) and nothing is written — only \`_actor\` and \`at\`, which every write may carry, are accepted besides the six. The block tree is unreachable from here by design: content moves only through the editor's mutation log, so a caller cannot half-edit a page behind the undo history's back. Two consequences worth knowing before you call it: a slug and a route are each unique among live pages, so claiming one that is held answers 409; and a page becomes published only through \`POST /pages/editor/{page_id}/publish\`, which writes the revision delivery serves — writing \`status: published\` here onto a page that is not published is refused with 400, while a published page may be sent the status it already has. Setting a published page back to draft announces \`page.unpublished\`, and archiving a page announces \`page.archived\`.`)
   .option(`--id <id>`, `The page id.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--bundle <bundle>`, `The page type. Changing it changes which template the theme renders.`)
   .option(`--meta <meta>`, `The page's metadata bag. Replaced wholesale, not merged.`)
+  .option(`--route <route>`, `The storefront route the page is served at — \`/\` makes it the home. A route another live page holds answers 409 naming that page; null or an empty string clears it, and the page is served at its slug again. A path starting with \`/\`, without spaces, \`?\` or \`#\`; anything else is refused with 400.`)
   .option(`--slug <slug>`, `The path segment the storefront routes it under. Sending a slug another live page holds answers 409; sending null makes the page unreachable by path.`)
-  .option(`--status <status>`, `The lifecycle status. Setting \`published\` here does NOT publish content — delivery still needs a revision, which only \`POST /pages/editor/{page_id}/publish\` writes.`)
+  .option(`--status <status>`, `The lifecycle status. \`draft\` and \`archived\` take a page off the storefront. \`published\` is refused unless the page already is published — only \`POST /pages/editor/{page_id}/publish\` makes a page published, because it writes the revision delivery serves.`)
   .option(`--title <title>`, `The page title in its source language.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, bundle, meta, slug, status, title } = await promptForMissing(
+        const { id, actor, bundle, meta, route, slug, status, title } = await promptForMissing(
           _options,
           pagesUpdateSpecs,
           _command,
@@ -702,11 +828,17 @@ pages
           }
           Object.assign(_payload, body as RequestParams);
         }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
+        }
         if (bundle !== undefined) {
           _payload[`bundle`] = bundle;
         }
         if (meta !== undefined) {
           _payload[`meta`] = resolveBodyParam(meta);
+        }
+        if (route !== undefined) {
+          _payload[`route`] = route;
         }
         if (slug !== undefined) {
           _payload[`slug`] = slug;
@@ -733,6 +865,7 @@ pages
 registerPromptSpecs(pages.commands.at(-1)!, pagesUpdateSpecs, { method: "put" });
 const pagesDuplicateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The page to copy.", type: "string", required: true, resource: { listPath: "/pages/pages", hasLimit: true } },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "slug", option: "--slug <slug>", name: "slug", description: "The path segment to route the copy under. Omit or send null for none — the source's slug stays the source's. One another live page or a live page's translation holds answers 409.", type: "string", required: false },
   { key: "title", option: "--title <title>", name: "title", description: "The copy's title in its source language. Omit for the source title plus `(Kopie)` / `(copy)`.", type: "string", required: false },
 ];
@@ -740,12 +873,13 @@ pages
   .command(`pages-duplicate`)
   .description(`Creates a new page from what the source SHOWS: its blocks as they stand, which after a publish are the live tree, every language's title, its type, language, display options and metadata. An open draft on the source is not copied — it lives in the source's edit state, not in its blocks. Every block of the copy gets a new id, so editing the copy never touches the source, while a block that references a library item keeps referencing it. The copy is unpublished, has no revisions and no edit state, and starts at default_page_status. With an empty body (\`{}\`) its title is the source's plus a copy suffix in the source language and it has no slug, so it collides with nothing.`)
   .option(`--id <id>`, `The page to copy.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--slug <slug>`, `The path segment to route the copy under. Omit or send null for none — the source's slug stays the source's. One another live page or a live page's translation holds answers 409.`)
   .option(`--title <title>`, `The copy's title in its source language. Omit for the source title plus \`(Kopie)\` / \`(copy)\`.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, slug, title } = await promptForMissing(
+        const { id, actor, slug, title } = await promptForMissing(
           _options,
           pagesDuplicateSpecs,
           _command,
@@ -759,6 +893,9 @@ pages
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (slug !== undefined) {
           _payload[`slug`] = slug;
@@ -785,7 +922,7 @@ const pagesRestoreSpecs: PromptSpec[] = [
 ];
 pages
   .command(`pages-restore`)
-  .description(`Clears the tombstone, and that is the whole restore: a soft delete never touched the translations, blocks, edit state, revisions, comments or preview grants, so the page returns to every list, read and delivery exactly as it was, including its published revision. Only the slug can have moved on — deleting freed it, so another live page may hold it now. Then the page stays in the trash and the call answers 409; free or change the other page's slug and restore again.`)
+  .description(`Clears the tombstone, and that is the whole restore: a soft delete never touched the translations, blocks, edit state, revisions, comments or preview grants, so the page returns to every list, read and delivery exactly as it was, including its published revision. Only the slug and the route can have moved on — deleting freed both, so another live page may hold one now. Then the page stays in the trash and the call answers 409; free or change the other page's slug or route and restore again. A restore is announced as \`page.restored\`.`)
   .option(`--id <id>`, `The deleted page, as the trash lists it.`)
   .action(
     actionRunner(
@@ -945,6 +1082,7 @@ pages
 registerPromptSpecs(pages.commands.at(-1)!, popupsListSpecs, { method: "get" });
 const popupsCreateSpecs: PromptSpec[] = [
   { key: "label", option: "--label <label>", name: "label", description: "What the pop-up is called in the library.", type: "string", required: true },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "campaignRef", option: "--campaign-ref <campaign-ref>", name: "campaign_ref", description: "The campaign it belongs to.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "The item's own bag, stored as given.", type: "object", required: false },
   { key: "popup", option: "--popup <popup>", name: "popup", description: "How a pop-up appears. Unknown keys are refused (400 `invalid_popup`).", type: "object", required: false },
@@ -954,6 +1092,7 @@ pages
   .command(`popups-create`)
   .description(`A pop-up is a library item of the bundle \`popup\`: \`tree\` is its content (edited like any library item), \`popup\` how it appears, \`campaign_ref\` the campaign it counts for. The settings are checked here; the storefront reads the live ones from \`GET /pages/delivery/popups\`.`)
   .option(`--label <label>`, `What the pop-up is called in the library.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--campaign-ref <campaign-ref>`, `The campaign it belongs to.`)
   .option(`--metadata <metadata>`, `The item's own bag, stored as given.`)
   .option(`--popup <popup>`, `How a pop-up appears. Unknown keys are refused (400 \`invalid_popup\`).`)
@@ -961,7 +1100,7 @@ pages
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { label, campaignRef, metadata, popup, tree } = await promptForMissing(
+        const { label, actor, campaignRef, metadata, popup, tree } = await promptForMissing(
           _options,
           popupsCreateSpecs,
           _command,
@@ -975,6 +1114,9 @@ pages
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (campaignRef !== undefined) {
           _payload[`campaign_ref`] = campaignRef;
@@ -1007,6 +1149,7 @@ pages
 registerPromptSpecs(pages.commands.at(-1)!, popupsCreateSpecs, { method: "post" });
 const popupsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The pop-up (library item) id.", type: "string", required: true, resource: { listPath: "/pages/popups", hasLimit: true } },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "campaignRef", option: "--campaign-ref <campaign-ref>", name: "campaign_ref", description: "Claim for a campaign, or null to release.", type: "string", required: false },
   { key: "label", option: "--label <label>", name: "label", description: "A new name.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Replace the bag.", type: "object", required: false },
@@ -1017,6 +1160,7 @@ pages
   .command(`popups-update`)
   .description(`Partial update. \`popup\` is merged over what is stored and then checked whole, so a caller may send only what it changes; \`campaign_ref: null\` releases it from its campaign.`)
   .option(`--id <id>`, `The pop-up (library item) id.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--campaign-ref <campaign-ref>`, `Claim for a campaign, or null to release.`)
   .option(`--label <label>`, `A new name.`)
   .option(`--metadata <metadata>`, `Replace the bag.`)
@@ -1025,7 +1169,7 @@ pages
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, campaignRef, label, metadata, popup, tree } = await promptForMissing(
+        const { id, actor, campaignRef, label, metadata, popup, tree } = await promptForMissing(
           _options,
           popupsUpdateSpecs,
           _command,
@@ -1039,6 +1183,9 @@ pages
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (campaignRef !== undefined) {
           _payload[`campaign_ref`] = campaignRef;
@@ -1070,6 +1217,7 @@ pages
   );
 registerPromptSpecs(pages.commands.at(-1)!, popupsUpdateSpecs, { method: "put" });
 const seedSpecs: PromptSpec[] = [
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "library", option: "--library [library...]", name: "library", description: "The reusable blocks to create. Idempotent by label among live items. One without a label or without a block tree is reported under `skipped`.", type: "array", required: false },
   { key: "menus", option: "--menus [menus...]", name: "menus", description: "The menus to create. One with no key or no label is reported under `skipped`.", type: "array", required: false },
   { key: "mode", option: "--mode <mode>", name: "mode", description: "`fill` (the default) adds what is missing and keeps everything that exists. `reset` replaces every section that is sent — pages, menus and library items go to the trash first, site settings are removed — and must be asked for by name.", type: "string", required: false, enum: ["fill","reset"] },
@@ -1079,6 +1227,7 @@ const seedSpecs: PromptSpec[] = [
 pages
   .command(`seed`)
   .description(`The target of a theme install: hand it the theme's default pages, menus, library items and site settings. In \`fill\` mode — the default — it creates whatever is missing and leaves everything else alone: idempotent by page \`slug\`, menu key, library item label and setting key, so re-running after a theme update adds only the new ones and never overwrites what an editor has since changed, and a setting the tenant has set keeps its value. In \`reset\` mode every section the body carries REPLACES the tenant's own content of that kind: the live pages, menus or library items are soft-deleted first, exactly as their delete does it — so they wait in the trash and can be restored — and the site settings are removed, then the section is seeded as in fill. A section the body leaves out is not touched in either mode, and nothing reaches beyond the calling tenant. A seeded page is published on the spot, immediately servable by delivery: the default_page_status setting deliberately does not apply, because a theme that activates with invisible pages looks broken.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--library [library...]`, `The reusable blocks to create. Idempotent by label among live items. One without a label or without a block tree is reported under \`skipped\`.`)
   .option(`--menus [menus...]`, `The menus to create. One with no key or no label is reported under \`skipped\`.`)
   .option(`--mode <mode>`, `\`fill\` (the default) adds what is missing and keeps everything that exists. \`reset\` replaces every section that is sent — pages, menus and library items go to the trash first, site settings are removed — and must be asked for by name.`)
@@ -1087,7 +1236,7 @@ pages
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { library, menus, mode, pages, settings } = await promptForMissing(
+        const { actor, library, menus, mode, pages, settings } = await promptForMissing(
           _options,
           seedSpecs,
           _command,
@@ -1101,6 +1250,9 @@ pages
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (library !== undefined) {
           _payload[`library`] = library;
@@ -1243,16 +1395,18 @@ registerPromptSpecs(pages.commands.at(-1)!, settingsSiteGetSpecs, { method: "get
 const settingsSitePutSpecs: PromptSpec[] = [
   { key: "key", option: "--key <key>", name: "key", description: "The setting key: a lower-case letter, then letters and digits, 64 characters at most. The storefront themes read `appearance`, `design` and `customCss`.", type: "string", required: true, resource: { listPath: "/pages/settings/site", hasLimit: false } },
   { key: "value", option: "--value <value>", name: "value", description: "The value, as JSON. `appearance` and `design` hold objects, `customCss` a string; any other key holds whatever the theme reading it expects. At most 128 KiB serialized.", type: "object", required: true },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
 ];
 pages
   .command(`settings-site-put`)
-  .description(`Stores the value under the key, creating the key or replacing its value — both answer 200 with the stored row, because after either call the key holds exactly what was sent. The value is replaced whole, never merged, and it is not checked against what a theme expects: this app stores JSON and the theme reading the key decides its shape. It reaches every storefront of the tenant at once, through \`GET /pages/delivery/site-settings\`.`)
+  .description(`Stores the value under the key, creating the key or replacing its value — both answer 200 with the stored row, because after either call the key holds exactly what was sent. The value is replaced whole, never merged. A key of the tenant's own holds any JSON; the three keys every storefront theme reads are refused in another shape — \`appearance\` and \`design\` take an object, \`customCss\` a string. A tenant holds at most 200 keys, the most one read answers: a new key beyond them is refused with 409, while the keys already held can always be set again. It reaches every storefront of the tenant at once, through \`GET /pages/delivery/site-settings\`.`)
   .option(`--key <key>`, `The setting key: a lower-case letter, then letters and digits, 64 characters at most. The storefront themes read \`appearance\`, \`design\` and \`customCss\`.`)
   .option(`--value <value>`, `The value, as JSON. \`appearance\` and \`design\` hold objects, \`customCss\` a string; any other key holds whatever the theme reading it expects. At most 128 KiB serialized.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { key, value } = await promptForMissing(
+        const { key, value, actor } = await promptForMissing(
           _options,
           settingsSitePutSpecs,
           _command,
@@ -1266,6 +1420,9 @@ pages
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (value !== undefined) {
           _payload[`value`] = resolveBodyParam(value);
@@ -1392,6 +1549,7 @@ const templateAssignmentsPutSpecs: PromptSpec[] = [
   { key: "resourceType", option: "--resource-type <resource-type>", name: "resource_type", description: "The kind of record: `product`, `category`, … Lower case.", type: "string", required: true, resource: { listPath: "/pages/template-assignments", hasLimit: true } },
   { key: "resourceId", option: "--resource-id <resource-id>", name: "resource_id", description: "The record's id in the app that owns it. This app never looks it up.", type: "string", required: true },
   { key: "pageSlug", option: "--page-slug <page-slug>", name: "pageSlug", description: "The slug of the page that renders as this record's template.", type: "string", required: true },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
 ];
 pages
   .command(`template-assignments-put`)
@@ -1399,10 +1557,11 @@ pages
   .option(`--resource-type <resource-type>`, `The kind of record: \`product\`, \`category\`, … Lower case.`)
   .option(`--resource-id <resource-id>`, `The record's id in the app that owns it. This app never looks it up.`)
   .option(`--page-slug <page-slug>`, `The slug of the page that renders as this record's template.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { resourceType, resourceId, pageSlug } = await promptForMissing(
+        const { resourceType, resourceId, pageSlug, actor } = await promptForMissing(
           _options,
           templateAssignmentsPutSpecs,
           _command,
@@ -1416,6 +1575,9 @@ pages
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (pageSlug !== undefined) {
           _payload[`pageSlug`] = pageSlug;
@@ -1443,7 +1605,8 @@ const templatesListSpecs: PromptSpec[] = [
   { key: "description", option: "--description <description>", name: "description", description: "Exact description text. An equality, so it is the round-trip of the value a picker already showed, not a search.", type: "string", required: false },
   { key: "pageBundle", option: "--page-bundle <page-bundle>", name: "page_bundle", description: "Exact page type the template is offered on. A template offered everywhere has no page_bundle and is not returned by this filter.", type: "string", required: false },
   { key: "fieldName", option: "--field-name <field-name>", name: "field_name", description: "Exact field the template is offered in.", type: "string", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Whether the template is the starting point for new pages of its bundle.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Whether the template is the page editor's block default: auto-applied when a block of its type is added. Says nothing about new pages.", type: "boolean", required: false },
+  { key: "isPageDefault", option: "--is-page-default <is-page-default>", name: "is_page_default", description: "Whether the template is the starting point for new pages of its page_bundle. With `page_bundle`, it answers at most one template.", type: "boolean", required: false },
   { key: "createdBy", option: "--created-by <created-by>", name: "created_by", description: "Exact user id of whoever saved the template.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact creation timestamp, RFC 3339. Equality only — there is no range operator here, so walk the list with `order` instead.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact last-change timestamp, RFC 3339. Equality only.", type: "string", required: false },
@@ -1451,7 +1614,7 @@ const templatesListSpecs: PromptSpec[] = [
 ];
 pages
   .command(`templates-list`)
-  .description(`Every column of a template is an exact-match filter here: \`?page_bundle=standard&field_name=content\` is how a picker asks for the templates offered in one place, and \`?is_default=true\` is how a "new page" flow finds the one to start from.`)
+  .description(`The filters are the ones listed here and no others — any other query key is refused with 400 (\`unknown_filter\`), the blocks (\`tree\`) among them. Each is an exact match: \`?page_bundle=standard&field_name=content\` is how a picker asks for the templates offered in one place, and \`?page_bundle=standard&is_page_default=true\` is how a "new page" flow finds the one to suggest — at most one per type. \`?is_default=true\` lists the editor's block defaults, which are never a page's starting point.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'. A bare column sorts ascending. A column this entity does not have, or any other shape, is refused with 400.`)
@@ -1462,7 +1625,13 @@ pages
   .option(`--field-name <field-name>`, `Exact field the template is offered in.`)
   .option(
     `--is-default [value]`,
-    `Whether the template is the starting point for new pages of its bundle.`,
+    `Whether the template is the page editor's block default: auto-applied when a block of its type is added. Says nothing about new pages.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
+    `--is-page-default [value]`,
+    `Whether the template is the starting point for new pages of its page_bundle. With \`page_bundle\`, it answers at most one template.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -1478,7 +1647,7 @@ pages
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, label, description, pageBundle, fieldName, isDefault, createdBy, createdAt, updatedAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, label, description, pageBundle, fieldName, isDefault, isPageDefault, createdBy, createdAt, updatedAt, filter } = await promptForMissing(
           _options,
           templatesListSpecs,
           _command,
@@ -1512,6 +1681,9 @@ pages
         }
         if (isDefault !== undefined) {
           _payload[`is_default`] = isDefault;
+        }
+        if (isPageDefault !== undefined) {
+          _payload[`is_page_default`] = isPageDefault;
         }
         if (createdBy !== undefined) {
           _payload[`created_by`] = createdBy;
@@ -1608,34 +1780,132 @@ pages
     ),
   );
 registerPromptSpecs(pages.commands.at(-1)!, templatesGetSpecs, { method: "get" });
-const templatesUpdateSpecs: PromptSpec[] = [
+const templatesPatchSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The template id.", type: "string", required: true, resource: { listPath: "/pages/templates", hasLimit: true } },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "A sentence about when to reach for it, shown next to the label.", type: "string", required: false },
   { key: "fieldName", option: "--field-name <field-name>", name: "field_name", description: "The field this template is offered in. Null offers it in every field.", type: "string", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "Whether a new page of this bundle starts from this template.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The page editor's block default: auto-apply this template when a block of its type is added. Only for a single-block template; true on a template of several blocks answers 400.", type: "boolean", required: false },
+  { key: "isPageDefault", option: "--is-page-default <is-page-default>", name: "is_page_default", description: "Make this template the starting point a \"new page\" dialog suggests for its `page_bundle`, or stop it being one. Null means false. Needs a `page_bundle`; a second starting point for the same type answers 409.", type: "boolean", required: false },
   { key: "label", option: "--label <label>", name: "label", description: "What the template is called in the picker.", type: "string", required: false },
-  { key: "pageBundle", option: "--page-bundle <page-bundle>", name: "page_bundle", description: "The page type this template is offered on. Null offers it on every page type.", type: "string", required: false },
+  { key: "pageBundle", option: "--page-bundle <page-bundle>", name: "page_bundle", description: "The page type this template is offered on. Null offers it on every page type — refused while the template is the starting point of its type.", type: "string", required: false },
   { key: "tree", option: "--tree [tree...]", name: "tree", description: "The blocks the template inserts, in order. Replaces the stored tree completely.", type: "array", required: false },
 ];
 pages
-  .command(`templates-update`)
-  .description(`Edits what a future page will start from. Because templates copy rather than share, this reaches nothing that already exists — pages built from it keep the blocks they were handed, which is exactly the property that makes a template safe to edit and a library item dangerous. \`is_default\` is the one field with an effect past the picker: it decides what a new page of \`page_bundle\` starts with, and nothing here stops two templates of the same bundle from both claiming it, so which one wins is left to whoever reads the list.`)
+  .command(`templates-patch`)
+  .description(`Edits what a future page will start from. Because templates copy rather than share, this reaches nothing that already exists — pages built from it keep the blocks they were handed, which is exactly the property that makes a template safe to edit and a library item dangerous. Two fields mark a template, and they mean different things: \`is_default\` is the page editor's block default (auto-applied when a block of its type is added, so only for a single-block template), and \`is_page_default\` is the starting point a "new page" dialog suggests for its \`page_bundle\`. A type has at most one starting point: naming a second answers 409 with the one in the way in \`details.existing\`, so unset it there first.`)
   .option(`--id <id>`, `The template id.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--description <description>`, `A sentence about when to reach for it, shown next to the label.`)
   .option(`--field-name <field-name>`, `The field this template is offered in. Null offers it in every field.`)
   .option(
     `--is-default [value]`,
-    `Whether a new page of this bundle starts from this template.`,
+    `The page editor's block default: auto-apply this template when a block of its type is added. Only for a single-block template; true on a template of several blocks answers 400.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
+    `--is-page-default [value]`,
+    `Make this template the starting point a "new page" dialog suggests for its \`page_bundle\`, or stop it being one. Null means false. Needs a \`page_bundle\`; a second starting point for the same type answers 409.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .option(`--label <label>`, `What the template is called in the picker.`)
-  .option(`--page-bundle <page-bundle>`, `The page type this template is offered on. Null offers it on every page type.`)
+  .option(`--page-bundle <page-bundle>`, `The page type this template is offered on. Null offers it on every page type — refused while the template is the starting point of its type.`)
   .option(`--tree [tree...]`, `The blocks the template inserts, in order. Replaces the stored tree completely.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, description, fieldName, isDefault, label, pageBundle, tree } = await promptForMissing(
+        const { id, actor, description, fieldName, isDefault, isPageDefault, label, pageBundle, tree } = await promptForMissing(
+          _options,
+          templatesPatchSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/pages/templates/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
+        }
+        if (description !== undefined) {
+          _payload[`description`] = description;
+        }
+        if (fieldName !== undefined) {
+          _payload[`field_name`] = fieldName;
+        }
+        if (isDefault !== undefined) {
+          _payload[`is_default`] = isDefault;
+        }
+        if (isPageDefault !== undefined) {
+          _payload[`is_page_default`] = isPageDefault;
+        }
+        if (label !== undefined) {
+          _payload[`label`] = label;
+        }
+        if (pageBundle !== undefined) {
+          _payload[`page_bundle`] = pageBundle;
+        }
+        if (tree !== undefined) {
+          _payload[`tree`] = tree;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `patch`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(pages.commands.at(-1)!, templatesPatchSpecs, { method: "patch" });
+const templatesUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The template id.", type: "string", required: true, resource: { listPath: "/pages/templates", hasLimit: true } },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
+  { key: "description", option: "--description <description>", name: "description", description: "A sentence about when to reach for it, shown next to the label.", type: "string", required: false },
+  { key: "fieldName", option: "--field-name <field-name>", name: "field_name", description: "The field this template is offered in. Null offers it in every field.", type: "string", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "is_default", description: "The page editor's block default: auto-apply this template when a block of its type is added. Only for a single-block template; true on a template of several blocks answers 400.", type: "boolean", required: false },
+  { key: "isPageDefault", option: "--is-page-default <is-page-default>", name: "is_page_default", description: "Make this template the starting point a \"new page\" dialog suggests for its `page_bundle`, or stop it being one. Null means false. Needs a `page_bundle`; a second starting point for the same type answers 409.", type: "boolean", required: false },
+  { key: "label", option: "--label <label>", name: "label", description: "What the template is called in the picker.", type: "string", required: false },
+  { key: "pageBundle", option: "--page-bundle <page-bundle>", name: "page_bundle", description: "The page type this template is offered on. Null offers it on every page type — refused while the template is the starting point of its type.", type: "string", required: false },
+  { key: "tree", option: "--tree [tree...]", name: "tree", description: "The blocks the template inserts, in order. Replaces the stored tree completely.", type: "array", required: false },
+];
+pages
+  .command(`templates-update`)
+  .description(`Edits what a future page will start from. Because templates copy rather than share, this reaches nothing that already exists — pages built from it keep the blocks they were handed, which is exactly the property that makes a template safe to edit and a library item dangerous. Two fields mark a template, and they mean different things: \`is_default\` is the page editor's block default (auto-applied when a block of its type is added, so only for a single-block template), and \`is_page_default\` is the starting point a "new page" dialog suggests for its \`page_bundle\`. A type has at most one starting point: naming a second answers 409 with the one in the way in \`details.existing\`, so unset it there first.`)
+  .option(`--id <id>`, `The template id.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
+  .option(`--description <description>`, `A sentence about when to reach for it, shown next to the label.`)
+  .option(`--field-name <field-name>`, `The field this template is offered in. Null offers it in every field.`)
+  .option(
+    `--is-default [value]`,
+    `The page editor's block default: auto-apply this template when a block of its type is added. Only for a single-block template; true on a template of several blocks answers 400.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(
+    `--is-page-default [value]`,
+    `Make this template the starting point a "new page" dialog suggests for its \`page_bundle\`, or stop it being one. Null means false. Needs a \`page_bundle\`; a second starting point for the same type answers 409.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--label <label>`, `What the template is called in the picker.`)
+  .option(`--page-bundle <page-bundle>`, `The page type this template is offered on. Null offers it on every page type — refused while the template is the starting point of its type.`)
+  .option(`--tree [tree...]`, `The blocks the template inserts, in order. Replaces the stored tree completely.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, actor, description, fieldName, isDefault, isPageDefault, label, pageBundle, tree } = await promptForMissing(
           _options,
           templatesUpdateSpecs,
           _command,
@@ -1650,6 +1920,9 @@ pages
           }
           Object.assign(_payload, body as RequestParams);
         }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
+        }
         if (description !== undefined) {
           _payload[`description`] = description;
         }
@@ -1658,6 +1931,9 @@ pages
         }
         if (isDefault !== undefined) {
           _payload[`is_default`] = isDefault;
+        }
+        if (isPageDefault !== undefined) {
+          _payload[`is_page_default`] = isPageDefault;
         }
         if (label !== undefined) {
           _payload[`label`] = label;

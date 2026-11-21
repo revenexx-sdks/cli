@@ -73,16 +73,18 @@ pagesEditor
   );
 registerPromptSpecs(pagesEditor.commands.at(-1)!, editStatesSpecs, { method: "get" });
 const translateSpecs: PromptSpec[] = [
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "items", option: "--items [items...]", name: "items", description: "The strings to translate. This app reads no element of the list — the provider defines the contract, and the blökkli adapter sends the fields below.", type: "array", required: false },
 ];
 pagesEditor
   .command(`translate`)
   .description(`The translation is the tenant's provider's, not this app's, and a tenant that has configured none gets no translation at all. The endpoint comes from the tenant setting \`translate_endpoint\` (PAGES_TRANSLATE_ENDPOINT remains a fallback). The bearer token does NOT: the gateway masks every setting flagged \`sensitive\`, so a key stored as one could never be read back — it stays the PAGES_TRANSLATE_KEY function secret. This app does not translate anything itself; it forwards \`items\` and hands the answer back.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--items [items...]`, `The strings to translate. This app reads no element of the list — the provider defines the contract, and the blökkli adapter sends the fields below.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { items } = await promptForMissing(
+        const { actor, items } = await promptForMissing(
           _options,
           translateSpecs,
           _command,
@@ -96,6 +98,9 @@ pagesEditor
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (items !== undefined) {
           _payload[`items`] = items;
@@ -137,16 +142,18 @@ pagesEditor
     ),
   );
 const userSettingsPutSpecs: PromptSpec[] = [
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "settings", option: "--settings <settings>", name: "settings", description: "The whole preferences bag — replaced, not merged, so send all of it. Its keys vary by the editor build and this app reads none of them. Null or omitted stores `{}`, which is how a user resets their editor.", type: "object", required: false },
 ];
 pagesEditor
   .command(`user-settings-put`)
   .description(`Replaces the caller's preferences wholesale — this is not a merge, so send the whole bag.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--settings <settings>`, `The whole preferences bag — replaced, not merged, so send all of it. Its keys vary by the editor build and this app reads none of them. Null or omitted stores \`{}\`, which is how a user resets their editor.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { settings } = await promptForMissing(
+        const { actor, settings } = await promptForMissing(
           _options,
           userSettingsPutSpecs,
           _command,
@@ -160,6 +167,9 @@ pagesEditor
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (settings !== undefined) {
           _payload[`settings`] = resolveBodyParam(settings);
@@ -181,6 +191,7 @@ registerPromptSpecs(pagesEditor.commands.at(-1)!, userSettingsPutSpecs, { method
 const historySpecs: PromptSpec[] = [
   { key: "pageId", option: "--page-id <page-id>", name: "page_id", description: "The page being edited.", type: "string", required: true },
   { key: "index", option: "--index <index>", name: "index", description: "The position in the mutation log to materialize at. `-1` undoes everything; the last position redoes everything. Values outside the log are clamped rather than refused.", type: "integer", required: true },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "langcode", option: "--langcode <langcode>", name: "langcode", description: "Which language the returned state should be resolved for.", type: "string", required: false },
 ];
 pagesEditor
@@ -188,11 +199,12 @@ pagesEditor
   .description(`Undo and redo. The pointer is the edit state's \`current_index\`, the position in the mutation log the page is materialized at, and this route is the only thing that moves it — \`GET …/state?index=\` looks at another position without going there. The log itself is never rewritten — only the pointer moves — so redo stays available until the next change is appended.`)
   .option(`--page-id <page-id>`, `The page being edited.`)
   .option(`--index <index>`, `The position in the mutation log to materialize at. \`-1\` undoes everything; the last position redoes everything. Values outside the log are clamped rather than refused.`, parseInteger)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--langcode <langcode>`, `Which language the returned state should be resolved for.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { pageId, index, langcode } = await promptForMissing(
+        const { pageId, index, actor, langcode } = await promptForMissing(
           _options,
           historySpecs,
           _command,
@@ -206,6 +218,9 @@ pagesEditor
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (index !== undefined) {
           _payload[`index`] = index;
@@ -263,6 +278,7 @@ const mutationStatusSpecs: PromptSpec[] = [
   { key: "pageId", option: "--page-id <page-id>", name: "page_id", description: "The page being edited.", type: "string", required: true },
   { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Whether the entry takes part in the replay.", type: "boolean", required: true },
   { key: "index", option: "--index <index>", name: "index", description: "The position in the mutation log to switch. Unknown positions answer 404.", type: "integer", required: true },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "langcode", option: "--langcode <langcode>", name: "langcode", description: "Which language the returned state should be resolved for.", type: "string", required: false },
 ];
 pagesEditor
@@ -271,11 +287,12 @@ pagesEditor
   .option(`--page-id <page-id>`, `The page being edited.`)
   .option(`--enabled <enabled>`, `Whether the entry takes part in the replay.`, parseBool)
   .option(`--index <index>`, `The position in the mutation log to switch. Unknown positions answer 404.`, parseInteger)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--langcode <langcode>`, `Which language the returned state should be resolved for.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { pageId, enabled, index, langcode } = await promptForMissing(
+        const { pageId, enabled, index, actor, langcode } = await promptForMissing(
           _options,
           mutationStatusSpecs,
           _command,
@@ -289,6 +306,9 @@ pagesEditor
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (enabled !== undefined) {
           _payload[`enabled`] = enabled;
@@ -316,20 +336,22 @@ registerPromptSpecs(pagesEditor.commands.at(-1)!, mutationStatusSpecs, { method:
 const mutateSpecs: PromptSpec[] = [
   { key: "pageId", option: "--page-id <page-id>", name: "page_id", description: "The page being edited.", type: "string", required: true },
   { key: "plugin", option: "--plugin <plugin>", name: "plugin", description: "Which kind of change this is — `add`, `move`, `delete`, `duplicate`, `update_field_value`, `update_options`, … An id this app does not implement is refused with 400 rather than stored, because the log has to replay.", type: "string", required: true },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "langcode", option: "--langcode <langcode>", name: "langcode", description: "Which language the returned state should be resolved for. Not the language the change is written in — that lives in the payload.", type: "string", required: false },
-  { key: "payload", option: "--payload <payload>", name: "payload", description: "The arguments of that change; the keys depend on the plugin (`add` takes `{ bundle, hostEntityType, hostEntityUuid, hostField }`, `move` takes `{ uuid, preceedingUuid }`, and so on). Anything non-deterministic in it — new uuids, a library item's tree, a copied subtree — is resolved once here and stored, so replaying the log is deterministic forever.", type: "object", required: false },
+  { key: "payload", option: "--payload <payload>", name: "payload", description: "The arguments of that change; the keys depend on the plugin (`add` takes `{ bundle, hostEntityType, hostEntityUuid, hostField }`, `move` takes `{ uuid, preceedingUuid }`, and so on). Anything non-deterministic in it — new uuids, a library item's tree, a copied subtree, the block default an `add` without values picks up — is resolved once here and stored, so replaying the log is deterministic forever.", type: "object", required: false },
 ];
 pagesEditor
   .command(`mutate`)
   .description(`The one way page CONTENT changes. Each call appends one entry to the append-only log and answers the whole re-materialized state, so a client never re-fetches. A page nobody has opened yet needs no separate call to open it: the first mutation creates the edit state and takes ownership of it, and every later one asks for that ownership, so a second person editing the same page is refused until they take it over. Appending while the pointer sits mid-history discards the redo branch, exactly as an editor expects.`)
   .option(`--page-id <page-id>`, `The page being edited.`)
   .option(`--plugin <plugin>`, `Which kind of change this is — \`add\`, \`move\`, \`delete\`, \`duplicate\`, \`update_field_value\`, \`update_options\`, … An id this app does not implement is refused with 400 rather than stored, because the log has to replay.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--langcode <langcode>`, `Which language the returned state should be resolved for. Not the language the change is written in — that lives in the payload.`)
-  .option(`--payload <payload>`, `The arguments of that change; the keys depend on the plugin (\`add\` takes \`{ bundle, hostEntityType, hostEntityUuid, hostField }\`, \`move\` takes \`{ uuid, preceedingUuid }\`, and so on). Anything non-deterministic in it — new uuids, a library item's tree, a copied subtree — is resolved once here and stored, so replaying the log is deterministic forever.`)
+  .option(`--payload <payload>`, `The arguments of that change; the keys depend on the plugin (\`add\` takes \`{ bundle, hostEntityType, hostEntityUuid, hostField }\`, \`move\` takes \`{ uuid, preceedingUuid }\`, and so on). Anything non-deterministic in it — new uuids, a library item's tree, a copied subtree, the block default an \`add\` without values picks up — is resolved once here and stored, so replaying the log is deterministic forever.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { pageId, plugin, langcode, payload } = await promptForMissing(
+        const { pageId, plugin, actor, langcode, payload } = await promptForMissing(
           _options,
           mutateSpecs,
           _command,
@@ -343,6 +365,9 @@ pagesEditor
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (langcode !== undefined) {
           _payload[`langcode`] = langcode;
@@ -369,17 +394,19 @@ pagesEditor
 registerPromptSpecs(pagesEditor.commands.at(-1)!, mutateSpecs, { method: "post" });
 const previewGrantSpecs: PromptSpec[] = [
   { key: "pageId", option: "--page-id <page-id>", name: "page_id", description: "The page being edited.", type: "string", required: true },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "ttlHours", option: "--ttl-hours <ttl-hours>", name: "ttlHours", description: "Hours until the link expires. Defaults to 72. After that `GET /pages/delivery/preview/{token}` answers 410 rather than 404, so the holder can tell \"expired\" from \"wrong link\".", type: "integer", required: false },
 ];
 pagesEditor
   .command(`preview-grant`)
   .description(`Mints a link that shows this page's current edit state — the UNPUBLISHED one — to somebody without an editor account. The token is the whole credential — anyone holding it sees the page — so it expires, and a new one is cheap.`)
   .option(`--page-id <page-id>`, `The page being edited.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--ttl-hours <ttl-hours>`, `Hours until the link expires. Defaults to 72. After that \`GET /pages/delivery/preview/{token}\` answers 410 rather than 404, so the holder can tell "expired" from "wrong link".`, parseInteger)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { pageId, ttlHours } = await promptForMissing(
+        const { pageId, actor, ttlHours } = await promptForMissing(
           _options,
           previewGrantSpecs,
           _command,
@@ -393,6 +420,9 @@ pagesEditor
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (ttlHours !== undefined) {
           _payload[`ttlHours`] = ttlHours;
@@ -413,6 +443,7 @@ pagesEditor
 registerPromptSpecs(pagesEditor.commands.at(-1)!, previewGrantSpecs, { method: "post" });
 const publishSpecs: PromptSpec[] = [
   { key: "pageId", option: "--page-id <page-id>", name: "page_id", description: "The page being edited.", type: "string", required: true },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "forcePublish", option: "--force-publish <force-publish>", name: "force", description: "Publish despite violations. Without it a page with unresolved violations answers 422 and nothing is written.", type: "boolean", required: false },
   { key: "label", option: "--label <label>", name: "label", description: "What to call this publication in the page's history — \"Autumn campaign\" rather than a timestamp.", type: "string", required: false },
 ];
@@ -420,6 +451,7 @@ pagesEditor
   .command(`publish`)
   .description(`Four things in one call: the mutation log is replayed into a finished block tree, that tree is snapshotted into a new revision, the page's canonical blocks are replaced by it, and the edit state is archived — so the page comes out of this with nothing unpublished and the working copy behind it closed rather than deleted. The revision is written FIRST and the canonical blocks replaced after, so a failure mid-way leaves the page recoverable. Block uuids survive, which is why comments anchored to a block outlive the publish.`)
   .option(`--page-id <page-id>`, `The page being edited.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(
     `--force-publish [value]`,
     `Publish despite violations. Without it a page with unresolved violations answers 422 and nothing is written.`,
@@ -430,7 +462,7 @@ pagesEditor
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { pageId, forcePublish, label } = await promptForMissing(
+        const { pageId, actor, forcePublish, label } = await promptForMissing(
           _options,
           publishSpecs,
           _command,
@@ -444,6 +476,9 @@ pagesEditor
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (forcePublish !== undefined) {
           _payload[`force`] = forcePublish;
@@ -500,16 +535,18 @@ registerPromptSpecs(pagesEditor.commands.at(-1)!, revertSpecs, { method: "post" 
 const scheduleSpecs: PromptSpec[] = [
   { key: "pageId", option: "--page-id <page-id>", name: "page_id", description: "The page being edited.", type: "string", required: true },
   { key: "scheduledAt", option: "--scheduled-at <scheduled-at>", name: "scheduledAt", description: "The moment to publish at. Stored on the edit state and echoed back normalized to UTC.", type: "string", required: true },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
 ];
 pagesEditor
   .command(`schedule`)
   .description(`Gated on the tenant setting \`enable_scheduled_publishing\`, which is off by default: nothing in the platform publishes a scheduled edit state yet, so a date accepted here would be a promise the app cannot keep. Every editor state carries \`features.scheduledPublishing\` so the control can be hidden rather than the refusal discovered.`)
   .option(`--page-id <page-id>`, `The page being edited.`)
   .option(`--scheduled-at <scheduled-at>`, `The moment to publish at. Stored on the edit state and echoed back normalized to UTC.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { pageId, scheduledAt } = await promptForMissing(
+        const { pageId, scheduledAt, actor } = await promptForMissing(
           _options,
           scheduleSpecs,
           _command,
@@ -523,6 +560,9 @@ pagesEditor
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (scheduledAt !== undefined) {
           _payload[`scheduledAt`] = scheduledAt;
@@ -619,9 +659,10 @@ const templatesCreateSpecs: PromptSpec[] = [
   { key: "pageId", option: "--page-id <page-id>", name: "page_id", description: "The page being edited.", type: "string", required: true },
   { key: "label", option: "--label <label>", name: "label", description: "What the template is called in the picker.", type: "string", required: true },
   { key: "uuids", option: "--uuids [uuids...]", name: "uuids", description: "The blocks to serialize into the template, each with its whole subtree. They are read from the CURRENT edit state, so unpublished changes are included.", type: "array", required: true },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "A sentence about when to reach for it.", type: "string", required: false },
   { key: "fieldName", option: "--field-name <field-name>", name: "fieldName", description: "The field this template should be offered in. Null offers it in every field.", type: "string", required: false },
-  { key: "isDefault", option: "--is-default <is-default>", name: "isDefault", description: "Whether a new page of that type should start from this template.", type: "boolean", required: false },
+  { key: "isDefault", option: "--is-default <is-default>", name: "isDefault", description: "blökkli's \"use as default\": auto-apply this template when a block of its type is added. Only for a single-block template — true with more than one uuid answers 400. It never makes the template a page's starting point; that is `is_page_default`, set with `PATCH /pages/templates/{id}`.", type: "boolean", required: false },
   { key: "pageBundle", option: "--page-bundle <page-bundle>", name: "pageBundle", description: "The page type this template should be offered on. Omit to take the current page's own type.", type: "string", required: false },
 ];
 pagesEditor
@@ -630,11 +671,12 @@ pagesEditor
   .option(`--page-id <page-id>`, `The page being edited.`)
   .option(`--label <label>`, `What the template is called in the picker.`)
   .option(`--uuids [uuids...]`, `The blocks to serialize into the template, each with its whole subtree. They are read from the CURRENT edit state, so unpublished changes are included.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--description <description>`, `A sentence about when to reach for it.`)
   .option(`--field-name <field-name>`, `The field this template should be offered in. Null offers it in every field.`)
   .option(
     `--is-default [value]`,
-    `Whether a new page of that type should start from this template.`,
+    `blökkli's "use as default": auto-apply this template when a block of its type is added. Only for a single-block template — true with more than one uuid answers 400. It never makes the template a page's starting point; that is \`is_page_default\`, set with \`PATCH /pages/templates/{id}\`.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
@@ -642,7 +684,7 @@ pagesEditor
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { pageId, label, uuids, description, fieldName, isDefault, pageBundle } = await promptForMissing(
+        const { pageId, label, uuids, actor, description, fieldName, isDefault, pageBundle } = await promptForMissing(
           _options,
           templatesCreateSpecs,
           _command,
@@ -656,6 +698,9 @@ pagesEditor
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (description !== undefined) {
           _payload[`description`] = description;

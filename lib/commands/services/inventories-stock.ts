@@ -29,6 +29,7 @@ export const inventoriesStock = new Command("inventories-stock")
   });
 
 const inventoriesAdjustSpecs: PromptSpec[] = [
+  { key: "externalRef", option: "--external-ref <external-ref>", name: "external_ref", description: "Your own key for this call — the ERP document number, say — so that a retry books once. Unique per tenant and route. The first call with it books; a later call with the same ref and the same body books nothing and answers exactly what the first call answered. The same ref with a different body is refused with 409 `external_ref_reused`; while the first call is still running, a retry is answered 409 `external_ref_in_progress`. Every movement the call writes carries the ref. Omitted, the call books every time, as before.", type: "string", required: false },
   { key: "items", option: "--items [items...]", name: "items", description: "The corrections, at most 200 in one call — a stocktake, breakage, shrinkage. Quantities are SIGNED deltas, not new balances.", type: "array", required: false },
   { key: "locationCode", option: "--location-code <location-code>", name: "location_code", description: "Which location is being corrected. Omitted, the `default_location_code` setting decides. A correction is per location: the same SKU in two warehouses is two corrections.", type: "string", required: false },
   { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "Inline single-item form: the product to move, instead of a one-entry `items` array. The two forms are equivalent — nothing downstream knows which arrived.", type: "string", required: false },
@@ -39,6 +40,7 @@ const inventoriesAdjustSpecs: PromptSpec[] = [
 inventoriesStock
   .command(`inventories-adjust`)
   .description(`The batch correction route — a stocktake, breakage, shrinkage — and the manual way \`on_hand\` is ever put right. Quantities are SIGNED: a positive one adds to the balance, a negative one takes it away, and neither is written onto the row directly. Each item is booked into the movements ledger as an \`adjustment\` and the balance follows, so a correction leaves a record of who changed what and why instead of a number that silently differs from yesterday's. A batch is all-or-nothing: every item is judged against both guards before the first is booked, and a refusal books nothing. An item is named once with its whole correction; two lines for one item are refused. A reason is mandatory unless movement_reason_required is 'none'.`)
+  .option(`--external-ref <external-ref>`, `Your own key for this call — the ERP document number, say — so that a retry books once. Unique per tenant and route. The first call with it books; a later call with the same ref and the same body books nothing and answers exactly what the first call answered. The same ref with a different body is refused with 409 \`external_ref_reused\`; while the first call is still running, a retry is answered 409 \`external_ref_in_progress\`. Every movement the call writes carries the ref. Omitted, the call books every time, as before.`)
   .option(`--items [items...]`, `The corrections, at most 200 in one call — a stocktake, breakage, shrinkage. Quantities are SIGNED deltas, not new balances.`)
   .option(`--location-code <location-code>`, `Which location is being corrected. Omitted, the \`default_location_code\` setting decides. A correction is per location: the same SKU in two warehouses is two corrections.`)
   .option(`--product-id <product-id>`, `Inline single-item form: the product to move, instead of a one-entry \`items\` array. The two forms are equivalent — nothing downstream knows which arrived.`)
@@ -48,7 +50,7 @@ inventoriesStock
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { items, locationCode, productId, quantity, reason, sku } = await promptForMissing(
+        const { externalRef, items, locationCode, productId, quantity, reason, sku } = await promptForMissing(
           _options,
           inventoriesAdjustSpecs,
           _command,
@@ -62,6 +64,9 @@ inventoriesStock
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (externalRef !== undefined) {
+          _payload[`external_ref`] = externalRef;
         }
         if (items !== undefined) {
           _payload[`items`] = items;
@@ -616,6 +621,7 @@ const movementsListSpecs: PromptSpec[] = [
   { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", description: "Exact-match filter on `order_ref`. One order's whole stock history: its reserve, release, shipment and restock bookings.", type: "string", required: false },
   { key: "reason", option: "--reason <reason>", name: "reason", description: "Exact-match filter on `reason`. Why the booking happened, in a person's words — a delivery note number, 'stocktake 2026-03', 'damaged in transit'.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Exact-match filter on `metadata`. Free-form, and two keys this app writes itself: `backordered` — on a `reserve` booking, how much of the hold was not covered by stock on hand; `shortfall` — on a `shipment` booking, how much was committed that was not physically there (`on_hand` floors at 0, so the difference is recorded here instead of vanishing). The WHOLE jsonb document is compared, serialized as JSON — this is equality, not a key lookup or a containment query, and a value that does not parse is answered 400.", type: "string", required: false },
+  { key: "externalRef", option: "--external-ref <external-ref>", name: "external_ref", description: "Exact-match filter on `external_ref`. The caller's own key for the call that wrote this booking — the `external_ref` a receive, adjust or restock was sent with, typically the ERP's document number.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact-match filter on `created_at`. Exact timestamp. There is no range filter on the ledger — page it with `?order=created_at.desc` instead.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
@@ -635,6 +641,7 @@ inventoriesStock
   .option(`--order-ref <order-ref>`, `Exact-match filter on \`order_ref\`. One order's whole stock history: its reserve, release, shipment and restock bookings.`)
   .option(`--reason <reason>`, `Exact-match filter on \`reason\`. Why the booking happened, in a person's words — a delivery note number, 'stocktake 2026-03', 'damaged in transit'.`)
   .option(`--metadata <metadata>`, `Exact-match filter on \`metadata\`. Free-form, and two keys this app writes itself: \`backordered\` — on a \`reserve\` booking, how much of the hold was not covered by stock on hand; \`shortfall\` — on a \`shipment\` booking, how much was committed that was not physically there (\`on_hand\` floors at 0, so the difference is recorded here instead of vanishing). The WHOLE jsonb document is compared, serialized as JSON — this is equality, not a key lookup or a containment query, and a value that does not parse is answered 400.`)
+  .option(`--external-ref <external-ref>`, `Exact-match filter on \`external_ref\`. The caller's own key for the call that wrote this booking — the \`external_ref\` a receive, adjust or restock was sent with, typically the ERP's document number.`)
   .option(`--created-at <created-at>`, `Exact-match filter on \`created_at\`. Exact timestamp. There is no range filter on the ledger — page it with \`?order=created_at.desc\` instead.`)
   .option(
     `--filter <column=value>`,
@@ -645,7 +652,7 @@ inventoriesStock
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, locationId, productId, sku, type, quantity, orderRef, reason, metadata, createdAt, filter } = await promptForMissing(
+        const { limit, offset, order, id, locationId, productId, sku, type, quantity, orderRef, reason, metadata, externalRef, createdAt, filter } = await promptForMissing(
           _options,
           movementsListSpecs,
           _command,
@@ -688,6 +695,9 @@ inventoriesStock
         }
         if (metadata !== undefined) {
           _payload[`metadata`] = metadata;
+        }
+        if (externalRef !== undefined) {
+          _payload[`external_ref`] = externalRef;
         }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
@@ -747,6 +757,7 @@ inventoriesStock
   );
 registerPromptSpecs(inventoriesStock.commands.at(-1)!, movementsGetSpecs, { method: "get" });
 const receiveSpecs: PromptSpec[] = [
+  { key: "externalRef", option: "--external-ref <external-ref>", name: "external_ref", description: "Your own key for this call — the ERP document number, say — so that a retry books once. Unique per tenant and route. The first call with it books; a later call with the same ref and the same body books nothing and answers exactly what the first call answered. The same ref with a different body is refused with 409 `external_ref_reused`; while the first call is still running, a retry is answered 409 `external_ref_in_progress`. Every movement the call writes carries the ref. Omitted, the call books every time, as before.", type: "string", required: false },
   { key: "items", option: "--items [items...]", name: "items", description: "The goods that arrived, at most 200 in one call — a delivery, a production batch, an opening balance.", type: "array", required: false },
   { key: "locationCode", option: "--location-code <location-code>", name: "location_code", description: "Which location took the delivery. Omitted, the `default_location_code` setting decides; a code no location carries is answered 400 rather than booked somewhere else.", type: "string", required: false },
   { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "Inline single-item form: the product to move, instead of a one-entry `items` array. The two forms are equivalent — nothing downstream knows which arrived.", type: "string", required: false },
@@ -758,6 +769,7 @@ inventoriesStock
   .command(`receive`)
   .description(`Books a delivery into the receiving location (the caller's location_code, else the default_location_code setting), creating the stock row if the item is new. A reason is optional unless movement_reason_required is 'all'. Takes a batch or one item inline.`)
   .alias("inventories-receive")
+  .option(`--external-ref <external-ref>`, `Your own key for this call — the ERP document number, say — so that a retry books once. Unique per tenant and route. The first call with it books; a later call with the same ref and the same body books nothing and answers exactly what the first call answered. The same ref with a different body is refused with 409 \`external_ref_reused\`; while the first call is still running, a retry is answered 409 \`external_ref_in_progress\`. Every movement the call writes carries the ref. Omitted, the call books every time, as before.`)
   .option(`--items [items...]`, `The goods that arrived, at most 200 in one call — a delivery, a production batch, an opening balance.`)
   .option(`--location-code <location-code>`, `Which location took the delivery. Omitted, the \`default_location_code\` setting decides; a code no location carries is answered 400 rather than booked somewhere else.`)
   .option(`--product-id <product-id>`, `Inline single-item form: the product to move, instead of a one-entry \`items\` array. The two forms are equivalent — nothing downstream knows which arrived.`)
@@ -767,7 +779,7 @@ inventoriesStock
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { items, locationCode, productId, quantity, reason, sku } = await promptForMissing(
+        const { externalRef, items, locationCode, productId, quantity, reason, sku } = await promptForMissing(
           _options,
           receiveSpecs,
           _command,
@@ -781,6 +793,9 @@ inventoriesStock
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (externalRef !== undefined) {
+          _payload[`external_ref`] = externalRef;
         }
         if (items !== undefined) {
           _payload[`items`] = items;
@@ -879,6 +894,7 @@ inventoriesStock
   );
 registerPromptSpecs(inventoriesStock.commands.at(-1)!, reorderScanSpecs, { method: "post" });
 const restockSpecs: PromptSpec[] = [
+  { key: "externalRef", option: "--external-ref <external-ref>", name: "external_ref", description: "Your own key for this call — the ERP document number, say — so that a retry books once. Unique per tenant and route. The first call with it books; a later call with the same ref and the same body books nothing and answers exactly what the first call answered. The same ref with a different body is refused with 409 `external_ref_reused`; while the first call is still running, a retry is answered 409 `external_ref_in_progress`. Every movement the call writes carries the ref. Omitted, the call books every time, as before.", type: "string", required: false },
   { key: "items", option: "--items [items...]", name: "items", description: "The goods that came back, at most 200 in one call. Whether they rejoin sellable stock is `restock`, not this list.", type: "array", required: false },
   { key: "locationCode", option: "--location-code <location-code>", name: "location_code", description: "Where the goods came back to — a returns warehouse is a location like any other. Omitted, the `default_location_code` setting decides.", type: "string", required: false },
   { key: "orderRef", option: "--order-ref <order-ref>", name: "order_ref", description: "The order the goods came back from. It is written onto the ledger booking, so the return shows up in that order's stock history next to its reserve and shipment — no reservation is touched by it.", type: "string", required: false },
@@ -892,6 +908,7 @@ inventoriesStock
   .command(`restock`)
   .description(`Whether a return rejoins sellable stock follows restock_on_return_default, overridable per call with 'restock'. When the answer is no the response says restocked:false and nothing moves — there is no movement to book, because no stock moved. That branch is why this route answers 200 and its sibling \`receive\` answers 201: a restock may legitimately create nothing.`)
   .alias("inventories-restock")
+  .option(`--external-ref <external-ref>`, `Your own key for this call — the ERP document number, say — so that a retry books once. Unique per tenant and route. The first call with it books; a later call with the same ref and the same body books nothing and answers exactly what the first call answered. The same ref with a different body is refused with 409 \`external_ref_reused\`; while the first call is still running, a retry is answered 409 \`external_ref_in_progress\`. Every movement the call writes carries the ref. Omitted, the call books every time, as before.`)
   .option(`--items [items...]`, `The goods that came back, at most 200 in one call. Whether they rejoin sellable stock is \`restock\`, not this list.`)
   .option(`--location-code <location-code>`, `Where the goods came back to — a returns warehouse is a location like any other. Omitted, the \`default_location_code\` setting decides.`)
   .option(`--order-ref <order-ref>`, `The order the goods came back from. It is written onto the ledger booking, so the return shows up in that order's stock history next to its reserve and shipment — no reservation is touched by it.`)
@@ -908,7 +925,7 @@ inventoriesStock
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { items, locationCode, orderRef, productId, quantity, reason, restock, sku } = await promptForMissing(
+        const { externalRef, items, locationCode, orderRef, productId, quantity, reason, restock, sku } = await promptForMissing(
           _options,
           restockSpecs,
           _command,
@@ -922,6 +939,9 @@ inventoriesStock
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (externalRef !== undefined) {
+          _payload[`external_ref`] = externalRef;
         }
         if (items !== undefined) {
           _payload[`items`] = items;
@@ -1187,6 +1207,64 @@ inventoriesStock
     ),
   );
 registerPromptSpecs(inventoriesStock.commands.at(-1)!, createSpecs, { method: "post" });
+const migrateProductsSpecs: PromptSpec[] = [
+  { key: "cursor", option: "--cursor <cursor>", name: "cursor", description: "Where to resume: the `cursor` the previous call answered. Omit it, or send null, to start at the first record.", type: "string", required: false },
+  { key: "dryRun", option: "--dry-run <dry-run>", name: "dry_run", description: "True (the default) writes nothing and answers what a real run would link.", type: "boolean", required: false, default: "true" },
+];
+inventoriesStock
+  .command(`migrate-products`)
+  .description(`A one-off, by-hand migration (RAD-386). A stock row or a reservation may name its item by SKU alone, and such a record shows no product in any list that labels it by product. Since 3.9.0 a new record is linked when it is written; this route links the records written before that.
+
+It walks the stock rows, then the reservations, that carry a SKU and no \`product_id\`, in id order, and asks the products app (\`products.batch\`) which product carries each SKU — an exact match, whatever market the product is assigned to. Caller-driven and chunked: one call works for about six seconds, stopping between records once its time is up, and answers a \`cursor\`; send it back until \`done\` is true.
+
+\`dry_run\` defaults to TRUE, so a call that forgets it writes nothing and answers what it would link. A real run (\`dry_run: false\`) writes each link with a compare-and-set on \`product_id is null\`: a record somebody linked in the meantime keeps its link, and a second run links nothing twice. A SKU the catalogue does not know is left as it is and named in \`unresolved_skus\`. A SKU the products app cannot look up (it answers an error for it, not an outage) is left as it is, counted under \`failed\` and named in \`failed_skus\`, and the cursor moves past it. A record whose link would split a balance — a stock row whose location already keeps a row for that product, or a reservation whose product would make it match a different stock row than the one it was booked against — is left as it is, counted under \`conflicts\` and named in \`conflict_records\`, for a person to merge. The ledger of movements is not rewritten: a booking is written once, and a new one already names the product its stock row names.
+
+Every linked stock row is an update, so it publishes \`stock_level.updated\` like any other.`)
+  .option(`--cursor <cursor>`, `Where to resume: the \`cursor\` the previous call answered. Omit it, or send null, to start at the first record.`)
+  .option(
+    `--dry-run [value]`,
+    `True (the default) writes nothing and answers what a real run would link.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { cursor, dryRun } = await promptForMissing(
+          _options,
+          migrateProductsSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/inventories/stock/migrate-products`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (cursor !== undefined) {
+          _payload[`cursor`] = cursor;
+        }
+        if (dryRun !== undefined) {
+          _payload[`dry_run`] = dryRun;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(inventoriesStock.commands.at(-1)!, migrateProductsSpecs, { method: "post" });
 const deleteSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The stock row.", type: "string", required: true, resource: { listPath: "/inventories/stock", hasLimit: true } },
 ];

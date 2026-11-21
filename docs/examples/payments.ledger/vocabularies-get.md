@@ -1,4 +1,4 @@
 ```bash
 revenexx payments-ledger vocabularies-get \
-    --name connection-states
+    --name checkout-modes
 ```

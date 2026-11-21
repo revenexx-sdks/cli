@@ -179,7 +179,7 @@ const createSpecs: PromptSpec[] = [
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this record, keyed by system name. `external_id` is the leading system; this is the rest. Not a query parameter: a jsonb column is compared as a whole document.", type: "any", required: false },
   { key: "holder", option: "--holder <holder>", name: "holder", description: "Who collects: `contact` (one person) or `organization` (a company whose orders all count together). A turnover bonus is always `organization`. Fixed once created.", type: "string", required: false, enum: ["contact","organization"] },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
-  { key: "period", option: "--period <period>", name: "period", description: "The window tiers are measured over: `calendar_year` or `rolling_12m`. A turnover bonus runs per calendar year.", type: "string", required: false, enum: ["calendar_year","rolling_12m"] },
+  { key: "period", option: "--period <period>", name: "period", description: "The window tiers are measured over: `calendar_year` (resets on 1 January), `rolling_12m`, `anniversary` (resets on the day the member joined) or `never` (all points ever earned). Left out on create, a points programme takes the tenant setting `tier_reset`. A turnover bonus runs per calendar year.", type: "string", required: false, enum: ["calendar_year","rolling_12m","anniversary","never"] },
   { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "The source system's own view of the record as the last sync saw it, kept for reconciliation. Nothing in this app reads it.", type: "any", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When a sync last wrote this record from its source system. Null for a record only ever kept here.", type: "string", required: false },
 ];
@@ -207,7 +207,7 @@ loyaltyPrograms
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this record, keyed by system name. \`external_id\` is the leading system; this is the rest. Not a query parameter: a jsonb column is compared as a whole document.`)
   .option(`--holder <holder>`, `Who collects: \`contact\` (one person) or \`organization\` (a company whose orders all count together). A turnover bonus is always \`organization\`. Fixed once created.`)
   .option(`--metadata <metadata>`, `Free-form JSON a caller may keep on the row. Nothing here reads it.`)
-  .option(`--period <period>`, `The window tiers are measured over: \`calendar_year\` or \`rolling_12m\`. A turnover bonus runs per calendar year.`)
+  .option(`--period <period>`, `The window tiers are measured over: \`calendar_year\` (resets on 1 January), \`rolling_12m\`, \`anniversary\` (resets on the day the member joined) or \`never\` (all points ever earned). Left out on create, a points programme takes the tenant setting \`tier_reset\`. A turnover bonus runs per calendar year.`)
   .option(`--source-data <source-data>`, `The source system's own view of the record as the last sync saw it, kept for reconciliation. Nothing in this app reads it.`)
   .option(`--source-synced-at <source-synced-at>`, `When a sync last wrote this record from its source system. Null for a record only ever kept here.`)
   .action(
@@ -406,7 +406,7 @@ const updateSpecs: PromptSpec[] = [
   { key: "kind", option: "--kind <kind>", name: "kind", description: "`points` (points per order, rewards) or `turnover_bonus` (a yearly bonus agreement per company). Fixed once created.", type: "string", required: false, enum: ["points","turnover_bonus"] },
   { key: "labels", option: "--labels <labels>", name: "labels", description: "What it is called, as `{ de, en }`. A bare string is taken for both.", type: "any", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form JSON a caller may keep on the row. Nothing here reads it.", type: "any", required: false },
-  { key: "period", option: "--period <period>", name: "period", description: "The window tiers are measured over: `calendar_year` or `rolling_12m`. A turnover bonus runs per calendar year.", type: "string", required: false, enum: ["calendar_year","rolling_12m"] },
+  { key: "period", option: "--period <period>", name: "period", description: "The window tiers are measured over: `calendar_year` (resets on 1 January), `rolling_12m`, `anniversary` (resets on the day the member joined) or `never` (all points ever earned). Left out on create, a points programme takes the tenant setting `tier_reset`. A turnover bonus runs per calendar year.", type: "string", required: false, enum: ["calendar_year","rolling_12m","anniversary","never"] },
   { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "The source system's own view of the record as the last sync saw it, kept for reconciliation. Nothing in this app reads it.", type: "any", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When a sync last wrote this record from its source system. Null for a record only ever kept here.", type: "string", required: false },
 ];
@@ -435,7 +435,7 @@ loyaltyPrograms
   .option(`--kind <kind>`, `\`points\` (points per order, rewards) or \`turnover_bonus\` (a yearly bonus agreement per company). Fixed once created.`)
   .option(`--labels <labels>`, `What it is called, as \`{ de, en }\`. A bare string is taken for both.`)
   .option(`--metadata <metadata>`, `Free-form JSON a caller may keep on the row. Nothing here reads it.`)
-  .option(`--period <period>`, `The window tiers are measured over: \`calendar_year\` or \`rolling_12m\`. A turnover bonus runs per calendar year.`)
+  .option(`--period <period>`, `The window tiers are measured over: \`calendar_year\` (resets on 1 January), \`rolling_12m\`, \`anniversary\` (resets on the day the member joined) or \`never\` (all points ever earned). Left out on create, a points programme takes the tenant setting \`tier_reset\`. A turnover bonus runs per calendar year.`)
   .option(`--source-data <source-data>`, `The source system's own view of the record as the last sync saw it, kept for reconciliation. Nothing in this app reads it.`)
   .option(`--source-synced-at <source-synced-at>`, `When a sync last wrote this record from its source system. Null for a record only ever kept here.`)
   .action(

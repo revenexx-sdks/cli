@@ -30,7 +30,7 @@ const maintainSpecs: PromptSpec[] = [
 ];
 reviewsJobs
   .command(`maintain`)
-  .description(`Expires review links past their date — the same as the hourly schedule.`)
+  .description(`The same run as the hourly schedule: expires review links past their date and names the product on up to 2000 reviews written without SKU or name (as \`POST /reviews/reviews/backfill-products\` does). It continues from the cursor the previous run stored, whether that was the hourly schedule or this route, so consecutive runs cover every review once per pass; a run that reaches the end completes the pass and the next one starts from the beginning. Naming is best effort: a products app that does not answer keeps the cursor before the reviews it could not look up.`)
   .option(`--body <body>`, `Request body`)
   .action(
     actionRunner(

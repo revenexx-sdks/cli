@@ -781,3 +781,35 @@ Restoring needs the same right as deleting.`)
     ),
   );
 registerPromptSpecs(productsAssets.commands.at(-1)!, restoreSpecs, { method: "post" });
+const usageSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The `assets` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from `GET /v1/products/assets`. An id no asset of this tenant carries answers 404; a malformed one answers 400 before the route is reached.", type: "string", required: true, resource: { listPath: "/products/assets", hasLimit: true } },
+];
+productsAssets
+  .command(`usage`)
+  .description(`How many products name this asset — by its code or its delivery path — in a media attribute of their common values (RAD-376). Counted on request, never stored, so it cannot go stale; it is the same count a trash of the asset warns with. Products in the trash are not counted.`)
+  .option(`--id <id>`, `The \`assets\` row to address, by id. It names a row THIS TENANT holds, so no example is published — a uuid this app invented would document a call that answers 404, and a real one would be another tenant's data. Read one from \`GET /v1/products/assets\`. An id no asset of this tenant carries answers 404; a malformed one answers 400 before the route is reached.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          usageSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/assets/{id}/usage`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `get`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(productsAssets.commands.at(-1)!, usageSpecs, { method: "get" });

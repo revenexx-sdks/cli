@@ -233,6 +233,15 @@ List PurchaseRequest
 revenexx procurement purchase-requests-list
 ```
 
+## purchase-requests-delete
+
+Delete a purchase request
+
+```bash
+revenexx procurement purchase-requests-delete \
+    --id ''
+```
+
 ## purchase-requests-get
 
 Read one purchase request

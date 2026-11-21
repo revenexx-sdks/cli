@@ -67,7 +67,8 @@ const listSpecs: PromptSpec[] = [
   { key: "requestedDeliveryDate", option: "--requested-delivery-date <requested-delivery-date>", name: "requested_delivery_date", description: "The dispatch list for one day: every order the buyer asked to have on it. Exact equality on the DAY — there is no range filter here, so a week is seven calls or a sort with `order=requested_delivery_date.asc` and paging. It answers about the ORDER's date; a position that named its own is not found this way. The calendar day the BUYER asked to be delivered on, as a date and not a moment — a buyer asks for Tuesday, not for Tuesday at 14:03 in a timezone nobody named. It is a wish and nothing here judges it: a date in the past, a weekend or a day inside the lead time is stored as sent, because what is deliverable is the merchant's answer and this app reads neither stock nor carrier calendar. The positions carry their own, and A POSITION'S DATE WINS over this one — this is the proposal for every position that names none. Null on an order that asked for nothing, which is the ordinary case. It was collected in `user_data.requested_date` before this column existed and is still echoed there by callers that have not moved over; the column is what is compared, sorted and mapped.", type: "string", required: false },
   { key: "utmCampaign", option: "--utm-campaign <utm-campaign>", name: "utm_campaign", description: "Filter to the orders one utm_campaign brought in, exactly as the visitor's link spelled it. `attribution.utm_campaign`, copied into a column of its own at placement so the order list can filter by it. Never written otherwise.", type: "string", required: false },
   { key: "campaignRef", option: "--campaign-ref <campaign-ref>", name: "campaign_ref", description: "Filter to the orders attributed to one campaign of the campaigns app. `attribution.campaign_ref` — the campaign in the campaigns app — copied into a column of its own at placement so the order list can filter by it.", type: "string", required: false },
-  { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When the order row was written. For a placed order this is placed_at; for a requested one it is when the request was submitted.", type: "string", required: false },
+  { key: "importedAt", option: "--imported-at <imported-at>", name: "imported_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When an import last wrote this order — set by POST /orders/import, null for every order placed here. An order carrying it is history taken over from a source system: its number, statuses, placed_at and totals are that system's, and its created_at is when it first arrived here. Never written by any other route.", type: "string", required: false },
+  { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When the order row was written. For a placed order this is placed_at; for a requested one it is when the request was submitted; for an imported one it is when the import first wrote it, and placed_at is the source's.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When any column of the order last changed — every status move, every re-derived fulfillment, every modification.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped to 200 rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
@@ -76,7 +77,7 @@ const listSpecs: PromptSpec[] = [
 ];
 orders
   .command(`list`)
-  .description(`The route behind every order overview: the open orders of one customer, everything on hold, everything a market placed last week, or the one order somebody is quoting a number for (?number=ORD-000123 — the number is not the id, and this is how one becomes the other). The order LIST: the order rows without their positions, shipments, returns or cancellations — read GET /orders/{id} for the aggregate of one. Every parameter below is an exact match on the column it names, and combining them is an AND. Two kinds of key are not offered: one that names NO column is not a filter — the SDK release after app-sdks#30 answers it 400 unknown_filter, and until then a mistyped ?stauts=placed is dropped and answers the whole list (compare the 'filter' echo against what you sent) — and the jsonb columns buyer, billing_address, shipping_address, payment, shipping, user_data and metadata reach the database as a text comparison and answer 400 invalid_value for anything that is not a whole JSON document.`)
+  .description(`The route behind every order overview: the open orders of one customer, everything on hold, everything a market placed last week, or the one order somebody is quoting a number for (?number=ORD-000123 — the number is not the id, and this is how one becomes the other). The order LIST: the order rows without their positions, shipments, returns or cancellations — read GET /orders/{id} for the aggregate of one. Every parameter below is an exact match on the column it names, and combining them is an AND. Two kinds of key are not offered: one that names NO column is not a filter — the SDK release after app-sdks#30 answers it 400 unknown_filter, and until then a mistyped ?stauts=placed is dropped and answers the whole list (compare the 'filter' echo against what you sent) — and the jsonb columns buyer, billing_address, shipping_address, payment, shipping, user_data and metadata reach the database as a text comparison and answer 400 invalid_value for anything that is not a whole JSON document. A SALES REP (a caller the rep portal asserts) is answered only the orders of the organizations they cover in sales-reps: any other order is absent from a list and its total, and a 404 at its address.`)
   .option(`--id <id>`, `Filter to exactly one order. GET /orders/{id} is the direct form and answers the aggregate; this exists because the list honours it too. Primary key of the order, and the id every other route takes. Not the order number.`)
   .option(`--number <number>`, `Look an order up by its NUMBER — the one filter a service desk starts from, and the way to turn the number a customer quotes into the uuid every other route wants. Exact match; there is no substring search on this API. The order number a human quotes — drawn from the tenant's order range at place-time, unique per tenant and never reused. It is NOT the id: every route addresses an order by uuid, and GET /orders?number=… is how a number becomes one.`)
   .option(`--customer-order-number <customer-order-number>`, `Look an order up by the BUYER's own PO number. Not unique: the same buyer reference can legitimately sit on several orders. The BUYER's own reference — their purchase-order number. Free text, not unique, never generated here: it exists so the paperwork can carry the number the buyer's accounts payable will look for. One of the few fields PUT /orders/{id} may still change.`)
@@ -120,7 +121,8 @@ orders
   .option(`--requested-delivery-date <requested-delivery-date>`, `The dispatch list for one day: every order the buyer asked to have on it. Exact equality on the DAY — there is no range filter here, so a week is seven calls or a sort with \`order=requested_delivery_date.asc\` and paging. It answers about the ORDER's date; a position that named its own is not found this way. The calendar day the BUYER asked to be delivered on, as a date and not a moment — a buyer asks for Tuesday, not for Tuesday at 14:03 in a timezone nobody named. It is a wish and nothing here judges it: a date in the past, a weekend or a day inside the lead time is stored as sent, because what is deliverable is the merchant's answer and this app reads neither stock nor carrier calendar. The positions carry their own, and A POSITION'S DATE WINS over this one — this is the proposal for every position that names none. Null on an order that asked for nothing, which is the ordinary case. It was collected in \`user_data.requested_date\` before this column existed and is still echoed there by callers that have not moved over; the column is what is compared, sorted and mapped.`)
   .option(`--utm-campaign <utm-campaign>`, `Filter to the orders one utm_campaign brought in, exactly as the visitor's link spelled it. \`attribution.utm_campaign\`, copied into a column of its own at placement so the order list can filter by it. Never written otherwise.`)
   .option(`--campaign-ref <campaign-ref>`, `Filter to the orders attributed to one campaign of the campaigns app. \`attribution.campaign_ref\` — the campaign in the campaigns app — copied into a column of its own at placement so the order list can filter by it.`)
-  .option(`--created-at <created-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the order row was written. For a placed order this is placed_at; for a requested one it is when the request was submitted.`)
+  .option(`--imported-at <imported-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When an import last wrote this order — set by POST /orders/import, null for every order placed here. An order carrying it is history taken over from a source system: its number, statuses, placed_at and totals are that system's, and its created_at is when it first arrived here. Never written by any other route.`)
+  .option(`--created-at <created-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the order row was written. For a placed order this is placed_at; for a requested one it is when the request was submitted; for an imported one it is when the import first wrote it, and placed_at is the source's.`)
   .option(`--updated-at <updated-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When any column of the order last changed — every status move, every re-derived fulfillment, every modification.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped to 200 rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
@@ -134,7 +136,7 @@ orders
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, number, customerOrderNumber, externalRef, acknowledgedAt, cartId, contactId, organizationId, channelId, currency, status, paymentStatus, fulfillmentStatus, onHold, holdReason, itemCount, subtotal, discountTotal, shippingTotal, shippingTaxRate, shippingTaxAmount, paymentFeeAmount, paymentFeeTaxRate, paymentFeeTaxAmount, taxTotal, grandTotal, placedAt, placedOn, completedAt, cancelledAt, cancellationKind, cancelledBy, cancellationReason, externalId, sourceSyncedAt, requestedDeliveryDate, utmCampaign, campaignRef, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { id, number, customerOrderNumber, externalRef, acknowledgedAt, cartId, contactId, organizationId, channelId, currency, status, paymentStatus, fulfillmentStatus, onHold, holdReason, itemCount, subtotal, discountTotal, shippingTotal, shippingTaxRate, shippingTaxAmount, paymentFeeAmount, paymentFeeTaxRate, paymentFeeTaxAmount, taxTotal, grandTotal, placedAt, placedOn, completedAt, cancelledAt, cancellationKind, cancelledBy, cancellationReason, externalId, sourceSyncedAt, requestedDeliveryDate, utmCampaign, campaignRef, importedAt, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -256,6 +258,9 @@ orders
         if (campaignRef !== undefined) {
           _payload[`campaign_ref`] = campaignRef;
         }
+        if (importedAt !== undefined) {
+          _payload[`imported_at`] = importedAt;
+        }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
         }
@@ -292,13 +297,65 @@ orders
     ),
   );
 registerPromptSpecs(orders.commands.at(-1)!, listSpecs, { method: "get" });
+const importSpecs: PromptSpec[] = [
+  { key: "rows", option: "--rows [rows...]", name: "rows", description: "The orders, answered in this order. What a row must carry and the rules it is held to are checked by the app per row, so a row that breaks one fails alone (outcome failed, with code and field) and the batch goes on.", type: "array", required: true },
+  { key: "dryRun", option: "--dry-run <dry-run>", name: "dry_run", description: "True: answer what would happen, write nothing.", type: "boolean", required: false, default: "false" },
+];
+orders
+  .command(`import`)
+  .description(`Take over orders that already happened in another system — an ERP's order history, typically — with their own numbers, statuses, positions, booked quantities, totals and placement times, taken as sent. It is not a placement: no number is drawn from the tenant's range, no total is computed, and the only event is order.imported, marked imported: true — never order.placed, so nothing that reacts to a new order (stock, payment, mails, loyalty) reacts to history. placed_at is the source's and the day the order counts on follows it; created_at is when the record first arrived here, and imported_at when an import last wrote it. Repeatable by the source key: a row whose external_id an imported order carries corrects that order (positions matched by their number), a row whose source_synced_at is not newer is answered unchanged, an order placed here or moved here since its import is skipped and left alone. Each row is answered on its own, and a broken one fails alone with a code and the field; the batch frame (no rows, more than 100, a non-boolean dry_run) is the only 400. A call that runs out of time hands the rows it did not reach back as not_processed. dry_run: true judges and looks up every row exactly as a real run would and writes nothing. The platform's order.created row event still fires for an order an import founds; the row carries imported_at.`)
+  .option(`--rows [rows...]`, `The orders, answered in this order. What a row must carry and the rules it is held to are checked by the app per row, so a row that breaks one fails alone (outcome failed, with code and field) and the batch goes on.`)
+  .option(
+    `--dry-run [value]`,
+    `True: answer what would happen, write nothing.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { rows, dryRun } = await promptForMissing(
+          _options,
+          importSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/orders/import`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (dryRun !== undefined) {
+          _payload[`dry_run`] = dryRun;
+        }
+        if (rows !== undefined) {
+          _payload[`rows`] = rows;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(orders.commands.at(-1)!, importSpecs, { method: "post" });
 const migrationsRequestedDeliveryDateSpecs: PromptSpec[] = [
   { key: "cursor", option: "--cursor <cursor>", name: "cursor", description: "Continue an unfinished run: the exact value the previous call returned, which is the id of the last order it read. Do not construct one — it is a resume point, not an offset. Omit it on the first call.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Orders read per page of the scan (default 500, clamped to 1000). It is the page size, not a cap on the run: the scan keeps paging until it finishes or runs out of time.", type: "integer", required: false },
 ];
 orders
   .command(`migrations-requested-delivery-date`)
-  .description(`A one-off per tenant, and a MIGRATION rather than a feature: the day a buyer asked to be delivered on was collected long before it had a field of its own, in \`user_data.requested_date\` — a free-form blob, so the date was present and neither filterable, sortable nor visible to any ERP mapping. This copies what is already there into \`requested_delivery_date\` on every order that carries no date yet, and it is safe to run again: a second call finds nothing to fill and says so. It reads only the orders with no date, so it is cheap; \`filled\` is what it changed and \`scanned\` what it had to look at, and \`scanned\` never falls to zero, because an order that genuinely asked for no day is read by every later run. THE JSONB KEY IS LEFT WHERE IT IS: \`user_data\` belongs to the caller and is handed back untouched, so the key stays as a deprecated echo of the column — the column is what is compared, sorted and mapped from here on. \`updated_at\` is not touched either: it says when the row last changed for the merchant, and stamping the whole table with today would destroy that reading for every reader of it, a delta run included. A value in the key that is not a calendar day is counted under \`skipped\` and left alone rather than refusing the run. The scan stops itself before the gateway's timeout and hands back a \`cursor\`; send it back unchanged until \`done\` is true.`)
+  .description(`A one-off per tenant, and a MIGRATION rather than a feature: the day a buyer asked to be delivered on was collected long before it had a field of its own, in \`user_data.requested_date\` — a free-form blob, so the date was present and neither filterable, sortable nor visible to any ERP mapping. This copies what is already there into \`requested_delivery_date\` on every order that carries no date yet, and it is safe to run again: a second call finds nothing to fill and says so. It reads only the orders with no date, so it is cheap; \`filled\` is what it changed and \`scanned\` what it had to look at, and \`scanned\` never falls to zero, because an order that genuinely asked for no day is read by every later run. THE JSONB KEY IS LEFT WHERE IT IS: \`user_data\` belongs to the caller and is handed back untouched, so the key stays as a deprecated echo of the column — the column is what is compared, sorted and mapped from here on. Only an order that receives a day is written, and the platform stamps its \`updated_at\` — a delta reader sees each filled order once as changed; an order with nothing to lift is not written at all. A value in the key that is not a calendar day is counted under \`skipped\` and left alone rather than refusing the run. The scan stops itself before the gateway's timeout and hands back a \`cursor\`; send it back unchanged until \`done\` is true.`)
   .option(`--cursor <cursor>`, `Continue an unfinished run: the exact value the previous call returned, which is the id of the last order it read. Do not construct one — it is a resume point, not an offset. Omit it on the first call.`)
   .option(`--limit <limit>`, `Orders read per page of the scan (default 500, clamped to 1000). It is the page size, not a cap on the run: the scan keeps paging until it finishes or runs out of time.`, parseInteger)
   .action(
@@ -339,6 +396,53 @@ orders
     ),
   );
 registerPromptSpecs(orders.commands.at(-1)!, migrationsRequestedDeliveryDateSpecs, { method: "post" });
+const migrationsReturnPositionsSpecs: PromptSpec[] = [
+  { key: "cursor", option: "--cursor <cursor>", name: "cursor", description: "Continue an unfinished run: the exact value the previous call returned, the id of the last return it read. Omit it on the first call.", type: "string", required: false },
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Returns read per page of the scan (default 200, clamped to 500). It is the page size, not a cap on the run.", type: "integer", required: false },
+];
+orders
+  .command(`migrations-return-positions`)
+  .description(`A MIGRATION rather than a feature: a return position carries the SKU and name of its order line since 3.18.0, and the returns registered before carry only the line's id. This copies the SKU and name from the order line onto every position still missing them. Only an EMPTY field is filled and only from a non-empty value of its own order line, so a name a source sent is kept, and a position whose line has no SKU (or no longer exists) is left exactly as it is — a return nothing can improve is not written at all. The platform stamps \`updated_at\` on every return it writes. Safe to run again: a second call writes nothing (\`filled\` 0). The scan stops itself before the gateway's timeout and hands back a \`cursor\`; send it back unchanged until \`done\` is true. A failure half way answers 500 with code \`backfill_failed\` and \`scanned\`, \`filled\` and \`cursor\` in its details: what was named stays named, and the cursor resumes after the last return finished. Placing an order never runs it.`)
+  .option(`--cursor <cursor>`, `Continue an unfinished run: the exact value the previous call returned, the id of the last return it read. Omit it on the first call.`)
+  .option(`--limit <limit>`, `Returns read per page of the scan (default 200, clamped to 500). It is the page size, not a cap on the run.`, parseInteger)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { cursor, limit } = await promptForMissing(
+          _options,
+          migrationsReturnPositionsSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/orders/migrations/return-positions`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (cursor !== undefined) {
+          _payload[`cursor`] = cursor;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(orders.commands.at(-1)!, migrationsReturnPositionsSpecs, { method: "post" });
 const numberRangesListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to rows whose `id` is exactly this value. Primary key of the number range.", type: "string", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "Look a range up by its code — 'order', 'delivery', 'return', or whatever a settings key points at. Which counter this is, in the app's own words: 'order' numbers orders, 'delivery' numbers delivery notes, 'return' numbers returns. Unique per tenant, and the value the order_number_range_code / delivery_number_range_code / return_number_range_code settings point at — a setting naming a code no range carries is the 422 'number_range_missing'.", type: "string", required: false },
@@ -572,7 +676,7 @@ orders
 registerPromptSpecs(orders.commands.at(-1)!, numberRangesCreateSpecs, { method: "post" });
 orders
   .command(`number-ranges-defaults`)
-  .description(`Make sure the three codes this app draws from exist: 'order' (ORD-), 'delivery' (DEL-) and 'return' (RET-), each padded to six digits and stepping by one. The app runs it for you on install, so a fresh tenant needs nothing; call it by hand after a range was deleted, or to check what a tenant has. Idempotent: a code that already exists comes back under 'existing' and is left EXACTLY as it is, counter included, so a merchant who changed the prefix keeps their change. Answers 200, never 201 — it is a reconcile, not a create — and it never repairs or renames a range that is already there.`)
+  .description(`Make sure the three codes this app draws from exist: 'order' (ORD-), 'delivery' (DEL-) and 'return' (RET-), each padded to six digits and stepping by one. The app runs it for you on install, so a fresh tenant needs nothing; call it by hand after a range was deleted, or to check what a tenant has. Idempotent: a code that already exists comes back under 'existing' and is left EXACTLY as it is, counter included, so a merchant who changed the prefix keeps their change. Answers 200, never 201 — it is a reconcile, not a create — and it never repairs or renames a range that is already there. It also runs one bounded pass of the return-position backfill (see return_positions); a pass that did not finish is continued with POST /orders/migrations/return-positions, and a failure of the backfill is reported there rather than failing the seed. Placing an order never runs the backfill.`)
   .action(
     actionRunner(
       async () => {
@@ -771,6 +875,7 @@ const placeSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The PERSON who ordered — a contact in the customers app. Resolved from the acting principal whenever the caller carries one, and a body value that disagrees is refused rather than silently overridden. Null for a guest checkout. Ignored when the caller carries a principal — the RESOLVED contact wins, and a body value that disagrees is a 400 rather than a silent override.", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", description: "ISO 4217 code of EVERY amount on this order. Frozen at place-time from the market's default_currency unless the caller named one. Nothing on this order is ever converted, and the approval threshold is read in this currency — which is why the threshold is a per-market setting. Defaults to the market's default_currency setting.", type: "string", required: false },
   { key: "customerOrderNumber", option: "--customer-order-number <customer-order-number>", name: "customer_order_number", description: "The BUYER's own reference — their purchase-order number. Free text, not unique, never generated here: it exists so the paperwork can carry the number the buyer's accounts payable will look for. One of the few fields PUT /orders/{id} may still change.", type: "string", required: false },
+  { key: "discounts", option: "--discounts [discounts...]", name: "discounts", description: "What the promotions did to this order, step by step — the caller's evaluation, frozen onto it. At most 200 entries. Omitted or null places the order undiscounted.", type: "array", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this order has in the system that OWNS it — the ERP's own handle on the sales order, which is what a write-back addresses. Distinct from `external_ref`, which is the readable ORDER NUMBER that system quotes at a human, and from `number`, which is the one this app issued. Unique per tenant where set, so a retried import that sends the same key again is refused rather than founding a second order. Null for an order the shop owns. Sending it a second time is a 409, not a second order: the key is unique per tenant, which is what makes a retried import safe to run. Recover by reading the order back with GET /orders?external_id=… and correcting that one.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this order, keyed by system name — a second ERP, a procurement platform, a portal. `external_id` is the leading system; this is the rest. Not a query parameter: a jsonb column is compared as a whole document, so look the row up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "grandTotal", option: "--grand-total <grand-total>", name: "grand_total", description: "Optional, and CHECKED rather than used: the order always computes its own total from the positions, the shipping cost and the tax. Under on_unorderable_position = drop it is the total of the positions that remain. Send it as a checksum on that arithmetic — if it agrees the order is placed, and if it disagrees the call is refused with 400 naming both numbers, yours and the computed one. The comparison is at 2 decimal places (this app stores 4, ERPs work to 2, so a difference below a cent is agreement). It is never taken as the order value: the approval threshold and the revenue rollup read the computed number, which is why a total that disagrees is an error rather than an override.", type: "number", required: false },
@@ -798,6 +903,7 @@ orders
   .option(`--contact-id <contact-id>`, `The PERSON who ordered — a contact in the customers app. Resolved from the acting principal whenever the caller carries one, and a body value that disagrees is refused rather than silently overridden. Null for a guest checkout. Ignored when the caller carries a principal — the RESOLVED contact wins, and a body value that disagrees is a 400 rather than a silent override.`)
   .option(`--currency <currency>`, `ISO 4217 code of EVERY amount on this order. Frozen at place-time from the market's default_currency unless the caller named one. Nothing on this order is ever converted, and the approval threshold is read in this currency — which is why the threshold is a per-market setting. Defaults to the market's default_currency setting.`)
   .option(`--customer-order-number <customer-order-number>`, `The BUYER's own reference — their purchase-order number. Free text, not unique, never generated here: it exists so the paperwork can carry the number the buyer's accounts payable will look for. One of the few fields PUT /orders/{id} may still change.`)
+  .option(`--discounts [discounts...]`, `What the promotions did to this order, step by step — the caller's evaluation, frozen onto it. At most 200 entries. Omitted or null places the order undiscounted.`)
   .option(`--external-id <external-id>`, `The key this order has in the system that OWNS it — the ERP's own handle on the sales order, which is what a write-back addresses. Distinct from \`external_ref\`, which is the readable ORDER NUMBER that system quotes at a human, and from \`number\`, which is the one this app issued. Unique per tenant where set, so a retried import that sends the same key again is refused rather than founding a second order. Null for an order the shop owns. Sending it a second time is a 409, not a second order: the key is unique per tenant, which is what makes a retried import safe to run. Recover by reading the order back with GET /orders?external_id=… and correcting that one.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this order, keyed by system name — a second ERP, a procurement platform, a portal. \`external_id\` is the leading system; this is the rest. Not a query parameter: a jsonb column is compared as a whole document, so look the row up by \`external_id\` and read this off the answer.`)
   .option(`--grand-total <grand-total>`, `Optional, and CHECKED rather than used: the order always computes its own total from the positions, the shipping cost and the tax. Under on_unorderable_position = drop it is the total of the positions that remain. Send it as a checksum on that arithmetic — if it agrees the order is placed, and if it disagrees the call is refused with 400 naming both numbers, yours and the computed one. The comparison is at 2 decimal places (this app stores 4, ERPs work to 2, so a difference below a cent is agreement). It is never taken as the order value: the approval threshold and the revenue rollup read the computed number, which is why a total that disagrees is an error rather than an override.`, parseInteger)
@@ -815,7 +921,7 @@ orders
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { items, attribution, billingAddress, buyer, cartId, channelId, contactId, currency, customerOrderNumber, externalId, externalRefs, grandTotal, metadata, organizationId, payment, requestedDeliveryDate, senderCountry, shipping, shippingAddress, shippingTotal, sourceData, sourceSyncedAt, userData } = await promptForMissing(
+        const { items, attribution, billingAddress, buyer, cartId, channelId, contactId, currency, customerOrderNumber, discounts, externalId, externalRefs, grandTotal, metadata, organizationId, payment, requestedDeliveryDate, senderCountry, shipping, shippingAddress, shippingTotal, sourceData, sourceSyncedAt, userData } = await promptForMissing(
           _options,
           placeSpecs,
           _command,
@@ -853,6 +959,9 @@ orders
         }
         if (customerOrderNumber !== undefined) {
           _payload[`customer_order_number`] = customerOrderNumber;
+        }
+        if (discounts !== undefined) {
+          _payload[`discounts`] = discounts;
         }
         if (externalId !== undefined) {
           _payload[`external_id`] = externalId;
@@ -915,21 +1024,23 @@ orders
 registerPromptSpecs(orders.commands.at(-1)!, placeSpecs, { method: "post" });
 const reportsCustomerRollupSpecs: PromptSpec[] = [
   { key: "asOf", option: "--as-of <as-of>", name: "as_of", description: "Anchor for the rolling windows (default now). Pin it and send it back on every call of a loop, otherwise the windows drift by the duration of the loop.", type: "string", required: false },
+  { key: "contactIds", option: "--contact-ids [contact-ids...]", name: "contact_ids", description: "Roll up the private orders of exactly these people: their orders that carry no organization_id. An order booked on a company stays that company's and is not counted here. The rows come back in `contacts`, keyed by contact_id, and `items` is empty. At most 200, and never together with organization_ids (400). Paged and resumed with `cursor` like the other forms.", type: "array", required: false },
   { key: "cursor", option: "--cursor <cursor>", name: "cursor", description: "Continue an unfinished scan: the exact value the previous call returned, which is the id of the last order it read. Do not construct one — it is a resume point, not an offset. Omit it on the first call. It is honoured in BOTH call shapes, organization_ids included: send the whole batch again alongside it whenever `done` came back false, or the part of the batch after the cursor is simply never read.", type: "string", required: false },
   { key: "organizationIds", option: "--organization-ids [organization-ids...]", name: "organization_ids", description: "Roll up exactly these organizations and no others — at most 200, because the ids travel to the data plane as one in.() filter. Naming them does NOT make the answer complete by itself: the scan is the same paged, time-budgeted loop either way, so a batch with more orders than one page can still stop early with `done: false` and a cursor. Small batches finish in one call, which is the normal case, but check `done` rather than assume it. Omitted = scan every order and answer for every organization that appears on one.", type: "array", required: false },
   { key: "statuses", option: "--statuses [statuses...]", name: "statuses", description: "Which lifecycle statuses count as revenue. Defaults to placed, in_fulfillment and completed: a pending order was never placed, and a cancelled one is not revenue. Widening this is how a merchant who books on approval gets their own definition of the same numbers.", type: "array", required: false, enum: ["pending","placed","in_fulfillment","completed","cancelled"] },
 ];
 orders
   .command(`reports-customer-rollup`)
-  .description(`What each company has bought, as numbers another app can keep: order count, lifetime revenue, first and last order date, and the same count and revenue over the last 30, 90 and 365 days. This is what a customer segment like "bought for more than 100k last year" is built on, and the customers app materialises it into a local projection its segment rules query. It answers about ORGANIZATIONS only — a private or guest order carries none and is counted in orders_without_organization rather than attributed to anybody — and it converts nothing, so an organization that ordered in two currencies gets both listed and one summed number to read with care. Revenue lives in orders, customer segments live in the customers app, and the two may not join (ADR-0055: no cross-app FK, grant or view). This capability is the hand-over. Every number is additive (count/sum/min/max) so partial answers merge; the average order value is deliberately not returned — it is revenue_total / order_count over the merged parts. Windows are anchored at as_of, which is echoed back so a loop measures one consistent picture.`)
+  .description(`What each company has bought, as numbers another app can keep: order count, lifetime revenue, first and last order date, and the same count and revenue over the last 30, 90 and 365 days. This is what a customer segment like "bought for more than 100k last year" is built on, and the customers app materialises it into a local projection its segment rules query. It answers about ORGANIZATIONS — a private or guest order carries none and is counted in orders_without_organization rather than attributed to anybody — unless the caller names contact_ids, which answers the same figures per private buyer over their orders without an organization (a guest order without a contact stays unattributed). It converts nothing, so an organization that ordered in two currencies gets both listed and one summed number to read with care. Revenue lives in orders, customer segments live in the customers app, and the two may not join (ADR-0055: no cross-app FK, grant or view). This capability is the hand-over. Every number is additive (count/sum/min/max) so partial answers merge; the average order value is deliberately not returned — it is revenue_total / order_count over the merged parts. Windows are anchored at as_of, which is echoed back so a loop measures one consistent picture.`)
   .option(`--as-of <as-of>`, `Anchor for the rolling windows (default now). Pin it and send it back on every call of a loop, otherwise the windows drift by the duration of the loop.`)
+  .option(`--contact-ids [contact-ids...]`, `Roll up the private orders of exactly these people: their orders that carry no organization_id. An order booked on a company stays that company's and is not counted here. The rows come back in \`contacts\`, keyed by contact_id, and \`items\` is empty. At most 200, and never together with organization_ids (400). Paged and resumed with \`cursor\` like the other forms.`)
   .option(`--cursor <cursor>`, `Continue an unfinished scan: the exact value the previous call returned, which is the id of the last order it read. Do not construct one — it is a resume point, not an offset. Omit it on the first call. It is honoured in BOTH call shapes, organization_ids included: send the whole batch again alongside it whenever \`done\` came back false, or the part of the batch after the cursor is simply never read.`)
   .option(`--organization-ids [organization-ids...]`, `Roll up exactly these organizations and no others — at most 200, because the ids travel to the data plane as one in.() filter. Naming them does NOT make the answer complete by itself: the scan is the same paged, time-budgeted loop either way, so a batch with more orders than one page can still stop early with \`done: false\` and a cursor. Small batches finish in one call, which is the normal case, but check \`done\` rather than assume it. Omitted = scan every order and answer for every organization that appears on one.`)
   .option(`--statuses [statuses...]`, `Which lifecycle statuses count as revenue. Defaults to placed, in_fulfillment and completed: a pending order was never placed, and a cancelled one is not revenue. Widening this is how a merchant who books on approval gets their own definition of the same numbers.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { asOf, cursor, organizationIds, statuses } = await promptForMissing(
+        const { asOf, contactIds, cursor, organizationIds, statuses } = await promptForMissing(
           _options,
           reportsCustomerRollupSpecs,
           _command,
@@ -946,6 +1057,9 @@ orders
         }
         if (asOf !== undefined) {
           _payload[`as_of`] = asOf;
+        }
+        if (contactIds !== undefined) {
+          _payload[`contact_ids`] = contactIds;
         }
         if (cursor !== undefined) {
           _payload[`cursor`] = cursor;
@@ -1415,7 +1529,7 @@ const getSpecs: PromptSpec[] = [
 ];
 orders
   .command(`get`)
-  .description(`The single source of order information, and what an order detail screen is built from: the order row plus its positions, its shipments with the shipment_items each one booked, its returns and its cancellations — one call, no assembling five lists. A cancellation's and a return's 'positions' are ARRAYS of {order_item_id, quantity}; a return's entries additionally carry 'restock'. Two things it does not carry: the comments and the event trail, which are their own paginated routes because both grow without bound. Addressed by uuid — an order number goes through GET /orders?number=… first. The fields currency, grand_total, contact_id and status and the five statuses are read by other apps (payments checks a payment against them) and are stable from 1.0.`)
+  .description(`The single source of order information, and what an order detail screen is built from: the order row plus its positions, its shipments with the shipment_items each one booked, its returns and its cancellations — one call, no assembling five lists. A cancellation's and a return's 'positions' are ARRAYS of {order_item_id, quantity}; a return's entries additionally carry 'restock'. Two things it does not carry: the comments and the event trail, which are their own paginated routes because both grow without bound. Addressed by uuid — an order number goes through GET /orders?number=… first. The fields currency, grand_total, contact_id and status and the five statuses are read by other apps (payments checks a payment against them) and are stable from 1.0. A SALES REP (a caller the rep portal asserts) is answered only the orders of the organizations they cover in sales-reps: any other order is absent from a list and its total, and a 404 at its address.`)
   .option(`--id <id>`, `The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.`)
   .action(
     actionRunner(
@@ -1639,19 +1753,21 @@ orders
 registerPromptSpecs(orders.commands.at(-1)!, approveSpecs, { method: "post" });
 const cancelSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
-  { key: "cancelledBy", option: "--cancelled-by <cancelled-by>", name: "cancelled_by", description: "Who cancelled, as the caller reported it — an operator, a desk, a system. Free text; this app does not resolve it against a user directory. On a rejection it is NOT the caller's word but the platform's: the approver's contact id on a buyer's own call, the operator's user id when the gateway names one, otherwise null.", type: "string", required: false },
+  { key: "cancelledBy", option: "--cancelled-by <cancelled-by>", name: "cancelled_by", description: "Who cancelled, as the caller reported it. The Cockpit writes one of 'customer', 'merchant' or 'support', or the text of cancelled_by_other; an API caller may send any text, and this app does not resolve it against a user directory. On a rejection it is NOT the caller's word but the platform's: the approver's contact id on a buyer's own call, the operator's user id when the gateway names one, otherwise null.", type: "string", required: false },
+  { key: "cancelledByOther", option: "--cancelled-by-other <cancelled-by-other>", name: "cancelled_by_other", description: "Who cancelled, in words, when none of the Cockpit's three fits. Filled, it wins over cancelled_by and is stored as written; cancelled_by 'other' without it is a 400.", type: "string", required: false },
   { key: "reason", option: "--reason <reason>", name: "reason", description: "Why it was cancelled, free text. Mandatory when the tenant sets cancel_requires_reason — for those merchants an unexplained cancellation is refused with a 400.", type: "string", required: false },
 ];
 orders
   .command(`cancel`)
   .description(`Call the whole order off: every position's full quantity is booked as cancelled, the order moves to 'cancelled', a cancellation record is written with the reason and who gave it, and an order.cancelled event goes onto the bus. Only while NOTHING has shipped — once a single position has gone out the order is partly real and this answers 422; take the remaining quantities off with POST /orders/{id}/items/cancel instead, and handle what already shipped as a return. It refunds nothing and returns nothing to stock: payment travels through /payment-status and restocking is an explicit inventories call by the orchestrator. A tenant may require a reason (cancel_requires_reason), and a hold may block it (on_hold_blocks = 'shipping_and_cancel'). A pending order may be cancelled. A BUYER's own call reaches further back only: the buyer cancels while the order is pending or placed, not acknowledged by a fulfilling system and with nothing shipped — otherwise 422 order_not_cancellable, and the merchant decides.`)
   .option(`--id <id>`, `The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.`)
-  .option(`--cancelled-by <cancelled-by>`, `Who cancelled, as the caller reported it — an operator, a desk, a system. Free text; this app does not resolve it against a user directory. On a rejection it is NOT the caller's word but the platform's: the approver's contact id on a buyer's own call, the operator's user id when the gateway names one, otherwise null.`)
+  .option(`--cancelled-by <cancelled-by>`, `Who cancelled, as the caller reported it. The Cockpit writes one of 'customer', 'merchant' or 'support', or the text of cancelled_by_other; an API caller may send any text, and this app does not resolve it against a user directory. On a rejection it is NOT the caller's word but the platform's: the approver's contact id on a buyer's own call, the operator's user id when the gateway names one, otherwise null.`)
+  .option(`--cancelled-by-other <cancelled-by-other>`, `Who cancelled, in words, when none of the Cockpit's three fits. Filled, it wins over cancelled_by and is stored as written; cancelled_by 'other' without it is a 400.`)
   .option(`--reason <reason>`, `Why it was cancelled, free text. Mandatory when the tenant sets cancel_requires_reason — for those merchants an unexplained cancellation is refused with a 400.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, cancelledBy, reason } = await promptForMissing(
+        const { id, cancelledBy, cancelledByOther, reason } = await promptForMissing(
           _options,
           cancelSpecs,
           _command,
@@ -1668,6 +1784,9 @@ orders
         }
         if (cancelledBy !== undefined) {
           _payload[`cancelled_by`] = cancelledBy;
+        }
+        if (cancelledByOther !== undefined) {
+          _payload[`cancelled_by_other`] = cancelledByOther;
         }
         if (reason !== undefined) {
           _payload[`reason`] = reason;
@@ -1828,17 +1947,24 @@ orders
 registerPromptSpecs(orders.commands.at(-1)!, commentsCreateSpecs, { method: "post" });
 const completeSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
+  { key: "checkOpen", option: "--check-open <check-open>", name: "check_open", description: "Ask before closing: true refuses with 409 `order_not_fulfilled` while positions are not shipped in full or the payment is not settled (paid or refunded), with a sentence naming what is open and the counts in `details`. Left out or false, the order is closed as it stands — the answer to that question.", type: "boolean", required: false },
   { key: "completedBy", option: "--completed-by <completed-by>", name: "completed_by", description: "Who closed the order, as the caller reports it. Not stored on the order: it is carried in the order.completed event's payload, which is where the audit trail keeps who did what. Free text, not resolved against a user directory.", type: "string", required: false },
 ];
 orders
   .command(`complete`)
   .description(`Declare the order finished, whatever the quantities say — the service was delivered, the download was fetched, or an operator has decided the rest is not coming. status moves to 'completed' and completed_at is stamped from the server's clock. It does NOT ship anything or change the quantities, so fulfillment_status stays whatever the positions make it, and an order completed with lines still open shows exactly that. A completed order is final: modification, shipping and cancellation all refuse afterwards, and only a return may still be registered against it. The counterpart of auto_complete_on = 'payment' | 'manual': something has to close an order that shipping no longer closes by itself, and it is also the honest end for a service or digital order that never ships. Writes an order_events row 'order.completed' with via='manual'.`)
   .option(`--id <id>`, `The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.`)
+  .option(
+    `--check-open [value]`,
+    `Ask before closing: true refuses with 409 \`order_not_fulfilled\` while positions are not shipped in full or the payment is not settled (paid or refunded), with a sentence naming what is open and the counts in \`details\`. Left out or false, the order is closed as it stands — the answer to that question.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--completed-by <completed-by>`, `Who closed the order, as the caller reports it. Not stored on the order: it is carried in the order.completed event's payload, which is where the audit trail keeps who did what. Free text, not resolved against a user directory.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, completedBy } = await promptForMissing(
+        const { id, checkOpen, completedBy } = await promptForMissing(
           _options,
           completeSpecs,
           _command,
@@ -1852,6 +1978,9 @@ orders
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (checkOpen !== undefined) {
+          _payload[`check_open`] = checkOpen;
         }
         if (completedBy !== undefined) {
           _payload[`completed_by`] = completedBy;
@@ -2003,7 +2132,8 @@ registerPromptSpecs(orders.commands.at(-1)!, holdSpecs, { method: "post" });
 const itemsCancelSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.", type: "string", required: true, resource: { listPath: "/orders", hasLimit: true } },
   { key: "positions", option: "--positions [positions...]", name: "positions", description: "The quantities to take off the order. Required here, unlike on /ship and /return: cancelling everything by default is not a thing anybody should be able to do by omission — that is what /cancel is for.", type: "array", required: true },
-  { key: "cancelledBy", option: "--cancelled-by <cancelled-by>", name: "cancelled_by", description: "Who cancelled, as the caller reported it — an operator, a desk, a system. Free text; this app does not resolve it against a user directory. On a rejection it is NOT the caller's word but the platform's: the approver's contact id on a buyer's own call, the operator's user id when the gateway names one, otherwise null.", type: "string", required: false },
+  { key: "cancelledBy", option: "--cancelled-by <cancelled-by>", name: "cancelled_by", description: "Who cancelled, as the caller reported it. The Cockpit writes one of 'customer', 'merchant' or 'support', or the text of cancelled_by_other; an API caller may send any text, and this app does not resolve it against a user directory. On a rejection it is NOT the caller's word but the platform's: the approver's contact id on a buyer's own call, the operator's user id when the gateway names one, otherwise null.", type: "string", required: false },
+  { key: "cancelledByOther", option: "--cancelled-by-other <cancelled-by-other>", name: "cancelled_by_other", description: "Who cancelled, in words, when none of the Cockpit's three fits. Filled, it wins over cancelled_by and is stored as written; cancelled_by 'other' without it is a 400.", type: "string", required: false },
   { key: "reason", option: "--reason <reason>", name: "reason", description: "Why it was cancelled, free text. Mandatory when the tenant sets cancel_requires_reason — for those merchants an unexplained cancellation is refused with a 400.", type: "string", required: false },
 ];
 orders
@@ -2011,12 +2141,13 @@ orders
   .description(`Take quantities off an order that is otherwise going ahead — three of the ten are discontinued, one line is out of stock and the customer would rather not wait. Each named quantity is booked onto its position as cancelled and guarded against the OPEN quantity (ordered − shipped − cancelled), so nothing already shipped can be cancelled away underneath a shipment. The order's fulfillment_status is re-derived afterwards, and when every position ends up fully cancelled the order itself moves to 'cancelled' — which is how this becomes a full cancel by arithmetic rather than by a second call. Positions are REQUIRED here, unlike on /ship and /return: cancelling an entire order by omitting a field is not something anybody should be able to do by accident; that is what POST /orders/{id}/cancel is for. Read GET /orders/{id}/shippable for the open quantity per position before calling.`)
   .option(`--id <id>`, `The order id (uuid). This segment reaches a uuid column: an order NUMBER is not accepted here — filter GET /orders by ?number= to resolve one.`)
   .option(`--positions [positions...]`, `The quantities to take off the order. Required here, unlike on /ship and /return: cancelling everything by default is not a thing anybody should be able to do by omission — that is what /cancel is for.`)
-  .option(`--cancelled-by <cancelled-by>`, `Who cancelled, as the caller reported it — an operator, a desk, a system. Free text; this app does not resolve it against a user directory. On a rejection it is NOT the caller's word but the platform's: the approver's contact id on a buyer's own call, the operator's user id when the gateway names one, otherwise null.`)
+  .option(`--cancelled-by <cancelled-by>`, `Who cancelled, as the caller reported it. The Cockpit writes one of 'customer', 'merchant' or 'support', or the text of cancelled_by_other; an API caller may send any text, and this app does not resolve it against a user directory. On a rejection it is NOT the caller's word but the platform's: the approver's contact id on a buyer's own call, the operator's user id when the gateway names one, otherwise null.`)
+  .option(`--cancelled-by-other <cancelled-by-other>`, `Who cancelled, in words, when none of the Cockpit's three fits. Filled, it wins over cancelled_by and is stored as written; cancelled_by 'other' without it is a 400.`)
   .option(`--reason <reason>`, `Why it was cancelled, free text. Mandatory when the tenant sets cancel_requires_reason — for those merchants an unexplained cancellation is refused with a 400.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, positions, cancelledBy, reason } = await promptForMissing(
+        const { id, positions, cancelledBy, cancelledByOther, reason } = await promptForMissing(
           _options,
           itemsCancelSpecs,
           _command,
@@ -2033,6 +2164,9 @@ orders
         }
         if (cancelledBy !== undefined) {
           _payload[`cancelled_by`] = cancelledBy;
+        }
+        if (cancelledByOther !== undefined) {
+          _payload[`cancelled_by_other`] = cancelledByOther;
         }
         if (positions !== undefined) {
           _payload[`positions`] = positions;

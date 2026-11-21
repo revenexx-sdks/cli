@@ -9,6 +9,14 @@ revenexx quotes-pricing expire \
     --body '{ "key": "value" }'
 ```
 
+## sync-follow-ups
+
+Carry follow-ups over to customers
+
+```bash
+revenexx quotes-pricing sync-follow-ups
+```
+
 ## remove-item
 
 Take a position off a quote being shaped

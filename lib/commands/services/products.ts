@@ -45,13 +45,14 @@ const listSpecs: PromptSpec[] = [
   { key: "statusChangedAt", option: "--status-changed-at <status-changed-at>", name: "status_changed_at", description: "Exact match on `status_changed_at`. When `status` last changed. Set by this app on every write through it that changes the status, and on a create; a write that names it has it dropped. Null on a product nobody has given a status through this app since the column exists.", type: "string", required: false },
   { key: "channelRelease", option: "--channel-release <channel-release>", name: "channel_release", description: "Exact match on `channel_release`. Release per sales channel, for a tenant that releases channel by channel: an object keyed by the channel's `code` from the channels app, each value one of the `status` words — usually 'released', 'in_review' or 'blocked'. Null when the product is released as a whole. The database refuses anything that is not an object. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "channels", option: "--channels <channels>", name: "channels", description: "Exact match on `channels`. The sales channels that offer this product, as the channels app's channel codes. An empty list (the default) offers it in none. `POST /products/{id}/channels` adds, removes or replaces codes for one product, which is what a bulk assignment over a selection calls. This app stores the codes as sent; it does not ask the channels app whether they exist. The whole list is compared, written as a list literal in braces (`{a,b}`) — equality in this order, not containment.", type: "string", required: false },
-  { key: "taxClass", option: "--tax-class <tax-class>", name: "tax_class", description: "Exact match on `tax_class`. The tax class key the prices app resolves a VAT rate from. Free text here — the vocabulary belongs to the app that prices, and `POST /products/batch` exists to hand exactly this column to it in bulk.", type: "string", required: false },
+  { key: "taxClass", option: "--tax-class <tax-class>", name: "tax_class", description: "Exact match on `tax_class`. The tax class CODE the prices app resolves a VAT rate from — a class of the markets app, which owns the classes and their rates; `POST /products/batch` exists to hand exactly this column to it in bulk. An update that changes it must name an active class of the request's market (of any of the tenant's markets when the request names none), else 400 `unknown_tax_class`; a blank value clears it to null, and the value the product already holds is always accepted. A create stores it as sent.", type: "string", required: false },
   { key: "baseValues", option: "--base-values <base-values>", name: "base_values", description: "Exact match on `base_values`. The commercial basics of the article, kept beside the attribute values because every family has them: `unit` (sales unit), `min_order_quantity`, `order_interval`, `packaging`, `customs_tariff_number`, `country_of_origin`, `weight`, `gtin`. The keys are the Cockpit's; this app stores the object as sent and refuses anything that is not an object. A copy keeps everything but `gtin`. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "attributeValues", option: "--attribute-values <attribute-values>", name: "attribute_values", description: "Exact match on `attribute_values`. Every attribute value the record carries, in ONE jsonb document — the core of an attribute-driven PIM. A record's properties are not columns here: they are rows in `attributes`, selected per family by `family_attributes`, and their values live under their attribute CODE inside this object. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "label", option: "--label <label>", name: "label", description: "Exact match on `label`. The display name, maintained by the DATABASE so a grid of twenty thousand rows can sort and filter on a name with no join. It is the first of `attribute_values.common.name`, `…common.label`, the `de-DE`/`en-US`/`de`/`en` locale buckets (and the older `de_DE`/`en_US`, which no write can create any longer), `…common.manufacturer_aid`, and finally the SKU — so a value is ALWAYS present, and a label equal to the SKU means the catalog holds no name for this product. A generated column: it cannot be written, and a create or update that names it has it dropped rather than refused. The family-aware answer, which can consult `families.label_attribute` and report where the name came from, is `POST /products/labels`.", type: "string", required: false },
   { key: "quantifiedAssociations", option: "--quantified-associations <quantified-associations>", name: "quantified_associations", description: "Exact match on `quantified_associations`. The import-side mirror of associations that carry a quantity — a bundle, a bill of materials, a spare-parts set. NOTHING IN THIS APP READS OR WRITES IT: no route produces it, no route consumes it, and it is null on every product this app has created. The surface that IS served is relational — `product_associations`, whose `quantity` column holds the number, guarded by `association_types.is_quantified`. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
-  { key: "completeness", option: "--completeness <completeness>", name: "completeness", description: "Exact match on `completeness`. How much of what this product's family REQUIRES it actually carries — the number a merchandiser works down. `required` counts the attributes the family marks `is_required`, `filled` how many of those carry a value in ANY bucket, `ratio` is filled/required between 0 and 1 (a family that requires nothing is 1, not undefined), `missing` lists the codes with no value anywhere, sorted, and `computed_at` is when it was measured. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
+  { key: "completeness", option: "--completeness <completeness>", name: "completeness", description: "Exact match on `completeness`. How much of what this product's family REQUIRES it actually carries — the number a merchandiser works down. `required` counts the attributes the family marks `is_required`, `filled` how many of those carry a value in ANY bucket, `ratio` is filled/required between 0 and 1 (a family that requires nothing is 1, not undefined), `missing` lists the codes with no value anywhere, sorted, `channels` holds the same figures per channel, `basis` fingerprints the requirements measured against, and `computed_at` is when it was measured. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "manufacturerGpsrComplete", option: "--manufacturer-gpsr-complete <manufacturer-gpsr-complete>", name: "manufacturer_gpsr_complete", description: "Exact match on `manufacturer_gpsr_complete`. Whether the product's manufacturer carries complete GPSR data — the manufacturer's own `gpsr_complete`, copied onto the product so a list can filter the products whose offer lacks it. Null without a manufacturer. Kept by this app: on every write through it that names a manufacturer, and on all of a manufacturer's products when that manufacturer's GPSR state changes. Read-only: a write that names it has it dropped.", type: "boolean", required: false },
+  { key: "thumbnail", option: "--thumbnail <thumbnail>", name: "thumbnail", description: "Exact match on `thumbnail`. The address of the product's picture: the value of the attribute its family names as its image, in the common values — the first item of a list, a collection item's path, an asset code resolved to that asset's delivery key or external URL, a key or URL as it is. Null without a family, an image attribute, a value, or a live asset for a code. Kept by this app so a list can show it: on every product write through it, on all of a family's products when the family's image attribute changes, on the products showing an asset whose address changes or that goes to the trash, and nightly for the products written past this app in the last day. A product read answers it worked out fresh. Read-only: a write that names it has it dropped.", type: "string", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact match on `external_id`. The key this article has in the system that OWNS it — for a catalog fed by BMEcat, the PIM's own id for the row. It is NOT the `sku`: the SKU is the merchant's article number, typed by people and printed on paper, while this is whatever the feeding system calls the same article, often a number nobody outside it sees. Unique per tenant where set, so a repeated import upserts on it instead of matching on SKU and founding a second product. Null for a product created here.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Exact match on `external_refs`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. `external_id` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by `external_id` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and `null` cannot be matched this way. A value that does not parse as JSON is refused with 400 `invalid_value`, naming this filter, before the request reaches the data plane.", type: "string", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact match on `source_synced_at`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
@@ -94,18 +95,19 @@ Records in the trash are left out: \`trashed=only\` reads the trash itself, \`tr
   .option(`--status-changed-at <status-changed-at>`, `Exact match on \`status_changed_at\`. When \`status\` last changed. Set by this app on every write through it that changes the status, and on a create; a write that names it has it dropped. Null on a product nobody has given a status through this app since the column exists.`)
   .option(`--channel-release <channel-release>`, `Exact match on \`channel_release\`. Release per sales channel, for a tenant that releases channel by channel: an object keyed by the channel's \`code\` from the channels app, each value one of the \`status\` words — usually 'released', 'in_review' or 'blocked'. Null when the product is released as a whole. The database refuses anything that is not an object. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--channels <channels>`, `Exact match on \`channels\`. The sales channels that offer this product, as the channels app's channel codes. An empty list (the default) offers it in none. \`POST /products/{id}/channels\` adds, removes or replaces codes for one product, which is what a bulk assignment over a selection calls. This app stores the codes as sent; it does not ask the channels app whether they exist. The whole list is compared, written as a list literal in braces (\`{a,b}\`) — equality in this order, not containment.`)
-  .option(`--tax-class <tax-class>`, `Exact match on \`tax_class\`. The tax class key the prices app resolves a VAT rate from. Free text here — the vocabulary belongs to the app that prices, and \`POST /products/batch\` exists to hand exactly this column to it in bulk.`)
+  .option(`--tax-class <tax-class>`, `Exact match on \`tax_class\`. The tax class CODE the prices app resolves a VAT rate from — a class of the markets app, which owns the classes and their rates; \`POST /products/batch\` exists to hand exactly this column to it in bulk. An update that changes it must name an active class of the request's market (of any of the tenant's markets when the request names none), else 400 \`unknown_tax_class\`; a blank value clears it to null, and the value the product already holds is always accepted. A create stores it as sent.`)
   .option(`--base-values <base-values>`, `Exact match on \`base_values\`. The commercial basics of the article, kept beside the attribute values because every family has them: \`unit\` (sales unit), \`min_order_quantity\`, \`order_interval\`, \`packaging\`, \`customs_tariff_number\`, \`country_of_origin\`, \`weight\`, \`gtin\`. The keys are the Cockpit's; this app stores the object as sent and refuses anything that is not an object. A copy keeps everything but \`gtin\`. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--attribute-values <attribute-values>`, `Exact match on \`attribute_values\`. Every attribute value the record carries, in ONE jsonb document — the core of an attribute-driven PIM. A record's properties are not columns here: they are rows in \`attributes\`, selected per family by \`family_attributes\`, and their values live under their attribute CODE inside this object. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--label <label>`, `Exact match on \`label\`. The display name, maintained by the DATABASE so a grid of twenty thousand rows can sort and filter on a name with no join. It is the first of \`attribute_values.common.name\`, \`…common.label\`, the \`de-DE\`/\`en-US\`/\`de\`/\`en\` locale buckets (and the older \`de_DE\`/\`en_US\`, which no write can create any longer), \`…common.manufacturer_aid\`, and finally the SKU — so a value is ALWAYS present, and a label equal to the SKU means the catalog holds no name for this product. A generated column: it cannot be written, and a create or update that names it has it dropped rather than refused. The family-aware answer, which can consult \`families.label_attribute\` and report where the name came from, is \`POST /products/labels\`.`)
   .option(`--quantified-associations <quantified-associations>`, `Exact match on \`quantified_associations\`. The import-side mirror of associations that carry a quantity — a bundle, a bill of materials, a spare-parts set. NOTHING IN THIS APP READS OR WRITES IT: no route produces it, no route consumes it, and it is null on every product this app has created. The surface that IS served is relational — \`product_associations\`, whose \`quantity\` column holds the number, guarded by \`association_types.is_quantified\`. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
-  .option(`--completeness <completeness>`, `Exact match on \`completeness\`. How much of what this product's family REQUIRES it actually carries — the number a merchandiser works down. \`required\` counts the attributes the family marks \`is_required\`, \`filled\` how many of those carry a value in ANY bucket, \`ratio\` is filled/required between 0 and 1 (a family that requires nothing is 1, not undefined), \`missing\` lists the codes with no value anywhere, sorted, and \`computed_at\` is when it was measured. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
+  .option(`--completeness <completeness>`, `Exact match on \`completeness\`. How much of what this product's family REQUIRES it actually carries — the number a merchandiser works down. \`required\` counts the attributes the family marks \`is_required\`, \`filled\` how many of those carry a value in ANY bucket, \`ratio\` is filled/required between 0 and 1 (a family that requires nothing is 1, not undefined), \`missing\` lists the codes with no value anywhere, sorted, \`channels\` holds the same figures per channel, \`basis\` fingerprints the requirements measured against, and \`computed_at\` is when it was measured. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(
     `--manufacturer-gpsr-complete [value]`,
     `Exact match on \`manufacturer_gpsr_complete\`. Whether the product's manufacturer carries complete GPSR data — the manufacturer's own \`gpsr_complete\`, copied onto the product so a list can filter the products whose offer lacks it. Null without a manufacturer. Kept by this app: on every write through it that names a manufacturer, and on all of a manufacturer's products when that manufacturer's GPSR state changes. Read-only: a write that names it has it dropped.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--thumbnail <thumbnail>`, `Exact match on \`thumbnail\`. The address of the product's picture: the value of the attribute its family names as its image, in the common values — the first item of a list, a collection item's path, an asset code resolved to that asset's delivery key or external URL, a key or URL as it is. Null without a family, an image attribute, a value, or a live asset for a code. Kept by this app so a list can show it: on every product write through it, on all of a family's products when the family's image attribute changes, on the products showing an asset whose address changes or that goes to the trash, and nightly for the products written past this app in the last day. A product read answers it worked out fresh. Read-only: a write that names it has it dropped.`)
   .option(`--external-id <external-id>`, `Exact match on \`external_id\`. The key this article has in the system that OWNS it — for a catalog fed by BMEcat, the PIM's own id for the row. It is NOT the \`sku\`: the SKU is the merchant's article number, typed by people and printed on paper, while this is whatever the feeding system calls the same article, often a number nobody outside it sees. Unique per tenant where set, so a repeated import upserts on it instead of matching on SKU and founding a second product. Null for a product created here.`)
   .option(`--external-refs <external-refs>`, `Exact match on \`external_refs\`. Every OTHER system that knows this row, keyed by system name — a second PIM, a supplier's feed, a GTIN register. \`external_id\` is the system that OWNS the row; this is the rest, so the next identifier standard costs a key in here rather than a column and a migration. It filters the way every jsonb column of this app filters: the WHOLE document is compared, so there is no asking for one key — read the row by \`external_id\` and take this off the answer. The whole jsonb document is compared, serialized as JSON — this is equality, not a path or containment query, and \`null\` cannot be matched this way. A value that does not parse as JSON is refused with 400 \`invalid_value\`, naming this filter, before the request reaches the data plane.`)
   .option(`--source-synced-at <source-synced-at>`, `Exact match on \`source_synced_at\`. When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
@@ -127,7 +129,7 @@ Records in the trash are left out: \`trashed=only\` reads the trash itself, \`tr
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, trashed, id, sku, kind, parentId, familyId, familyVariantId, manufacturerId, enabled, status, statusChangedAt, channelRelease, channels, taxClass, baseValues, attributeValues, label, quantifiedAssociations, completeness, manufacturerGpsrComplete, externalId, externalRefs, sourceSyncedAt, sourceData, createdAt, updatedAt, deletedAt, deletedBy, deletedById, trashBatch, purgeAt, purgeBlockedReason, filter } = await promptForMissing(
+        const { limit, offset, order, trashed, id, sku, kind, parentId, familyId, familyVariantId, manufacturerId, enabled, status, statusChangedAt, channelRelease, channels, taxClass, baseValues, attributeValues, label, quantifiedAssociations, completeness, manufacturerGpsrComplete, thumbnail, externalId, externalRefs, sourceSyncedAt, sourceData, createdAt, updatedAt, deletedAt, deletedBy, deletedById, trashBatch, purgeAt, purgeBlockedReason, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -204,6 +206,9 @@ Records in the trash are left out: \`trashed=only\` reads the trash itself, \`tr
         if (manufacturerGpsrComplete !== undefined) {
           _payload[`manufacturer_gpsr_complete`] = manufacturerGpsrComplete;
         }
+        if (thumbnail !== undefined) {
+          _payload[`thumbnail`] = thumbnail;
+        }
         if (externalId !== undefined) {
           _payload[`external_id`] = externalId;
         }
@@ -268,7 +273,6 @@ const createSpecs: PromptSpec[] = [
   { key: "categoryId", option: "--category-id <category-id>", name: "category_id", description: "A category to file the new product into by hand, in the same call. It has to exist, be live and be active, or the product is not created.", type: "string", required: false },
   { key: "channelRelease", option: "--channel-release <channel-release>", name: "channel_release", description: "Release per sales channel, for a tenant that releases channel by channel: an object keyed by the channel's `code` from the channels app, each value one of the `status` words — usually 'released', 'in_review' or 'blocked'. Null when the product is released as a whole. The database refuses anything that is not an object.", type: "object", required: false },
   { key: "channels", option: "--channels [channels...]", name: "channels", description: "The sales channels that offer this product, as the channels app's channel codes. An empty list (the default) offers it in none. `POST /products/{id}/channels` adds, removes or replaces codes for one product, which is what a bulk assignment over a selection calls. This app stores the codes as sent; it does not ask the channels app whether they exist.", type: "array", required: false },
-  { key: "completeness", option: "--completeness <completeness>", name: "completeness", description: "How much of what this product's family REQUIRES it actually carries — the number a merchandiser works down. `required` counts the attributes the family marks `is_required`, `filled` how many of those carry a value in ANY bucket, `ratio` is filled/required between 0 and 1 (a family that requires nothing is 1, not undefined), `missing` lists the codes with no value anywhere, sorted, and `computed_at` is when it was measured.\n\nWritten only by `POST /products/{id}/completeness` and by `POST /products/{id}/family`; a plain create or update never touches it, so it is null until one of the two has run. It also stays null for a product with no family — there is nothing to measure it against, and 0 % would be a lie.", type: "object", required: false },
   { key: "copyFrom", option: "--copy-from <copy-from>", name: "copy_from", description: "A product to start from: its family, family variant, manufacturer, tax class, channels, base values (without the GTIN) and attribute values are taken, and anything the body sends wins. The copy is a new draft; nothing else is linked.", type: "string", required: false },
   { key: "deletedAt", option: "--deleted-at <deleted-at>", name: "deleted_at", description: "When the record went to the trash; null while it is live. A record in the trash acts nowhere — lists leave it out unless asked with `trashed`, and the grid, the batch read and the category rules ignore it — but a read by its id still answers it, so every reference to it keeps resolving. Written by `DELETE` and cleared by `POST …/{id}/restore`, never by an update.", type: "string", required: false },
   { key: "deletedBy", option: "--deleted-by <deleted-by>", name: "deleted_by", description: "Who moved the record to the trash: the acting person's e-mail as the gateway stated it, `system` for a scheduled job. Attribution for a person reading the trash, not an identity to check against.", type: "string", required: false },
@@ -288,7 +292,7 @@ const createSpecs: PromptSpec[] = [
   { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Where the product stands in its release — 'draft' (newly created, the default), 'in_progress' (being worked on), 'in_review' (waiting for release), 'released' (released to the channels), 'phase_out' (sold off, not reordered) or 'blocked' (must not be sold). It sits beside `enabled`, which stays what a shop reads; this app does not derive one from the other. `GET /products/vocabularies/product-status` serves the words and tones.", type: "string", required: false, enum: ["draft","in_progress","in_review","released","phase_out","blocked"] },
-  { key: "taxClass", option: "--tax-class <tax-class>", name: "tax_class", description: "The tax class key the prices app resolves a VAT rate from. Free text here — the vocabulary belongs to the app that prices, and `POST /products/batch` exists to hand exactly this column to it in bulk.", type: "string", required: false },
+  { key: "taxClass", option: "--tax-class <tax-class>", name: "tax_class", description: "The tax class CODE the prices app resolves a VAT rate from — a class of the markets app, which owns the classes and their rates; `POST /products/batch` exists to hand exactly this column to it in bulk. An update that changes it must name an active class of the request's market (of any of the tenant's markets when the request names none), else 400 `unknown_tax_class`; a blank value clears it to null, and the value the product already holds is always accepted. A create stores it as sent.", type: "string", required: false },
   { key: "trashBatch", option: "--trash-batch <trash-batch>", name: "trash_batch", description: "The group the record went to the trash with. One delete stamps the record and everything that goes with it — the variants of a model, the whole subtree of a category — with the same value, and a restore brings back exactly that group. A record trashed on its own earlier keeps its own.", type: "string", required: false },
 ];
 products
@@ -323,9 +327,6 @@ Defaults to \`{}\`, and an empty object is a normal state — a record nobody ha
   .option(`--category-id <category-id>`, `A category to file the new product into by hand, in the same call. It has to exist, be live and be active, or the product is not created.`)
   .option(`--channel-release <channel-release>`, `Release per sales channel, for a tenant that releases channel by channel: an object keyed by the channel's \`code\` from the channels app, each value one of the \`status\` words — usually 'released', 'in_review' or 'blocked'. Null when the product is released as a whole. The database refuses anything that is not an object.`)
   .option(`--channels [channels...]`, `The sales channels that offer this product, as the channels app's channel codes. An empty list (the default) offers it in none. \`POST /products/{id}/channels\` adds, removes or replaces codes for one product, which is what a bulk assignment over a selection calls. This app stores the codes as sent; it does not ask the channels app whether they exist.`)
-  .option(`--completeness <completeness>`, `How much of what this product's family REQUIRES it actually carries — the number a merchandiser works down. \`required\` counts the attributes the family marks \`is_required\`, \`filled\` how many of those carry a value in ANY bucket, \`ratio\` is filled/required between 0 and 1 (a family that requires nothing is 1, not undefined), \`missing\` lists the codes with no value anywhere, sorted, and \`computed_at\` is when it was measured.
-
-Written only by \`POST /products/{id}/completeness\` and by \`POST /products/{id}/family\`; a plain create or update never touches it, so it is null until one of the two has run. It also stays null for a product with no family — there is nothing to measure it against, and 0 % would be a lie.`)
   .option(`--copy-from <copy-from>`, `A product to start from: its family, family variant, manufacturer, tax class, channels, base values (without the GTIN) and attribute values are taken, and anything the body sends wins. The copy is a new draft; nothing else is linked.`)
   .option(`--deleted-at <deleted-at>`, `When the record went to the trash; null while it is live. A record in the trash acts nowhere — lists leave it out unless asked with \`trashed\`, and the grid, the batch read and the category rules ignore it — but a read by its id still answers it, so every reference to it keeps resolving. Written by \`DELETE\` and cleared by \`POST …/{id}/restore\`, never by an update.`)
   .option(`--deleted-by <deleted-by>`, `Who moved the record to the trash: the acting person's e-mail as the gateway stated it, \`system\` for a scheduled job. Attribution for a person reading the trash, not an identity to check against.`)
@@ -352,12 +353,12 @@ It exists because a PIM import (Akeneo, BMEcat) carries these in one blob keyed 
   .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
   .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .option(`--status <status>`, `Where the product stands in its release — 'draft' (newly created, the default), 'in_progress' (being worked on), 'in_review' (waiting for release), 'released' (released to the channels), 'phase_out' (sold off, not reordered) or 'blocked' (must not be sold). It sits beside \`enabled\`, which stays what a shop reads; this app does not derive one from the other. \`GET /products/vocabularies/product-status\` serves the words and tones.`)
-  .option(`--tax-class <tax-class>`, `The tax class key the prices app resolves a VAT rate from. Free text here — the vocabulary belongs to the app that prices, and \`POST /products/batch\` exists to hand exactly this column to it in bulk.`)
+  .option(`--tax-class <tax-class>`, `The tax class CODE the prices app resolves a VAT rate from — a class of the markets app, which owns the classes and their rates; \`POST /products/batch\` exists to hand exactly this column to it in bulk. An update that changes it must name an active class of the request's market (of any of the tenant's markets when the request names none), else 400 \`unknown_tax_class\`; a blank value clears it to null, and the value the product already holds is always accepted. A create stores it as sent.`)
   .option(`--trash-batch <trash-batch>`, `The group the record went to the trash with. One delete stamps the record and everything that goes with it — the variants of a model, the whole subtree of a category — with the same value, and a restore brings back exactly that group. A record trashed on its own earlier keeps its own.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { sku, attributeValues, baseValues, categoryId, channelRelease, channels, completeness, copyFrom, deletedAt, deletedBy, deletedById, enabled, externalId, externalRefs, familyId, familyVariantId, kind, manufacturerId, name, parentId, purgeAt, purgeBlockedReason, quantifiedAssociations, sourceData, sourceSyncedAt, status, taxClass, trashBatch } = await promptForMissing(
+        const { sku, attributeValues, baseValues, categoryId, channelRelease, channels, copyFrom, deletedAt, deletedBy, deletedById, enabled, externalId, externalRefs, familyId, familyVariantId, kind, manufacturerId, name, parentId, purgeAt, purgeBlockedReason, quantifiedAssociations, sourceData, sourceSyncedAt, status, taxClass, trashBatch } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -386,9 +387,6 @@ It exists because a PIM import (Akeneo, BMEcat) carries these in one blob keyed 
         }
         if (channels !== undefined) {
           _payload[`channels`] = channels;
-        }
-        if (completeness !== undefined) {
-          _payload[`completeness`] = resolveBodyParam(completeness);
         }
         if (copyFrom !== undefined) {
           _payload[`copy_from`] = copyFrom;
@@ -604,20 +602,24 @@ It filters on \`q\`, \`kind\`, \`enabled\` and \`family_id\`, and on NOTHING ELS
   );
 registerPromptSpecs(products.commands.at(-1)!, gridSpecs, { method: "get" });
 const labelsSpecs: PromptSpec[] = [
+  { key: "channel", option: "--channel <channel>", name: "channel", description: "A channel code (the channels app's). Its own name wins over every other scope. A code no product carries values for is not an error; such a product resolves as without a channel.", type: "string", required: false },
   { key: "ids", option: "--ids [ids...]", name: "ids", description: "Product ids to name. At most 500.", type: "array", required: false },
   { key: "skus", option: "--skus [skus...]", name: "skus", description: "Product SKUs to name. At most 500.", type: "array", required: false },
 ];
 products
   .command(`labels`)
-  .description(`What is this product CALLED? A product's name is an attribute rather than a column, and which attribute it is, is per family — so no plain read can answer it. This resolves up to 500 products at once, by id and/or SKU: it reads families.label_attribute (falling back to the default_label_attribute setting, then to the conventional \`name\`) and looks the value up through the scoped attribute_values document — common, then locale_specific in the label_locales order, then the channel buckets.
+  .description(`What is this product CALLED? A product's name is an attribute rather than a column, and which attribute it is, is per family — so no plain read can answer it. This resolves up to 500 products at once, by id and/or SKU; more than 500 of either is refused with 400 rather than cut short. It reads families.label_attribute (falling back to the default_label_attribute setting, then to the conventional \`name\`) and looks the value up through the scoped attribute_values document — common, then locale_specific in the label_locales order, then the channel buckets.
+
+With \`channel\`, that channel's own name wins: its channel_specific value, then its channel_locale_specific values in the label_locales order, before everything else. A product that carries no name of its own in the channel resolves as without one. Without \`channel\` the answer is unchanged.
 
 It reports WHERE the name was found, which is the half that matters: \`source: "sku"\` means the catalog holds no name for this product and the SKU is standing in for one, so show it as a missing name rather than as a name. Writes nothing, and answers only what it found.`)
+  .option(`--channel <channel>`, `A channel code (the channels app's). Its own name wins over every other scope. A code no product carries values for is not an error; such a product resolves as without a channel.`)
   .option(`--ids [ids...]`, `Product ids to name. At most 500.`)
   .option(`--skus [skus...]`, `Product SKUs to name. At most 500.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { ids, skus } = await promptForMissing(
+        const { channel, ids, skus } = await promptForMissing(
           _options,
           labelsSpecs,
           _command,
@@ -631,6 +633,9 @@ It reports WHERE the name was found, which is the half that matters: \`source: "
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (channel !== undefined) {
+          _payload[`channel`] = channel;
         }
         if (ids !== undefined) {
           _payload[`ids`] = ids;
@@ -964,9 +969,67 @@ A body that names nothing writable is refused with 400 rather than answered as a
     ),
   );
 registerPromptSpecs(products.commands.at(-1)!, productAssociationsUpdateSpecs, { method: "put" });
+const releaseMigrationSpecs: PromptSpec[] = [
+  { key: "cursor", option: "--cursor <cursor>", name: "cursor", description: "The `cursor` the previous call answered — a product id — to continue where it stopped. Omitted or null starts at the first product.", type: "string", required: false },
+  { key: "dryRun", option: "--dry-run <dry-run>", name: "dry_run", description: "True (the default) writes nothing. False releases the products.", type: "boolean", required: false },
+];
+products
+  .command(`release-migration`)
+  .description(`Releases, once per tenant, the products that were live before the release status existed: every product that is \`enabled\`, still \`draft\`, and whose status nobody has moved since (\`status_changed_at\` is empty) becomes \`released\`. A product a merchant created or moved since carries a status time and is left alone, as is every other status and every switched-off product. Each release is an ordinary update, so the product's history keeps an entry for it, with a note saying what it was.
+
+**Run by hand, never on its own.** Nothing calls this route but a person; a deploy does not.
+
+**Dry run by default.** Without \`"dry_run": false\` nothing is written and \`would_release\` counts what a real run would release among the products this call walked.
+
+**Chunked and caller-driven**, like the manufacturer migration: a call walks those products in id order for as long as the gateway budget allows, and answers \`done\` and, while there is more, the \`cursor\` to send back. Counts are per call. Idempotent: a product is released with a compare-and-set on all three conditions, so one moved in the meantime is skipped, and a second run finds nothing to release.`)
+  .option(`--cursor <cursor>`, `The \`cursor\` the previous call answered — a product id — to continue where it stopped. Omitted or null starts at the first product.`)
+  .option(
+    `--dry-run [value]`,
+    `True (the default) writes nothing. False releases the products.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { cursor, dryRun } = await promptForMissing(
+          _options,
+          releaseMigrationSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/release-migration`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (cursor !== undefined) {
+          _payload[`cursor`] = cursor;
+        }
+        if (dryRun !== undefined) {
+          _payload[`dry_run`] = dryRun;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(products.commands.at(-1)!, releaseMigrationSpecs, { method: "post" });
 products
   .command(`setup`)
-  .description(`What this app needs once before it is ready, as the checklist the Cockpit's „Einrichtung“ shows: every step of \`cockpit.json#setup\`, done or not. A step is done when what it names exists — at least one live row of a table, or a setting with a value.`)
+  .description(`What this app needs once before it is ready, as the checklist the Cockpit's „Einrichtung“ shows: every step of \`cockpit.json#setup\`, done or not. A step is done when what it names exists — at least one live row of a table, or a setting with a value — or when somebody marked it done by hand (\`PUT /products/setup/{key}\`); \`by\` says which.`)
   .action(
     actionRunner(
       async () => {
@@ -986,6 +1049,71 @@ products
       },
     ),
   );
+const setupUnmarkSpecs: PromptSpec[] = [
+  { key: "key", option: "--key <key>", name: "key", description: "The step's key in `cockpit.json#setup` — `families`, `release` or `grid`.", type: "string", required: true, resource: { listPath: "/products/setup", hasLimit: false } },
+];
+products
+  .command(`setup-unmark`)
+  .description(`Removes the mark \`PUT /products/setup/{key}\` set, so the step answers what its data says again: done with \`by: 'data'\` when what it names exists, open otherwise. Removing a mark that is not there changes nothing. Answers the whole checklist as \`GET /products/setup\` does.`)
+  .option(`--key <key>`, `The step's key in \`cockpit.json#setup\` — \`families\`, \`release\` or \`grid\`.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { key } = await promptForMissing(
+          _options,
+          setupUnmarkSpecs,
+          _command,
+        );
+        await confirmDestructive(`products setup-unmark`);
+        const _client = await sdkForProject();
+        const _apiPath = `/products/setup/{key}`.replace(`{key}`, key);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `delete`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(products.commands.at(-1)!, setupUnmarkSpecs, { method: "delete", destructive: true });
+const setupMarkSpecs: PromptSpec[] = [
+  { key: "key", option: "--key <key>", name: "key", description: "The step's key in `cockpit.json#setup` — `families`, `release` or `grid`.", type: "string", required: true, resource: { listPath: "/products/setup", hasLimit: false } },
+];
+products
+  .command(`setup-mark`)
+  .description(`Marks one step of the setup checklist done by hand, for a step that is settled outside this app or that a merchant decides to skip. The step then answers done with \`by: 'hand'\` whatever its data says, until the mark is removed. Marking a marked step again changes nothing. Answers the whole checklist as \`GET /products/setup\` does.`)
+  .option(`--key <key>`, `The step's key in \`cockpit.json#setup\` — \`families\`, \`release\` or \`grid\`.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { key } = await promptForMissing(
+          _options,
+          setupMarkSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/setup/{key}`.replace(`{key}`, key);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `put`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(products.commands.at(-1)!, setupMarkSpecs, { method: "put" });
 const taxClassesUsageSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The tax-class CODE, as markets spells it — not a row id. Matched against the `tax_class` of every product visible in the request's market (every product when it names none).", type: "string", required: true },
 ];
@@ -1018,6 +1146,62 @@ products
     ),
   );
 registerPromptSpecs(products.commands.at(-1)!, taxClassesUsageSpecs, { method: "get" });
+const thumbnailsRefreshSpecs: PromptSpec[] = [
+  { key: "cursor", option: "--cursor <cursor>", name: "cursor", description: "The `cursor` the previous call answered — a product id — to continue where it stopped. Omitted or null starts at the first product.", type: "string", required: false },
+  { key: "dryRun", option: "--dry-run <dry-run>", name: "dry_run", description: "True (the default) writes nothing. False stores the thumbnails.", type: "boolean", required: false },
+];
+products
+  .command(`thumbnails-refresh`)
+  .description(`Works out every product's thumbnail from its family's image attribute and stores it wherever the stored one differs: the fill for products from before the thumbnail was stored, and the way to finish what a write's own budget or the nightly walk left — a large family whose image attribute changed, an import, an asset created after the products that name it.
+
+**Dry run by default.** Without \`"dry_run": false\` nothing is written and \`would_change\` counts what a real run would store among the products this call walked.
+
+**Chunked and caller-driven**, like the manufacturer migration: a call walks the products in id order for as long as the gateway budget allows, and answers \`done\` and, while there is more, the \`cursor\` to send back. Counts are per call. Idempotent: only a product whose stored thumbnail differs is written, so a second pass writes nothing.`)
+  .option(`--cursor <cursor>`, `The \`cursor\` the previous call answered — a product id — to continue where it stopped. Omitted or null starts at the first product.`)
+  .option(
+    `--dry-run [value]`,
+    `True (the default) writes nothing. False stores the thumbnails.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { cursor, dryRun } = await promptForMissing(
+          _options,
+          thumbnailsRefreshSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/products/thumbnails/refresh`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (cursor !== undefined) {
+          _payload[`cursor`] = cursor;
+        }
+        if (dryRun !== undefined) {
+          _payload[`dry_run`] = dryRun;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(products.commands.at(-1)!, thumbnailsRefreshSpecs, { method: "post" });
 products
   .command(`empty-trash`)
   .description(`Deletes the products in the trash for good, oldest first, up to 200 per call, each through the same checks as a second \`DELETE\`. One that is held is reported with its reason and the rest go on; \`more\` says another call has work left. Refused with 403 for a storefront contact.`)
@@ -1199,7 +1383,6 @@ const updateSpecs: PromptSpec[] = [
   { key: "baseValues", option: "--base-values <base-values>", name: "base_values", description: "The commercial basics of the article, kept beside the attribute values because every family has them: `unit` (sales unit), `min_order_quantity`, `order_interval`, `packaging`, `customs_tariff_number`, `country_of_origin`, `weight`, `gtin`. The keys are the Cockpit's; this app stores the object as sent and refuses anything that is not an object. A copy keeps everything but `gtin`.", type: "object", required: false },
   { key: "channelRelease", option: "--channel-release <channel-release>", name: "channel_release", description: "Release per sales channel, for a tenant that releases channel by channel: an object keyed by the channel's `code` from the channels app, each value one of the `status` words — usually 'released', 'in_review' or 'blocked'. Null when the product is released as a whole. The database refuses anything that is not an object.", type: "object", required: false },
   { key: "channels", option: "--channels [channels...]", name: "channels", description: "The sales channels that offer this product, as the channels app's channel codes. An empty list (the default) offers it in none. `POST /products/{id}/channels` adds, removes or replaces codes for one product, which is what a bulk assignment over a selection calls. This app stores the codes as sent; it does not ask the channels app whether they exist.", type: "array", required: false },
-  { key: "completeness", option: "--completeness <completeness>", name: "completeness", description: "How much of what this product's family REQUIRES it actually carries — the number a merchandiser works down. `required` counts the attributes the family marks `is_required`, `filled` how many of those carry a value in ANY bucket, `ratio` is filled/required between 0 and 1 (a family that requires nothing is 1, not undefined), `missing` lists the codes with no value anywhere, sorted, and `computed_at` is when it was measured.\n\nWritten only by `POST /products/{id}/completeness` and by `POST /products/{id}/family`; a plain create or update never touches it, so it is null until one of the two has run. It also stays null for a product with no family — there is nothing to measure it against, and 0 % would be a lie.", type: "object", required: false },
   { key: "deletedAt", option: "--deleted-at <deleted-at>", name: "deleted_at", description: "When the record went to the trash; null while it is live. A record in the trash acts nowhere — lists leave it out unless asked with `trashed`, and the grid, the batch read and the category rules ignore it — but a read by its id still answers it, so every reference to it keeps resolving. Written by `DELETE` and cleared by `POST …/{id}/restore`, never by an update.", type: "string", required: false },
   { key: "deletedBy", option: "--deleted-by <deleted-by>", name: "deleted_by", description: "Who moved the record to the trash: the acting person's e-mail as the gateway stated it, `system` for a scheduled job. Attribution for a person reading the trash, not an identity to check against.", type: "string", required: false },
   { key: "deletedById", option: "--deleted-by-id <deleted-by-id>", name: "deleted_by_id", description: "The platform subject of the person who moved the record to the trash — the stable id a privacy request pseudonymises, where `deleted_by` is only the name shown. Null for a scheduled job.", type: "string", required: false },
@@ -1218,7 +1401,7 @@ const updateSpecs: PromptSpec[] = [
   { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this row, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to hand back in `If-Match`, and between two runs there is nowhere else to keep it. `raw` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.", type: "object", required: false },
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.", type: "string", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Where the product stands in its release — 'draft' (newly created, the default), 'in_progress' (being worked on), 'in_review' (waiting for release), 'released' (released to the channels), 'phase_out' (sold off, not reordered) or 'blocked' (must not be sold). It sits beside `enabled`, which stays what a shop reads; this app does not derive one from the other. `GET /products/vocabularies/product-status` serves the words and tones.", type: "string", required: false, enum: ["draft","in_progress","in_review","released","phase_out","blocked"] },
-  { key: "taxClass", option: "--tax-class <tax-class>", name: "tax_class", description: "The tax class key the prices app resolves a VAT rate from. Free text here — the vocabulary belongs to the app that prices, and `POST /products/batch` exists to hand exactly this column to it in bulk.", type: "string", required: false },
+  { key: "taxClass", option: "--tax-class <tax-class>", name: "tax_class", description: "The tax class CODE the prices app resolves a VAT rate from — a class of the markets app, which owns the classes and their rates; `POST /products/batch` exists to hand exactly this column to it in bulk. An update that changes it must name an active class of the request's market (of any of the tenant's markets when the request names none), else 400 `unknown_tax_class`; a blank value clears it to null, and the value the product already holds is always accepted. A create stores it as sent.", type: "string", required: false },
   { key: "trashBatch", option: "--trash-batch <trash-batch>", name: "trash_batch", description: "The group the record went to the trash with. One delete stamps the record and everything that goes with it — the variants of a model, the whole subtree of a category — with the same value, and a restore brings back exactly that group. A record trashed on its own earlier keeps its own.", type: "string", required: false },
 ];
 products
@@ -1252,9 +1435,6 @@ Defaults to \`{}\`, and an empty object is a normal state — a record nobody ha
   .option(`--base-values <base-values>`, `The commercial basics of the article, kept beside the attribute values because every family has them: \`unit\` (sales unit), \`min_order_quantity\`, \`order_interval\`, \`packaging\`, \`customs_tariff_number\`, \`country_of_origin\`, \`weight\`, \`gtin\`. The keys are the Cockpit's; this app stores the object as sent and refuses anything that is not an object. A copy keeps everything but \`gtin\`.`)
   .option(`--channel-release <channel-release>`, `Release per sales channel, for a tenant that releases channel by channel: an object keyed by the channel's \`code\` from the channels app, each value one of the \`status\` words — usually 'released', 'in_review' or 'blocked'. Null when the product is released as a whole. The database refuses anything that is not an object.`)
   .option(`--channels [channels...]`, `The sales channels that offer this product, as the channels app's channel codes. An empty list (the default) offers it in none. \`POST /products/{id}/channels\` adds, removes or replaces codes for one product, which is what a bulk assignment over a selection calls. This app stores the codes as sent; it does not ask the channels app whether they exist.`)
-  .option(`--completeness <completeness>`, `How much of what this product's family REQUIRES it actually carries — the number a merchandiser works down. \`required\` counts the attributes the family marks \`is_required\`, \`filled\` how many of those carry a value in ANY bucket, \`ratio\` is filled/required between 0 and 1 (a family that requires nothing is 1, not undefined), \`missing\` lists the codes with no value anywhere, sorted, and \`computed_at\` is when it was measured.
-
-Written only by \`POST /products/{id}/completeness\` and by \`POST /products/{id}/family\`; a plain create or update never touches it, so it is null until one of the two has run. It also stays null for a product with no family — there is nothing to measure it against, and 0 % would be a lie.`)
   .option(`--deleted-at <deleted-at>`, `When the record went to the trash; null while it is live. A record in the trash acts nowhere — lists leave it out unless asked with \`trashed\`, and the grid, the batch read and the category rules ignore it — but a read by its id still answers it, so every reference to it keeps resolving. Written by \`DELETE\` and cleared by \`POST …/{id}/restore\`, never by an update.`)
   .option(`--deleted-by <deleted-by>`, `Who moved the record to the trash: the acting person's e-mail as the gateway stated it, \`system\` for a scheduled job. Attribution for a person reading the trash, not an identity to check against.`)
   .option(`--deleted-by-id <deleted-by-id>`, `The platform subject of the person who moved the record to the trash — the stable id a privacy request pseudonymises, where \`deleted_by\` is only the name shown. Null for a scheduled job.`)
@@ -1280,12 +1460,12 @@ It exists because a PIM import (Akeneo, BMEcat) carries these in one blob keyed 
   .option(`--source-data <source-data>`, `What the source said about this row, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to hand back in \`If-Match\`, and between two runs there is nowhere else to keep it. \`raw\` carries the source fields this app does not model, so they survive a round trip instead of being lost the first time somebody edits here. Written by whatever imports the row; nothing in this app reads or maintains it.`)
   .option(`--source-synced-at <source-synced-at>`, `When this row was last CONFIRMED against its source — not when it last changed. A delta run asks for everything it has not seen since its last pass, and over 25 000 products that is the difference between an index scan and reading the whole catalog, which is the reason the column is indexed. An edit made here leaves it alone, so a value that has stopped moving says the feed has gone quiet, not that nobody works the record. Null for a row no source owns.`)
   .option(`--status <status>`, `Where the product stands in its release — 'draft' (newly created, the default), 'in_progress' (being worked on), 'in_review' (waiting for release), 'released' (released to the channels), 'phase_out' (sold off, not reordered) or 'blocked' (must not be sold). It sits beside \`enabled\`, which stays what a shop reads; this app does not derive one from the other. \`GET /products/vocabularies/product-status\` serves the words and tones.`)
-  .option(`--tax-class <tax-class>`, `The tax class key the prices app resolves a VAT rate from. Free text here — the vocabulary belongs to the app that prices, and \`POST /products/batch\` exists to hand exactly this column to it in bulk.`)
+  .option(`--tax-class <tax-class>`, `The tax class CODE the prices app resolves a VAT rate from — a class of the markets app, which owns the classes and their rates; \`POST /products/batch\` exists to hand exactly this column to it in bulk. An update that changes it must name an active class of the request's market (of any of the tenant's markets when the request names none), else 400 \`unknown_tax_class\`; a blank value clears it to null, and the value the product already holds is always accepted. A create stores it as sent.`)
   .option(`--trash-batch <trash-batch>`, `The group the record went to the trash with. One delete stamps the record and everything that goes with it — the variants of a model, the whole subtree of a category — with the same value, and a restore brings back exactly that group. A record trashed on its own earlier keeps its own.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, attributeValues, baseValues, channelRelease, channels, completeness, deletedAt, deletedBy, deletedById, enabled, externalId, externalRefs, familyId, familyVariantId, kind, manufacturerId, parentId, purgeAt, purgeBlockedReason, quantifiedAssociations, sku, sourceData, sourceSyncedAt, status, taxClass, trashBatch } = await promptForMissing(
+        const { id, attributeValues, baseValues, channelRelease, channels, deletedAt, deletedBy, deletedById, enabled, externalId, externalRefs, familyId, familyVariantId, kind, manufacturerId, parentId, purgeAt, purgeBlockedReason, quantifiedAssociations, sku, sourceData, sourceSyncedAt, status, taxClass, trashBatch } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -1311,9 +1491,6 @@ It exists because a PIM import (Akeneo, BMEcat) carries these in one blob keyed 
         }
         if (channels !== undefined) {
           _payload[`channels`] = channels;
-        }
-        if (completeness !== undefined) {
-          _payload[`completeness`] = resolveBodyParam(completeness);
         }
         if (deletedAt !== undefined) {
           _payload[`deleted_at`] = deletedAt;

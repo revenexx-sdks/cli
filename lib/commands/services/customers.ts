@@ -27,19 +27,23 @@ export const customers = new Command("customers")
 
 const authHandoffSpecs: PromptSpec[] = [
   { key: "handoffKey", option: "--handoff-key <handoff-key>", name: "handoff_key", description: "The operations secret that makes the caller a trusted in-cluster app. Configured on both functions; never a value a browser or a storefront holds. In the body rather than a header because the gateway forwards a fixed header set, the same reason session material travels this way.", type: "string", required: true },
+  { key: "actingRep", option: "--acting-rep <acting-rep>", name: "acting_rep", description: "The code of the sales rep who acts for the buyer, when a rep asked for this session. Sent together with `impersonation_id`, or neither. The session the secret opens then remembers the rep: the current-user call answers it, and the gateway hands it to every app the session calls. A buyer's own sign-in never carries one.", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The buyer to sign in, as this app knows them. Exactly one of this and `email` is sent — this one when the caller already resolved the external name to a contact.", type: "string", required: false },
   { key: "email", option: "--email <email>", name: "email", description: "The buyer to sign in, by address, when the caller holds no contact id. Exactly one of this and `contact_id` is sent. An address nobody holds is a 404 — this route never registers.", type: "string", required: false },
+  { key: "impersonationId", option: "--impersonation-id <impersonation-id>", name: "impersonation_id", description: "The sales-reps app's log entry for this act. Sent together with `acting_rep`, or neither.", type: "string", required: false },
 ];
 customers
   .command(`auth-handoff`)
   .description(`The same token \`POST /customers/auth/magic-link\` mints, answered WITH its secret instead of mailed — for a buyer another system has already authenticated and who therefore has no mailbox to check and no link to click. Punchout is the caller it exists for: an ERP hands its user over, this app decides whether that buyer may sign in, and the secret is redeemed through \`PUT /customers/auth/magic-link\` exactly as a mailed one is. Which is also why the method checked is the magic-link one: a store with \`login_magic_link\` off cannot redeem what this mints. Nothing is delivered, no account is founded (an address nobody holds is a 404 here, not a registration) and no \`contact_event\` is written — signing in is mechanics, and this app keeps it off the event bus. Not callable from a browser or a storefront: \`handoff_key\` is an operations secret configured on the calling app, and a deployment that has none has this capability switched off.`)
   .option(`--handoff-key <handoff-key>`, `The operations secret that makes the caller a trusted in-cluster app. Configured on both functions; never a value a browser or a storefront holds. In the body rather than a header because the gateway forwards a fixed header set, the same reason session material travels this way.`)
+  .option(`--acting-rep <acting-rep>`, `The code of the sales rep who acts for the buyer, when a rep asked for this session. Sent together with \`impersonation_id\`, or neither. The session the secret opens then remembers the rep: the current-user call answers it, and the gateway hands it to every app the session calls. A buyer's own sign-in never carries one.`)
   .option(`--contact-id <contact-id>`, `The buyer to sign in, as this app knows them. Exactly one of this and \`email\` is sent — this one when the caller already resolved the external name to a contact.`)
   .option(`--email <email>`, `The buyer to sign in, by address, when the caller holds no contact id. Exactly one of this and \`contact_id\` is sent. An address nobody holds is a 404 — this route never registers.`)
+  .option(`--impersonation-id <impersonation-id>`, `The sales-reps app's log entry for this act. Sent together with \`acting_rep\`, or neither.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { handoffKey, contactId, email } = await promptForMissing(
+        const { handoffKey, actingRep, contactId, email, impersonationId } = await promptForMissing(
           _options,
           authHandoffSpecs,
           _command,
@@ -54,6 +58,9 @@ customers
           }
           Object.assign(_payload, body as RequestParams);
         }
+        if (actingRep !== undefined) {
+          _payload[`acting_rep`] = actingRep;
+        }
         if (contactId !== undefined) {
           _payload[`contact_id`] = contactId;
         }
@@ -62,6 +69,9 @@ customers
         }
         if (handoffKey !== undefined) {
           _payload[`handoff_key`] = handoffKey;
+        }
+        if (impersonationId !== undefined) {
+          _payload[`impersonation_id`] = impersonationId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -182,7 +192,7 @@ const authMagicLinkSpecs: PromptSpec[] = [
 ];
 customers
   .command(`auth-magic-link`)
-  .description(`Sign in without a password: a link goes to the address, and \`PUT /customers/auth/magic-link\` turns it into a session. Only a buyer this shop holds, with a login of its own, who may sign in is sent one. For anybody else — an address nobody holds, a contact with no login, a blocked buyer or company, an undecided application, a buyer whose company switched sign-in links off — nothing is created and nothing is sent, and the answer is the same 201 in the same shape, so it cannot be used to find out who is a customer. It never founds an account. The address is matched without regard to case or the spaces around it, and the link goes to the address as the contact holds it. The mail is this shop's own template through the messaging service; the secret is not in this response, only in the link.`)
+  .description(`Sign in without a password: a link goes to the address, and \`PUT /customers/auth/magic-link\` turns it into a session. Only a buyer this shop holds, with a login of its own, who may sign in is sent one. For anybody else — an address nobody holds, a contact with no login, a blocked buyer or company, an undecided application, a buyer whose company switched sign-in links off — nothing is created and nothing is sent, and the answer is the same 201 in the same shape, so it cannot be used to find out who is a customer. It never founds an account. The address is matched without regard to case or the spaces around it, and the link goes to the address as the contact holds it. The mail is this shop's own template through the messaging service; the secret is not in this response, only in the link. A login holds one live link or code at a time: asking for a new one voids the one before it. A login is sent at most three links and codes together in ten minutes; a request over that mints nothing and mails nothing, so the link or code the buyer already holds stays good, and is answered exactly like any other request.`)
   .option(`--email <email>`, `Who to send the link to. An address that cannot sign in is answered exactly like one that can, and nothing is sent to it.`)
   .option(`--url <url>`, `Where the mailed link points. \`userId\`, \`secret\` and \`expire\` are appended as query parameters; the first two are what the confirm call takes.`)
   .action(
@@ -318,18 +328,18 @@ customers
   );
 registerPromptSpecs(customers.commands.at(-1)!, authMeSpecs, { method: "post" });
 const authMfaChallengeSpecs: PromptSpec[] = [
-  { key: "userId", option: "--user-id <user-id>", name: "user_id", description: "The platform user being challenged.", type: "string", required: true },
+  { key: "sessionSecret", option: "--session-secret <session-secret>", name: "session_secret", description: "The `session.secret` the password sign-in answered. It is what proves the password; the user challenged is the one it belongs to.", type: "string", required: true, secret: true },
   { key: "factor", option: "--factor <factor>", name: "factor", description: "Which factor to challenge. `email` (the default) is the only one this route sends; any other value is a 400 `factor_not_supported`.", type: "string", required: false, enum: ["email"] },
 ];
 customers
   .command(`auth-mfa-challenge`)
-  .description(`Between the password and the finished session: the buyer has proved one thing and is asked for another. Created by user id, because the account route that creates challenges hides the code from whoever may call it — and answered with the half-finished session the sign-in is in the middle of, through \`PUT /customers/auth/mfa/challenge\`. Needs a platform build that returns the challenge code; without one there is no way to read what to send, and the call answers 502 rather than mailing an empty challenge.`)
-  .option(`--user-id <user-id>`, `The platform user being challenged.`)
+  .description(`Between the password and the finished session: the buyer has proved one thing and is asked for another. Takes the session the password sign-in answered, and challenges the user that session belongs to; a user named by the caller is not read. Until the session checks out nothing is read about anybody and nothing is mailed. Answered through \`PUT /customers/auth/mfa/challenge\` with the same session. Needs a platform build that returns the challenge code; without one there is no way to read what to send, and the call answers 502 rather than mailing an empty challenge.`)
+  .option(`--session-secret <session-secret>`, `The \`session.secret\` the password sign-in answered. It is what proves the password; the user challenged is the one it belongs to.`)
   .option(`--factor <factor>`, `Which factor to challenge. \`email\` (the default) is the only one this route sends; any other value is a 400 \`factor_not_supported\`.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { userId, factor } = await promptForMissing(
+        const { sessionSecret, factor } = await promptForMissing(
           _options,
           authMfaChallengeSpecs,
           _command,
@@ -347,8 +357,8 @@ customers
         if (factor !== undefined) {
           _payload[`factor`] = factor;
         }
-        if (userId !== undefined) {
-          _payload[`user_id`] = userId;
+        if (sessionSecret !== undefined) {
+          _payload[`session_secret`] = sessionSecret;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -368,7 +378,7 @@ const authMfaChallengeConfirmSpecs: PromptSpec[] = [
   { key: "challengeId", option: "--challenge-id <challenge-id>", name: "challenge_id", description: "The `$id` the send answered with.", type: "string", required: true },
   { key: "code", option: "--code <code>", name: "code", description: "What the buyer typed.", type: "string", required: true },
   { key: "sessionSecret", option: "--session-secret <session-secret>", name: "session_secret", description: "The same session the challenge was created with.", type: "string", required: true, secret: true },
-  { key: "userId", option: "--user-id <user-id>", name: "user_id", description: "The platform user, for the caller's own bookkeeping. The challenge already knows whose it is.", type: "string", required: false },
+  { key: "userId", option: "--user-id <user-id>", name: "user_id", description: "Not read. Whose sign-in this completes comes from the identity service.", type: "string", required: false },
 ];
 customers
   .command(`auth-mfa-challenge-confirm`)
@@ -376,7 +386,7 @@ customers
   .option(`--challenge-id <challenge-id>`, `The \`\$id\` the send answered with.`)
   .option(`--code <code>`, `What the buyer typed.`)
   .option(`--session-secret <session-secret>`, `The same session the challenge was created with.`)
-  .option(`--user-id <user-id>`, `The platform user, for the caller's own bookkeeping. The challenge already knows whose it is.`)
+  .option(`--user-id <user-id>`, `Not read. Whose sign-in this completes comes from the identity service.`)
   .action(
     actionRunner(
       async (_options, _command) => {
@@ -426,7 +436,7 @@ const authOtpSpecs: PromptSpec[] = [
 ];
 customers
   .command(`auth-otp`)
-  .description(`The same token as the sign-in link, delivered as a short code instead — for a buyer on a phone, where leaving for a mail client and coming back loses the checkout they were in the middle of. Redeemed with \`PUT /customers/auth/otp\`. Sent under the same rule as the link: only to a buyer who may sign in, and for anybody else nothing is created or sent while the answer looks exactly the same.`)
+  .description(`The same token as the sign-in link, delivered as a short code instead — for a buyer on a phone, where leaving for a mail client and coming back loses the checkout they were in the middle of. Six digits by default; six characters from 0-9 and a-f where the shop's \`otp_code_format\` setting says \`alphanumeric\`, and also while the identity service has not confirmed the limits that make six digits safe. Redeemed with \`PUT /customers/auth/otp\`. Sent under the same rule as the link: only to a buyer who may sign in, and for anybody else nothing is created or sent while the answer looks exactly the same. A login is sent at most three links and codes together in ten minutes; a request over that mints nothing and mails nothing, so the link or code the buyer already holds stays good, and is answered exactly like any other request.`)
   .option(`--email <email>`, `Who to send the code to. As with the sign-in link, an address that cannot sign in is answered exactly like one that can, and nothing is sent to it.`)
   .action(
     actionRunner(
@@ -464,18 +474,18 @@ customers
   );
 registerPromptSpecs(customers.commands.at(-1)!, authOtpSpecs, { method: "post" });
 const authOtpConfirmSpecs: PromptSpec[] = [
-  { key: "secret", option: "--secret <secret>", name: "secret", description: "The one-time secret the mailed code carried. Spent on first use and expiring, so a second attempt with the same one is a 401 rather than a second session.", type: "string", required: true, secret: true },
-  { key: "userId", option: "--user-id <user-id>", name: "user_id", description: "The `userId` the mailed code carried.", type: "string", required: true },
+  { key: "email", option: "--email <email>", name: "email", description: "The address the code was asked for. Matched as the request matched it, without regard to case or the spaces around it.", type: "string", required: true },
+  { key: "secret", option: "--secret <secret>", name: "secret", description: "The code the buyer typed. Spaces and the case of its letters do not matter. Spent on first use and expiring, so a second attempt with the same one is a 401 rather than a second session.", type: "string", required: true, secret: true },
 ];
 customers
   .command(`auth-otp-confirm`)
-  .description(`The code the buyer typed, plus the \`userId\` the send answered with. Answers exactly what a password login answers — session, contact and effective grants — so a storefront never has to branch on how somebody signed in. The code is spent on first use and expires, so a second attempt with the same one is a 401 rather than a second session.`)
-  .option(`--secret <secret>`, `The one-time secret the mailed code carried. Spent on first use and expiring, so a second attempt with the same one is a 401 rather than a second session.`)
-  .option(`--user-id <user-id>`, `The \`userId\` the mailed code carried.`)
+  .description(`The code the buyer typed, plus the address it was asked for. Answers exactly what a password login answers — session, contact and effective grants — so a storefront never has to branch on how somebody signed in. The code is spent on first use and expires, so a second attempt with the same one is a 401 rather than a second session. Spaces in the typed code and the case of its letters do not matter, and a code mailed before the shop changed its code format still works until it expires. A code takes five wrong tries; after them it is void, even when right, until a new one is asked for, and it is refused in the same words as a wrong code. Ten wrong tries of a login within an hour, sent through either sign-in route, have every code of it refused until the hour has passed; a sign-in link still signs in. Asking for a new code, or a new link, voids the one before it.`)
+  .option(`--email <email>`, `The address the code was asked for. Matched as the request matched it, without regard to case or the spaces around it.`)
+  .option(`--secret <secret>`, `The code the buyer typed. Spaces and the case of its letters do not matter. Spent on first use and expiring, so a second attempt with the same one is a 401 rather than a second session.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { secret, userId } = await promptForMissing(
+        const { email, secret } = await promptForMissing(
           _options,
           authOtpConfirmSpecs,
           _command,
@@ -490,11 +500,11 @@ customers
           }
           Object.assign(_payload, body as RequestParams);
         }
+        if (email !== undefined) {
+          _payload[`email`] = email;
+        }
         if (secret !== undefined) {
           _payload[`secret`] = secret;
-        }
-        if (userId !== undefined) {
-          _payload[`user_id`] = userId;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -516,7 +526,7 @@ const authRecoverySpecs: PromptSpec[] = [
 ];
 customers
   .command(`auth-recovery`)
-  .description(`Step one of two: a link goes to the address given, and \`PUT /customers/auth/recovery\` is what the buyer's browser comes back to. The identity service mints the token; the MAIL is this shop's own — the tenant's template, layout, language and sending domain, through the messaging service. The secret is NOT in this answer: it exists only inside the mailed link, which is the whole point of the two-step shape, and echoing it here would make the mail decorative. One thing about the contact CAN change: a buyer this shop holds who carries no platform login — an address written straight into the record by an import — is given one here, because the alternative is telling the one person who cannot help themselves that no account exists, with no other way in. Only a buyer who may sign in is given one: a blocked buyer, an application not yet approved and a contact in the trash get none. A login the identity service holds for the address, or under the user a decoy named for it, that no buyer names is deleted and replaced, never taken over. The address is matched without regard to case or the spaces around it, and the mail goes to the address as the contact holds it. Nothing else about the contact moves, and the password only moves in step two.`)
+  .description(`Step one of two: a link goes to the address given, and \`PUT /customers/auth/recovery\` is what the buyer's browser comes back to. The identity service mints the token; the MAIL is this shop's own — the tenant's template, layout, language and sending domain, through the messaging service. The secret is NOT in this answer: it exists only inside the mailed link, which is the whole point of the two-step shape, and echoing it here would make the mail decorative. One thing about the contact CAN change: a buyer this shop holds who carries no platform login — an address written straight into the record by an import — is given one here, because the alternative is telling the one person who cannot help themselves that no account exists, with no other way in. Only a buyer who may sign in is given one: a blocked buyer, an application not yet approved and a contact in the trash get none. A login under the user this app mints for the address that no buyer names is deleted and replaced, never taken over. The address is matched without regard to case or the spaces around it, and the mail goes to the address as the contact holds it. Nothing else about the contact moves, and the password only moves in step two.`)
   .option(`--email <email>`, `Who to send the recovery mail to. An address nobody holds is not distinguished here — do not build an account-existence check on the answer.`)
   .option(`--url <url>`, `Where the mailed link points. \`userId\`, \`secret\` and \`expire\` are appended as query parameters — the first two are what the confirm call takes. Same shape the identity service's own mail used, so a storefront that already handles that link needs no change.`)
   .action(
@@ -792,17 +802,19 @@ customers
 registerPromptSpecs(customers.commands.at(-1)!, authVerificationConfirmSpecs, { method: "put" });
 const principalResolveSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The contact the caller asserted it is acting for.", type: "string", required: false },
+  { key: "sessionId", option: "--session-id <session-id>", name: "session_id", description: "Optional, beside either reference: the session the caller holds for this person. When it is a session a trusted hand-off opened for a rep, the answer names that rep in `acting`; for any other session, or one of another person, `acting` is null. Sent without it, the answer has no `acting` at all.", type: "string", required: false },
   { key: "userId", option: "--user-id <user-id>", name: "user_id", description: "The platform login the gateway authenticated, matched against `contacts.external_user_id` — the identity mirror this app maintains when it registers or invites a contact. Not a uuid: it is whatever the identity service issues as a subject.", type: "string", required: false },
 ];
 customers
   .command(`principal-resolve`)
   .description(`The capability the API gateway calls to turn whoever is acting into the permission set it forwards to every other app as X-Revenexx-Permissions. This app is the platform's role provider (manifest#provides_roles), and this is the hot path of every attributed request — one contact read plus the tenant's role map. Send EXACTLY ONE of two references. \`contact_id\` is the storefront plane: a BFF holding the tenant API key asserted a contact, and the gateway is resolving the assertion. \`user_id\` is the authenticated plane (RAD-12): the gateway verified a person's own Zitadel token and is resolving its subject against \`contacts.external_user_id\`, so the answer stands on a proven identity rather than a claimed one. The answer is the same shape either way — which plane a request came from is the gateway's business, not this app's. A blocked or pending contact always resolves with active=false; what its \`permissions\` then say is the tenant's blocked_contact_behavior setting — 'keep' (the default, the role's grants), 'catalog_only' or 'deny_all'.`)
   .option(`--contact-id <contact-id>`, `The contact the caller asserted it is acting for.`)
+  .option(`--session-id <session-id>`, `Optional, beside either reference: the session the caller holds for this person. When it is a session a trusted hand-off opened for a rep, the answer names that rep in \`acting\`; for any other session, or one of another person, \`acting\` is null. Sent without it, the answer has no \`acting\` at all.`)
   .option(`--user-id <user-id>`, `The platform login the gateway authenticated, matched against \`contacts.external_user_id\` — the identity mirror this app maintains when it registers or invites a contact. Not a uuid: it is whatever the identity service issues as a subject.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { contactId, userId } = await promptForMissing(
+        const { contactId, sessionId, userId } = await promptForMissing(
           _options,
           principalResolveSpecs,
           _command,
@@ -819,6 +831,9 @@ customers
         }
         if (contactId !== undefined) {
           _payload[`contact_id`] = contactId;
+        }
+        if (sessionId !== undefined) {
+          _payload[`session_id`] = sessionId;
         }
         if (userId !== undefined) {
           _payload[`user_id`] = userId;

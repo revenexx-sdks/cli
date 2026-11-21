@@ -116,13 +116,14 @@ const createSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The machine name of the method, unique per tenant and lower case by convention ('invoice', 'prepayment', 'card', 'paypal'). It is the string the checkout asks for, the string every payment stores, and therefore the one value here that cannot be changed freely: renaming it would leave the ledger naming something that no longer exists, so it is refused with 409 for as long as any payment names it. Required on create.", type: "string", required: true },
   { key: "name", option: "--name <name>", name: "name", description: "Operator-facing name, in the language the merchant administers in. What a buyer sees comes from `labels`. Required on create.", type: "string", required: true },
   { key: "countries", option: "--countries [countries...]", name: "countries", description: "Allowed ISO 3166-1 alpha-2 country codes, compared upper-cased against the buyer country. null or an empty list means unrestricted — the invoice method this app seeds is restricted to DE, which is why an eligibility call without a country sees it excluded.", type: "array", required: false },
-  { key: "description", option: "--description <description>", name: "description", description: "One line explaining the method where it is offered — payment terms, what happens after the order. Shown to the buyer, so it is the merchant's wording rather than the app's.", type: "string", required: false },
+  { key: "description", option: "--description <description>", name: "description", description: "One line explaining the method where it is offered — payment terms, what happens after the order. Shown to the buyer, so it is the merchant's wording rather than the app's. The fallback for every language `descriptions` does not carry.", type: "string", required: false },
+  { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "The buyer-facing `description` per language, keyed by language tag, like `labels` is for the name. Each language holds one string: a write refuses any other value with 400 `invalid_locale_text`. The tags are not constrained. A storefront reads its own language and falls back to the plain `description` when that language has none; null means only the plain one was written.", type: "object", required: false },
   { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "A disabled method is never eligible and never reaches a checkout. This is the switch an operator wants: deleting a method the ledger still names — or renaming its `code` — is refused with 409. Defaults to false, so a half-configured method cannot reach a checkout by accident.", type: "boolean", required: false },
   { key: "feeAmount", option: "--fee-amount <fee-amount>", name: "fee_amount", description: "The surcharge this method costs the buyer, read as an amount or as a percentage depending on `fee_type`. Never negative — a discount for paying a certain way is not expressible here. Defaults to 0.", type: "number", required: false },
   { key: "feeCurrency", option: "--fee-currency <fee-currency>", name: "fee_currency", description: "ISO 4217 code this method is configured in: the currency of a fixed fee, and the one `min_order_value` and `max_order_value` are read in (ADR-0106 D5a). Stamped from the market’s `default_currency` when a method is created naming none, and stored upper case — an order in another currency is not offered this method. Defaults to EUR, and lower case is accepted here exactly as the handlers accept it.", type: "string", required: false },
   { key: "feeType", option: "--fee-type <fee-type>", name: "fee_type", description: "How `fee_amount` applies: 'none' (no surcharge), 'fixed' (that many units of `fee_currency`) or 'percent' (that share of the order amount). Defaults to 'none'.", type: "string", required: false, enum: ["none","fixed","percent"] },
   { key: "kind", option: "--kind <kind>", name: "kind", description: "Who moves the money. 'self_managed' — invoice, prepayment — means the merchant fulfils and reconciles it outside any PSP, and such a payment authorizes the moment it is created. 'psp' means a configured provider authorizes, captures and refunds it. Defaults to 'self_managed'; 'psp' needs a 'provider' to transact.", type: "string", required: false, enum: ["self_managed","psp"] },
-  { key: "labels", option: "--labels <labels>", name: "labels", description: "Buyer-facing names keyed by language tag — what a storefront shows instead of the operator-facing `name`. Free jsonb: the database constrains neither the tags nor the values, so a client reads the tag it wants and falls back to `en`.", type: "object", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", description: "Buyer-facing names keyed by language tag — what a storefront shows instead of the operator-facing `name`. Each language holds one string: a write refuses any other value with 400 `invalid_locale_text`. The tags are not constrained, so a client reads the tag it wants and falls back to `en`.", type: "object", required: false },
   { key: "maxOrderValue", option: "--max-order-value <max-order-value>", name: "max_order_value", description: "Largest order amount this method may be used for — the usual credit-risk cap on invoice and prepayment. null means no upper bound. Read in this method’s `fee_currency` — see `min_order_value` for why a differing order currency filters the method out instead.", type: "number", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form merchant data carried on the configuration. This app never reads it — it is storage for the integrations that do (an ERP key for the method, a ledger account, a display hint).", type: "object", required: false },
   { key: "minOrderValue", option: "--min-order-value <min-order-value>", name: "min_order_value", description: "Smallest order amount this method may be used for — the usual guard against paying a €5 order by invoice. null means no lower bound. Read in this method’s `fee_currency`, not in the order’s (ADR-0106 D5a): a method is configured for the money it charges in, and an order in another currency is not offered the method at all rather than compared against a threshold it is not denominated in.", type: "number", required: false },
@@ -136,7 +137,8 @@ paymentsMethods
   .option(`--code <code>`, `The machine name of the method, unique per tenant and lower case by convention ('invoice', 'prepayment', 'card', 'paypal'). It is the string the checkout asks for, the string every payment stores, and therefore the one value here that cannot be changed freely: renaming it would leave the ledger naming something that no longer exists, so it is refused with 409 for as long as any payment names it. Required on create.`)
   .option(`--name <name>`, `Operator-facing name, in the language the merchant administers in. What a buyer sees comes from \`labels\`. Required on create.`)
   .option(`--countries [countries...]`, `Allowed ISO 3166-1 alpha-2 country codes, compared upper-cased against the buyer country. null or an empty list means unrestricted — the invoice method this app seeds is restricted to DE, which is why an eligibility call without a country sees it excluded.`)
-  .option(`--description <description>`, `One line explaining the method where it is offered — payment terms, what happens after the order. Shown to the buyer, so it is the merchant's wording rather than the app's.`)
+  .option(`--description <description>`, `One line explaining the method where it is offered — payment terms, what happens after the order. Shown to the buyer, so it is the merchant's wording rather than the app's. The fallback for every language \`descriptions\` does not carry.`)
+  .option(`--descriptions <descriptions>`, `The buyer-facing \`description\` per language, keyed by language tag, like \`labels\` is for the name. Each language holds one string: a write refuses any other value with 400 \`invalid_locale_text\`. The tags are not constrained. A storefront reads its own language and falls back to the plain \`description\` when that language has none; null means only the plain one was written.`)
   .option(
     `--enabled [value]`,
     `A disabled method is never eligible and never reaches a checkout. This is the switch an operator wants: deleting a method the ledger still names — or renaming its \`code\` — is refused with 409. Defaults to false, so a half-configured method cannot reach a checkout by accident.`,
@@ -147,7 +149,7 @@ paymentsMethods
   .option(`--fee-currency <fee-currency>`, `ISO 4217 code this method is configured in: the currency of a fixed fee, and the one \`min_order_value\` and \`max_order_value\` are read in (ADR-0106 D5a). Stamped from the market’s \`default_currency\` when a method is created naming none, and stored upper case — an order in another currency is not offered this method. Defaults to EUR, and lower case is accepted here exactly as the handlers accept it.`)
   .option(`--fee-type <fee-type>`, `How \`fee_amount\` applies: 'none' (no surcharge), 'fixed' (that many units of \`fee_currency\`) or 'percent' (that share of the order amount). Defaults to 'none'.`)
   .option(`--kind <kind>`, `Who moves the money. 'self_managed' — invoice, prepayment — means the merchant fulfils and reconciles it outside any PSP, and such a payment authorizes the moment it is created. 'psp' means a configured provider authorizes, captures and refunds it. Defaults to 'self_managed'; 'psp' needs a 'provider' to transact.`)
-  .option(`--labels <labels>`, `Buyer-facing names keyed by language tag — what a storefront shows instead of the operator-facing \`name\`. Free jsonb: the database constrains neither the tags nor the values, so a client reads the tag it wants and falls back to \`en\`.`)
+  .option(`--labels <labels>`, `Buyer-facing names keyed by language tag — what a storefront shows instead of the operator-facing \`name\`. Each language holds one string: a write refuses any other value with 400 \`invalid_locale_text\`. The tags are not constrained, so a client reads the tag it wants and falls back to \`en\`.`)
   .option(`--max-order-value <max-order-value>`, `Largest order amount this method may be used for — the usual credit-risk cap on invoice and prepayment. null means no upper bound. Read in this method’s \`fee_currency\` — see \`min_order_value\` for why a differing order currency filters the method out instead.`, parseInteger)
   .option(`--metadata <metadata>`, `Free-form merchant data carried on the configuration. This app never reads it — it is storage for the integrations that do (an ERP key for the method, a ledger account, a display hint).`)
   .option(`--min-order-value <min-order-value>`, `Smallest order amount this method may be used for — the usual guard against paying a €5 order by invoice. null means no lower bound. Read in this method’s \`fee_currency\`, not in the order’s (ADR-0106 D5a): a method is configured for the money it charges in, and an order in another currency is not offered the method at all rather than compared against a threshold it is not denominated in.`, parseInteger)
@@ -157,7 +159,7 @@ paymentsMethods
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, name, countries, description, enabled, feeAmount, feeCurrency, feeType, kind, labels, maxOrderValue, metadata, minOrderValue, position, provider, providerMethod } = await promptForMissing(
+        const { code, name, countries, description, descriptions, enabled, feeAmount, feeCurrency, feeType, kind, labels, maxOrderValue, metadata, minOrderValue, position, provider, providerMethod } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -180,6 +182,9 @@ paymentsMethods
         }
         if (description !== undefined) {
           _payload[`description`] = description;
+        }
+        if (descriptions !== undefined) {
+          _payload[`descriptions`] = resolveBodyParam(descriptions);
         }
         if (enabled !== undefined) {
           _payload[`enabled`] = enabled;
@@ -234,6 +239,63 @@ paymentsMethods
     ),
   );
 registerPromptSpecs(paymentsMethods.commands.at(-1)!, createSpecs, { method: "post" });
+const cleanupSpecs: PromptSpec[] = [
+  { key: "after", option: "--after <after>", name: "after", description: "Continue after this method id — the `next` a previous run answered. Left out, the scan starts at the first method.", type: "string", required: false },
+  { key: "apply", option: "--apply <apply>", name: "apply", description: "Write the change. Defaults to false, which reports what WOULD be removed and touches nothing.", type: "boolean", required: false },
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "How many methods to scan, in id order. Defaults to 200, capped at 500.", type: "integer", required: false },
+];
+paymentsMethods
+  .command(`cleanup`)
+  .description(`Tenants seeded on 5.1.0 to 5.1.2 carry each seeded method's plain \`description\` copied into \`descriptions.de\` (and into \`en\` for card). A language line wins over the plain one, so editing the plain description changed nothing in that language's shop. This removes every \`descriptions\` language whose line is exactly the method's \`description\`, and writes \`descriptions: null\` when none is left; a shop shows the same text afterwards, from the fallback. A line that differs by a single character is the merchant's and is kept. Dry-run by default — reports what it would remove and changes nothing until apply:true. \`limit\` methods a run in id order; \`after\` continues from the \`next\` of the previous run. Idempotent: a method without a copy is never written, not even its \`updated_at\`, so a second run reports 0.`)
+  .option(`--after <after>`, `Continue after this method id — the \`next\` a previous run answered. Left out, the scan starts at the first method.`)
+  .option(
+    `--apply [value]`,
+    `Write the change. Defaults to false, which reports what WOULD be removed and touches nothing.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--limit <limit>`, `How many methods to scan, in id order. Defaults to 200, capped at 500.`, parseInteger)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { after, apply, limit } = await promptForMissing(
+          _options,
+          cleanupSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/payments/methods/cleanup`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (after !== undefined) {
+          _payload[`after`] = after;
+        }
+        if (apply !== undefined) {
+          _payload[`apply`] = apply;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(paymentsMethods.commands.at(-1)!, cleanupSpecs, { method: "post" });
 paymentsMethods
   .command(`defaults`)
   .description(`Writes the four methods a shop starts with — invoice and prepayment as self-managed, card and PayPal routed at the mock PSP so a fresh install can complete a checkout end to end — together with the four provider rows behind them: the built-in mock plus Stripe, PayPal and Novalnet, the three connectors this app opens outbound. The app already runs this for itself when it is installed (it listens on app.installed), so calling the route is for the second time and after: a method someone deleted, or a row a later release added that an existing install never got. Stripe, PayPal and Novalnet arrive disabled, in test mode and without credentials — the operator fills those in — while the mock arrives enabled, because it moves no money. Re-running is safe by design: it never duplicates a row and never overwrites an existing one, so nothing an operator has set can be undone by calling it again. Only genuinely missing option keys (a logo added after the first install) are filled, and those rows are reported as "updated" rather than created.`)
@@ -377,13 +439,14 @@ const updateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The payment method configuration. A uuid — the data plane casts this segment and answers 400, not 404, for anything else.", type: "string", required: true, resource: { listPath: "/payments/methods", hasLimit: true } },
   { key: "code", option: "--code <code>", name: "code", description: "The machine name of the method, unique per tenant and lower case by convention ('invoice', 'prepayment', 'card', 'paypal'). It is the string the checkout asks for, the string every payment stores, and therefore the one value here that cannot be changed freely: renaming it would leave the ledger naming something that no longer exists, so it is refused with 409 for as long as any payment names it. Required on create.", type: "string", required: false },
   { key: "countries", option: "--countries [countries...]", name: "countries", description: "Allowed ISO 3166-1 alpha-2 country codes, compared upper-cased against the buyer country. null or an empty list means unrestricted — the invoice method this app seeds is restricted to DE, which is why an eligibility call without a country sees it excluded.", type: "array", required: false },
-  { key: "description", option: "--description <description>", name: "description", description: "One line explaining the method where it is offered — payment terms, what happens after the order. Shown to the buyer, so it is the merchant's wording rather than the app's.", type: "string", required: false },
+  { key: "description", option: "--description <description>", name: "description", description: "One line explaining the method where it is offered — payment terms, what happens after the order. Shown to the buyer, so it is the merchant's wording rather than the app's. The fallback for every language `descriptions` does not carry.", type: "string", required: false },
+  { key: "descriptions", option: "--descriptions <descriptions>", name: "descriptions", description: "The buyer-facing `description` per language, keyed by language tag, like `labels` is for the name. Each language holds one string: a write refuses any other value with 400 `invalid_locale_text`. The tags are not constrained. A storefront reads its own language and falls back to the plain `description` when that language has none; null means only the plain one was written. Written per language: the languages the body names are written and every other one keeps its line, so `{\"en\": \"…\"}` leaves the German line as it is. A language sent as null or \"\" is removed and falls back to the plain `description`; `descriptions: null` removes every language.", type: "object", required: false },
   { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "A disabled method is never eligible and never reaches a checkout. This is the switch an operator wants: deleting a method the ledger still names — or renaming its `code` — is refused with 409. Defaults to false, so a half-configured method cannot reach a checkout by accident.", type: "boolean", required: false },
   { key: "feeAmount", option: "--fee-amount <fee-amount>", name: "fee_amount", description: "The surcharge this method costs the buyer, read as an amount or as a percentage depending on `fee_type`. Never negative — a discount for paying a certain way is not expressible here. Defaults to 0.", type: "number", required: false },
   { key: "feeCurrency", option: "--fee-currency <fee-currency>", name: "fee_currency", description: "ISO 4217 code this method is configured in: the currency of a fixed fee, and the one `min_order_value` and `max_order_value` are read in (ADR-0106 D5a). Stamped from the market’s `default_currency` when a method is created naming none, and stored upper case — an order in another currency is not offered this method. Defaults to EUR, and lower case is accepted here exactly as the handlers accept it.", type: "string", required: false },
   { key: "feeType", option: "--fee-type <fee-type>", name: "fee_type", description: "How `fee_amount` applies: 'none' (no surcharge), 'fixed' (that many units of `fee_currency`) or 'percent' (that share of the order amount). Defaults to 'none'.", type: "string", required: false, enum: ["none","fixed","percent"] },
   { key: "kind", option: "--kind <kind>", name: "kind", description: "Who moves the money. 'self_managed' — invoice, prepayment — means the merchant fulfils and reconciles it outside any PSP, and such a payment authorizes the moment it is created. 'psp' means a configured provider authorizes, captures and refunds it. Defaults to 'self_managed'; 'psp' needs a 'provider' to transact.", type: "string", required: false, enum: ["self_managed","psp"] },
-  { key: "labels", option: "--labels <labels>", name: "labels", description: "Buyer-facing names keyed by language tag — what a storefront shows instead of the operator-facing `name`. Free jsonb: the database constrains neither the tags nor the values, so a client reads the tag it wants and falls back to `en`.", type: "object", required: false },
+  { key: "labels", option: "--labels <labels>", name: "labels", description: "Buyer-facing names keyed by language tag — what a storefront shows instead of the operator-facing `name`. Each language holds one string: a write refuses any other value with 400 `invalid_locale_text`. The tags are not constrained, so a client reads the tag it wants and falls back to `en`. Written per language: the languages the body names are written and every other one keeps its label, so `{\"en\": \"…\"}` leaves the German label as it is. A language sent as null or \"\" is removed; `labels: null` removes every language.", type: "object", required: false },
   { key: "maxOrderValue", option: "--max-order-value <max-order-value>", name: "max_order_value", description: "Largest order amount this method may be used for — the usual credit-risk cap on invoice and prepayment. null means no upper bound. Read in this method’s `fee_currency` — see `min_order_value` for why a differing order currency filters the method out instead.", type: "number", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form merchant data carried on the configuration. This app never reads it — it is storage for the integrations that do (an ERP key for the method, a ledger account, a display hint).", type: "object", required: false },
   { key: "minOrderValue", option: "--min-order-value <min-order-value>", name: "min_order_value", description: "Smallest order amount this method may be used for — the usual guard against paying a €5 order by invoice. null means no lower bound. Read in this method’s `fee_currency`, not in the order’s (ADR-0106 D5a): a method is configured for the money it charges in, and an order in another currency is not offered the method at all rather than compared against a threshold it is not denominated in.", type: "number", required: false },
@@ -394,11 +457,12 @@ const updateSpecs: PromptSpec[] = [
 ];
 paymentsMethods
   .command(`update`)
-  .description(`A PUT that PATCHES: only the keys in the body are written and every omitted column keeps its value, so \`{"enabled": false}\` is the whole request for taking a method out of checkout. A body with no writable key is refused with 400 rather than treated as a no-op. This is the route for all three things an operator changes about a method after it exists — the \`enabled\` switch that puts it in or out of checkout, the fee it charges (\`fee_type\`, \`fee_amount\`, \`fee_currency\`) and the restrictions that decide who is offered it (\`countries\`, \`min_order_value\`, \`max_order_value\`) — alongside its labels, description and \`position\`. \`enabled: false\` is the safe way to retire one — it disappears from POST /payments/methods/eligible immediately and stays on every payment ever made with it. The one write this route refuses is a rename of \`code\` while the ledger still names the old one. The three tables of this app carry no foreign keys at all: a payment names its method by \`method_code\` and its acquirer by \`provider\`, both plain text, because a payment records what happened and has to survive the configuration it was made with. So the database will not stop this — whatever the ledger still names, it goes on naming. A rename would therefore leave every recorded payment pointing at a code no configuration carries, which is the same harm DELETE on this row answers 409 for — so it answers the same 409, with the same \`method_in_use\` code and the same count. Renaming a method nothing has been paid with is still free, and so is every other column at any time.`)
+  .description(`A PUT that PATCHES: only the keys in the body are written and every omitted column keeps its value, so \`{"enabled": false}\` is the whole request for taking a method out of checkout. A body with no writable key is refused with 400 rather than treated as a no-op. This is the route for all three things an operator changes about a method after it exists — the \`enabled\` switch that puts it in or out of checkout, the fee it charges (\`fee_type\`, \`fee_amount\`, \`fee_currency\`) and the restrictions that decide who is offered it (\`countries\`, \`min_order_value\`, \`max_order_value\`) — alongside its labels, description, descriptions and \`position\`. \`labels\` and \`descriptions\` are written per language: the languages the body names change, every other one stays, and a language sent as null or "" is removed. \`enabled: false\` is the safe way to retire one — it disappears from POST /payments/methods/eligible immediately and stays on every payment ever made with it. The one write this route refuses is a rename of \`code\` while the ledger still names the old one. The three tables of this app carry no foreign keys at all: a payment names its method by \`method_code\` and its acquirer by \`provider\`, both plain text, because a payment records what happened and has to survive the configuration it was made with. So the database will not stop this — whatever the ledger still names, it goes on naming. A rename would therefore leave every recorded payment pointing at a code no configuration carries, which is the same harm DELETE on this row answers 409 for — so it answers the same 409, with the same \`method_in_use\` code and the same count. Renaming a method nothing has been paid with is still free, and so is every other column at any time.`)
   .option(`--id <id>`, `The payment method configuration. A uuid — the data plane casts this segment and answers 400, not 404, for anything else.`)
   .option(`--code <code>`, `The machine name of the method, unique per tenant and lower case by convention ('invoice', 'prepayment', 'card', 'paypal'). It is the string the checkout asks for, the string every payment stores, and therefore the one value here that cannot be changed freely: renaming it would leave the ledger naming something that no longer exists, so it is refused with 409 for as long as any payment names it. Required on create.`)
   .option(`--countries [countries...]`, `Allowed ISO 3166-1 alpha-2 country codes, compared upper-cased against the buyer country. null or an empty list means unrestricted — the invoice method this app seeds is restricted to DE, which is why an eligibility call without a country sees it excluded.`)
-  .option(`--description <description>`, `One line explaining the method where it is offered — payment terms, what happens after the order. Shown to the buyer, so it is the merchant's wording rather than the app's.`)
+  .option(`--description <description>`, `One line explaining the method where it is offered — payment terms, what happens after the order. Shown to the buyer, so it is the merchant's wording rather than the app's. The fallback for every language \`descriptions\` does not carry.`)
+  .option(`--descriptions <descriptions>`, `The buyer-facing \`description\` per language, keyed by language tag, like \`labels\` is for the name. Each language holds one string: a write refuses any other value with 400 \`invalid_locale_text\`. The tags are not constrained. A storefront reads its own language and falls back to the plain \`description\` when that language has none; null means only the plain one was written. Written per language: the languages the body names are written and every other one keeps its line, so \`{"en": "…"}\` leaves the German line as it is. A language sent as null or "" is removed and falls back to the plain \`description\`; \`descriptions: null\` removes every language.`)
   .option(
     `--enabled [value]`,
     `A disabled method is never eligible and never reaches a checkout. This is the switch an operator wants: deleting a method the ledger still names — or renaming its \`code\` — is refused with 409. Defaults to false, so a half-configured method cannot reach a checkout by accident.`,
@@ -409,7 +473,7 @@ paymentsMethods
   .option(`--fee-currency <fee-currency>`, `ISO 4217 code this method is configured in: the currency of a fixed fee, and the one \`min_order_value\` and \`max_order_value\` are read in (ADR-0106 D5a). Stamped from the market’s \`default_currency\` when a method is created naming none, and stored upper case — an order in another currency is not offered this method. Defaults to EUR, and lower case is accepted here exactly as the handlers accept it.`)
   .option(`--fee-type <fee-type>`, `How \`fee_amount\` applies: 'none' (no surcharge), 'fixed' (that many units of \`fee_currency\`) or 'percent' (that share of the order amount). Defaults to 'none'.`)
   .option(`--kind <kind>`, `Who moves the money. 'self_managed' — invoice, prepayment — means the merchant fulfils and reconciles it outside any PSP, and such a payment authorizes the moment it is created. 'psp' means a configured provider authorizes, captures and refunds it. Defaults to 'self_managed'; 'psp' needs a 'provider' to transact.`)
-  .option(`--labels <labels>`, `Buyer-facing names keyed by language tag — what a storefront shows instead of the operator-facing \`name\`. Free jsonb: the database constrains neither the tags nor the values, so a client reads the tag it wants and falls back to \`en\`.`)
+  .option(`--labels <labels>`, `Buyer-facing names keyed by language tag — what a storefront shows instead of the operator-facing \`name\`. Each language holds one string: a write refuses any other value with 400 \`invalid_locale_text\`. The tags are not constrained, so a client reads the tag it wants and falls back to \`en\`. Written per language: the languages the body names are written and every other one keeps its label, so \`{"en": "…"}\` leaves the German label as it is. A language sent as null or "" is removed; \`labels: null\` removes every language.`)
   .option(`--max-order-value <max-order-value>`, `Largest order amount this method may be used for — the usual credit-risk cap on invoice and prepayment. null means no upper bound. Read in this method’s \`fee_currency\` — see \`min_order_value\` for why a differing order currency filters the method out instead.`, parseInteger)
   .option(`--metadata <metadata>`, `Free-form merchant data carried on the configuration. This app never reads it — it is storage for the integrations that do (an ERP key for the method, a ledger account, a display hint).`)
   .option(`--min-order-value <min-order-value>`, `Smallest order amount this method may be used for — the usual guard against paying a €5 order by invoice. null means no lower bound. Read in this method’s \`fee_currency\`, not in the order’s (ADR-0106 D5a): a method is configured for the money it charges in, and an order in another currency is not offered the method at all rather than compared against a threshold it is not denominated in.`, parseInteger)
@@ -420,7 +484,7 @@ paymentsMethods
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, countries, description, enabled, feeAmount, feeCurrency, feeType, kind, labels, maxOrderValue, metadata, minOrderValue, name, position, provider, providerMethod } = await promptForMissing(
+        const { id, code, countries, description, descriptions, enabled, feeAmount, feeCurrency, feeType, kind, labels, maxOrderValue, metadata, minOrderValue, name, position, provider, providerMethod } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -443,6 +507,9 @@ paymentsMethods
         }
         if (description !== undefined) {
           _payload[`description`] = description;
+        }
+        if (descriptions !== undefined) {
+          _payload[`descriptions`] = resolveBodyParam(descriptions);
         }
         if (enabled !== undefined) {
           _payload[`enabled`] = enabled;

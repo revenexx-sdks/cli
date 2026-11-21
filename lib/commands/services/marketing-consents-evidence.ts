@@ -631,7 +631,7 @@ const sweepRunSpecs: PromptSpec[] = [
 ];
 marketingConsentsEvidence
   .command(`sweep-run`)
-  .description(`Until the platform delivers other apps' events (PE-748), this reads them from their owners: the sequencer's newest unsubscribe and complaint suppressions (48 h) become withdrawals — rows this app wrote itself are skipped; orders placed in the last three hours open the existing-customer basis; subscriptions without a contact are linked to the customers contact of their address. Idempotent; the hourly \`sweep-events\` schedule runs it.`)
+  .description(`An idempotent backstop for other apps' announcements: it reads the same facts from their owners and acts through the same handlers, so a lost announcement is caught up and one that arrived changes nothing again — the sequencer's newest unsubscribe and complaint suppressions (48 h) become withdrawals — rows this app wrote itself are skipped; orders placed in the last three hours open the existing-customer basis; subscriptions without a contact are linked to the customers contact of their address. Idempotent; the hourly \`sweep-events\` schedule runs it.`)
   .alias("marketing-consents-sweep-run")
   .option(`--body <body>`, `Request body`)
   .action(

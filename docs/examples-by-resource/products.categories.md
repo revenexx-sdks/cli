@@ -34,6 +34,15 @@ Empty the trash of categories
 revenexx products-categories empty-trash
 ```
 
+## products
+
+List a category's products
+
+```bash
+revenexx products-categories products \
+    --category-id ''
+```
+
 ## rules-preview
 
 Preview a category rule

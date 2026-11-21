@@ -201,6 +201,7 @@ registerPromptSpecs(pagesCollaboration.commands.at(-1)!, editorCommentsListSpecs
 const editorCommentsCreateSpecs: PromptSpec[] = [
   { key: "pageId", option: "--page-id <page-id>", name: "page_id", description: "The page being edited.", type: "string", required: true },
   { key: "body", option: "--body <body>", name: "body", description: "The comment, as editor HTML. `<span data-type=\"mention\" data-id=\"USER_ID\">` is what this app reads to decide whom to notify; `<li data-type=\"taskItem\" data-checked=\"false\">` makes a checkbox the toggle-task route can flip.", type: "string", required: true },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
   { key: "blockUuids", option: "--block-uuids [block-uuids...]", name: "blockUuids", description: "The blocks this thread is about, so the editor can draw a marker next to them. Leave empty for a comment about the page as a whole.", type: "array", required: false },
   { key: "parentUuid", option: "--parent-uuid <parent-uuid>", name: "parentUuid", description: "The root comment this replies to. Omit for a new thread — only roots can be resolved.", type: "string", required: false },
 ];
@@ -210,12 +211,13 @@ pagesCollaboration
   .alias("pages-editor-comments-create")
   .option(`--page-id <page-id>`, `The page being edited.`)
   .option(`--body <body>`, `The comment, as editor HTML. \`<span data-type="mention" data-id="USER_ID">\` is what this app reads to decide whom to notify; \`<li data-type="taskItem" data-checked="false">\` makes a checkbox the toggle-task route can flip.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .option(`--block-uuids [block-uuids...]`, `The blocks this thread is about, so the editor can draw a marker next to them. Leave empty for a comment about the page as a whole.`)
   .option(`--parent-uuid <parent-uuid>`, `The root comment this replies to. Omit for a new thread — only roots can be resolved.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { pageId, body, blockUuids, parentUuid } = await promptForMissing(
+        const { pageId, body, actor, blockUuids, parentUuid } = await promptForMissing(
           _options,
           editorCommentsCreateSpecs,
           _command,
@@ -229,6 +231,9 @@ pagesCollaboration
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (blockUuids !== undefined) {
           _payload[`blockUuids`] = blockUuids;
@@ -259,7 +264,7 @@ const editorCommentsDeleteSpecs: PromptSpec[] = [
 ];
 pagesCollaboration
   .command(`editor-comments-delete`)
-  .description(`A hard delete, and deleting a root takes its replies with it.`)
+  .description(`A hard delete, and deleting a root takes its replies with it. Only the author may delete a comment, as only the author may edit one; a comment that records no author is open to everyone. Answers the page's whole comment list.`)
   .alias("pages-editor-comments-delete")
   .option(`--page-id <page-id>`, `The page being edited.`)
   .option(`--uuid <uuid>`, `The comment id — the \`uuid\` of a \`PageCommentItem\`, not a row id of any other shape.`)
@@ -293,6 +298,7 @@ const editorCommentsUpdateSpecs: PromptSpec[] = [
   { key: "pageId", option: "--page-id <page-id>", name: "page_id", description: "The page being edited.", type: "string", required: true },
   { key: "uuid", option: "--uuid <uuid>", name: "uuid", description: "The comment id — the `uuid` of a `PageCommentItem`, not a row id of any other shape.", type: "string", required: true, resource: { listPath: "/pages/editor/{page_id}/comments", hasLimit: false } },
   { key: "body", option: "--body <body>", name: "body", description: "The comment, as editor HTML. Replaces the old body completely.", type: "string", required: true },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
 ];
 pagesCollaboration
   .command(`editor-comments-update`)
@@ -301,10 +307,11 @@ pagesCollaboration
   .option(`--page-id <page-id>`, `The page being edited.`)
   .option(`--uuid <uuid>`, `The comment id — the \`uuid\` of a \`PageCommentItem\`, not a row id of any other shape.`)
   .option(`--body <body>`, `The comment, as editor HTML. Replaces the old body completely.`)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { pageId, uuid, body } = await promptForMissing(
+        const { pageId, uuid, body, actor } = await promptForMissing(
           _options,
           editorCommentsUpdateSpecs,
           _command,
@@ -318,6 +325,9 @@ pagesCollaboration
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (body !== undefined) {
           _payload[`body`] = body;
@@ -375,6 +385,7 @@ const editorCommentsToggleTaskSpecs: PromptSpec[] = [
   { key: "pageId", option: "--page-id <page-id>", name: "page_id", description: "The page being edited.", type: "string", required: true },
   { key: "uuid", option: "--uuid <uuid>", name: "uuid", description: "The comment id — the `uuid` of a `PageCommentItem`, not a row id of any other shape.", type: "string", required: true, resource: { listPath: "/pages/editor/{page_id}/comments", hasLimit: false } },
   { key: "taskIndex", option: "--task-index <task-index>", name: "taskIndex", description: "The task item to toggle, counted in document order from 0. A comment with fewer tasks than that answers 400, and so does anything that is not a whole number at or above 0.", type: "integer", required: true },
+  { key: "actor", option: "---actor <-actor>", name: "_actor", description: "Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and `_actor` only lends a name to the same id; otherwise `_actor` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.", type: "object", required: false },
 ];
 pagesCollaboration
   .command(`editor-comments-toggle-task`)
@@ -383,10 +394,11 @@ pagesCollaboration
   .option(`--page-id <page-id>`, `The page being edited.`)
   .option(`--uuid <uuid>`, `The comment id — the \`uuid\` of a \`PageCommentItem\`, not a row id of any other shape.`)
   .option(`--task-index <task-index>`, `The task item to toggle, counted in document order from 0. A comment with fewer tasks than that answers 400, and so does anything that is not a whole number at or above 0.`, parseInteger)
+  .option(`---actor <-actor>`, `Optional. The person a server acts for, so steps, comments and edit states carry their name. Attribution, not a credential: when the gateway names the acting person, that person wins and \`_actor\` only lends a name to the same id; otherwise \`_actor\` names the actor; without either, the actor is the identity the call was made with. A caller that presents the person's own token names the same id as that token's subject, so reads, which have no body, resolve to the same person.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { pageId, uuid, taskIndex } = await promptForMissing(
+        const { pageId, uuid, taskIndex, actor } = await promptForMissing(
           _options,
           editorCommentsToggleTaskSpecs,
           _command,
@@ -400,6 +412,9 @@ pagesCollaboration
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (actor !== undefined) {
+          _payload[`_actor`] = resolveBodyParam(actor);
         }
         if (taskIndex !== undefined) {
           _payload[`taskIndex`] = taskIndex;

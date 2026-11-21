@@ -147,7 +147,7 @@ const reviewStarsSpecs: PromptSpec[] = [
 ];
 reviewsAggregates
   .command(`review-stars`)
-  .description(`The stars of the review's product across all markets, five stars down to one, each with its count and share of the published reviews, worded in the caller language (Accept-Language; German unless English is asked for); average, count and verified purchases are \`footer\` rows, no published review answers no rows; the row of the review's own stars says so in \`sub\`.`)
+  .description(`The figures of the review's product across all markets as plain numbers: the count of published reviews, their average, how many come from a confirmed purchase, and their spread over the stars, five down to one, each with its count and share; the entry of the review's own stars is marked \`mine\`. A product with no published review answers zero figures and an empty \`distribution\`. The answer carries no wording or styling: a screen words and draws it.`)
   .option(`--id <id>`, `The row id, as it came back from the list.`)
   .action(
     actionRunner(

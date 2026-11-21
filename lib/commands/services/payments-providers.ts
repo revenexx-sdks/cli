@@ -152,10 +152,12 @@ paymentsProviders
 registerPromptSpecs(paymentsProviders.commands.at(-1)!, listSpecs, { method: "get" });
 const createSpecs: PromptSpec[] = [
   { key: "provider", option: "--provider <provider>", name: "provider", description: "The catalog code of the PSP this row configures — one row per provider per tenant. GET /payments/providers/catalog lists every code that may appear here. It is what every payment and every method naming this PSP resolves it by, so changing it is refused with 409 for as long as one of them does. Required on create, and refused with 400 when the catalog does not carry it.", type: "string", required: true },
+  { key: "checkoutMode", option: "--checkout-mode <checkout-mode>", name: "checkout_mode", description: "How the storefront takes a payment with this provider (RAD-364): 'hosted' sends the buyer to the provider's own payment page, 'embedded' draws the provider's card field in the shop and charges what it hands over. Only a connector whose catalog entry declares `checkout` takes it, and only one of the modes it lists there (`checkout_modes`); null means the connector's default, which is what the answers carry. The app takes both flows whatever the mode says, so a storefront whose card field cannot load can still fall back to the payment page. Labelled by the `checkout-modes` vocabulary. A mode the connector does not list is 400 `invalid_value`; a connector with no checkout is 400 `checkout_not_supported`.", type: "string", required: false, enum: ["embedded","hosted"] },
   { key: "credentials", option: "--credentials <credentials>", name: "credentials", description: "The PSP's own API credentials, under the key names of the payment SDK's config for that connector — `GET /payments/providers/catalog` publishes them per provider as `credential_schema` (labelled, with which are required and which are secret) and `credential_fields` (names only). Stripe: `api_key`; PayPal: `client_id` + `client_secret`; Novalnet: `product_activation_key` + `payment_access_key` + `tariff_id`. A key the connector does not take is refused with 400 `unknown_credential_key`; a key an earlier version spelled differently (Novalnet `api_key`) is stored under today's name. They come from the provider's own dashboard, are handed to the driver in-process, and are never read back by any route. Write-only: to rotate one, write the new value. Whatever a document shows here is a placeholder.", type: "object", required: false },
   { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Only an enabled provider takes NEW payments: a method pointing at a disabled one falls through to the tenant's `fallback_provider`, and to a 422 if there is none. Nothing else reads it — capture, cancel and refund on the payments this PSP already holds go on working — which is what makes disabling the safe retirement and deleting the refused one. Defaults to false — finish the credentials before switching it on.", type: "boolean", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Operator-facing name of the configuration. Defaults to the catalog label, and is worth changing when a tenant runs two accounts with one PSP. null, omitted or empty falls back to the catalog label.", type: "string", required: false },
   { key: "options", option: "--options <options>", name: "options", description: "Per-provider switches this app understands, plus anything the merchant keeps beside them. Four keys are the app's own: `logo_url` (the bundled logo, filled in when the provider is seeded — superseded by the generated `logo_url` column), `capture_method` and `three_ds` (what the prism driver does today), and `last_check` (the last connection check). Free jsonb — an unknown key is stored and ignored.", type: "object", required: false },
+  { key: "publicKey", option: "--public-key <public-key>", name: "public_key", description: "The one non-secret key the provider's card field needs in the buyer's browser (RAD-364) — Novalnet's client key, Stripe's publishable key. Public by definition: it is answered to the storefront with every eligible method. Only a connector whose catalog entry declares `checkout.public_key` takes it, in the shape declared there; a value equal to one of the row's credentials is refused. A Stripe row that kept it as `options.publishable_key` before this column existed is answered from there. A value of the wrong shape is 400 `invalid_value`, one of the row's secrets 400 `public_key_is_secret`.", type: "string", required: false },
   { key: "testMode", option: "--test-mode <test-mode>", name: "test_mode", description: "Whether the driver talks to the PSP's sandbox. New configurations start in test mode: a provider nobody verified must not touch live money. Unstated takes the tenant's own `test_mode_default` setting.", type: "boolean", required: false },
   { key: "webhookSecret", option: "--webhook-secret <webhook-secret>", name: "webhook_secret", description: "The signing secret the PSP issues when its webhook endpoint is created, in the provider's own dashboard. webhooks.revenexx.com verifies each callback against it before the dispatcher hands the envelope to this app. Write-only, like `credentials`: it is stored, used, and never read back by any route, so there is nothing to compare a value against — to rotate it, write the new one. Whatever a document shows here is a generated placeholder, not a usable secret — writing it verbatim leaves every callback failing verification.", type: "string", required: false, secret: true },
 ];
@@ -163,6 +165,7 @@ paymentsProviders
   .command(`create`)
   .description(`Activates one PSP account of this tenant. The \`provider\` code is not free text: it has to be one the catalog carries, and anything else is refused with 400 and a message listing the codes that are — so GET /payments/providers/catalog is the call that comes first, both for the code itself and for the credential field names this provider expects. PSP secrets are write-only: 'credentials' and 'webhook_secret' are accepted on create/update, stored for the drivers, and never returned by any route — the responses carry the public columns only (id, provider, name, enabled, test_mode, options, timestamps). To rotate a secret, write the new value; there is no way to read the current one back.`)
   .option(`--provider <provider>`, `The catalog code of the PSP this row configures — one row per provider per tenant. GET /payments/providers/catalog lists every code that may appear here. It is what every payment and every method naming this PSP resolves it by, so changing it is refused with 409 for as long as one of them does. Required on create, and refused with 400 when the catalog does not carry it.`)
+  .option(`--checkout-mode <checkout-mode>`, `How the storefront takes a payment with this provider (RAD-364): 'hosted' sends the buyer to the provider's own payment page, 'embedded' draws the provider's card field in the shop and charges what it hands over. Only a connector whose catalog entry declares \`checkout\` takes it, and only one of the modes it lists there (\`checkout_modes\`); null means the connector's default, which is what the answers carry. The app takes both flows whatever the mode says, so a storefront whose card field cannot load can still fall back to the payment page. Labelled by the \`checkout-modes\` vocabulary. A mode the connector does not list is 400 \`invalid_value\`; a connector with no checkout is 400 \`checkout_not_supported\`.`)
   .option(`--credentials <credentials>`, `The PSP's own API credentials, under the key names of the payment SDK's config for that connector — \`GET /payments/providers/catalog\` publishes them per provider as \`credential_schema\` (labelled, with which are required and which are secret) and \`credential_fields\` (names only). Stripe: \`api_key\`; PayPal: \`client_id\` + \`client_secret\`; Novalnet: \`product_activation_key\` + \`payment_access_key\` + \`tariff_id\`. A key the connector does not take is refused with 400 \`unknown_credential_key\`; a key an earlier version spelled differently (Novalnet \`api_key\`) is stored under today's name. They come from the provider's own dashboard, are handed to the driver in-process, and are never read back by any route. Write-only: to rotate one, write the new value. Whatever a document shows here is a placeholder.`)
   .option(
     `--enabled [value]`,
@@ -172,6 +175,7 @@ paymentsProviders
   )
   .option(`--name <name>`, `Operator-facing name of the configuration. Defaults to the catalog label, and is worth changing when a tenant runs two accounts with one PSP. null, omitted or empty falls back to the catalog label.`)
   .option(`--options <options>`, `Per-provider switches this app understands, plus anything the merchant keeps beside them. Four keys are the app's own: \`logo_url\` (the bundled logo, filled in when the provider is seeded — superseded by the generated \`logo_url\` column), \`capture_method\` and \`three_ds\` (what the prism driver does today), and \`last_check\` (the last connection check). Free jsonb — an unknown key is stored and ignored.`)
+  .option(`--public-key <public-key>`, `The one non-secret key the provider's card field needs in the buyer's browser (RAD-364) — Novalnet's client key, Stripe's publishable key. Public by definition: it is answered to the storefront with every eligible method. Only a connector whose catalog entry declares \`checkout.public_key\` takes it, in the shape declared there; a value equal to one of the row's credentials is refused. A Stripe row that kept it as \`options.publishable_key\` before this column existed is answered from there. A value of the wrong shape is 400 \`invalid_value\`, one of the row's secrets 400 \`public_key_is_secret\`.`)
   .option(
     `--test-mode [value]`,
     `Whether the driver talks to the PSP's sandbox. New configurations start in test mode: a provider nobody verified must not touch live money. Unstated takes the tenant's own \`test_mode_default\` setting.`,
@@ -182,7 +186,7 @@ paymentsProviders
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { provider, credentials, enabled, name, options, testMode, webhookSecret } = await promptForMissing(
+        const { provider, checkoutMode, credentials, enabled, name, options, publicKey, testMode, webhookSecret } = await promptForMissing(
           _options,
           createSpecs,
           _command,
@@ -196,6 +200,9 @@ paymentsProviders
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (checkoutMode !== undefined) {
+          _payload[`checkout_mode`] = checkoutMode;
         }
         if (credentials !== undefined) {
           _payload[`credentials`] = resolveBodyParam(credentials);
@@ -211,6 +218,9 @@ paymentsProviders
         }
         if (provider !== undefined) {
           _payload[`provider`] = provider;
+        }
+        if (publicKey !== undefined) {
+          _payload[`public_key`] = publicKey;
         }
         if (testMode !== undefined) {
           _payload[`test_mode`] = testMode;
@@ -321,11 +331,13 @@ paymentsProviders
 registerPromptSpecs(paymentsProviders.commands.at(-1)!, getSpecs, { method: "get" });
 const updateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The PSP configuration. A uuid — the data plane casts this segment and answers 400, not 404, for anything else.", type: "string", required: true, resource: { listPath: "/payments/providers", hasLimit: true } },
+  { key: "checkoutMode", option: "--checkout-mode <checkout-mode>", name: "checkout_mode", description: "How the storefront takes a payment with this provider (RAD-364): 'hosted' sends the buyer to the provider's own payment page, 'embedded' draws the provider's card field in the shop and charges what it hands over. Only a connector whose catalog entry declares `checkout` takes it, and only one of the modes it lists there (`checkout_modes`); null means the connector's default, which is what the answers carry. The app takes both flows whatever the mode says, so a storefront whose card field cannot load can still fall back to the payment page. Labelled by the `checkout-modes` vocabulary. A mode the connector does not list is 400 `invalid_value`; a connector with no checkout is 400 `checkout_not_supported`.", type: "string", required: false, enum: ["embedded","hosted"] },
   { key: "credentials", option: "--credentials <credentials>", name: "credentials", description: "The PSP's own API credentials, under the key names of the payment SDK's config for that connector — `GET /payments/providers/catalog` publishes them per provider as `credential_schema` (labelled, with which are required and which are secret) and `credential_fields` (names only). Stripe: `api_key`; PayPal: `client_id` + `client_secret`; Novalnet: `product_activation_key` + `payment_access_key` + `tariff_id`. A key the connector does not take is refused with 400 `unknown_credential_key`; a key an earlier version spelled differently (Novalnet `api_key`) is stored under today's name. They come from the provider's own dashboard, are handed to the driver in-process, and are never read back by any route. Write-only: to rotate one, write the new value. Whatever a document shows here is a placeholder.", type: "object", required: false },
   { key: "enabled", option: "--enabled <enabled>", name: "enabled", description: "Only an enabled provider takes NEW payments: a method pointing at a disabled one falls through to the tenant's `fallback_provider`, and to a 422 if there is none. Nothing else reads it — capture, cancel and refund on the payments this PSP already holds go on working — which is what makes disabling the safe retirement and deleting the refused one. Defaults to false — finish the credentials before switching it on.", type: "boolean", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "Operator-facing name of the configuration. Defaults to the catalog label, and is worth changing when a tenant runs two accounts with one PSP. Written straight to the database, which refuses an empty one.", type: "string", required: false },
   { key: "options", option: "--options <options>", name: "options", description: "Per-provider switches this app understands, plus anything the merchant keeps beside them. Four keys are the app's own: `logo_url` (the bundled logo, filled in when the provider is seeded — superseded by the generated `logo_url` column), `capture_method` and `three_ds` (what the prism driver does today), and `last_check` (the last connection check). Free jsonb — an unknown key is stored and ignored.", type: "object", required: false },
   { key: "provider", option: "--provider <provider>", name: "provider", description: "The catalog code of the PSP this row configures — one row per provider per tenant. GET /payments/providers/catalog lists every code that may appear here. It is what every payment and every method naming this PSP resolves it by, so changing it is refused with 409 for as long as one of them does. Required on create, and refused with 400 when the catalog does not carry it.", type: "string", required: false },
+  { key: "publicKey", option: "--public-key <public-key>", name: "public_key", description: "The one non-secret key the provider's card field needs in the buyer's browser (RAD-364) — Novalnet's client key, Stripe's publishable key. Public by definition: it is answered to the storefront with every eligible method. Only a connector whose catalog entry declares `checkout.public_key` takes it, in the shape declared there; a value equal to one of the row's credentials is refused. A Stripe row that kept it as `options.publishable_key` before this column existed is answered from there. A value of the wrong shape is 400 `invalid_value`, one of the row's secrets 400 `public_key_is_secret`.", type: "string", required: false },
   { key: "testMode", option: "--test-mode <test-mode>", name: "test_mode", description: "Whether the driver talks to the PSP's sandbox. New configurations start in test mode: a provider nobody verified must not touch live money. Unstated takes the tenant's own `test_mode_default` setting.", type: "boolean", required: false },
   { key: "webhookSecret", option: "--webhook-secret <webhook-secret>", name: "webhook_secret", description: "The signing secret the PSP issues when its webhook endpoint is created, in the provider's own dashboard. webhooks.revenexx.com verifies each callback against it before the dispatcher hands the envelope to this app. Write-only, like `credentials`: it is stored, used, and never read back by any route, so there is nothing to compare a value against — to rotate it, write the new one. Whatever a document shows here is a generated placeholder, not a usable secret — writing it verbatim leaves every callback failing verification.", type: "string", required: false, secret: true },
 ];
@@ -333,6 +345,7 @@ paymentsProviders
   .command(`update`)
   .description(`A partial write: omitted fields keep their value. Three things are changed here in practice — the \`credentials\` (and \`webhook_secret\`) when a key is rotated, \`test_mode\` when an account moves from the PSP's sandbox to live, and \`enabled\` when it is switched on or taken out of service. PSP secrets are write-only: 'credentials' and 'webhook_secret' are accepted on create/update, stored for the drivers, and never returned by any route — the responses carry the public columns only (id, provider, name, enabled, test_mode, options, timestamps). To rotate a secret, write the new value; there is no way to read the current one back. One field is not like the others: \`provider\` is the CODE every payment and every method resolves this PSP by, so writing a different one is the delete through another door and is refused with the same 409 while anything still names the current code. Switching acquirer is a second configuration plus \`enabled: false\` on this one, never a rename.`)
   .option(`--id <id>`, `The PSP configuration. A uuid — the data plane casts this segment and answers 400, not 404, for anything else.`)
+  .option(`--checkout-mode <checkout-mode>`, `How the storefront takes a payment with this provider (RAD-364): 'hosted' sends the buyer to the provider's own payment page, 'embedded' draws the provider's card field in the shop and charges what it hands over. Only a connector whose catalog entry declares \`checkout\` takes it, and only one of the modes it lists there (\`checkout_modes\`); null means the connector's default, which is what the answers carry. The app takes both flows whatever the mode says, so a storefront whose card field cannot load can still fall back to the payment page. Labelled by the \`checkout-modes\` vocabulary. A mode the connector does not list is 400 \`invalid_value\`; a connector with no checkout is 400 \`checkout_not_supported\`.`)
   .option(`--credentials <credentials>`, `The PSP's own API credentials, under the key names of the payment SDK's config for that connector — \`GET /payments/providers/catalog\` publishes them per provider as \`credential_schema\` (labelled, with which are required and which are secret) and \`credential_fields\` (names only). Stripe: \`api_key\`; PayPal: \`client_id\` + \`client_secret\`; Novalnet: \`product_activation_key\` + \`payment_access_key\` + \`tariff_id\`. A key the connector does not take is refused with 400 \`unknown_credential_key\`; a key an earlier version spelled differently (Novalnet \`api_key\`) is stored under today's name. They come from the provider's own dashboard, are handed to the driver in-process, and are never read back by any route. Write-only: to rotate one, write the new value. Whatever a document shows here is a placeholder.`)
   .option(
     `--enabled [value]`,
@@ -343,6 +356,7 @@ paymentsProviders
   .option(`--name <name>`, `Operator-facing name of the configuration. Defaults to the catalog label, and is worth changing when a tenant runs two accounts with one PSP. Written straight to the database, which refuses an empty one.`)
   .option(`--options <options>`, `Per-provider switches this app understands, plus anything the merchant keeps beside them. Four keys are the app's own: \`logo_url\` (the bundled logo, filled in when the provider is seeded — superseded by the generated \`logo_url\` column), \`capture_method\` and \`three_ds\` (what the prism driver does today), and \`last_check\` (the last connection check). Free jsonb — an unknown key is stored and ignored.`)
   .option(`--provider <provider>`, `The catalog code of the PSP this row configures — one row per provider per tenant. GET /payments/providers/catalog lists every code that may appear here. It is what every payment and every method naming this PSP resolves it by, so changing it is refused with 409 for as long as one of them does. Required on create, and refused with 400 when the catalog does not carry it.`)
+  .option(`--public-key <public-key>`, `The one non-secret key the provider's card field needs in the buyer's browser (RAD-364) — Novalnet's client key, Stripe's publishable key. Public by definition: it is answered to the storefront with every eligible method. Only a connector whose catalog entry declares \`checkout.public_key\` takes it, in the shape declared there; a value equal to one of the row's credentials is refused. A Stripe row that kept it as \`options.publishable_key\` before this column existed is answered from there. A value of the wrong shape is 400 \`invalid_value\`, one of the row's secrets 400 \`public_key_is_secret\`.`)
   .option(
     `--test-mode [value]`,
     `Whether the driver talks to the PSP's sandbox. New configurations start in test mode: a provider nobody verified must not touch live money. Unstated takes the tenant's own \`test_mode_default\` setting.`,
@@ -353,7 +367,7 @@ paymentsProviders
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, credentials, enabled, name, options, provider, testMode, webhookSecret } = await promptForMissing(
+        const { id, checkoutMode, credentials, enabled, name, options, provider, publicKey, testMode, webhookSecret } = await promptForMissing(
           _options,
           updateSpecs,
           _command,
@@ -367,6 +381,9 @@ paymentsProviders
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (checkoutMode !== undefined) {
+          _payload[`checkout_mode`] = checkoutMode;
         }
         if (credentials !== undefined) {
           _payload[`credentials`] = resolveBodyParam(credentials);
@@ -382,6 +399,9 @@ paymentsProviders
         }
         if (provider !== undefined) {
           _payload[`provider`] = provider;
+        }
+        if (publicKey !== undefined) {
+          _payload[`public_key`] = publicKey;
         }
         if (testMode !== undefined) {
           _payload[`test_mode`] = testMode;

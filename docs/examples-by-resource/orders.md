@@ -8,12 +8,29 @@ Find orders
 revenexx orders list
 ```
 
+## import
+
+Import order history from a source system
+
+```bash
+revenexx orders import \
+    --rows one two three
+```
+
 ## migrations-requested-delivery-date
 
 Lift the wanted delivery date into its own field
 
 ```bash
 revenexx orders migrations-requested-delivery-date
+```
+
+## migrations-return-positions
+
+Name return positions stored without SKU and name
+
+```bash
+revenexx orders migrations-return-positions
 ```
 
 ## number-ranges-list

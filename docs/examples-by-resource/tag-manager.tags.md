@@ -80,6 +80,14 @@ revenexx tag-manager-tags triggers-detach \
     --trigger-id ''
 ```
 
+## theme-events-list
+
+List the theme event names this app supports
+
+```bash
+revenexx tag-manager-tags theme-events-list
+```
+
 ## tag-manager-triggers-list
 
 List triggers
@@ -168,8 +176,17 @@ revenexx tag-manager-tags variables-update \
 
 ## vocabularies-list
 
-List the theme event vocabulary
+List the value sets this app owns
 
 ```bash
 revenexx tag-manager-tags vocabularies-list
+```
+
+## vocabularies-get
+
+Read one value set in full
+
+```bash
+revenexx tag-manager-tags vocabularies-get \
+    --name tag-kinds
 ```

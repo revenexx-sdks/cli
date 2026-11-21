@@ -36,6 +36,7 @@ const listSpecs: PromptSpec[] = [
   { key: "reason", option: "--reason <reason>", name: "reason", description: "Keep only rows whose `reason` equals this.", type: "string", required: false },
   { key: "market", option: "--market <market>", name: "market", description: "Keep only rows whose `market` equals this.", type: "string", required: false },
   { key: "messageId", option: "--message-id <message-id>", name: "message_id", description: "Keep only rows whose `message_id` equals this.", type: "string", required: false },
+  { key: "variantId", option: "--variant-id <variant-id>", name: "variant_id", description: "Keep only rows whose `variant_id` equals this.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 mailingsRecipients
@@ -52,6 +53,7 @@ mailingsRecipients
   .option(`--reason <reason>`, `Keep only rows whose \`reason\` equals this.`)
   .option(`--market <market>`, `Keep only rows whose \`market\` equals this.`)
   .option(`--message-id <message-id>`, `Keep only rows whose \`message_id\` equals this.`)
+  .option(`--variant-id <variant-id>`, `Keep only rows whose \`variant_id\` equals this.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -61,7 +63,7 @@ mailingsRecipients
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, id, mailingId, contactId, email, outcome, reason, market, messageId, filter } = await promptForMissing(
+        const { limit, offset, order, id, mailingId, contactId, email, outcome, reason, market, messageId, variantId, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -101,6 +103,9 @@ mailingsRecipients
         }
         if (messageId !== undefined) {
           _payload[`message_id`] = messageId;
+        }
+        if (variantId !== undefined) {
+          _payload[`variant_id`] = variantId;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");

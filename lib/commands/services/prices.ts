@@ -122,6 +122,317 @@ Configuration, not a buyer route: it names lists a buyer must not learn about. T
     ),
   );
 registerPromptSpecs(prices.commands.at(-1)!, checkSpecs, { method: "post" });
+const entryCreateSpecs: PromptSpec[] = [
+  { key: "priceListId", option: "--price-list-id <price-list-id>", name: "price_list_id", description: "The price list this entry belongs to — its currency and tax basis are the ones the amount is quoted in.", type: "string", required: true },
+  { key: "description", option: "--description <description>", name: "description", description: "The source’s own label for this price line — what a price book prints next to the amount. Free text, never read into a price, and not the LIST’s description.", type: "string", required: false },
+  { key: "discountPercent", option: "--discount-percent <discount-percent>", name: "discount_percent", description: "The line discount the SOURCE stated, kept so a document can show it. NEVER APPLIED: unit_price is the authoritative amount and resolution never computes with this field. Import it as it arrived and subtract nothing.", type: "number", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form bag: whatever JSON object you write round-trips exactly, and this app never reads it. Its keys are yours.", type: "object", required: false },
+  { key: "priceQuantity", option: "--price-quantity <price-quantity>", name: "price_quantity", description: "How many units unit_price is the price OF — 100 for a price per 100 m. Omit (null) for one, the ordinary case. Nothing divides by it: unit_price stays the number a resolve answer quotes.", type: "number", required: false },
+  { key: "priceQuantityUnit", option: "--price-quantity-unit <price-quantity-unit>", name: "price_quantity_unit", description: "The unit price_quantity counts in — NOT a duplicate of `unit`. A line can be priced per 100 kg for an article sold by the piece, and both come off the same source line.", type: "string", required: false },
+  { key: "priceType", option: "--price-type <price-type>", name: "price_type", description: "Default 'standard'; 'on_request' is the explicit no-price marker — it STOPS resolution for this item on this list and answers \"price on request\" even where a cheaper list exists.", type: "string", required: false, enum: ["standard","on_request"] },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The product this rung prices. An entry needs product_id or sku — the row CHECK enforces it.", type: "string", required: false },
+  { key: "quantityMin", option: "--quantity-min <quantity-min>", name: "quantity_min", description: "Tier threshold (Staffelpreis): this price applies from this quantity upwards (default 1). The rungs of one item are the entries sharing its identity; the highest threshold at or below the requested quantity wins.", type: "number", required: false },
+  { key: "sku", option: "--sku <sku>", name: "sku", description: "The article number this rung prices (alternative to product_id). Matched exactly on resolve — never normalised or case-folded.", type: "string", required: false },
+  { key: "unit", option: "--unit <unit>", name: "unit", description: "Unit of measure the price is per — free text, neither validated nor converted here. A resolve call’s `quantity` is counted in it.", type: "string", required: false },
+  { key: "unitPrice", option: "--unit-price <unit-price>", name: "unit_price", description: "Price for ONE unit of `unit`, in the LIST’s currency and on the LIST’s tax basis — a decimal amount in major units (19.90), never minor units/cents. Stored at 4 decimals and echoed back exactly as sent (default 0).", type: "number", required: false },
+  { key: "validFrom", option: "--valid-from <valid-from>", name: "valid_from", description: "Start of this entry’s own validity (ISO 8601) — how a promo price is expressed: a second rung, live only for its window. null = open-ended.", type: "string", required: false },
+  { key: "validUntil", option: "--valid-until <valid-until>", name: "valid_until", description: "End of this entry’s own validity; null = open-ended. Outside it the rung is skipped and the ladder resolves as if it were not there.", type: "string", required: false },
+];
+prices
+  .command(`entry-create`)
+  .description(`The same add as \`POST /prices/lists/{list_id}/entries\`, with the list named in the body instead of the path — the address the Cockpit writes a new entry through, because a form knows the list as a field it filled in, not as part of a route. Every rule of the nested add applies unchanged: the product named for a SKU-only entry, the write rules, the trash check and the \`price_list.entries_changed\` event.
+
+\`price_list_id\` is required and must name a list of this tenant; a list id nobody has answers 404 rather than attaching a price to nothing. The \`unit_price\` default of 0 warned about on the nested add applies here too.`)
+  .option(`--price-list-id <price-list-id>`, `The price list this entry belongs to — its currency and tax basis are the ones the amount is quoted in.`)
+  .option(`--description <description>`, `The source’s own label for this price line — what a price book prints next to the amount. Free text, never read into a price, and not the LIST’s description.`)
+  .option(`--discount-percent <discount-percent>`, `The line discount the SOURCE stated, kept so a document can show it. NEVER APPLIED: unit_price is the authoritative amount and resolution never computes with this field. Import it as it arrived and subtract nothing.`, parseInteger)
+  .option(`--metadata <metadata>`, `Free-form bag: whatever JSON object you write round-trips exactly, and this app never reads it. Its keys are yours.`)
+  .option(`--price-quantity <price-quantity>`, `How many units unit_price is the price OF — 100 for a price per 100 m. Omit (null) for one, the ordinary case. Nothing divides by it: unit_price stays the number a resolve answer quotes.`, parseInteger)
+  .option(`--price-quantity-unit <price-quantity-unit>`, `The unit price_quantity counts in — NOT a duplicate of \`unit\`. A line can be priced per 100 kg for an article sold by the piece, and both come off the same source line.`)
+  .option(`--price-type <price-type>`, `Default 'standard'; 'on_request' is the explicit no-price marker — it STOPS resolution for this item on this list and answers "price on request" even where a cheaper list exists.`)
+  .option(`--product-id <product-id>`, `The product this rung prices. An entry needs product_id or sku — the row CHECK enforces it.`)
+  .option(`--quantity-min <quantity-min>`, `Tier threshold (Staffelpreis): this price applies from this quantity upwards (default 1). The rungs of one item are the entries sharing its identity; the highest threshold at or below the requested quantity wins.`, parseInteger)
+  .option(`--sku <sku>`, `The article number this rung prices (alternative to product_id). Matched exactly on resolve — never normalised or case-folded.`)
+  .option(`--unit <unit>`, `Unit of measure the price is per — free text, neither validated nor converted here. A resolve call’s \`quantity\` is counted in it.`)
+  .option(`--unit-price <unit-price>`, `Price for ONE unit of \`unit\`, in the LIST’s currency and on the LIST’s tax basis — a decimal amount in major units (19.90), never minor units/cents. Stored at 4 decimals and echoed back exactly as sent (default 0).`, parseInteger)
+  .option(`--valid-from <valid-from>`, `Start of this entry’s own validity (ISO 8601) — how a promo price is expressed: a second rung, live only for its window. null = open-ended.`)
+  .option(`--valid-until <valid-until>`, `End of this entry’s own validity; null = open-ended. Outside it the rung is skipped and the ladder resolves as if it were not there.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { priceListId, description, discountPercent, metadata, priceQuantity, priceQuantityUnit, priceType, productId, quantityMin, sku, unit, unitPrice, validFrom, validUntil } = await promptForMissing(
+          _options,
+          entryCreateSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/prices/entries`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (description !== undefined) {
+          _payload[`description`] = description;
+        }
+        if (discountPercent !== undefined) {
+          _payload[`discount_percent`] = discountPercent;
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
+        }
+        if (priceListId !== undefined) {
+          _payload[`price_list_id`] = priceListId;
+        }
+        if (priceQuantity !== undefined) {
+          _payload[`price_quantity`] = priceQuantity;
+        }
+        if (priceQuantityUnit !== undefined) {
+          _payload[`price_quantity_unit`] = priceQuantityUnit;
+        }
+        if (priceType !== undefined) {
+          _payload[`price_type`] = priceType;
+        }
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
+        }
+        if (quantityMin !== undefined) {
+          _payload[`quantity_min`] = quantityMin;
+        }
+        if (sku !== undefined) {
+          _payload[`sku`] = sku;
+        }
+        if (unit !== undefined) {
+          _payload[`unit`] = unit;
+        }
+        if (unitPrice !== undefined) {
+          _payload[`unit_price`] = unitPrice;
+        }
+        if (validFrom !== undefined) {
+          _payload[`valid_from`] = validFrom;
+        }
+        if (validUntil !== undefined) {
+          _payload[`valid_until`] = validUntil;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(prices.commands.at(-1)!, entryCreateSpecs, { method: "post" });
+const entriesMigrateProductsSpecs: PromptSpec[] = [
+  { key: "cursor", option: "--cursor <cursor>", name: "cursor", description: "Where to resume: the `cursor` the previous call answered. Omit it, or send null, to start at the first entry.", type: "string", required: false },
+  { key: "dryRun", option: "--dry-run <dry-run>", name: "dry_run", description: "True (the default) writes nothing and answers what a real run would link.", type: "boolean", required: false, default: "true" },
+];
+prices
+  .command(`entries-migrate-products`)
+  .description(`A one-off, by-hand migration (RAD-387). An entry may name its item by SKU alone, and such an entry shows no product in any list that labels it by product. Since 3.4.0 an entry written through this app is linked when it is written; this route links the entries written before that, across every list of the tenant.
+
+It walks the entries that carry a SKU and no \`product_id\`, in id order, and asks the products app (\`products.batch\`) which product carries each SKU — an exact match. Caller-driven and chunked: one call works for about six seconds and answers a \`cursor\`; send it back until \`done\` is true.
+
+\`dry_run\` defaults to TRUE, so a call that forgets it writes nothing and answers what it would link. A real run (\`dry_run: false\`) writes each link with a compare-and-set on \`product_id is null\`: an entry somebody linked in the meantime keeps its link, and a second run links nothing twice. A SKU the catalogue does not know is left as it is and named in \`unresolved_skus\`; an entry of a list in the trash is counted under \`in_trash\` and not written until the list is restored.
+
+A real run publishes one \`price_list.entries_changed\` (operation \`link_products\`) per list it linked rungs of: a resolve by product id finds those rungs from now on.`)
+  .option(`--cursor <cursor>`, `Where to resume: the \`cursor\` the previous call answered. Omit it, or send null, to start at the first entry.`)
+  .option(
+    `--dry-run [value]`,
+    `True (the default) writes nothing and answers what a real run would link.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { cursor, dryRun } = await promptForMissing(
+          _options,
+          entriesMigrateProductsSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/prices/entries/migrate-products`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (cursor !== undefined) {
+          _payload[`cursor`] = cursor;
+        }
+        if (dryRun !== undefined) {
+          _payload[`dry_run`] = dryRun;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(prices.commands.at(-1)!, entriesMigrateProductsSpecs, { method: "post" });
+const entryDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The price entry, by id.", type: "string", required: true },
+];
+prices
+  .command(`entry-delete`)
+  .description(`The same delete as \`DELETE /prices/lists/{list_id}/entries/{id}\`, addressed by the entry alone — the address the Cockpit removes an entry through. What removing a tier does to the price a buyer sees is described there: below the first remaining tier the first one applies, and an item whose last tier goes falls through to the next list or comes back on request, never €0.`)
+  .option(`--id <id>`, `The price entry, by id.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          entryDeleteSpecs,
+          _command,
+        );
+        await confirmDestructive(`prices entry-delete`);
+        const _client = await sdkForProject();
+        const _apiPath = `/prices/entries/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `delete`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(prices.commands.at(-1)!, entryDeleteSpecs, { method: "delete", destructive: true });
+const entryUpdateSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The price entry, by id.", type: "string", required: true },
+  { key: "description", option: "--description <description>", name: "description", description: "The source’s own label for this price line — what a price book prints next to the amount. Free text, never read into a price, and not the LIST’s description.", type: "string", required: false },
+  { key: "discountPercent", option: "--discount-percent <discount-percent>", name: "discount_percent", description: "The line discount the SOURCE stated, kept so a document can show it. NEVER APPLIED: unit_price is the authoritative amount and resolution never computes with this field. Import it as it arrived and subtract nothing.", type: "number", required: false },
+  { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form bag: whatever JSON object you write round-trips exactly, and this app never reads it. Its keys are yours.", type: "object", required: false },
+  { key: "priceListId", option: "--price-list-id <price-list-id>", name: "price_list_id", description: "Echo only: the list the entry is on. Another list is refused with 400 `entry_list_fixed` — an entry stays on its list.", type: "string", required: false },
+  { key: "priceQuantity", option: "--price-quantity <price-quantity>", name: "price_quantity", description: "How many units unit_price is the price OF — 100 for a price per 100 m. Omit (null) for one, the ordinary case. Nothing divides by it: unit_price stays the number a resolve answer quotes.", type: "number", required: false },
+  { key: "priceQuantityUnit", option: "--price-quantity-unit <price-quantity-unit>", name: "price_quantity_unit", description: "The unit price_quantity counts in — NOT a duplicate of `unit`. A line can be priced per 100 kg for an article sold by the piece, and both come off the same source line.", type: "string", required: false },
+  { key: "priceType", option: "--price-type <price-type>", name: "price_type", description: "Default 'standard'; 'on_request' is the explicit no-price marker — it STOPS resolution for this item on this list and answers \"price on request\" even where a cheaper list exists.", type: "string", required: false, enum: ["standard","on_request"] },
+  { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "The product this rung prices. An entry needs product_id or sku — the row CHECK enforces it.", type: "string", required: false },
+  { key: "quantityMin", option: "--quantity-min <quantity-min>", name: "quantity_min", description: "Tier threshold (Staffelpreis): this price applies from this quantity upwards (default 1). The rungs of one item are the entries sharing its identity; the highest threshold at or below the requested quantity wins.", type: "number", required: false },
+  { key: "sku", option: "--sku <sku>", name: "sku", description: "The article number this rung prices (alternative to product_id). Matched exactly on resolve — never normalised or case-folded.", type: "string", required: false },
+  { key: "unit", option: "--unit <unit>", name: "unit", description: "Unit of measure the price is per — free text, neither validated nor converted here. A resolve call’s `quantity` is counted in it.", type: "string", required: false },
+  { key: "unitPrice", option: "--unit-price <unit-price>", name: "unit_price", description: "Price for ONE unit of `unit`, in the LIST’s currency and on the LIST’s tax basis — a decimal amount in major units (19.90), never minor units/cents. Stored at 4 decimals and echoed back exactly as sent (default 0).", type: "number", required: false },
+  { key: "validFrom", option: "--valid-from <valid-from>", name: "valid_from", description: "Start of this entry’s own validity (ISO 8601) — how a promo price is expressed: a second rung, live only for its window. null = open-ended.", type: "string", required: false },
+  { key: "validUntil", option: "--valid-until <valid-until>", name: "valid_until", description: "End of this entry’s own validity; null = open-ended. Outside it the rung is skipped and the ladder resolves as if it were not there.", type: "string", required: false },
+];
+prices
+  .command(`entry-update`)
+  .description(`The same partial update as \`PUT /prices/lists/{list_id}/entries/{id}\`, addressed by the entry alone — the address every Cockpit surface writes an entry through, a single edited cell as much as the edit form, because a surface writing one entry always knows its id and not always its list. Send only what changes; \`null\` clears an optional field. An entry left without a product names the catalogue product of its SKU, as on the nested update.
+
+An entry stays on its list: \`price_list_id\` may be echoed as stored and is refused with 400 \`entry_list_fixed\` when it names another list, because the amount is quoted in the list's currency and on its basis and a move would reinterpret it.`)
+  .option(`--id <id>`, `The price entry, by id.`)
+  .option(`--description <description>`, `The source’s own label for this price line — what a price book prints next to the amount. Free text, never read into a price, and not the LIST’s description.`)
+  .option(`--discount-percent <discount-percent>`, `The line discount the SOURCE stated, kept so a document can show it. NEVER APPLIED: unit_price is the authoritative amount and resolution never computes with this field. Import it as it arrived and subtract nothing.`, parseInteger)
+  .option(`--metadata <metadata>`, `Free-form bag: whatever JSON object you write round-trips exactly, and this app never reads it. Its keys are yours.`)
+  .option(`--price-list-id <price-list-id>`, `Echo only: the list the entry is on. Another list is refused with 400 \`entry_list_fixed\` — an entry stays on its list.`)
+  .option(`--price-quantity <price-quantity>`, `How many units unit_price is the price OF — 100 for a price per 100 m. Omit (null) for one, the ordinary case. Nothing divides by it: unit_price stays the number a resolve answer quotes.`, parseInteger)
+  .option(`--price-quantity-unit <price-quantity-unit>`, `The unit price_quantity counts in — NOT a duplicate of \`unit\`. A line can be priced per 100 kg for an article sold by the piece, and both come off the same source line.`)
+  .option(`--price-type <price-type>`, `Default 'standard'; 'on_request' is the explicit no-price marker — it STOPS resolution for this item on this list and answers "price on request" even where a cheaper list exists.`)
+  .option(`--product-id <product-id>`, `The product this rung prices. An entry needs product_id or sku — the row CHECK enforces it.`)
+  .option(`--quantity-min <quantity-min>`, `Tier threshold (Staffelpreis): this price applies from this quantity upwards (default 1). The rungs of one item are the entries sharing its identity; the highest threshold at or below the requested quantity wins.`, parseInteger)
+  .option(`--sku <sku>`, `The article number this rung prices (alternative to product_id). Matched exactly on resolve — never normalised or case-folded.`)
+  .option(`--unit <unit>`, `Unit of measure the price is per — free text, neither validated nor converted here. A resolve call’s \`quantity\` is counted in it.`)
+  .option(`--unit-price <unit-price>`, `Price for ONE unit of \`unit\`, in the LIST’s currency and on the LIST’s tax basis — a decimal amount in major units (19.90), never minor units/cents. Stored at 4 decimals and echoed back exactly as sent (default 0).`, parseInteger)
+  .option(`--valid-from <valid-from>`, `Start of this entry’s own validity (ISO 8601) — how a promo price is expressed: a second rung, live only for its window. null = open-ended.`)
+  .option(`--valid-until <valid-until>`, `End of this entry’s own validity; null = open-ended. Outside it the rung is skipped and the ladder resolves as if it were not there.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, description, discountPercent, metadata, priceListId, priceQuantity, priceQuantityUnit, priceType, productId, quantityMin, sku, unit, unitPrice, validFrom, validUntil } = await promptForMissing(
+          _options,
+          entryUpdateSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/prices/entries/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (description !== undefined) {
+          _payload[`description`] = description;
+        }
+        if (discountPercent !== undefined) {
+          _payload[`discount_percent`] = discountPercent;
+        }
+        if (metadata !== undefined) {
+          _payload[`metadata`] = resolveBodyParam(metadata);
+        }
+        if (priceListId !== undefined) {
+          _payload[`price_list_id`] = priceListId;
+        }
+        if (priceQuantity !== undefined) {
+          _payload[`price_quantity`] = priceQuantity;
+        }
+        if (priceQuantityUnit !== undefined) {
+          _payload[`price_quantity_unit`] = priceQuantityUnit;
+        }
+        if (priceType !== undefined) {
+          _payload[`price_type`] = priceType;
+        }
+        if (productId !== undefined) {
+          _payload[`product_id`] = productId;
+        }
+        if (quantityMin !== undefined) {
+          _payload[`quantity_min`] = quantityMin;
+        }
+        if (sku !== undefined) {
+          _payload[`sku`] = sku;
+        }
+        if (unit !== undefined) {
+          _payload[`unit`] = unit;
+        }
+        if (unitPrice !== undefined) {
+          _payload[`unit_price`] = unitPrice;
+        }
+        if (validFrom !== undefined) {
+          _payload[`valid_from`] = validFrom;
+        }
+        if (validUntil !== undefined) {
+          _payload[`valid_until`] = validUntil;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `put`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(prices.commands.at(-1)!, entryUpdateSpecs, { method: "put" });
 const listsListSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "Filter to one list by id. The same row `GET /prices/lists/{id}` returns, in page form.", type: "string", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "Filter by the exact list code — the unique per-tenant handle every integration joins on.", type: "string", required: false },
@@ -620,7 +931,7 @@ prices
   .command(`lists-update`)
   .description(`A partial update: send only what changes, omitted fields keep their value, and a payload with no updatable column at all is refused rather than answered with an unchanged row. There is no draft and no publish step — the next resolve call reads what this one wrote.
 
-Three edits do more than their field names suggest. \`currency\` re-denominates without converting: entries carry no currency of their own, so 19.90 EUR becomes 19.90 CHF and the whole book is re-priced by one edit. \`status: "inactive"\` takes the list out of every quote immediately while keeping its prices — the reversible way to stop selling on a list, and the one to reach for instead of deleting it. \`code\` is the handle imports and integrations address the list by, and a code another list already holds is a 409.
+Three edits do more than their field names suggest. \`currency\` is the currency of every amount in the list, and entries carry none of their own, so once the list holds a non-zero amount a change to another currency is refused with 409 \`currency_immutable\`, naming the list and the currency it stays in — nothing converts, and a re-denomination would silently re-price the whole book. \`status: "inactive"\` takes the list out of every quote immediately while keeping its prices — the reversible way to stop selling on a list, and the one to reach for instead of deleting it. \`code\` is the handle imports and integrations address the list by, and a code another list already holds is a 409.
 
 \`is_default\` may be restated as it stands, never changed: a change that sets or clears it is refused with 400 \`default_via_make_default\`. \`POST /prices/lists/{list_id}/make-default\` moves the flag and demotes in the same call. On every write rule a change is checked only where a value changes, so a list stored before a rule existed can be saved back as it is.`)
   .option(`--id <id>`, `The price list, by id.`)
@@ -1605,7 +1916,7 @@ Tax is never guessed. The market comes from the \`X-Revenexx-Market\` header (a 
 
 An item that cannot be priced never fails the call: it comes back on_request with its reason, so one bad line in a cart does not cost the other lines their prices.
 
-One last thing worth knowing before you build on it. This is the most customised surface this app has in the field: pricing is where a tenant's ERP usually has the last word, and a tenant whose prices are computed there does not want this app's resolution order at all. So the route is deliberately shaped to be REPLACED — one required field, no rejection of an item the caller got wrong, an answer that stands on its own — and it is designed to be swapped 1:1 for a custom app through the gateway's capability override. An ERP-priced tenant overrides \`prices.resolve\` alone: the same path, the same request and the same response, answered by their own service, while every configuration route here (lists, entries, ladders, bulk changes, vocabularies) stays standard and keeps working. That is why the contract below is smaller than the machinery behind it, and why it changes reluctantly.`)
+One last thing worth knowing before you build on it. This is the most customised surface this app has in the field: pricing is where a tenant's ERP usually has the last word, and a tenant whose prices are computed there does not want this app's resolution order at all. So the route is deliberately shaped to be REPLACED — one required field, no rejection of an item the caller got wrong, an answer that stands on its own — and it is designed to be swapped 1:1 for a custom app through the gateway's capability override. An ERP-priced tenant overrides \`prices.resolve\` alone: the same path, the same request and the same response, answered by their own service, while every configuration route here (lists, entries, ladders, bulk changes, vocabularies) stays standard and keeps working. That is why the contract below is smaller than the machinery behind it, and why it changes reluctantly. A SALES REP (a caller the rep portal asserts) prices for one of the organizations they cover in sales-reps, named in \`organization_id\`, or with none for the prices anyone may see. An organization the rep does not cover is answered 404 \`organization_not_found\` and never priced; a rep names no \`contact_id\` and no \`segment_codes\` (400).`)
   .option(`--items [items...]`, `Items to price, at most 200 per call — a whole cart or a whole product listing in one round trip. The answer holds one entry per item, in this order.`)
   .option(`--at <at>`, `The instant every validity window — list and entry — is evaluated at (ISO 8601). Default now. This is how a promo price is previewed before it starts, and it is echoed as \`basis.evaluated_at\`.`)
   .option(`--channel-id <channel-id>`, `Buyer context: the sales channel. Third scope — beats the open lists, loses to contact and organization.`)

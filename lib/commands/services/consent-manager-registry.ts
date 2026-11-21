@@ -239,11 +239,14 @@ registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, cookiesListSpecs, {
 const cookiesCreateSpecs: PromptSpec[] = [
   { key: "name", option: "--name <name>", name: "name", description: "The cookie or storage key as the browser shows it.", type: "string", required: true },
   { key: "vendorId", option: "--vendor-id <vendor-id>", name: "vendor_id", description: "The vendor that sets this cookie. It has to be a vendor this tenant keeps.", type: "string", required: true },
+  { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "As a form echoes it. Ignored — server-set.", type: "string", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "What the cookie is for, as the banner shows it.", type: "object", required: false },
   { key: "duration", option: "--duration <duration>", name: "duration", description: "How long it lives, as the banner shows it. A text per language tag, e.g. { \"de\": \"…\", \"en\": \"…\" }.", type: "object", required: false },
   { key: "host", option: "--host <host>", name: "host", description: "Who sets it: 'first-party' for the shop's own domain, otherwise the third-party host.", type: "string", required: false },
-  { key: "kind", option: "--kind <kind>", name: "kind", description: "Where on the device it is stored: cookie, local_storage, session_storage, indexeddb or pixel.", type: "string", required: false, enum: ["cookie","local_storage","session_storage","indexeddb","pixel"] },
-  { key: "position", option: "--position <position>", name: "position", description: "Where this row sorts in the order a screen and the banner show them, ascending. Presentation only.", type: "integer", required: false },
+  { key: "id", option: "--id <id>", name: "id", description: "The row's id, as a form echoes it. Ignored — the path names the row.", type: "string", required: false },
+  { key: "kind", option: "--kind <kind>", name: "kind", description: "Where on the device it is stored: cookie, local_storage, session_storage, indexeddb or pixel. Null restores the default.", type: "string", required: false, enum: ["cookie","local_storage","session_storage","indexeddb","pixel"] },
+  { key: "position", option: "--position <position>", name: "position", description: "Where this row sorts in the order a screen and the banner show them, ascending. Presentation only. Null restores the default.", type: "integer", required: false },
+  { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "As a form echoes it. Ignored — server-set.", type: "string", required: false },
 ];
 consentManagerRegistry
   .command(`cookies-create`)
@@ -251,15 +254,18 @@ consentManagerRegistry
   .alias("consent-manager-cookies-create")
   .option(`--name <name>`, `The cookie or storage key as the browser shows it.`)
   .option(`--vendor-id <vendor-id>`, `The vendor that sets this cookie. It has to be a vendor this tenant keeps.`)
+  .option(`--created-at <created-at>`, `As a form echoes it. Ignored — server-set.`)
   .option(`--description <description>`, `What the cookie is for, as the banner shows it.`)
   .option(`--duration <duration>`, `How long it lives, as the banner shows it. A text per language tag, e.g. { "de": "…", "en": "…" }.`)
   .option(`--host <host>`, `Who sets it: 'first-party' for the shop's own domain, otherwise the third-party host.`)
-  .option(`--kind <kind>`, `Where on the device it is stored: cookie, local_storage, session_storage, indexeddb or pixel.`)
-  .option(`--position <position>`, `Where this row sorts in the order a screen and the banner show them, ascending. Presentation only.`, parseInteger)
+  .option(`--id <id>`, `The row's id, as a form echoes it. Ignored — the path names the row.`)
+  .option(`--kind <kind>`, `Where on the device it is stored: cookie, local_storage, session_storage, indexeddb or pixel. Null restores the default.`)
+  .option(`--position <position>`, `Where this row sorts in the order a screen and the banner show them, ascending. Presentation only. Null restores the default.`, parseInteger)
+  .option(`--updated-at <updated-at>`, `As a form echoes it. Ignored — server-set.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { name, vendorId, description, duration, host, kind, position } = await promptForMissing(
+        const { name, vendorId, createdAt, description, duration, host, id, kind, position, updatedAt } = await promptForMissing(
           _options,
           cookiesCreateSpecs,
           _command,
@@ -274,6 +280,9 @@ consentManagerRegistry
           }
           Object.assign(_payload, body as RequestParams);
         }
+        if (createdAt !== undefined) {
+          _payload[`created_at`] = createdAt;
+        }
         if (description !== undefined) {
           _payload[`description`] = resolveBodyParam(description);
         }
@@ -283,6 +292,9 @@ consentManagerRegistry
         if (host !== undefined) {
           _payload[`host`] = host;
         }
+        if (id !== undefined) {
+          _payload[`id`] = id;
+        }
         if (kind !== undefined) {
           _payload[`kind`] = kind;
         }
@@ -291,6 +303,9 @@ consentManagerRegistry
         }
         if (position !== undefined) {
           _payload[`position`] = position;
+        }
+        if (updatedAt !== undefined) {
+          _payload[`updated_at`] = updatedAt;
         }
         if (vendorId !== undefined) {
           _payload[`vendor_id`] = vendorId;
@@ -378,30 +393,36 @@ consentManagerRegistry
 registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, cookiesGetSpecs, { method: "get" });
 const cookiesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The cookie.", type: "string", required: true, resource: { listPath: "/consent-manager/cookies", hasLimit: true } },
+  { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "As a form echoes it. Ignored — server-set.", type: "string", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "What the cookie is for, as the banner shows it.", type: "object", required: false },
   { key: "duration", option: "--duration <duration>", name: "duration", description: "How long it lives, as the banner shows it. A text per language tag, e.g. { \"de\": \"…\", \"en\": \"…\" }.", type: "object", required: false },
   { key: "host", option: "--host <host>", name: "host", description: "Who sets it: 'first-party' for the shop's own domain, otherwise the third-party host.", type: "string", required: false },
-  { key: "kind", option: "--kind <kind>", name: "kind", description: "Where on the device it is stored: cookie, local_storage, session_storage, indexeddb or pixel.", type: "string", required: false, enum: ["cookie","local_storage","session_storage","indexeddb","pixel"] },
+  { key: "idBody", option: "--id-body <id-body>", name: "id_body", description: "The row's id, as a form echoes it. Ignored — the path names the row.", type: "string", required: false },
+  { key: "kind", option: "--kind <kind>", name: "kind", description: "Where on the device it is stored: cookie, local_storage, session_storage, indexeddb or pixel. Null restores the default.", type: "string", required: false, enum: ["cookie","local_storage","session_storage","indexeddb","pixel"] },
   { key: "name", option: "--name <name>", name: "name", description: "The cookie or storage key as the browser shows it.", type: "string", required: false },
-  { key: "position", option: "--position <position>", name: "position", description: "Where this row sorts in the order a screen and the banner show them, ascending. Presentation only.", type: "integer", required: false },
+  { key: "position", option: "--position <position>", name: "position", description: "Where this row sorts in the order a screen and the banner show them, ascending. Presentation only. Null restores the default.", type: "integer", required: false },
+  { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "As a form echoes it. Ignored — server-set.", type: "string", required: false },
   { key: "vendorId", option: "--vendor-id <vendor-id>", name: "vendor_id", description: "The vendor that sets this cookie. It has to be a vendor this tenant keeps.", type: "string", required: false },
 ];
 consentManagerRegistry
   .command(`cookies-update`)
-  .description(`Partial update of one cookie.`)
+  .description(`Partial update of one cookie. A whole form echoed back is accepted; a null for a field with a default restores the default.`)
   .alias("consent-manager-cookies-update")
   .option(`--id <id>`, `The cookie.`)
+  .option(`--created-at <created-at>`, `As a form echoes it. Ignored — server-set.`)
   .option(`--description <description>`, `What the cookie is for, as the banner shows it.`)
   .option(`--duration <duration>`, `How long it lives, as the banner shows it. A text per language tag, e.g. { "de": "…", "en": "…" }.`)
   .option(`--host <host>`, `Who sets it: 'first-party' for the shop's own domain, otherwise the third-party host.`)
-  .option(`--kind <kind>`, `Where on the device it is stored: cookie, local_storage, session_storage, indexeddb or pixel.`)
+  .option(`--id-body <id-body>`, `The row's id, as a form echoes it. Ignored — the path names the row.`)
+  .option(`--kind <kind>`, `Where on the device it is stored: cookie, local_storage, session_storage, indexeddb or pixel. Null restores the default.`)
   .option(`--name <name>`, `The cookie or storage key as the browser shows it.`)
-  .option(`--position <position>`, `Where this row sorts in the order a screen and the banner show them, ascending. Presentation only.`, parseInteger)
+  .option(`--position <position>`, `Where this row sorts in the order a screen and the banner show them, ascending. Presentation only. Null restores the default.`, parseInteger)
+  .option(`--updated-at <updated-at>`, `As a form echoes it. Ignored — server-set.`)
   .option(`--vendor-id <vendor-id>`, `The vendor that sets this cookie. It has to be a vendor this tenant keeps.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, description, duration, host, kind, name, position, vendorId } = await promptForMissing(
+        const { id, createdAt, description, duration, host, idBody, kind, name, position, updatedAt, vendorId } = await promptForMissing(
           _options,
           cookiesUpdateSpecs,
           _command,
@@ -416,6 +437,9 @@ consentManagerRegistry
           }
           Object.assign(_payload, body as RequestParams);
         }
+        if (createdAt !== undefined) {
+          _payload[`created_at`] = createdAt;
+        }
         if (description !== undefined) {
           _payload[`description`] = resolveBodyParam(description);
         }
@@ -425,6 +449,9 @@ consentManagerRegistry
         if (host !== undefined) {
           _payload[`host`] = host;
         }
+        if (idBody !== undefined) {
+          _payload[`id`] = idBody;
+        }
         if (kind !== undefined) {
           _payload[`kind`] = kind;
         }
@@ -433,6 +460,9 @@ consentManagerRegistry
         }
         if (position !== undefined) {
           _payload[`position`] = position;
+        }
+        if (updatedAt !== undefined) {
+          _payload[`updated_at`] = updatedAt;
         }
         if (vendorId !== undefined) {
           _payload[`vendor_id`] = vendorId;
@@ -604,33 +634,39 @@ consentManagerRegistry
 registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, purposesListSpecs, { method: "get" });
 const purposesCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The purpose's fixed identity — `necessary`, `statistics`, `marketing`, `comfort`, `external_media` or one the tenant adds. Vendors, the catalogue, the Tag Manager, the visitor's cookie and every record name it, so it never changes once created.", type: "string", required: true },
-  { key: "legalBasis", option: "--legal-basis <legal-basis>", name: "legal_basis", description: "Why this purpose may process data at all, and therefore whether its tools load before a decision: `consent` waits for the visitor, `legitimate_interest` runs until the visitor objects, `necessary` always runs. A vendor may override it with its own `legal_basis_override`.", type: "string", required: true, enum: ["consent","legitimate_interest","necessary"] },
+  { key: "legalBasis", option: "--legal-basis <legal-basis>", name: "legal_basis", description: "Why this purpose may process data at all, and therefore whether its tools load before a decision: `consent` waits for the visitor, `legitimate_interest` runs until the visitor objects, `necessary` always runs. A vendor may override it with its own `legal_basis_override`. Null is refused with 422 `legal_basis_required`.", type: "string", required: true, enum: ["consent","legitimate_interest","necessary"] },
   { key: "name", option: "--name <name>", name: "name", description: "What a visitor reads for this purpose. A text per language tag, e.g. { \"de\": \"…\", \"en\": \"…\" }.", type: "object", required: true },
+  { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "As a form echoes it. Ignored — server-set.", type: "string", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "The sentence under the purpose in the banner's second layer. A text per language tag, e.g. { \"de\": \"…\", \"en\": \"…\" }.", type: "object", required: false },
   { key: "googleSignals", option: "--google-signals [google-signals...]", name: "google_signals", description: "The Google Consent Mode v2 signals this purpose releases when granted — e.g. statistics releases `analytics_storage`. A list drawn from the google-signals vocabulary.", type: "array", required: false, enum: ["ad_storage","ad_user_data","ad_personalization","analytics_storage","functionality_storage","personalization_storage","security_storage"] },
-  { key: "isActive", option: "--is-active <is-active>", name: "is_active", description: "Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched.", type: "boolean", required: false },
-  { key: "position", option: "--position <position>", name: "position", description: "Where this row sorts in the order a screen and the banner show them, ascending. Presentation only.", type: "integer", required: false },
+  { key: "id", option: "--id <id>", name: "id", description: "The row's id, as a form echoes it. Ignored — the path names the row.", type: "string", required: false },
+  { key: "isActive", option: "--is-active <is-active>", name: "is_active", description: "Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched. Null restores the default.", type: "boolean", required: false },
+  { key: "position", option: "--position <position>", name: "position", description: "Where this row sorts in the order a screen and the banner show them, ascending. Presentation only. Null restores the default.", type: "integer", required: false },
+  { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "As a form echoes it. Ignored — server-set.", type: "string", required: false },
 ];
 consentManagerRegistry
   .command(`purposes-create`)
   .description(`Add a purpose beyond the five seeded ones. \`code\`, \`name\` and \`legal_basis\` are owed; the code is fixed once created.`)
   .alias("consent-manager-purposes-create")
   .option(`--code <code>`, `The purpose's fixed identity — \`necessary\`, \`statistics\`, \`marketing\`, \`comfort\`, \`external_media\` or one the tenant adds. Vendors, the catalogue, the Tag Manager, the visitor's cookie and every record name it, so it never changes once created.`)
-  .option(`--legal-basis <legal-basis>`, `Why this purpose may process data at all, and therefore whether its tools load before a decision: \`consent\` waits for the visitor, \`legitimate_interest\` runs until the visitor objects, \`necessary\` always runs. A vendor may override it with its own \`legal_basis_override\`.`)
+  .option(`--legal-basis <legal-basis>`, `Why this purpose may process data at all, and therefore whether its tools load before a decision: \`consent\` waits for the visitor, \`legitimate_interest\` runs until the visitor objects, \`necessary\` always runs. A vendor may override it with its own \`legal_basis_override\`. Null is refused with 422 \`legal_basis_required\`.`)
   .option(`--name <name>`, `What a visitor reads for this purpose. A text per language tag, e.g. { "de": "…", "en": "…" }.`)
+  .option(`--created-at <created-at>`, `As a form echoes it. Ignored — server-set.`)
   .option(`--description <description>`, `The sentence under the purpose in the banner's second layer. A text per language tag, e.g. { "de": "…", "en": "…" }.`)
   .option(`--google-signals [google-signals...]`, `The Google Consent Mode v2 signals this purpose releases when granted — e.g. statistics releases \`analytics_storage\`. A list drawn from the google-signals vocabulary.`)
+  .option(`--id <id>`, `The row's id, as a form echoes it. Ignored — the path names the row.`)
   .option(
     `--is-active [value]`,
-    `Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched.`,
+    `Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched. Null restores the default.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
-  .option(`--position <position>`, `Where this row sorts in the order a screen and the banner show them, ascending. Presentation only.`, parseInteger)
+  .option(`--position <position>`, `Where this row sorts in the order a screen and the banner show them, ascending. Presentation only. Null restores the default.`, parseInteger)
+  .option(`--updated-at <updated-at>`, `As a form echoes it. Ignored — server-set.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, legalBasis, name, description, googleSignals, isActive, position } = await promptForMissing(
+        const { code, legalBasis, name, createdAt, description, googleSignals, id, isActive, position, updatedAt } = await promptForMissing(
           _options,
           purposesCreateSpecs,
           _command,
@@ -648,11 +684,17 @@ consentManagerRegistry
         if (code !== undefined) {
           _payload[`code`] = code;
         }
+        if (createdAt !== undefined) {
+          _payload[`created_at`] = createdAt;
+        }
         if (description !== undefined) {
           _payload[`description`] = resolveBodyParam(description);
         }
         if (googleSignals !== undefined) {
           _payload[`google_signals`] = googleSignals;
+        }
+        if (id !== undefined) {
+          _payload[`id`] = id;
         }
         if (isActive !== undefined) {
           _payload[`is_active`] = isActive;
@@ -665,6 +707,9 @@ consentManagerRegistry
         }
         if (position !== undefined) {
           _payload[`position`] = position;
+        }
+        if (updatedAt !== undefined) {
+          _payload[`updated_at`] = updatedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -750,12 +795,15 @@ registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, purposesGetSpecs, {
 const purposesUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The purpose.", type: "string", required: true, resource: { listPath: "/consent-manager/purposes", hasLimit: true } },
   { key: "code", option: "--code <code>", name: "code", description: "The purpose's fixed identity — `necessary`, `statistics`, `marketing`, `comfort`, `external_media` or one the tenant adds. Vendors, the catalogue, the Tag Manager, the visitor's cookie and every record name it, so it never changes once created.", type: "string", required: false },
+  { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "As a form echoes it. Ignored — server-set.", type: "string", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "The sentence under the purpose in the banner's second layer. A text per language tag, e.g. { \"de\": \"…\", \"en\": \"…\" }.", type: "object", required: false },
   { key: "googleSignals", option: "--google-signals [google-signals...]", name: "google_signals", description: "The Google Consent Mode v2 signals this purpose releases when granted — e.g. statistics releases `analytics_storage`. A list drawn from the google-signals vocabulary.", type: "array", required: false, enum: ["ad_storage","ad_user_data","ad_personalization","analytics_storage","functionality_storage","personalization_storage","security_storage"] },
-  { key: "isActive", option: "--is-active <is-active>", name: "is_active", description: "Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched.", type: "boolean", required: false },
-  { key: "legalBasis", option: "--legal-basis <legal-basis>", name: "legal_basis", description: "Why this purpose may process data at all, and therefore whether its tools load before a decision: `consent` waits for the visitor, `legitimate_interest` runs until the visitor objects, `necessary` always runs. A vendor may override it with its own `legal_basis_override`.", type: "string", required: false, enum: ["consent","legitimate_interest","necessary"] },
+  { key: "idBody", option: "--id-body <id-body>", name: "id_body", description: "The row's id, as a form echoes it. Ignored — the path names the row.", type: "string", required: false },
+  { key: "isActive", option: "--is-active <is-active>", name: "is_active", description: "Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched. Null restores the default.", type: "boolean", required: false },
+  { key: "legalBasis", option: "--legal-basis <legal-basis>", name: "legal_basis", description: "Why this purpose may process data at all, and therefore whether its tools load before a decision: `consent` waits for the visitor, `legitimate_interest` runs until the visitor objects, `necessary` always runs. A vendor may override it with its own `legal_basis_override`. Null is refused with 422 `legal_basis_required`.", type: "string", required: false, enum: ["consent","legitimate_interest","necessary"] },
   { key: "name", option: "--name <name>", name: "name", description: "What a visitor reads for this purpose. A text per language tag, e.g. { \"de\": \"…\", \"en\": \"…\" }.", type: "object", required: false },
-  { key: "position", option: "--position <position>", name: "position", description: "Where this row sorts in the order a screen and the banner show them, ascending. Presentation only.", type: "integer", required: false },
+  { key: "position", option: "--position <position>", name: "position", description: "Where this row sorts in the order a screen and the banner show them, ascending. Presentation only. Null restores the default.", type: "integer", required: false },
+  { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "As a form echoes it. Ignored — server-set.", type: "string", required: false },
 ];
 consentManagerRegistry
   .command(`purposes-update`)
@@ -763,21 +811,24 @@ consentManagerRegistry
   .alias("consent-manager-purposes-update")
   .option(`--id <id>`, `The purpose.`)
   .option(`--code <code>`, `The purpose's fixed identity — \`necessary\`, \`statistics\`, \`marketing\`, \`comfort\`, \`external_media\` or one the tenant adds. Vendors, the catalogue, the Tag Manager, the visitor's cookie and every record name it, so it never changes once created.`)
+  .option(`--created-at <created-at>`, `As a form echoes it. Ignored — server-set.`)
   .option(`--description <description>`, `The sentence under the purpose in the banner's second layer. A text per language tag, e.g. { "de": "…", "en": "…" }.`)
   .option(`--google-signals [google-signals...]`, `The Google Consent Mode v2 signals this purpose releases when granted — e.g. statistics releases \`analytics_storage\`. A list drawn from the google-signals vocabulary.`)
+  .option(`--id-body <id-body>`, `The row's id, as a form echoes it. Ignored — the path names the row.`)
   .option(
     `--is-active [value]`,
-    `Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched.`,
+    `Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched. Null restores the default.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
-  .option(`--legal-basis <legal-basis>`, `Why this purpose may process data at all, and therefore whether its tools load before a decision: \`consent\` waits for the visitor, \`legitimate_interest\` runs until the visitor objects, \`necessary\` always runs. A vendor may override it with its own \`legal_basis_override\`.`)
+  .option(`--legal-basis <legal-basis>`, `Why this purpose may process data at all, and therefore whether its tools load before a decision: \`consent\` waits for the visitor, \`legitimate_interest\` runs until the visitor objects, \`necessary\` always runs. A vendor may override it with its own \`legal_basis_override\`. Null is refused with 422 \`legal_basis_required\`.`)
   .option(`--name <name>`, `What a visitor reads for this purpose. A text per language tag, e.g. { "de": "…", "en": "…" }.`)
-  .option(`--position <position>`, `Where this row sorts in the order a screen and the banner show them, ascending. Presentation only.`, parseInteger)
+  .option(`--position <position>`, `Where this row sorts in the order a screen and the banner show them, ascending. Presentation only. Null restores the default.`, parseInteger)
+  .option(`--updated-at <updated-at>`, `As a form echoes it. Ignored — server-set.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, code, description, googleSignals, isActive, legalBasis, name, position } = await promptForMissing(
+        const { id, code, createdAt, description, googleSignals, idBody, isActive, legalBasis, name, position, updatedAt } = await promptForMissing(
           _options,
           purposesUpdateSpecs,
           _command,
@@ -795,11 +846,17 @@ consentManagerRegistry
         if (code !== undefined) {
           _payload[`code`] = code;
         }
+        if (createdAt !== undefined) {
+          _payload[`created_at`] = createdAt;
+        }
         if (description !== undefined) {
           _payload[`description`] = resolveBodyParam(description);
         }
         if (googleSignals !== undefined) {
           _payload[`google_signals`] = googleSignals;
+        }
+        if (idBody !== undefined) {
+          _payload[`id`] = idBody;
         }
         if (isActive !== undefined) {
           _payload[`is_active`] = isActive;
@@ -812,6 +869,9 @@ consentManagerRegistry
         }
         if (position !== undefined) {
           _payload[`position`] = position;
+        }
+        if (updatedAt !== undefined) {
+          _payload[`updated_at`] = updatedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1001,23 +1061,28 @@ const vendorsCreateSpecs: PromptSpec[] = [
   { key: "code", option: "--code <code>", name: "code", description: "The vendor's fixed identity, as the Tag Manager, the visitor's cookie and every record name it. Lowercase letters, digits and '-'. For an adopted vendor it is the catalogue key.", type: "string", required: true },
   { key: "name", option: "--name <name>", name: "name", description: "The tool as a visitor knows it.", type: "string", required: true },
   { key: "address", option: "--address <address>", name: "address", description: "The company's postal address, as the banner names it.", type: "string", required: false },
+  { key: "catalogKey", option: "--catalog-key <catalog-key>", name: "catalog_key", description: "Provenance, set by adoption. May be echoed; it is never written through this route.", type: "string", required: false },
+  { key: "catalogVersion", option: "--catalog-version <catalog-version>", name: "catalog_version", description: "Provenance, set by adoption. May be echoed; it is never written through this route.", type: "string", required: false },
   { key: "category", option: "--category <category>", name: "category", description: "What kind of tool this is — analytics, advertising, chat, video — as the catalogue groups it. Presentation only.", type: "string", required: false },
   { key: "chains", option: "--chains [chains...]", name: "chains", description: "Other vendors this one loads in turn — Google Tag Manager loading Google Analytics — by vendor code, so the banner can name every link of the chain.", type: "array", required: false },
   { key: "company", option: "--company <company>", name: "company", description: "The legal entity behind the tool, as the banner names it.", type: "string", required: false },
   { key: "country", option: "--country <country>", name: "country", description: "The company's country, ISO 3166-1 alpha-2.", type: "string", required: false },
+  { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "As a form echoes it. Ignored — server-set.", type: "string", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "What the tool does, in the banner's second layer. A text per language tag, e.g. { \"de\": \"…\", \"en\": \"…\" }.", type: "object", required: false },
   { key: "dpaUrl", option: "--dpa-url <dpa-url>", name: "dpa_url", description: "Where the vendor's data processing terms are published, if anywhere.", type: "string", required: false },
   { key: "hosts", option: "--hosts [hosts...]", name: "hosts", description: "The hosts the tool contacts. A storefront blocks requests to them until the vendor is allowed; the Tag Manager checks its tags against them.", type: "array", required: false },
-  { key: "isActive", option: "--is-active <is-active>", name: "is_active", description: "Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched.", type: "boolean", required: false },
+  { key: "id", option: "--id <id>", name: "id", description: "The row's id, as a form echoes it. Ignored — the path names the row.", type: "string", required: false },
+  { key: "isActive", option: "--is-active <is-active>", name: "is_active", description: "Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched. Null restores the default.", type: "boolean", required: false },
   { key: "legalBasisOverride", option: "--legal-basis-override <legal-basis-override>", name: "legal_basis_override", description: "This vendor's own legal basis where it differs from its purpose's — a cookieless statistics tool on `legitimate_interest` while the rest of statistics waits for `consent`. Null means the purpose's basis applies. The effective basis is this ?? the purpose's.", type: "string", required: false, enum: ["consent","legitimate_interest","necessary"] },
   { key: "logo", option: "--logo <logo>", name: "logo", description: "The vendor's logo for the admin UI, as a base64 data URI of an SVG, PNG, JPEG or WebP image, at most 20480 characters. Adoption copies the catalogue's logo. Null shows the vendor's initials. It is never part of the delivered policy. Anything else is refused with 422 `invalid_logo`; an empty string clears it.", type: "string", required: false },
-  { key: "position", option: "--position <position>", name: "position", description: "Where this row sorts in the order a screen and the banner show them, ascending. Presentation only.", type: "integer", required: false },
+  { key: "position", option: "--position <position>", name: "position", description: "Where this row sorts in the order a screen and the banner show them, ascending. Presentation only. Null restores the default.", type: "integer", required: false },
   { key: "privacyPolicyUrl", option: "--privacy-policy-url <privacy-policy-url>", name: "privacy_policy_url", description: "The vendor's own privacy policy, linked from the banner.", type: "string", required: false },
-  { key: "purposes", option: "--purposes [purposes...]", name: "purposes", description: "The codes of the purposes this vendor serves. On an update, the list replaces the current one; a code this tenant does not keep is refused with 422.", type: "array", required: false },
+  { key: "purposes", option: "--purposes [purposes...]", name: "purposes", description: "The codes of the purposes this vendor serves. On an update, a list replaces the current one and `[]` clears it; null leaves the purposes as they are. A code this tenant does not keep is refused with 422.", type: "array", required: false },
   { key: "registryKey", option: "--registry-key <registry-key>", name: "registry_key", description: "The `@nuxt/scripts` registry entry the storefront loads this tool through, where one exists.", type: "string", required: false },
   { key: "retentionNote", option: "--retention-note <retention-note>", name: "retention_note", description: "How long the vendor keeps the data, as the banner states it. A text per language tag, e.g. { \"de\": \"…\", \"en\": \"…\" }.", type: "object", required: false },
-  { key: "thirdCountryTransfer", option: "--third-country-transfer <third-country-transfer>", name: "third_country_transfer", description: "Whether data reaches a country outside the EU/EEA. The banner says so, because a visitor is owed it before agreeing.", type: "boolean", required: false },
+  { key: "thirdCountryTransfer", option: "--third-country-transfer <third-country-transfer>", name: "third_country_transfer", description: "Whether data reaches a country outside the EU/EEA. The banner says so, because a visitor is owed it before agreeing. Null restores the default.", type: "boolean", required: false },
   { key: "transferBasis", option: "--transfer-basis <transfer-basis>", name: "transfer_basis", description: "What a third-country transfer rests on, in the words the banner shows.", type: "string", required: false },
+  { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "As a form echoes it. Ignored — server-set.", type: "string", required: false },
 ];
 consentManagerRegistry
   .command(`vendors-create`)
@@ -1026,37 +1091,42 @@ consentManagerRegistry
   .option(`--code <code>`, `The vendor's fixed identity, as the Tag Manager, the visitor's cookie and every record name it. Lowercase letters, digits and '-'. For an adopted vendor it is the catalogue key.`)
   .option(`--name <name>`, `The tool as a visitor knows it.`)
   .option(`--address <address>`, `The company's postal address, as the banner names it.`)
+  .option(`--catalog-key <catalog-key>`, `Provenance, set by adoption. May be echoed; it is never written through this route.`)
+  .option(`--catalog-version <catalog-version>`, `Provenance, set by adoption. May be echoed; it is never written through this route.`)
   .option(`--category <category>`, `What kind of tool this is — analytics, advertising, chat, video — as the catalogue groups it. Presentation only.`)
   .option(`--chains [chains...]`, `Other vendors this one loads in turn — Google Tag Manager loading Google Analytics — by vendor code, so the banner can name every link of the chain.`)
   .option(`--company <company>`, `The legal entity behind the tool, as the banner names it.`)
   .option(`--country <country>`, `The company's country, ISO 3166-1 alpha-2.`)
+  .option(`--created-at <created-at>`, `As a form echoes it. Ignored — server-set.`)
   .option(`--description <description>`, `What the tool does, in the banner's second layer. A text per language tag, e.g. { "de": "…", "en": "…" }.`)
   .option(`--dpa-url <dpa-url>`, `Where the vendor's data processing terms are published, if anywhere.`)
   .option(`--hosts [hosts...]`, `The hosts the tool contacts. A storefront blocks requests to them until the vendor is allowed; the Tag Manager checks its tags against them.`)
+  .option(`--id <id>`, `The row's id, as a form echoes it. Ignored — the path names the row.`)
   .option(
     `--is-active [value]`,
-    `Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched.`,
+    `Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched. Null restores the default.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .option(`--legal-basis-override <legal-basis-override>`, `This vendor's own legal basis where it differs from its purpose's — a cookieless statistics tool on \`legitimate_interest\` while the rest of statistics waits for \`consent\`. Null means the purpose's basis applies. The effective basis is this ?? the purpose's.`)
   .option(`--logo <logo>`, `The vendor's logo for the admin UI, as a base64 data URI of an SVG, PNG, JPEG or WebP image, at most 20480 characters. Adoption copies the catalogue's logo. Null shows the vendor's initials. It is never part of the delivered policy. Anything else is refused with 422 \`invalid_logo\`; an empty string clears it.`)
-  .option(`--position <position>`, `Where this row sorts in the order a screen and the banner show them, ascending. Presentation only.`, parseInteger)
+  .option(`--position <position>`, `Where this row sorts in the order a screen and the banner show them, ascending. Presentation only. Null restores the default.`, parseInteger)
   .option(`--privacy-policy-url <privacy-policy-url>`, `The vendor's own privacy policy, linked from the banner.`)
-  .option(`--purposes [purposes...]`, `The codes of the purposes this vendor serves. On an update, the list replaces the current one; a code this tenant does not keep is refused with 422.`)
+  .option(`--purposes [purposes...]`, `The codes of the purposes this vendor serves. On an update, a list replaces the current one and \`[]\` clears it; null leaves the purposes as they are. A code this tenant does not keep is refused with 422.`)
   .option(`--registry-key <registry-key>`, `The \`@nuxt/scripts\` registry entry the storefront loads this tool through, where one exists.`)
   .option(`--retention-note <retention-note>`, `How long the vendor keeps the data, as the banner states it. A text per language tag, e.g. { "de": "…", "en": "…" }.`)
   .option(
     `--third-country-transfer [value]`,
-    `Whether data reaches a country outside the EU/EEA. The banner says so, because a visitor is owed it before agreeing.`,
+    `Whether data reaches a country outside the EU/EEA. The banner says so, because a visitor is owed it before agreeing. Null restores the default.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .option(`--transfer-basis <transfer-basis>`, `What a third-country transfer rests on, in the words the banner shows.`)
+  .option(`--updated-at <updated-at>`, `As a form echoes it. Ignored — server-set.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { code, name, address, category, chains, company, country, description, dpaUrl, hosts, isActive, legalBasisOverride, logo, position, privacyPolicyUrl, purposes, registryKey, retentionNote, thirdCountryTransfer, transferBasis } = await promptForMissing(
+        const { code, name, address, catalogKey, catalogVersion, category, chains, company, country, createdAt, description, dpaUrl, hosts, id, isActive, legalBasisOverride, logo, position, privacyPolicyUrl, purposes, registryKey, retentionNote, thirdCountryTransfer, transferBasis, updatedAt } = await promptForMissing(
           _options,
           vendorsCreateSpecs,
           _command,
@@ -1074,6 +1144,12 @@ consentManagerRegistry
         if (address !== undefined) {
           _payload[`address`] = address;
         }
+        if (catalogKey !== undefined) {
+          _payload[`catalog_key`] = catalogKey;
+        }
+        if (catalogVersion !== undefined) {
+          _payload[`catalog_version`] = catalogVersion;
+        }
         if (category !== undefined) {
           _payload[`category`] = category;
         }
@@ -1089,6 +1165,9 @@ consentManagerRegistry
         if (country !== undefined) {
           _payload[`country`] = country;
         }
+        if (createdAt !== undefined) {
+          _payload[`created_at`] = createdAt;
+        }
         if (description !== undefined) {
           _payload[`description`] = resolveBodyParam(description);
         }
@@ -1097,6 +1176,9 @@ consentManagerRegistry
         }
         if (hosts !== undefined) {
           _payload[`hosts`] = hosts;
+        }
+        if (id !== undefined) {
+          _payload[`id`] = id;
         }
         if (isActive !== undefined) {
           _payload[`is_active`] = isActive;
@@ -1130,6 +1212,9 @@ consentManagerRegistry
         }
         if (transferBasis !== undefined) {
           _payload[`transfer_basis`] = transferBasis;
+        }
+        if (updatedAt !== undefined) {
+          _payload[`updated_at`] = updatedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",
@@ -1215,65 +1300,75 @@ registerPromptSpecs(consentManagerRegistry.commands.at(-1)!, vendorsGetSpecs, { 
 const vendorsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The vendor.", type: "string", required: true, resource: { listPath: "/consent-manager/vendors", hasLimit: true } },
   { key: "address", option: "--address <address>", name: "address", description: "The company's postal address, as the banner names it.", type: "string", required: false },
+  { key: "catalogKey", option: "--catalog-key <catalog-key>", name: "catalog_key", description: "Provenance, set by adoption. May be echoed; it is never written through this route.", type: "string", required: false },
+  { key: "catalogVersion", option: "--catalog-version <catalog-version>", name: "catalog_version", description: "Provenance, set by adoption. May be echoed; it is never written through this route.", type: "string", required: false },
   { key: "category", option: "--category <category>", name: "category", description: "What kind of tool this is — analytics, advertising, chat, video — as the catalogue groups it. Presentation only.", type: "string", required: false },
   { key: "chains", option: "--chains [chains...]", name: "chains", description: "Other vendors this one loads in turn — Google Tag Manager loading Google Analytics — by vendor code, so the banner can name every link of the chain.", type: "array", required: false },
   { key: "code", option: "--code <code>", name: "code", description: "The vendor's fixed identity, as the Tag Manager, the visitor's cookie and every record name it. Lowercase letters, digits and '-'. For an adopted vendor it is the catalogue key.", type: "string", required: false },
   { key: "company", option: "--company <company>", name: "company", description: "The legal entity behind the tool, as the banner names it.", type: "string", required: false },
   { key: "country", option: "--country <country>", name: "country", description: "The company's country, ISO 3166-1 alpha-2.", type: "string", required: false },
+  { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "As a form echoes it. Ignored — server-set.", type: "string", required: false },
   { key: "description", option: "--description <description>", name: "description", description: "What the tool does, in the banner's second layer. A text per language tag, e.g. { \"de\": \"…\", \"en\": \"…\" }.", type: "object", required: false },
   { key: "dpaUrl", option: "--dpa-url <dpa-url>", name: "dpa_url", description: "Where the vendor's data processing terms are published, if anywhere.", type: "string", required: false },
   { key: "hosts", option: "--hosts [hosts...]", name: "hosts", description: "The hosts the tool contacts. A storefront blocks requests to them until the vendor is allowed; the Tag Manager checks its tags against them.", type: "array", required: false },
-  { key: "isActive", option: "--is-active <is-active>", name: "is_active", description: "Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched.", type: "boolean", required: false },
+  { key: "idBody", option: "--id-body <id-body>", name: "id_body", description: "The row's id, as a form echoes it. Ignored — the path names the row.", type: "string", required: false },
+  { key: "isActive", option: "--is-active <is-active>", name: "is_active", description: "Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched. Null restores the default.", type: "boolean", required: false },
   { key: "legalBasisOverride", option: "--legal-basis-override <legal-basis-override>", name: "legal_basis_override", description: "This vendor's own legal basis where it differs from its purpose's — a cookieless statistics tool on `legitimate_interest` while the rest of statistics waits for `consent`. Null means the purpose's basis applies. The effective basis is this ?? the purpose's.", type: "string", required: false, enum: ["consent","legitimate_interest","necessary"] },
   { key: "logo", option: "--logo <logo>", name: "logo", description: "The vendor's logo for the admin UI, as a base64 data URI of an SVG, PNG, JPEG or WebP image, at most 20480 characters. Adoption copies the catalogue's logo. Null shows the vendor's initials. It is never part of the delivered policy. Anything else is refused with 422 `invalid_logo`; an empty string clears it.", type: "string", required: false },
   { key: "name", option: "--name <name>", name: "name", description: "The tool as a visitor knows it.", type: "string", required: false },
-  { key: "position", option: "--position <position>", name: "position", description: "Where this row sorts in the order a screen and the banner show them, ascending. Presentation only.", type: "integer", required: false },
+  { key: "position", option: "--position <position>", name: "position", description: "Where this row sorts in the order a screen and the banner show them, ascending. Presentation only. Null restores the default.", type: "integer", required: false },
   { key: "privacyPolicyUrl", option: "--privacy-policy-url <privacy-policy-url>", name: "privacy_policy_url", description: "The vendor's own privacy policy, linked from the banner.", type: "string", required: false },
-  { key: "purposes", option: "--purposes [purposes...]", name: "purposes", description: "The codes of the purposes this vendor serves. On an update, the list replaces the current one; a code this tenant does not keep is refused with 422.", type: "array", required: false },
+  { key: "purposes", option: "--purposes [purposes...]", name: "purposes", description: "The codes of the purposes this vendor serves. On an update, a list replaces the current one and `[]` clears it; null leaves the purposes as they are. A code this tenant does not keep is refused with 422.", type: "array", required: false },
   { key: "registryKey", option: "--registry-key <registry-key>", name: "registry_key", description: "The `@nuxt/scripts` registry entry the storefront loads this tool through, where one exists.", type: "string", required: false },
   { key: "retentionNote", option: "--retention-note <retention-note>", name: "retention_note", description: "How long the vendor keeps the data, as the banner states it. A text per language tag, e.g. { \"de\": \"…\", \"en\": \"…\" }.", type: "object", required: false },
-  { key: "thirdCountryTransfer", option: "--third-country-transfer <third-country-transfer>", name: "third_country_transfer", description: "Whether data reaches a country outside the EU/EEA. The banner says so, because a visitor is owed it before agreeing.", type: "boolean", required: false },
+  { key: "thirdCountryTransfer", option: "--third-country-transfer <third-country-transfer>", name: "third_country_transfer", description: "Whether data reaches a country outside the EU/EEA. The banner says so, because a visitor is owed it before agreeing. Null restores the default.", type: "boolean", required: false },
   { key: "transferBasis", option: "--transfer-basis <transfer-basis>", name: "transfer_basis", description: "What a third-country transfer rests on, in the words the banner shows.", type: "string", required: false },
+  { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "As a form echoes it. Ignored — server-set.", type: "string", required: false },
 ];
 consentManagerRegistry
   .command(`vendors-update`)
-  .description(`Partial update. \`purposes\`, when sent, replaces the vendor's purposes. The code may be sent only unchanged.`)
+  .description(`Partial update. \`purposes\`, when sent as a list, replaces the vendor's purposes; null leaves them. The code may be sent only unchanged. A whole form echoed back — the stored id, timestamps and provenance included — is accepted, and a null for a field with a default restores the default.`)
   .alias("consent-manager-vendors-update")
   .option(`--id <id>`, `The vendor.`)
   .option(`--address <address>`, `The company's postal address, as the banner names it.`)
+  .option(`--catalog-key <catalog-key>`, `Provenance, set by adoption. May be echoed; it is never written through this route.`)
+  .option(`--catalog-version <catalog-version>`, `Provenance, set by adoption. May be echoed; it is never written through this route.`)
   .option(`--category <category>`, `What kind of tool this is — analytics, advertising, chat, video — as the catalogue groups it. Presentation only.`)
   .option(`--chains [chains...]`, `Other vendors this one loads in turn — Google Tag Manager loading Google Analytics — by vendor code, so the banner can name every link of the chain.`)
   .option(`--code <code>`, `The vendor's fixed identity, as the Tag Manager, the visitor's cookie and every record name it. Lowercase letters, digits and '-'. For an adopted vendor it is the catalogue key.`)
   .option(`--company <company>`, `The legal entity behind the tool, as the banner names it.`)
   .option(`--country <country>`, `The company's country, ISO 3166-1 alpha-2.`)
+  .option(`--created-at <created-at>`, `As a form echoes it. Ignored — server-set.`)
   .option(`--description <description>`, `What the tool does, in the banner's second layer. A text per language tag, e.g. { "de": "…", "en": "…" }.`)
   .option(`--dpa-url <dpa-url>`, `Where the vendor's data processing terms are published, if anywhere.`)
   .option(`--hosts [hosts...]`, `The hosts the tool contacts. A storefront blocks requests to them until the vendor is allowed; the Tag Manager checks its tags against them.`)
+  .option(`--id-body <id-body>`, `The row's id, as a form echoes it. Ignored — the path names the row.`)
   .option(
     `--is-active [value]`,
-    `Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched.`,
+    `Whether this row takes part in the next published version. Switching it off keeps the row and leaves it out of every version published afterwards; versions already published are untouched. Null restores the default.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .option(`--legal-basis-override <legal-basis-override>`, `This vendor's own legal basis where it differs from its purpose's — a cookieless statistics tool on \`legitimate_interest\` while the rest of statistics waits for \`consent\`. Null means the purpose's basis applies. The effective basis is this ?? the purpose's.`)
   .option(`--logo <logo>`, `The vendor's logo for the admin UI, as a base64 data URI of an SVG, PNG, JPEG or WebP image, at most 20480 characters. Adoption copies the catalogue's logo. Null shows the vendor's initials. It is never part of the delivered policy. Anything else is refused with 422 \`invalid_logo\`; an empty string clears it.`)
   .option(`--name <name>`, `The tool as a visitor knows it.`)
-  .option(`--position <position>`, `Where this row sorts in the order a screen and the banner show them, ascending. Presentation only.`, parseInteger)
+  .option(`--position <position>`, `Where this row sorts in the order a screen and the banner show them, ascending. Presentation only. Null restores the default.`, parseInteger)
   .option(`--privacy-policy-url <privacy-policy-url>`, `The vendor's own privacy policy, linked from the banner.`)
-  .option(`--purposes [purposes...]`, `The codes of the purposes this vendor serves. On an update, the list replaces the current one; a code this tenant does not keep is refused with 422.`)
+  .option(`--purposes [purposes...]`, `The codes of the purposes this vendor serves. On an update, a list replaces the current one and \`[]\` clears it; null leaves the purposes as they are. A code this tenant does not keep is refused with 422.`)
   .option(`--registry-key <registry-key>`, `The \`@nuxt/scripts\` registry entry the storefront loads this tool through, where one exists.`)
   .option(`--retention-note <retention-note>`, `How long the vendor keeps the data, as the banner states it. A text per language tag, e.g. { "de": "…", "en": "…" }.`)
   .option(
     `--third-country-transfer [value]`,
-    `Whether data reaches a country outside the EU/EEA. The banner says so, because a visitor is owed it before agreeing.`,
+    `Whether data reaches a country outside the EU/EEA. The banner says so, because a visitor is owed it before agreeing. Null restores the default.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
   .option(`--transfer-basis <transfer-basis>`, `What a third-country transfer rests on, in the words the banner shows.`)
+  .option(`--updated-at <updated-at>`, `As a form echoes it. Ignored — server-set.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, address, category, chains, code, company, country, description, dpaUrl, hosts, isActive, legalBasisOverride, logo, name, position, privacyPolicyUrl, purposes, registryKey, retentionNote, thirdCountryTransfer, transferBasis } = await promptForMissing(
+        const { id, address, catalogKey, catalogVersion, category, chains, code, company, country, createdAt, description, dpaUrl, hosts, idBody, isActive, legalBasisOverride, logo, name, position, privacyPolicyUrl, purposes, registryKey, retentionNote, thirdCountryTransfer, transferBasis, updatedAt } = await promptForMissing(
           _options,
           vendorsUpdateSpecs,
           _command,
@@ -1291,6 +1386,12 @@ consentManagerRegistry
         if (address !== undefined) {
           _payload[`address`] = address;
         }
+        if (catalogKey !== undefined) {
+          _payload[`catalog_key`] = catalogKey;
+        }
+        if (catalogVersion !== undefined) {
+          _payload[`catalog_version`] = catalogVersion;
+        }
         if (category !== undefined) {
           _payload[`category`] = category;
         }
@@ -1306,6 +1407,9 @@ consentManagerRegistry
         if (country !== undefined) {
           _payload[`country`] = country;
         }
+        if (createdAt !== undefined) {
+          _payload[`created_at`] = createdAt;
+        }
         if (description !== undefined) {
           _payload[`description`] = resolveBodyParam(description);
         }
@@ -1314,6 +1418,9 @@ consentManagerRegistry
         }
         if (hosts !== undefined) {
           _payload[`hosts`] = hosts;
+        }
+        if (idBody !== undefined) {
+          _payload[`id`] = idBody;
         }
         if (isActive !== undefined) {
           _payload[`is_active`] = isActive;
@@ -1347,6 +1454,9 @@ consentManagerRegistry
         }
         if (transferBasis !== undefined) {
           _payload[`transfer_basis`] = transferBasis;
+        }
+        if (updatedAt !== undefined) {
+          _payload[`updated_at`] = updatedAt;
         }
         const _headers: Record<string, string> = {
           "content-type": "application/json",

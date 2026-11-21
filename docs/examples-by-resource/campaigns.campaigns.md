@@ -70,6 +70,16 @@ revenexx campaigns-campaigns attach \
     --id ''
 ```
 
+## collect
+
+Take in the assets that name this campaign in their own app
+
+```bash
+revenexx campaigns-campaigns collect \
+    --id '' \
+    --body '{ "key": "value" }'
+```
+
 ## detach
 
 Release an asset from a campaign

@@ -295,7 +295,7 @@ const updateSpecs: PromptSpec[] = [
   { key: "baseTurnover", option: "--base-turnover <base-turnover>", name: "base_turnover", type: "number", required: false },
   { key: "documentRef", option: "--document-ref <document-ref>", name: "document_ref", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form data kept with the agreement, stored as given.", type: "any", required: false },
-  { key: "turnoverSource", option: "--turnover-source <turnover-source>", name: "turnover_source", type: "string", required: false, enum: ["orders","import"] },
+  { key: "turnoverSource", option: "--turnover-source <turnover-source>", name: "turnover_source", type: "string", required: false, enum: ["orders","import","both"] },
 ];
 loyaltyBonus
   .command(`update`)
@@ -491,17 +491,19 @@ loyaltyBonus
 registerPromptSpecs(loyaltyBonus.commands.at(-1)!, forfeitSpecs, { method: "post" });
 const paySpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", description: "The row id, as it came back from the list.", type: "string", required: true, resource: { listPath: "/loyalty/bonus-agreements", hasLimit: true } },
+  { key: "paidAmount", option: "--paid-amount <paid-amount>", name: "paid_amount", description: "The amount paid out. Required when the payout is recorded with its amount, refused otherwise.", type: "number", required: false },
   { key: "payoutRef", option: "--payout-ref <payout-ref>", name: "payout_ref", description: "The credit note or payment.", type: "string", required: false },
 ];
 loyaltyBonus
   .command(`pay`)
-  .description(`Record that an approved bonus was paid`)
+  .description(`What is recorded follows the tenant setting \`bonus_payout\`: the reference (\`reference\`, the default), the reference and the amount paid (\`amount\`), or nothing (\`off\`: the payout is recorded outside and the route refuses).`)
   .option(`--id <id>`, `The row id, as it came back from the list.`)
+  .option(`--paid-amount <paid-amount>`, `The amount paid out. Required when the payout is recorded with its amount, refused otherwise.`, parseInteger)
   .option(`--payout-ref <payout-ref>`, `The credit note or payment.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, payoutRef } = await promptForMissing(
+        const { id, paidAmount, payoutRef } = await promptForMissing(
           _options,
           paySpecs,
           _command,
@@ -515,6 +517,9 @@ loyaltyBonus
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (paidAmount !== undefined) {
+          _payload[`paid_amount`] = paidAmount;
         }
         if (payoutRef !== undefined) {
           _payload[`payout_ref`] = payoutRef;
@@ -795,7 +800,7 @@ const importSpecs: PromptSpec[] = [
 ];
 loyaltyBonus
   .command(`import`)
-  .description(`At most 500 rows, each one line under its own reference. From the first imported line an agreement counts imported lines only.`)
+  .description(`At most 500 rows, each one line under its own reference. An agreement counting shop orders switches on its first imported line: to imported lines only, or to both when the tenant setting \`turnover_counting\` is \`both\`. When the tenant counts shop orders only, such a line is refused (\`counts_shop_orders\`). A line may name the shop order it invoices (\`order_id\`); counting both, that order then counts once, as the ERP states it.`)
   .option(`--rows [rows...]`, ``)
   .action(
     actionRunner(

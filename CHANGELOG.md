@@ -1,3 +1,6 @@
+## v0.7.11
+- Add 'cube lint': check a Cube against the published schemas and the release rules
+
 ## v0.7.10
 - New: DELETE /v1/integrations/{integrationId}
 - New: DELETE /v1/sites/{siteId}/publish

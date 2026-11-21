@@ -65,7 +65,7 @@ Read one vocabulary
 
 ```bash
 revenexx payments-ledger vocabularies-get \
-    --name connection-states
+    --name checkout-modes
 ```
 
 ## webhooks-ingest

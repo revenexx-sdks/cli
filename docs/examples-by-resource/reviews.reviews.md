@@ -18,6 +18,14 @@ revenexx reviews-reviews create \
     --rating 1
 ```
 
+## backfill-products
+
+Name the product on reviews written without its SKU or name
+
+```bash
+revenexx reviews-reviews backfill-products
+```
+
 ## empty-trash
 
 Empty the review trash, deleting each one for good

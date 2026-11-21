@@ -18,7 +18,7 @@ revenexx reviews-aggregates rebuild
 
 ## review-stars
 
-Read how the review's product is rated, as bar rows
+Read how the review's product is rated
 
 ```bash
 revenexx reviews-aggregates review-stars \

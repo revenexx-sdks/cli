@@ -152,7 +152,9 @@ import { reviewsRequests } from './lib/commands/services/reviews-requests.js';
 import { reviewsReviews } from './lib/commands/services/reviews-reviews.js';
 import { reviewsModeration } from './lib/commands/services/reviews-moderation.js';
 import { reviewsVocabularies } from './lib/commands/services/reviews-vocabularies.js';
+import { salesRepsPortal } from './lib/commands/services/sales-reps-portal.js';
 import { salesRepsCoverage } from './lib/commands/services/sales-reps-coverage.js';
+import { salesRepsSignIn } from './lib/commands/services/sales-reps-sign-in.js';
 import { salesRepsActingFor } from './lib/commands/services/sales-reps-acting-for.js';
 import { salesRepsRoster } from './lib/commands/services/sales-reps-roster.js';
 import { search } from './lib/commands/services/search.js';
@@ -168,6 +170,7 @@ import { tagManagerTags } from './lib/commands/services/tag-manager-tags.js';
 import { about } from './lib/commands/about.js';
 import { create } from "./lib/commands/create.js";
 import { deploy, preview, release } from "./lib/commands/deploy.js";
+import { cube } from "./lib/commands/cube.js";
 import { skills } from './lib/commands/skills.js';
 // Side-effect import: attaches DX-22 alias shapes onto the generated apps Command.
 import './lib/commands/apps-aliases.js';
@@ -473,7 +476,9 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(reviewsReviews)
         .addCommand(reviewsModeration)
         .addCommand(reviewsVocabularies)
+        .addCommand(salesRepsPortal)
         .addCommand(salesRepsCoverage)
+        .addCommand(salesRepsSignIn)
         .addCommand(salesRepsActingFor)
         .addCommand(salesRepsRoster)
         .addCommand(search)
@@ -491,6 +496,7 @@ if (process.argv.includes('-v') || process.argv.includes('--version')) {
         .addCommand(deploy)
         .addCommand(preview)
         .addCommand(release)
+        .addCommand(cube)
         .addCommand(skills)
         .addCommand(client);
 

@@ -128,6 +128,14 @@ revenexx inventories-stock create \
     --location-id ''
 ```
 
+## migrate-products
+
+Link SKU-only records to their catalogue product
+
+```bash
+revenexx inventories-stock migrate-products
+```
+
 ## delete
 
 Delete a stock level row

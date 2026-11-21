@@ -148,7 +148,7 @@ const addressesListSpecs: PromptSpec[] = [
 ];
 customersOrganizations
   .command(`addresses-list`)
-  .description(`A postal address used for billing or for shipping, owned by exactly one of the two parties: an organization (the company address everyone in it may use) or a contact (a private one only that person uses). Both owner columns are nullable and exactly one is set — sending both, or neither, is refused. Every address this tenant holds, filterable by owner (\`organization_id\`, \`contact_id\`), by \`type\` and by any other column. It is how the addresses tab of a company or a person is filled; the page is \`limit\`/\`offset\`/\`order\`.`)
+  .description(`A postal address used for billing or for shipping, owned by exactly one of the two parties: an organization (the company address everyone in it may use) or a contact (a private one only that person uses). Both owner columns are nullable and exactly one is set — sending both, or neither, is refused. Every address this tenant holds, filterable by owner (\`organization_id\`, \`contact_id\`), by \`type\` and by any other column. It is how the addresses tab of a company or a person is filled; the page is \`limit\`/\`offset\`/\`order\`. A SALES REP is answered only the addresses of the organizations they cover (\`organization_id\`): an address held by a contact alone, or by an uncovered organization, is absent from a list and a 404 at its address.`)
   .alias("customers-addresses-list")
   .option(`--id <id>`, `Filter to rows whose \`id\` is exactly this value. Primary key of the address.`)
   .option(`--organization-id <organization-id>`, `Filter to one owning company.`)
@@ -628,7 +628,7 @@ const addressesGetSpecs: PromptSpec[] = [
 ];
 customersOrganizations
   .command(`addresses-get`)
-  .description(`A postal address used for billing or for shipping, owned by exactly one of the two parties: an organization (the company address everyone in it may use) or a contact (a private one only that person uses). Both owner columns are nullable and exactly one is set — sending both, or neither, is refused. One address by id, whichever of the two owners it hangs off.`)
+  .description(`A postal address used for billing or for shipping, owned by exactly one of the two parties: an organization (the company address everyone in it may use) or a contact (a private one only that person uses). Both owner columns are nullable and exactly one is set — sending both, or neither, is refused. One address by id, whichever of the two owners it hangs off. A SALES REP is answered only the addresses of the organizations they cover (\`organization_id\`): an address held by a contact alone, or by an uncovered organization, is absent from a list and a 404 at its address.`)
   .alias("customers-addresses-get")
   .option(`--id <id>`, `The address to read.`)
   .action(
@@ -1614,7 +1614,7 @@ const listSpecs: PromptSpec[] = [
 ];
 customersOrganizations
   .command(`list`)
-  .description(`An organization is a buying COMPANY — the unit a contract, a credit limit, a price list and a payment term belong to, and the unit an order is placed on behalf of. It is not a household and not a person: the people are \`contacts\`, and a company with no contacts yet is a perfectly normal row. Every organization is mirrored into platform auth as a team, so a name written here is the name storefront authentication shows. The company list a sales or service desk works from, and the read a segment rule is written against. Every column of the table is a filter and the page is \`limit\`/\`offset\`/\`order\` — including the two that are constantly confused: \`status\` is ACCESS (active or blocked) and \`lifecycle_stage\` is the sales PIPELINE, so filtering the wrong one answers with the wrong companies rather than with an error.`)
+  .description(`An organization is a buying COMPANY — the unit a contract, a credit limit, a price list and a payment term belong to, and the unit an order is placed on behalf of. It is not a household and not a person: the people are \`contacts\`, and a company with no contacts yet is a perfectly normal row. Every organization is mirrored into platform auth as a team, so a name written here is the name storefront authentication shows. The company list a sales or service desk works from, and the read a segment rule is written against. Every column of the table is a filter and the page is \`limit\`/\`offset\`/\`order\` — including the two that are constantly confused: \`status\` is ACCESS (active or blocked) and \`lifecycle_stage\` is the sales PIPELINE, so filtering the wrong one answers with the wrong companies rather than with an error. A SALES REP (a caller the rep portal asserts) is answered only the organizations they cover in sales-reps: an uncovered one is absent from a list and its total, and a 404 at its address.`)
   .option(`--id <id>`, `Filter to exactly one company. \`GET /customers/organizations/{id}\` is the direct form; this exists because the list honours it too.`)
   .option(`--name <name>`, `Filter by the EXACT company name — this is an equality, not a search. There is no substring or fuzzy match on this API.`)
   .option(`--vat-id <vat-id>`, `Look a company up by its VAT id — the check an integration runs before founding a duplicate.`)
@@ -1986,12 +1986,13 @@ const onboardSpecs: PromptSpec[] = [
   { key: "customerNumber", option: "--customer-number <customer-number>", name: "customer_number", description: "The number the customer quotes.", type: "string", required: false },
   { key: "lifecycleStage", option: "--lifecycle-stage <lifecycle-stage>", name: "lifecycle_stage", description: "A lifecycle stage code; the tenant's default when absent.", type: "string", required: false },
   { key: "paymentTerms", option: "--payment-terms <payment-terms>", name: "payment_terms", description: "A payment terms code; the tenant's default when absent.", type: "string", required: false },
-  { key: "sendInvite", option: "--send-invite <send-invite>", name: "send_invite", description: "Whether the main contact is invited to the shop now. True when absent.", type: "boolean", required: false },
+  { key: "sendInvite", option: "--send-invite <send-invite>", name: "send_invite", description: "Whether the main contact is invited to the shop now. Only `true` invites; absent is false, as in the Cockpit wizard.", type: "boolean", required: false },
+  { key: "url", option: "--url <url>", name: "url", description: "Where the invitation points, as `POST /customers/contacts/{contact_id}/invite` takes it: checked against the tenant's `link_origins`, the first link origin when absent. Only with `send_invite: true`.", type: "string", required: false },
   { key: "vatId", option: "--vat-id <vat-id>", name: "vat_id", description: "The VAT ID.", type: "string", required: false },
 ];
 customersOrganizations
   .command(`onboard`)
-  .description(`Found a business customer the way a merchant thinks of it: the company, its billing address, its main contact — invited to the shop unless told otherwise — and its responsible sales rep, in one call. The company and the person go through the same checks their plain creates run; a failure after the company exists takes everything this call founded back out. The sales rep is best effort: an unknown code or an unreachable sales-reps app founds the customer without one.`)
+  .description(`Found a business customer the way a merchant thinks of it: the company, its billing address, its main contact — invited to the shop when \`send_invite\` is true — and its responsible sales rep, in one call. The company and the person go through the same checks their plain creates run; a failure after the company exists takes everything this call founded back out. The sales rep is best effort: an unknown code or an unreachable sales-reps app founds the customer without one.`)
   .option(`--name <name>`, `The company name.`)
   .option(`--account-manager <account-manager>`, `The responsible sales rep's code.`)
   .option(`--billing-city <billing-city>`, `Billing address: city.`)
@@ -2010,15 +2011,16 @@ customersOrganizations
   .option(`--payment-terms <payment-terms>`, `A payment terms code; the tenant's default when absent.`)
   .option(
     `--send-invite [value]`,
-    `Whether the main contact is invited to the shop now. True when absent.`,
+    `Whether the main contact is invited to the shop now. Only \`true\` invites; absent is false, as in the Cockpit wizard.`,
     (value: string | undefined) =>
       value === undefined ? true : parseBool(value),
   )
+  .option(`--url <url>`, `Where the invitation points, as \`POST /customers/contacts/{contact_id}/invite\` takes it: checked against the tenant's \`link_origins\`, the first link origin when absent. Only with \`send_invite: true\`.`)
   .option(`--vat-id <vat-id>`, `The VAT ID.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { name, accountManager, billingCity, billingCountry, billingStreet, billingZip, branche, contactEmail, contactFirstName, contactJobTitle, contactLastName, contactPhone, contactRole, customerNumber, lifecycleStage, paymentTerms, sendInvite, vatId } = await promptForMissing(
+        const { name, accountManager, billingCity, billingCountry, billingStreet, billingZip, branche, contactEmail, contactFirstName, contactJobTitle, contactLastName, contactPhone, contactRole, customerNumber, lifecycleStage, paymentTerms, sendInvite, url, vatId } = await promptForMissing(
           _options,
           onboardSpecs,
           _command,
@@ -2083,6 +2085,9 @@ customersOrganizations
         }
         if (sendInvite !== undefined) {
           _payload[`send_invite`] = sendInvite;
+        }
+        if (url !== undefined) {
+          _payload[`url`] = url;
         }
         if (vatId !== undefined) {
           _payload[`vat_id`] = vatId;
@@ -2161,7 +2166,7 @@ const getSpecs: PromptSpec[] = [
 ];
 customersOrganizations
   .command(`get`)
-  .description(`An organization is a buying COMPANY — the unit a contract, a credit limit, a price list and a payment term belong to, and the unit an order is placed on behalf of. It is not a household and not a person: the people are \`contacts\`, and a company with no contacts yet is a perfectly normal row. Every organization is mirrored into platform auth as a team, so a name written here is the name storefront authentication shows. One company by id, with its commercial terms as stored. What it has BOUGHT is not in here — that is the \`organization_metrics\` row for the same id, refreshed on its own schedule.`)
+  .description(`An organization is a buying COMPANY — the unit a contract, a credit limit, a price list and a payment term belong to, and the unit an order is placed on behalf of. It is not a household and not a person: the people are \`contacts\`, and a company with no contacts yet is a perfectly normal row. Every organization is mirrored into platform auth as a team, so a name written here is the name storefront authentication shows. One company by id, with its commercial terms as stored. What it has BOUGHT is not in here — that is the \`organization_metrics\` row for the same id, refreshed on its own schedule. A SALES REP (a caller the rep portal asserts) is answered only the organizations they cover in sales-reps: an uncovered one is absent from a list and its total, and a 404 at its address.`)
   .option(`--id <id>`, `The organization to read.`)
   .action(
     actionRunner(

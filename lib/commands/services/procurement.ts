@@ -1036,6 +1036,7 @@ const purchaseRequestItemsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact-match filter on the key the system that owns or mirrors the purchase request line knows it by — how an import finds the row it wrote last run instead of opening a second one. Unique per tenant, so this answers at most one purchase request line; one nobody imported matches nothing.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 procurement
@@ -1044,6 +1045,7 @@ procurement
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(`--external-id <external-id>`, `Exact-match filter on the key the system that owns or mirrors the purchase request line knows it by — how an import finds the row it wrote last run instead of opening a second one. Unique per tenant, so this answers at most one purchase request line; one nobody imported matches nothing.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -1053,7 +1055,7 @@ procurement
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, filter } = await promptForMissing(
+        const { limit, offset, order, externalId, filter } = await promptForMissing(
           _options,
           purchaseRequestItemsListSpecs,
           _command,
@@ -1069,6 +1071,9 @@ procurement
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -1097,6 +1102,8 @@ const purchaseRequestItemsCreateSpecs: PromptSpec[] = [
   { key: "quantity", option: "--quantity <quantity>", name: "quantity", type: "number", required: true },
   { key: "configuration", option: "--configuration <configuration>", name: "configuration", type: "object", required: false },
   { key: "costCenter", option: "--cost-center <cost-center>", name: "cost_center", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this purchase request line has in the system that OWNS or mirrors it — rarely this app's own number. Unique per tenant where it is set (a second purchase request line with the same key is a 409), so a repeated import finds the row it wrote instead of opening another; `?external_id=` on the list is how it finds it. Not `external_ref`, which is the readable document number. Writable in every state of the request: it describes the purchase request line, not the spend.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this purchase request line, keyed by system name. `external_id` names the leading system; this is the rest, and the next one costs no column. Answered on read and carrying no query parameter: the store compares such a field as a WHOLE document, so a filter over part of one is refused. Look the row up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "lineTotal", option: "--line-total <line-total>", name: "line_total", type: "number", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", type: "object", required: false },
   { key: "position", option: "--position <position>", name: "position", type: "integer", required: false },
@@ -1104,6 +1111,8 @@ const purchaseRequestItemsCreateSpecs: PromptSpec[] = [
   { key: "product", option: "--product <product>", name: "product", type: "object", required: false },
   { key: "productId", option: "--product-id <product-id>", name: "product_id", type: "string", required: false },
   { key: "sku", option: "--sku <sku>", name: "sku", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this purchase request line, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to send back in `If-Match`; `raw` holds the source fields this app does not model, so a correction here does not throw them away. Replaced wholesale, never merged.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this purchase request line was last confirmed against its source. A delta run asks the source for what changed since it. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed.", type: "string", required: false },
   { key: "taxAmount", option: "--tax-amount <tax-amount>", name: "tax_amount", type: "number", required: false },
   { key: "taxRate", option: "--tax-rate <tax-rate>", name: "tax_rate", type: "number", required: false },
   { key: "type", option: "--type <type>", name: "type", type: "string", required: false, enum: ["product","configuration","custom"] },
@@ -1119,6 +1128,8 @@ procurement
   .option(`--quantity <quantity>`, ``, parseInteger)
   .option(`--configuration <configuration>`, ``)
   .option(`--cost-center <cost-center>`, ``)
+  .option(`--external-id <external-id>`, `The key this purchase request line has in the system that OWNS or mirrors it — rarely this app's own number. Unique per tenant where it is set (a second purchase request line with the same key is a 409), so a repeated import finds the row it wrote instead of opening another; \`?external_id=\` on the list is how it finds it. Not \`external_ref\`, which is the readable document number. Writable in every state of the request: it describes the purchase request line, not the spend.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this purchase request line, keyed by system name. \`external_id\` names the leading system; this is the rest, and the next one costs no column. Answered on read and carrying no query parameter: the store compares such a field as a WHOLE document, so a filter over part of one is refused. Look the row up by \`external_id\` and read this off the answer.`)
   .option(`--line-total <line-total>`, ``, parseInteger)
   .option(`--metadata <metadata>`, ``)
   .option(`--position <position>`, ``, parseInteger)
@@ -1126,6 +1137,8 @@ procurement
   .option(`--product <product>`, ``)
   .option(`--product-id <product-id>`, ``)
   .option(`--sku <sku>`, ``)
+  .option(`--source-data <source-data>`, `What the source said about this purchase request line, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to send back in \`If-Match\`; \`raw\` holds the source fields this app does not model, so a correction here does not throw them away. Replaced wholesale, never merged.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this purchase request line was last confirmed against its source. A delta run asks the source for what changed since it. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed.`)
   .option(`--tax-amount <tax-amount>`, ``, parseInteger)
   .option(`--tax-rate <tax-rate>`, ``, parseInteger)
   .option(`--type <type>`, ``)
@@ -1135,7 +1148,7 @@ procurement
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { name, purchaseRequestId, quantity, configuration, costCenter, lineTotal, metadata, position, positionText, product, productId, sku, taxAmount, taxRate, type, unit, unitPrice, userData } = await promptForMissing(
+        const { name, purchaseRequestId, quantity, configuration, costCenter, externalId, externalRefs, lineTotal, metadata, position, positionText, product, productId, sku, sourceData, sourceSyncedAt, taxAmount, taxRate, type, unit, unitPrice, userData } = await promptForMissing(
           _options,
           purchaseRequestItemsCreateSpecs,
           _command,
@@ -1155,6 +1168,12 @@ procurement
         }
         if (costCenter !== undefined) {
           _payload[`cost_center`] = costCenter;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
         }
         if (lineTotal !== undefined) {
           _payload[`line_total`] = lineTotal;
@@ -1185,6 +1204,12 @@ procurement
         }
         if (sku !== undefined) {
           _payload[`sku`] = sku;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (taxAmount !== undefined) {
           _payload[`tax_amount`] = taxAmount;
@@ -1287,6 +1312,8 @@ const purchaseRequestItemsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/procurement/purchase-request-items", hasLimit: true } },
   { key: "configuration", option: "--configuration <configuration>", name: "configuration", type: "object", required: false },
   { key: "costCenter", option: "--cost-center <cost-center>", name: "cost_center", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this purchase request line has in the system that OWNS or mirrors it — rarely this app's own number. Unique per tenant where it is set (a second purchase request line with the same key is a 409), so a repeated import finds the row it wrote instead of opening another; `?external_id=` on the list is how it finds it. Not `external_ref`, which is the readable document number. Writable in every state of the request: it describes the purchase request line, not the spend.", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this purchase request line, keyed by system name. `external_id` names the leading system; this is the rest, and the next one costs no column. Answered on read and carrying no query parameter: the store compares such a field as a WHOLE document, so a filter over part of one is refused. Look the row up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "lineTotal", option: "--line-total <line-total>", name: "line_total", type: "number", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", type: "object", required: false },
   { key: "name", option: "--name <name>", name: "name", type: "string", required: false },
@@ -1297,6 +1324,8 @@ const purchaseRequestItemsUpdateSpecs: PromptSpec[] = [
   { key: "purchaseRequestId", option: "--purchase-request-id <purchase-request-id>", name: "purchase_request_id", type: "string", required: false },
   { key: "quantity", option: "--quantity <quantity>", name: "quantity", type: "number", required: false },
   { key: "sku", option: "--sku <sku>", name: "sku", type: "string", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this purchase request line, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to send back in `If-Match`; `raw` holds the source fields this app does not model, so a correction here does not throw them away. Replaced wholesale, never merged.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this purchase request line was last confirmed against its source. A delta run asks the source for what changed since it. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed.", type: "string", required: false },
   { key: "taxAmount", option: "--tax-amount <tax-amount>", name: "tax_amount", type: "number", required: false },
   { key: "taxRate", option: "--tax-rate <tax-rate>", name: "tax_rate", type: "number", required: false },
   { key: "type", option: "--type <type>", name: "type", type: "string", required: false, enum: ["product","configuration","custom"] },
@@ -1310,6 +1339,8 @@ procurement
   .option(`--id <id>`, ``)
   .option(`--configuration <configuration>`, ``)
   .option(`--cost-center <cost-center>`, ``)
+  .option(`--external-id <external-id>`, `The key this purchase request line has in the system that OWNS or mirrors it — rarely this app's own number. Unique per tenant where it is set (a second purchase request line with the same key is a 409), so a repeated import finds the row it wrote instead of opening another; \`?external_id=\` on the list is how it finds it. Not \`external_ref\`, which is the readable document number. Writable in every state of the request: it describes the purchase request line, not the spend.`)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this purchase request line, keyed by system name. \`external_id\` names the leading system; this is the rest, and the next one costs no column. Answered on read and carrying no query parameter: the store compares such a field as a WHOLE document, so a filter over part of one is refused. Look the row up by \`external_id\` and read this off the answer.`)
   .option(`--line-total <line-total>`, ``, parseInteger)
   .option(`--metadata <metadata>`, ``)
   .option(`--name <name>`, ``)
@@ -1320,6 +1351,8 @@ procurement
   .option(`--purchase-request-id <purchase-request-id>`, ``)
   .option(`--quantity <quantity>`, ``, parseInteger)
   .option(`--sku <sku>`, ``)
+  .option(`--source-data <source-data>`, `What the source said about this purchase request line, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to send back in \`If-Match\`; \`raw\` holds the source fields this app does not model, so a correction here does not throw them away. Replaced wholesale, never merged.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this purchase request line was last confirmed against its source. A delta run asks the source for what changed since it. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed.`)
   .option(`--tax-amount <tax-amount>`, ``, parseInteger)
   .option(`--tax-rate <tax-rate>`, ``, parseInteger)
   .option(`--type <type>`, ``)
@@ -1329,7 +1362,7 @@ procurement
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, configuration, costCenter, lineTotal, metadata, name, position, positionText, product, productId, purchaseRequestId, quantity, sku, taxAmount, taxRate, type, unit, unitPrice, userData } = await promptForMissing(
+        const { id, configuration, costCenter, externalId, externalRefs, lineTotal, metadata, name, position, positionText, product, productId, purchaseRequestId, quantity, sku, sourceData, sourceSyncedAt, taxAmount, taxRate, type, unit, unitPrice, userData } = await promptForMissing(
           _options,
           purchaseRequestItemsUpdateSpecs,
           _command,
@@ -1349,6 +1382,12 @@ procurement
         }
         if (costCenter !== undefined) {
           _payload[`cost_center`] = costCenter;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
         }
         if (lineTotal !== undefined) {
           _payload[`line_total`] = lineTotal;
@@ -1379,6 +1418,12 @@ procurement
         }
         if (sku !== undefined) {
           _payload[`sku`] = sku;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (taxAmount !== undefined) {
           _payload[`tax_amount`] = taxAmount;
@@ -1416,6 +1461,7 @@ const purchaseRequestsListSpecs: PromptSpec[] = [
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.", type: "string", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Exact-match filter on the key the system that owns or mirrors the purchase request knows it by — how an import finds the row it wrote last run instead of opening a second one. Unique per tenant, so this answers at most one purchase request; one nobody imported matches nothing.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 procurement
@@ -1424,6 +1470,7 @@ procurement
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort as 'column.asc' | 'column.desc', e.g. 'created_at.desc'.`)
+  .option(`--external-id <external-id>`, `Exact-match filter on the key the system that owns or mirrors the purchase request knows it by — how an import finds the row it wrote last run instead of opening a second one. Unique per tenant, so this answers at most one purchase request; one nobody imported matches nothing.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -1433,7 +1480,7 @@ procurement
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, filter } = await promptForMissing(
+        const { limit, offset, order, externalId, filter } = await promptForMissing(
           _options,
           purchaseRequestsListSpecs,
           _command,
@@ -1449,6 +1496,9 @@ procurement
         }
         if (order !== undefined) {
           _payload[`order`] = order;
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -1471,6 +1521,39 @@ procurement
     ),
   );
 registerPromptSpecs(procurement.commands.at(-1)!, purchaseRequestsListSpecs, { method: "get" });
+const purchaseRequestsDeleteSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/procurement/purchase-requests", hasLimit: true } },
+];
+procurement
+  .command(`purchase-requests-delete`)
+  .description(`Removes a request that holds no lines and no approvals — one nothing was submitted, reserved or signed for (RAD-427). A request with lines or approvals is refused with 409 \`request_has_lines\` / \`request_has_approvals\`, \`details: { lines, approvals }\`: cancel it instead. Answers \`{ deleted: true, id }\`.`)
+  .option(`--id <id>`, ``)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          purchaseRequestsDeleteSpecs,
+          _command,
+        );
+        await confirmDestructive(`procurement purchase-requests-delete`);
+        const _client = await sdkForProject();
+        const _apiPath = `/procurement/purchase-requests/{id}`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `delete`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(procurement.commands.at(-1)!, purchaseRequestsDeleteSpecs, { method: "delete", destructive: true });
 const purchaseRequestsGetSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/procurement/purchase-requests", hasLimit: true } },
 ];
@@ -1506,13 +1589,18 @@ registerPromptSpecs(procurement.commands.at(-1)!, purchaseRequestsGetSpecs, { me
 const purchaseRequestsUpdateSpecs: PromptSpec[] = [
   { key: "id", option: "--id <id>", name: "id", type: "string", required: true, resource: { listPath: "/procurement/purchase-requests", hasLimit: true } },
   { key: "billingAddress", option: "--billing-address <billing-address>", name: "billing_address", description: "An address of the platform address type (customers, https://schemas.revenexx.com/apps/customers/address/). The old flat shape (street, zip, city, country, …) and the storefront shape (companyName, contactName, postalCode, id) are accepted and stored as the type; an `id` becomes `source_address_id`; an invalid address is refused (400) naming the field. From submission on it carries `formatted` (the lines as printed) and `source_address_id`. Reads answer the type plus the old flat keys derived from it, until the storefront moves. Not correctable once the request is ordered (409).", type: "object", required: false },
+  { key: "budgetBasis", option: "--budget-basis <budget-basis>", name: "budget_basis", type: "string", required: false, enum: ["discounted"] },
   { key: "buyer", option: "--buyer <buyer>", name: "buyer", type: "object", required: false },
   { key: "cartId", option: "--cart-id <cart-id>", name: "cart_id", type: "string", required: false },
   { key: "channelId", option: "--channel-id <channel-id>", name: "channel_id", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", type: "string", required: false },
   { key: "currency", option: "--currency <currency>", name: "currency", type: "string", required: false },
   { key: "customerOrderNumber", option: "--customer-order-number <customer-order-number>", name: "customer_order_number", type: "string", required: false },
+  { key: "discountIncludesZeroRated", option: "--discount-includes-zero-rated <discount-includes-zero-rated>", name: "discount_includes_zero_rated", type: "boolean", required: false },
+  { key: "discounts", option: "--discounts <discounts>", name: "discounts", type: "object", required: false },
+  { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this purchase request has in the system that OWNS or mirrors it — rarely this app's own number. Unique per tenant where it is set (a second purchase request with the same key is a 409), so a repeated import finds the row it wrote instead of opening another; `?external_id=` on the list is how it finds it. Not `external_ref`, which is the readable document number. Writable in every state of the request: it describes the purchase request, not the spend.", type: "string", required: false },
   { key: "externalRef", option: "--external-ref <external-ref>", name: "external_ref", type: "string", required: false },
+  { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this purchase request, keyed by system name. `external_id` names the leading system; this is the rest, and the next one costs no column. Answered on read and carrying no query parameter: the store compares such a field as a WHOLE document, so a filter over part of one is refused. Look the row up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "grandTotal", option: "--grand-total <grand-total>", name: "grand_total", type: "number", required: false },
   { key: "itemCount", option: "--item-count <item-count>", name: "item_count", type: "integer", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", type: "object", required: false },
@@ -1523,6 +1611,8 @@ const purchaseRequestsUpdateSpecs: PromptSpec[] = [
   { key: "shipping", option: "--shipping <shipping>", name: "shipping", type: "object", required: false },
   { key: "shippingAddress", option: "--shipping-address <shipping-address>", name: "shipping_address", description: "An address of the platform address type (customers, https://schemas.revenexx.com/apps/customers/address/). The old flat shape (street, zip, city, country, …) and the storefront shape (companyName, contactName, postalCode, id) are accepted and stored as the type; an `id` becomes `source_address_id`; an invalid address is refused (400) naming the field. From submission on it carries `formatted` (the lines as printed) and `source_address_id`. Reads answer the type plus the old flat keys derived from it, until the storefront moves. Not correctable once the request is ordered (409).", type: "object", required: false },
   { key: "shippingTotal", option: "--shipping-total <shipping-total>", name: "shipping_total", type: "number", required: false },
+  { key: "sourceData", option: "--source-data <source-data>", name: "source_data", description: "What the source said about this purchase request, kept as it said it: `{\"system\": …, \"etag\": …, \"raw\": {…}}`. The `etag` is what a write-back has to send back in `If-Match`; `raw` holds the source fields this app does not model, so a correction here does not throw them away. Replaced wholesale, never merged.", type: "object", required: false },
+  { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "When this purchase request was last confirmed against its source. A delta run asks the source for what changed since it. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed.", type: "string", required: false },
   { key: "subtotal", option: "--subtotal <subtotal>", name: "subtotal", type: "number", required: false },
   { key: "taxTotal", option: "--tax-total <tax-total>", name: "tax_total", type: "number", required: false },
   { key: "userData", option: "--user-data <user-data>", name: "user_data", type: "object", required: false },
@@ -1532,13 +1622,23 @@ procurement
   .description(`Update a purchase request`)
   .option(`--id <id>`, ``)
   .option(`--billing-address <billing-address>`, `An address of the platform address type (customers, https://schemas.revenexx.com/apps/customers/address/). The old flat shape (street, zip, city, country, …) and the storefront shape (companyName, contactName, postalCode, id) are accepted and stored as the type; an \`id\` becomes \`source_address_id\`; an invalid address is refused (400) naming the field. From submission on it carries \`formatted\` (the lines as printed) and \`source_address_id\`. Reads answer the type plus the old flat keys derived from it, until the storefront moves. Not correctable once the request is ordered (409).`)
+  .option(`--budget-basis <budget-basis>`, ``)
   .option(`--buyer <buyer>`, ``)
   .option(`--cart-id <cart-id>`, ``)
   .option(`--channel-id <channel-id>`, ``)
   .option(`--contact-id <contact-id>`, ``)
   .option(`--currency <currency>`, ``)
   .option(`--customer-order-number <customer-order-number>`, ``)
+  .option(
+    `--discount-includes-zero-rated [value]`,
+    ``,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
+  .option(`--discounts <discounts>`, ``)
+  .option(`--external-id <external-id>`, `The key this purchase request has in the system that OWNS or mirrors it — rarely this app's own number. Unique per tenant where it is set (a second purchase request with the same key is a 409), so a repeated import finds the row it wrote instead of opening another; \`?external_id=\` on the list is how it finds it. Not \`external_ref\`, which is the readable document number. Writable in every state of the request: it describes the purchase request, not the spend.`)
   .option(`--external-ref <external-ref>`, ``)
+  .option(`--external-refs <external-refs>`, `Every OTHER system that knows this purchase request, keyed by system name. \`external_id\` names the leading system; this is the rest, and the next one costs no column. Answered on read and carrying no query parameter: the store compares such a field as a WHOLE document, so a filter over part of one is refused. Look the row up by \`external_id\` and read this off the answer.`)
   .option(`--grand-total <grand-total>`, ``, parseInteger)
   .option(`--item-count <item-count>`, ``, parseInteger)
   .option(`--metadata <metadata>`, ``)
@@ -1549,13 +1649,15 @@ procurement
   .option(`--shipping <shipping>`, ``)
   .option(`--shipping-address <shipping-address>`, `An address of the platform address type (customers, https://schemas.revenexx.com/apps/customers/address/). The old flat shape (street, zip, city, country, …) and the storefront shape (companyName, contactName, postalCode, id) are accepted and stored as the type; an \`id\` becomes \`source_address_id\`; an invalid address is refused (400) naming the field. From submission on it carries \`formatted\` (the lines as printed) and \`source_address_id\`. Reads answer the type plus the old flat keys derived from it, until the storefront moves. Not correctable once the request is ordered (409).`)
   .option(`--shipping-total <shipping-total>`, ``, parseInteger)
+  .option(`--source-data <source-data>`, `What the source said about this purchase request, kept as it said it: \`{"system": …, "etag": …, "raw": {…}}\`. The \`etag\` is what a write-back has to send back in \`If-Match\`; \`raw\` holds the source fields this app does not model, so a correction here does not throw them away. Replaced wholesale, never merged.`)
+  .option(`--source-synced-at <source-synced-at>`, `When this purchase request was last confirmed against its source. A delta run asks the source for what changed since it. An edit made HERE does not touch it — it records when the source was last seen, not when the row changed.`)
   .option(`--subtotal <subtotal>`, ``, parseInteger)
   .option(`--tax-total <tax-total>`, ``, parseInteger)
   .option(`--user-data <user-data>`, ``)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, billingAddress, buyer, cartId, channelId, contactId, currency, customerOrderNumber, externalRef, grandTotal, itemCount, metadata, number, organizationId, payment, senderCountry, shipping, shippingAddress, shippingTotal, subtotal, taxTotal, userData } = await promptForMissing(
+        const { id, billingAddress, budgetBasis, buyer, cartId, channelId, contactId, currency, customerOrderNumber, discountIncludesZeroRated, discounts, externalId, externalRef, externalRefs, grandTotal, itemCount, metadata, number, organizationId, payment, senderCountry, shipping, shippingAddress, shippingTotal, sourceData, sourceSyncedAt, subtotal, taxTotal, userData } = await promptForMissing(
           _options,
           purchaseRequestsUpdateSpecs,
           _command,
@@ -1572,6 +1674,9 @@ procurement
         }
         if (billingAddress !== undefined) {
           _payload[`billing_address`] = resolveBodyParam(billingAddress);
+        }
+        if (budgetBasis !== undefined) {
+          _payload[`budget_basis`] = budgetBasis;
         }
         if (buyer !== undefined) {
           _payload[`buyer`] = resolveBodyParam(buyer);
@@ -1591,8 +1696,20 @@ procurement
         if (customerOrderNumber !== undefined) {
           _payload[`customer_order_number`] = customerOrderNumber;
         }
+        if (discountIncludesZeroRated !== undefined) {
+          _payload[`discount_includes_zero_rated`] = discountIncludesZeroRated;
+        }
+        if (discounts !== undefined) {
+          _payload[`discounts`] = resolveBodyParam(discounts);
+        }
+        if (externalId !== undefined) {
+          _payload[`external_id`] = externalId;
+        }
         if (externalRef !== undefined) {
           _payload[`external_ref`] = externalRef;
+        }
+        if (externalRefs !== undefined) {
+          _payload[`external_refs`] = resolveBodyParam(externalRefs);
         }
         if (grandTotal !== undefined) {
           _payload[`grand_total`] = grandTotal;
@@ -1623,6 +1740,12 @@ procurement
         }
         if (shippingTotal !== undefined) {
           _payload[`shipping_total`] = shippingTotal;
+        }
+        if (sourceData !== undefined) {
+          _payload[`source_data`] = resolveBodyParam(sourceData);
+        }
+        if (sourceSyncedAt !== undefined) {
+          _payload[`source_synced_at`] = sourceSyncedAt;
         }
         if (subtotal !== undefined) {
           _payload[`subtotal`] = subtotal;

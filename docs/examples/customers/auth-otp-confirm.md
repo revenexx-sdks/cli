@@ -1,5 +1,5 @@
 ```bash
 revenexx customers auth-otp-confirm \
-    --secret '' \
-    --user-id ''
+    --email einkauf@example.com \
+    --secret ''
 ```

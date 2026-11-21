@@ -94,7 +94,7 @@ revenexx marketing-consents-evidence lapse-run \
 
 ## sweep-run
 
-Read what the event bus does not deliver yet
+Catch up on announcements that did not arrive
 
 ```bash
 revenexx marketing-consents-evidence sweep-run \

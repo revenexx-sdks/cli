@@ -74,7 +74,7 @@ const triggersSpecs: PromptSpec[] = [
 ];
 journeysJobs
   .command(`triggers`)
-  .description(`Date triggers that are due today, then the three-hour sweep over carts, orders, subscriptions and audience joins standing in for undelivered announcements (PE-748). Also the hourly schedule run-triggers.`)
+  .description(`Date triggers that are due today, then the three-hour sweep over carts, orders, subscriptions and audience joins. The sweep is an idempotent backstop to the delivered announcements: it hands each row to the same handler under the same key, so an announcement and its swept row never act twice, and one the platform failed to deliver is still acted on within the hour. The answer also names the templates whose availability the run corrected (\`templates_settled\`). Also the hourly schedule run-triggers.`)
   .option(
     `--jobs-force [value]`,
     `Run date triggers again today, before their time.`,

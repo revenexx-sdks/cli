@@ -254,6 +254,7 @@ const submissionsListSpecs: PromptSpec[] = [
   { key: "pageUrl", option: "--page-url <page-url>", name: "page_url", description: "Filter to one page, by its exact URL.", type: "string", required: false },
   { key: "campaignRef", option: "--campaign-ref <campaign-ref>", name: "campaign_ref", description: "Filter to the submissions one campaign brought in.", type: "string", required: false },
   { key: "leadStage", option: "--lead-stage <lead-stage>", name: "lead_stage", description: "Filter to the submissions filed at one contact stage.", type: "string", required: false },
+  { key: "isPreview", option: "--is-preview <is-preview>", name: "is_preview", description: "Filter to the test submissions sent from a form preview (`?is_preview=true`), or to the real ones (`?is_preview=false`).", type: "boolean", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Filter to submissions that arrived at EXACTLY this instant. Equality, not a range, so this is not how a date span is read — sort (`order=created_at.desc`) and page for that, and use POST /forms/submissions/prune for anything age-based.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Filter to submissions last written at EXACTLY this instant — the same equality-not-range caveat as `created_at`.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size. Default 50; a value above 200 is clamped to 200 rather than refused, and `page.limit` says what was applied.", type: "integer", required: false },
@@ -277,6 +278,12 @@ Paging is \`limit\`/\`offset\` with a single-column \`order\`: the default page 
   .option(`--page-url <page-url>`, `Filter to one page, by its exact URL.`)
   .option(`--campaign-ref <campaign-ref>`, `Filter to the submissions one campaign brought in.`)
   .option(`--lead-stage <lead-stage>`, `Filter to the submissions filed at one contact stage.`)
+  .option(
+    `--is-preview [value]`,
+    `Filter to the test submissions sent from a form preview (\`?is_preview=true\`), or to the real ones (\`?is_preview=false\`).`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--created-at <created-at>`, `Filter to submissions that arrived at EXACTLY this instant. Equality, not a range, so this is not how a date span is read — sort (\`order=created_at.desc\`) and page for that, and use POST /forms/submissions/prune for anything age-based.`)
   .option(`--updated-at <updated-at>`, `Filter to submissions last written at EXACTLY this instant — the same equality-not-range caveat as \`created_at\`.`)
   .option(`--limit <limit>`, `Page size. Default 50; a value above 200 is clamped to 200 rather than refused, and \`page.limit\` says what was applied.`, parseInteger)
@@ -291,7 +298,7 @@ Paging is \`limit\`/\`offset\` with a single-column \`order\`: the default page 
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, formId, formSlug, source, status, contactId, pageUrl, campaignRef, leadStage, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { id, formId, formSlug, source, status, contactId, pageUrl, campaignRef, leadStage, isPreview, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
           _options,
           submissionsListSpecs,
           _command,
@@ -325,6 +332,9 @@ Paging is \`limit\`/\`offset\` with a single-column \`order\`: the default page 
         }
         if (leadStage !== undefined) {
           _payload[`lead_stage`] = leadStage;
+        }
+        if (isPreview !== undefined) {
+          _payload[`is_preview`] = isPreview;
         }
         if (createdAt !== undefined) {
           _payload[`created_at`] = createdAt;
@@ -365,11 +375,13 @@ registerPromptSpecs(forms.commands.at(-1)!, submissionsListSpecs, { method: "get
 const submissionsCreateSpecs: PromptSpec[] = [
   { key: "submissionData", option: "--submission-data <submission-data>", name: "data", description: "What the visitor typed — the substance of the submission, and the reason this row is the payload of `form.submitted`.\n\nIt is an object keyed by the `name` of the definition node that collected each value, so the keys of a submission are the named nodes of its form's `definition` and nothing else. There is no fixed set of keys across forms: a contact form yields `{name, email, message}`, a price request whatever its operator built.\n\nThe VALUE type follows the input type, which is why this object is not typed further: a `text`, `email` or `textarea` yields a string, a `number` a number, a single `checkbox` a boolean, a `select`/`radio` the chosen option value, a multi-select or a checkbox set an array of them, and a `group` or `list` input nests an object or an array under its own name. Nothing coerces them — a value arrives as the storefront sent it and is stored as jsonb.\n\nTwo values are NOT here: the honeypot field, if the tenant configured one, is stripped before the row is written (it is a trap, not an answer the visitor gave), and the resolved notification recipient lives in `metadata`, not in what somebody typed.", type: "object", required: true },
   { key: "formId", option: "--form-id <form-id>", name: "form_id", description: "The form this submission was made against. It is resolved at insert, so an id no form in this tenant holds is a 404 and nothing is stored — a submission with no form is a lead nobody can read. Required on a create: it is the only thing that says which form was filled in.", type: "string", required: true },
+  { key: "attribution", option: "--attribution <attribution>", name: "attribution", description: "Create only: where the visitor came from — the storefront's attribution object, the same one a cart carries (UTM values, `click_id` with its `click_id_kind`, `consent: { ads, analytics, policy_version, purposes? }`). An unknown key, a click id without its kind or a malformed value is refused with 400 and the field named; nothing is stored then. Stored as `attribution`, and handed with each ticked consent to the consent app.", type: "object", required: false },
   { key: "campaignRef", option: "--campaign-ref <campaign-ref>", name: "campaign_ref", description: "Create only: the campaign the visitor came through, when the storefront resolved one from the UTM campaign. Used only when the form itself belongs to no campaign.", type: "string", required: false },
   { key: "ip", option: "--ip <ip>", name: "ip", description: "Create only: the visitor's address, handed to the consent app as proof of the opt-in and NOT stored on the submission.", type: "string", required: false },
   { key: "locale", option: "--locale <locale>", name: "locale", description: "Create only: the language the visitor read the form in — handed to the consent app for the confirmation mail.", type: "string", required: false },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form metadata, yours to key as an integration needs. The resolved notification recipient is merged OVER it at insert, so `notify_email` and `notify_source` sent here are overwritten — see the `FormSubmissionMetadata` schema.", type: "object", required: false },
   { key: "pageUrl", option: "--page-url <page-url>", name: "page_url", description: "Create only: the page the form was sent from. Stored as `page_url`.", type: "string", required: false },
+  { key: "previewToken", option: "--preview-token <preview-token>", name: "preview_token", description: "Create only: the token of a preview grant from `POST /v1/forms/{id}/preview-grant`. With a valid one for this form, a draft form accepts the submission and it is recorded as a test submission (`is_preview: true`). A token that is expired, unknown or issued for another form is refused with 422, on a live form too. Not stored on the submission.", type: "string", required: false, secret: true },
   { key: "source", option: "--source <source>", name: "source", description: "Where the submission came from. The storefront sends the `window.location.pathname` of the page that carried the form, so this is normally a path rather than an absolute URL; any other surface (an app, an import) puts its own name here. Null when the caller sent none.", type: "string", required: false },
   { key: "userAgent", option: "--user-agent <user-agent>", name: "user_agent", description: "Create only: the visitor's browser, handed to the consent app with the opt-in and NOT stored on the submission.", type: "string", required: false },
 ];
@@ -377,7 +389,7 @@ forms
   .command(`submissions-create`)
   .description(`The storefront's path, and the moment a lead enters the platform. A stored submission emits \`form.submitted\` onto the tenant event bus with the row itself as the payload — that is the event an Integration Studio workflow or a notification email listens to, and it is the only event this app raises about a submission. A call that is refused therefore leaves no trace anywhere: no row, and no automation that ever hears about it.
 
-Only a \`live\` form accepts submissions: a draft is still being built and an archived form is no longer offered, so either is a 422 and nothing is stored. A submission arrives \`new\` — or \`spam\` when the honeypot caught it — and is filed under its form's own slug; a body that names a \`status\` or a \`form_slug\` is not refused, and neither is read. Triage is the inbox's, and which form collected a lead is the form's.
+Only a \`live\` form accepts submissions: a draft is still being built and an archived form is no longer offered, so either is a 422 and nothing is stored. The exception is a preview: a draft accepts a submission that carries \`preview_token\`, a valid grant for that form from \`POST /v1/forms/{id}/preview-grant\`. It is recorded with \`is_preview: true\`, announced like any other, files no contact and signs nobody up. An archived form refuses it all the same. A submission arrives \`new\` — or \`spam\` when the honeypot caught it — and is filed under its form's own slug; a body that names a \`status\` or a \`form_slug\` is not refused, and neither is read. Triage is the inbox's, and which form collected a lead is the form's.
 
 It is also the only moment anything is known about a submission, so the tenant's policy is applied here. If honeypot_field names a decoy and the submission filled it in, the field is stripped — it is a trap, not an answer the visitor gave, so it never reaches \`data\` — and spam_handling (flag | reject) decides between storing the row as 'spam' and refusing outright with 422.
 
@@ -390,17 +402,19 @@ The VALUE type follows the input type, which is why this object is not typed fur
 
 Two values are NOT here: the honeypot field, if the tenant configured one, is stripped before the row is written (it is a trap, not an answer the visitor gave), and the resolved notification recipient lives in \`metadata\`, not in what somebody typed.`)
   .option(`--form-id <form-id>`, `The form this submission was made against. It is resolved at insert, so an id no form in this tenant holds is a 404 and nothing is stored — a submission with no form is a lead nobody can read. Required on a create: it is the only thing that says which form was filled in.`)
+  .option(`--attribution <attribution>`, `Create only: where the visitor came from — the storefront's attribution object, the same one a cart carries (UTM values, \`click_id\` with its \`click_id_kind\`, \`consent: { ads, analytics, policy_version, purposes? }\`). An unknown key, a click id without its kind or a malformed value is refused with 400 and the field named; nothing is stored then. Stored as \`attribution\`, and handed with each ticked consent to the consent app.`)
   .option(`--campaign-ref <campaign-ref>`, `Create only: the campaign the visitor came through, when the storefront resolved one from the UTM campaign. Used only when the form itself belongs to no campaign.`)
   .option(`--ip <ip>`, `Create only: the visitor's address, handed to the consent app as proof of the opt-in and NOT stored on the submission.`)
   .option(`--locale <locale>`, `Create only: the language the visitor read the form in — handed to the consent app for the confirmation mail.`)
   .option(`--metadata <metadata>`, `Free-form metadata, yours to key as an integration needs. The resolved notification recipient is merged OVER it at insert, so \`notify_email\` and \`notify_source\` sent here are overwritten — see the \`FormSubmissionMetadata\` schema.`)
   .option(`--page-url <page-url>`, `Create only: the page the form was sent from. Stored as \`page_url\`.`)
+  .option(`--preview-token <preview-token>`, `Create only: the token of a preview grant from \`POST /v1/forms/{id}/preview-grant\`. With a valid one for this form, a draft form accepts the submission and it is recorded as a test submission (\`is_preview: true\`). A token that is expired, unknown or issued for another form is refused with 422, on a live form too. Not stored on the submission.`)
   .option(`--source <source>`, `Where the submission came from. The storefront sends the \`window.location.pathname\` of the page that carried the form, so this is normally a path rather than an absolute URL; any other surface (an app, an import) puts its own name here. Null when the caller sent none.`)
   .option(`--user-agent <user-agent>`, `Create only: the visitor's browser, handed to the consent app with the opt-in and NOT stored on the submission.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { submissionData, formId, campaignRef, ip, locale, metadata, pageUrl, source, userAgent } = await promptForMissing(
+        const { submissionData, formId, attribution, campaignRef, ip, locale, metadata, pageUrl, previewToken, source, userAgent } = await promptForMissing(
           _options,
           submissionsCreateSpecs,
           _command,
@@ -414,6 +428,9 @@ Two values are NOT here: the honeypot field, if the tenant configured one, is st
             throw new Error("--data must be a JSON object");
           }
           Object.assign(_payload, body as RequestParams);
+        }
+        if (attribution !== undefined) {
+          _payload[`attribution`] = resolveBodyParam(attribution);
         }
         if (campaignRef !== undefined) {
           _payload[`campaign_ref`] = campaignRef;
@@ -435,6 +452,9 @@ Two values are NOT here: the honeypot field, if the tenant configured one, is st
         }
         if (pageUrl !== undefined) {
           _payload[`page_url`] = pageUrl;
+        }
+        if (previewToken !== undefined) {
+          _payload[`preview_token`] = previewToken;
         }
         if (source !== undefined) {
           _payload[`source`] = source;
@@ -459,6 +479,7 @@ registerPromptSpecs(forms.commands.at(-1)!, submissionsCreateSpecs, { method: "p
 const submissionsPruneSpecs: PromptSpec[] = [
   { key: "dryRun", option: "--dry-run <dry-run>", name: "dry_run", description: "Default TRUE. Nothing is deleted until this is explicitly false.", type: "boolean", required: false },
   { key: "formSlug", option: "--form-slug <form-slug>", name: "form_slug", description: "Narrow the sweep to one form.", type: "string", required: false },
+  { key: "isPreview", option: "--is-preview <is-preview>", name: "is_preview", description: "True narrows the sweep to test submissions from a form preview, and the floor is then preview_retention_days (default 7) instead of the strictest submission_retention_days: nobody's enquiry is in a test submission, so no market's promise binds it. False narrows it to real submissions under the usual floor. Omitted, the sweep takes both under the usual floor.", type: "boolean", required: false },
   { key: "olderThanDays", option: "--older-than-days <older-than-days>", name: "older_than_days", description: "Age threshold. Omit to use the retention floor. A value BELOW the floor is raised to it — the setting is the floor, not a default, and the floor is the LONGEST submission_retention_days configured anywhere in the tenant (see the operation description).", type: "integer", required: false },
   { key: "status", option: "--status <status>", name: "status", description: "Narrow the sweep to one inbox status, e.g. 'spam'.", type: "string", required: false, enum: ["new","read","archived","spam"] },
 ];
@@ -480,12 +501,18 @@ The floor is established, never assumed. If the tenant's markets cannot be liste
       value === undefined ? true : parseBool(value),
   )
   .option(`--form-slug <form-slug>`, `Narrow the sweep to one form.`)
+  .option(
+    `--is-preview [value]`,
+    `True narrows the sweep to test submissions from a form preview, and the floor is then preview_retention_days (default 7) instead of the strictest submission_retention_days: nobody's enquiry is in a test submission, so no market's promise binds it. False narrows it to real submissions under the usual floor. Omitted, the sweep takes both under the usual floor.`,
+    (value: string | undefined) =>
+      value === undefined ? true : parseBool(value),
+  )
   .option(`--older-than-days <older-than-days>`, `Age threshold. Omit to use the retention floor. A value BELOW the floor is raised to it — the setting is the floor, not a default, and the floor is the LONGEST submission_retention_days configured anywhere in the tenant (see the operation description).`, parseInteger)
   .option(`--status <status>`, `Narrow the sweep to one inbox status, e.g. 'spam'.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { dryRun, formSlug, olderThanDays, status } = await promptForMissing(
+        const { dryRun, formSlug, isPreview, olderThanDays, status } = await promptForMissing(
           _options,
           submissionsPruneSpecs,
           _command,
@@ -505,6 +532,9 @@ The floor is established, never assumed. If the tenant's markets cannot be liste
         }
         if (formSlug !== undefined) {
           _payload[`form_slug`] = formSlug;
+        }
+        if (isPreview !== undefined) {
+          _payload[`is_preview`] = isPreview;
         }
         if (olderThanDays !== undefined) {
           _payload[`older_than_days`] = olderThanDays;
@@ -771,7 +801,7 @@ forms
   .command(`delete`)
   .description(`Deleting a form deletes every submission it ever received.
 
-\`submissions.form_id\` is ON DELETE CASCADE — the one foreign key on this app's tables — so the inbox goes with the form, in the database, permanently. Nothing is archived on the way out, no event is emitted for the submissions that vanish, and there is no soft delete in this app to recover them from. A submission is an end user's data, which is why this is the first sentence rather than a footnote.
+\`submissions.form_id\` is ON DELETE CASCADE, so the inbox goes with the form, in the database, permanently. The form's preview grants go with it too. Nothing is archived on the way out, no event is emitted for the submissions that vanish, and there is no soft delete in this app to recover them from. A submission is an end user's data, which is why this is the first sentence rather than a footnote.
 
 That is what the tenant setting form_delete_policy (block | archive | cascade, default 'block') stands in front of: REFUSE with 409 and the count, ARCHIVE the form and keep everything, or CASCADE on purpose. A form with no submissions always deletes, under every policy.
 
@@ -858,6 +888,8 @@ forms
   .command(`update`)
   .description(`A partial update over everything a create may set — \`definition\`, \`settings\`, \`status\`, \`name\`, \`slug\`, \`metadata\` — where an omitted field keeps the value it has. It is the write behind the Form Builder's save, and equally behind the one-field change that publishes a form by moving \`status\` from \`draft\` to \`live\`. \`updated_at\` is stamped on every call, so it is the column an editor sorts by.
 
+An editor may send the whole record back. \`id\`, \`tenant_id\`, \`created_at\` and \`updated_at\` in the body are ignored rather than refused, so a save that echoes the stored form works; a body that carries nothing else is an empty change.
+
 The same field ceiling applies as on the create, or a form would simply grow past it later: the tenant's \`max_form_fields\` is counted over the nodes of the NEW \`definition\` that carry a non-empty \`name\`, and a definition above it is refused with 422 rather than stored truncated.
 
 Moving \`slug\` is the edit to think about twice. It is unique per tenant, so a rename onto a slug another form holds is a 409 — but it is the rename that SUCCEEDS that changes behaviour, because the slug is how a storefront page resolves this form: change it and the page naming the old one resolves nothing. The submissions already collected are unaffected either way; each keeps the slug it arrived under in its own \`form_slug\`, which is exactly what that copy is for.`)
@@ -932,3 +964,51 @@ On the way IN a node is any object: this is unconstrained jsonb, FormKit owns th
     ),
   );
 registerPromptSpecs(forms.commands.at(-1)!, updateSpecs, { method: "put" });
+const previewGrantSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The form, by id.", type: "string", required: true, resource: { listPath: "/forms", hasLimit: true } },
+  { key: "ttlHours", option: "--ttl-hours <ttl-hours>", name: "ttl_hours", description: "How long the token is valid, in hours. Default 72.", type: "integer", required: false },
+];
+forms
+  .command(`preview-grant`)
+  .description(`A short-lived token that lets this form be test-submitted before it is live. A draft form refuses every submission; a submission that carries this token in \`preview_token\` is accepted and recorded as a test submission (\`is_preview: true\`), so an operator can try a form end to end, notifications included, before publishing it.
+
+The token is bound to this one form and expires after \`ttl_hours\` (default 72, at most 168). It is the only trusted sign of a preview this API has: identity headers do not reach the app and anything else in a body is the caller's own word. Hand it only to the preview, never to a public page. An archived form takes no submissions, preview or not, so it gets no grant.
+
+A grant ends with its expiry or with its form: deleting the form deletes its grants.`)
+  .option(`--id <id>`, `The form, by id.`)
+  .option(`--ttl-hours <ttl-hours>`, `How long the token is valid, in hours. Default 72.`, parseInteger)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id, ttlHours } = await promptForMissing(
+          _options,
+          previewGrantSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/forms/{id}/preview-grant`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (ttlHours !== undefined) {
+          _payload[`ttl_hours`] = ttlHours;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(forms.commands.at(-1)!, previewGrantSpecs, { method: "post" });

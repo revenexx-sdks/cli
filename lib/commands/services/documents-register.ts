@@ -50,6 +50,13 @@ const documentsListSpecs: PromptSpec[] = [
   { key: "sourceSyncedAt", option: "--source-synced-at <source-synced-at>", name: "source_synced_at", description: "Exact equality — this API has no range filter. To bound a period, sort with `order` and page. When this row was last confirmed against its source. A delta run asks for changes since it, and an operator reads it to see that a feed has gone quiet. An edit made here does not touch it: it records when the SOURCE was last seen, not when the row changed.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact equality — this API has no range filter. To bound a period, sort with `order` and page. When the row was created. Server-set: it is in no request body, and a value sent for it is ignored.", type: "string", required: false },
   { key: "updatedAt", option: "--updated-at <updated-at>", name: "updated_at", description: "Exact equality — this API has no range filter. To bound a period, sort with `order` and page. When the row was last written. Server-set — every route that changes this row stamps it.", type: "string", required: false },
+  { key: "deletedAt", option: "--deleted-at <deleted-at>", name: "deleted_at", description: "Exact equality — this API has no range filter. To bound a period, sort with `order` and page. When this document went into the trash, or null while it is live. A trashed document is left out of the list unless `?trashed=only` or `?trashed=include` asks for it, is never answered to a storefront caller, hands out no link and refuses every edit until it is restored. Set by DELETE and cleared by POST /documents/documents/{id}/restore — a write body that names it is refused.", type: "string", required: false },
+  { key: "deletedBy", option: "--deleted-by <deleted-by>", name: "deleted_by", description: "Filter to rows whose `deleted_by` is exactly this value. Who put this document into the trash, as a name a person reads — the e-mail or subject of the acting operator. Null while the document is live, and attribution only: it is not a lookup key.", type: "string", required: false },
+  { key: "deletedById", option: "--deleted-by-id <deleted-by-id>", name: "deleted_by_id", description: "Filter to rows whose `deleted_by_id` is exactly this value. The platform subject of whoever put this document into the trash, kept so a data-protection erasure can find and pseudonymise it. Null while the document is live.", type: "string", required: false },
+  { key: "trashBatch", option: "--trash-batch <trash-batch>", name: "trash_batch", description: "Filter to rows whose `trash_batch` is exactly this value. The group this document went into the trash with. A document goes alone, so the batch names one row; it is cleared on restore. Null while the document is live.", type: "string", required: false },
+  { key: "purgeAt", option: "--purge-at <purge-at>", name: "purge_at", description: "Exact equality — this API has no range filter. To bound a period, sort with `order` and page. The day this document will be deleted for good if nobody restores it: when it went into the trash plus the tenant's trash retention (90 days unless the tenant set another). Recomputed by the nightly purge from the retention it reads. Null while the document is live.", type: "string", required: false },
+  { key: "purgeBlockedReason", option: "--purge-blocked-reason <purge-blocked-reason>", name: "purge_blocked_reason", description: "Filter to rows whose `purge_blocked_reason` is exactly this value. Why the purge left this document in the trash, in a sentence for the operator. Null while nothing stands in the way; cleared on restore.", type: "string", required: false },
+  { key: "trashed", option: "--trashed <trashed>", name: "trashed", description: "Whether the trash is in the answer: 'exclude' (the default) leaves it out, 'only' answers the trash and nothing else, 'include' answers both. A storefront caller never sees the trash, whatever it sends.", type: "string", required: false, enum: ["exclude","only","include"] },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200). A larger value is clamped rather than refused.", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0). Page with `page.total` and `page.hasMore`.", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc' — a bare column sorts ascending. The column has to be one this entity has; anything else is refused with 400.", type: "string", required: false },
@@ -57,7 +64,7 @@ const documentsListSpecs: PromptSpec[] = [
 ];
 documentsRegister
   .command(`documents-list`)
-  .description(`A document is one record a merchant issued and filed against a transaction — an invoice, a delivery note, a credit note, a return receipt. The row is the REGISTER entry: it says which transaction the document belongs to, what kind of record it is, the number a customer quotes, who may read it and where its bytes live. It never holds the bytes, and this app never produces a document. This is the list an account area reads: filter \`?entity_type=order&entity_id=…\` for one transaction's papers, \`?kind=invoice\` for one sort of record, \`?number=\` for the one a customer quoted. Read \`visibility\` before trusting the answer to be complete — a STOREFRONT caller (one acting for a buyer, or one asking with \`?audience=customer\`) is confined to the customer documents in the query itself, so an internal one is absent from \`items\` AND from \`page.total\`, which is what stops the count telling a buyer how many documents it is not being shown. The narrowing only ever narrows: \`?visibility=internal\` from such a caller answers the customer ones, not a 403.`)
+  .description(`A document is one record a merchant issued and filed against a transaction — an invoice, a delivery note, a credit note, a return receipt. The row is the REGISTER entry: it says which transaction the document belongs to, what kind of record it is, the number a customer quotes, who may read it and where its bytes live. It never holds the bytes, and this app never produces a document. This is the list an account area reads: filter \`?entity_type=order&entity_id=…\` for one transaction's papers, \`?kind=invoice\` for one sort of record, \`?number=\` for the one a customer quoted. Read \`visibility\` before trusting the answer to be complete — a STOREFRONT caller (one acting for a buyer, or one asking with \`?audience=customer\`) is confined to the customer documents in the query itself, so an internal one is absent from \`items\` AND from \`page.total\`, which is what stops the count telling a buyer how many documents it is not being shown. The narrowing only ever narrows: \`?visibility=internal\` from such a caller answers the customer ones, not a 403. A document in the trash is left out unless an operator asks with \`?trashed=only\` or \`?trashed=include\`, and a storefront caller never sees one. A SALES REP (a caller the rep portal asserts) is answered like a storefront caller — customer documents only — and on top of that only the documents of the organizations they cover: an uncovered document is absent from a list and a 404 at its address.`)
   .alias("documents-documents-list")
   .option(`--id <id>`, `Filter to rows whose \`id\` is exactly this value. The row's own id, generated by the database. A caller never sends one — it reads one back and puts it in the path of every later call.`)
   .option(`--entity-type <entity-type>`, `Filter by the kind of transaction a document belongs to. Send it together with \`entity_id\`: on its own it selects every document of every order.`)
@@ -81,6 +88,13 @@ documentsRegister
   .option(`--source-synced-at <source-synced-at>`, `Exact equality — this API has no range filter. To bound a period, sort with \`order\` and page. When this row was last confirmed against its source. A delta run asks for changes since it, and an operator reads it to see that a feed has gone quiet. An edit made here does not touch it: it records when the SOURCE was last seen, not when the row changed.`)
   .option(`--created-at <created-at>`, `Exact equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the row was created. Server-set: it is in no request body, and a value sent for it is ignored.`)
   .option(`--updated-at <updated-at>`, `Exact equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the row was last written. Server-set — every route that changes this row stamps it.`)
+  .option(`--deleted-at <deleted-at>`, `Exact equality — this API has no range filter. To bound a period, sort with \`order\` and page. When this document went into the trash, or null while it is live. A trashed document is left out of the list unless \`?trashed=only\` or \`?trashed=include\` asks for it, is never answered to a storefront caller, hands out no link and refuses every edit until it is restored. Set by DELETE and cleared by POST /documents/documents/{id}/restore — a write body that names it is refused.`)
+  .option(`--deleted-by <deleted-by>`, `Filter to rows whose \`deleted_by\` is exactly this value. Who put this document into the trash, as a name a person reads — the e-mail or subject of the acting operator. Null while the document is live, and attribution only: it is not a lookup key.`)
+  .option(`--deleted-by-id <deleted-by-id>`, `Filter to rows whose \`deleted_by_id\` is exactly this value. The platform subject of whoever put this document into the trash, kept so a data-protection erasure can find and pseudonymise it. Null while the document is live.`)
+  .option(`--trash-batch <trash-batch>`, `Filter to rows whose \`trash_batch\` is exactly this value. The group this document went into the trash with. A document goes alone, so the batch names one row; it is cleared on restore. Null while the document is live.`)
+  .option(`--purge-at <purge-at>`, `Exact equality — this API has no range filter. To bound a period, sort with \`order\` and page. The day this document will be deleted for good if nobody restores it: when it went into the trash plus the tenant's trash retention (90 days unless the tenant set another). Recomputed by the nightly purge from the retention it reads. Null while the document is live.`)
+  .option(`--purge-blocked-reason <purge-blocked-reason>`, `Filter to rows whose \`purge_blocked_reason\` is exactly this value. Why the purge left this document in the trash, in a sentence for the operator. Null while nothing stands in the way; cleared on restore.`)
+  .option(`--trashed <trashed>`, `Whether the trash is in the answer: 'exclude' (the default) leaves it out, 'only' answers the trash and nothing else, 'include' answers both. A storefront caller never sees the trash, whatever it sends.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200). A larger value is clamped rather than refused.`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0). Page with \`page.total\` and \`page.hasMore\`.`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc' — a bare column sorts ascending. The column has to be one this entity has; anything else is refused with 400.`)
@@ -93,7 +107,7 @@ documentsRegister
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, entityType, entityId, organizationId, kind, number, source, storageAssetId, deliveryPath, externalUrl, filename, contentType, byteSize, issuedAt, dueDate, totalAmount, currency, visibility, externalId, sourceSyncedAt, createdAt, updatedAt, limit, offset, order, filter } = await promptForMissing(
+        const { id, entityType, entityId, organizationId, kind, number, source, storageAssetId, deliveryPath, externalUrl, filename, contentType, byteSize, issuedAt, dueDate, totalAmount, currency, visibility, externalId, sourceSyncedAt, createdAt, updatedAt, deletedAt, deletedBy, deletedById, trashBatch, purgeAt, purgeBlockedReason, trashed, limit, offset, order, filter } = await promptForMissing(
           _options,
           documentsListSpecs,
           _command,
@@ -166,6 +180,27 @@ documentsRegister
         }
         if (updatedAt !== undefined) {
           _payload[`updated_at`] = updatedAt;
+        }
+        if (deletedAt !== undefined) {
+          _payload[`deleted_at`] = deletedAt;
+        }
+        if (deletedBy !== undefined) {
+          _payload[`deleted_by`] = deletedBy;
+        }
+        if (deletedById !== undefined) {
+          _payload[`deleted_by_id`] = deletedById;
+        }
+        if (trashBatch !== undefined) {
+          _payload[`trash_batch`] = trashBatch;
+        }
+        if (purgeAt !== undefined) {
+          _payload[`purge_at`] = purgeAt;
+        }
+        if (purgeBlockedReason !== undefined) {
+          _payload[`purge_blocked_reason`] = purgeBlockedReason;
+        }
+        if (trashed !== undefined) {
+          _payload[`trashed`] = trashed;
         }
         if (limit !== undefined) {
           _payload[`limit`] = limit;
@@ -345,14 +380,96 @@ documentsRegister
     ),
   );
 registerPromptSpecs(documentsRegister.commands.at(-1)!, documentsCreateSpecs, { method: "post" });
+const documentsEmptyTrashSpecs: PromptSpec[] = [
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
+];
+documentsRegister
+  .command(`documents-empty-trash`)
+  .description(`A document is one record a merchant issued and filed against a transaction — an invoice, a delivery note, a credit note, a return receipt. The row is the REGISTER entry: it says which transaction the document belongs to, what kind of record it is, the number a customer quotes, who may read it and where its bytes live. It never holds the bytes, and this app never produces a document. Removes every register entry in the trash for good, oldest first, up to 1000 per call — the Cockpit's "empty the trash". What could not be deleted stays in the trash and is listed under \`blocked\` with the reason. The files are not touched.`)
+  .alias("documents-documents-empty-trash")
+  .option(`--body <body>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { body } = await promptForMissing(
+          _options,
+          documentsEmptyTrashSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/documents/documents/trash/empty`;
+        const _payload: RequestParams = {};
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(documentsRegister.commands.at(-1)!, documentsEmptyTrashSpecs, { method: "post" });
+const documentsPurgeSpecs: PromptSpec[] = [
+  { key: "body", option: "--body <body>", name: "data", description: "Request body", type: "object", required: true },
+];
+documentsRegister
+  .command(`documents-purge`)
+  .description(`A document is one record a merchant issued and filed against a transaction — an invoice, a delivery note, a credit note, a return receipt. The row is the REGISTER entry: it says which transaction the document belongs to, what kind of record it is, the number a customer quotes, who may read it and where its bytes live. It never holds the bytes, and this app never produces a document. The purge the nightly schedule runs, callable by hand: every document that went into the trash longer ago than the tenant's trash retention is deleted for good, and \`purge_at\` of the rest is brought in line with that retention. When the retention cannot be read the run does nothing and says so (\`skipped: true\`) — guessing would be the dangerous direction.`)
+  .alias("documents-documents-purge")
+  .option(`--body <body>`, `Request body`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        // The global --data is the documented body flag: let it satisfy the
+        // required --body before promptForMissing() asks for it.
+        if (cliConfig.data !== undefined) {
+          (_options as Record<string, unknown>).body ??= cliConfig.data;
+        }
+        const { body } = await promptForMissing(
+          _options,
+          documentsPurgeSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/documents/documents/trash/purge`;
+        const _payload: RequestParams = {};
+        if (body !== undefined || cliConfig.data !== undefined) {
+          Object.assign(_payload, resolveBodyParam(body ?? cliConfig.data));
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(documentsRegister.commands.at(-1)!, documentsPurgeSpecs, { method: "post" });
 const documentsDeleteSpecs: PromptSpec[] = [
-  { key: "id", option: "--id <id>", name: "id", description: "The document to remove.", type: "string", required: true, resource: { listPath: "/documents/documents", hasLimit: true } },
+  { key: "id", option: "--id <id>", name: "id", description: "The document to move to the trash, or — when it is already there — to delete for good.", type: "string", required: true, resource: { listPath: "/documents/documents", hasLimit: true } },
 ];
 documentsRegister
   .command(`documents-delete`)
-  .description(`A document is one record a merchant issued and filed against a transaction — an invoice, a delivery note, a credit note, a return receipt. The row is the REGISTER entry: it says which transaction the document belongs to, what kind of record it is, the number a customer quotes, who may read it and where its bytes live. It never holds the bytes, and this app never produces a document. Deleting the register entry does NOT delete the file: the bytes live in the platform's asset storage or on the tenant's own host, and this app has never held them. So this is "stop offering this document", not "destroy it" — and there is no undo here, because the row carried the only record of which transaction the file belonged to. A feed that still knows the document will re-file it on its next run, under the same \`external_id\`.`)
+  .description(`A document is one record a merchant issued and filed against a transaction — an invoice, a delivery note, a credit note, a return receipt. The row is the REGISTER entry: it says which transaction the document belongs to, what kind of record it is, the number a customer quotes, who may read it and where its bytes live. It never holds the bytes, and this app never produces a document. Deleting is two steps. A live document goes into the TRASH: it stays where it is with \`deleted_at\` set, is left out of every list and every storefront answer, hands out no link and refuses edits — and POST /documents/documents/{id}/restore brings it back exactly as it was. A DELETE on a document that is already in the trash removes the register entry for good, and so do emptying the trash and the nightly purge once the tenant's trash retention (90 days unless the tenant set another) has passed. Neither step deletes the file: the bytes live in the platform's asset storage or on the tenant's own host, and this app has never held them. A feed re-sending a trashed document by its \`external_id\` is refused with 409 \`in_trash\` rather than reviving it.`)
   .alias("documents-documents-delete")
-  .option(`--id <id>`, `The document to remove.`)
+  .option(`--id <id>`, `The document to move to the trash, or — when it is already there — to delete for good.`)
   .action(
     actionRunner(
       async (_options, _command) => {
@@ -384,7 +501,7 @@ const documentsGetSpecs: PromptSpec[] = [
 ];
 documentsRegister
   .command(`documents-get`)
-  .description(`A document is one record a merchant issued and filed against a transaction — an invoice, a delivery note, a credit note, a return receipt. The row is the REGISTER entry: it says which transaction the document belongs to, what kind of record it is, the number a customer quotes, who may read it and where its bytes live. It never holds the bytes, and this app never produces a document. This is the route that turns an id back into a document, and the one place the visibility promise is easiest to get wrong: an \`internal\` document answers 404 to a storefront caller rather than 403, because a refusal that admitted the document exists would confirm what a guessed address was fishing for. An operator reads the same row at the same address.`)
+  .description(`A document is one record a merchant issued and filed against a transaction — an invoice, a delivery note, a credit note, a return receipt. The row is the REGISTER entry: it says which transaction the document belongs to, what kind of record it is, the number a customer quotes, who may read it and where its bytes live. It never holds the bytes, and this app never produces a document. This is the route that turns an id back into a document, and the one place the visibility promise is easiest to get wrong: an \`internal\` document answers 404 to a storefront caller rather than 403, because a refusal that admitted the document exists would confirm what a guessed address was fishing for. An operator reads the same row at the same address, a trashed one included; to a storefront caller a document in the trash is a 404 like an internal one. A SALES REP (a caller the rep portal asserts) is answered like a storefront caller — customer documents only — and on top of that only the documents of the organizations they cover: an uncovered document is absent from a list and a 404 at its address.`)
   .alias("documents-documents-get")
   .option(`--id <id>`, `The document to read.`)
   .action(
@@ -567,7 +684,7 @@ const documentsLinkSpecs: PromptSpec[] = [
 ];
 documentsRegister
   .command(`documents-link`)
-  .description(`A document is one record a merchant issued and filed against a transaction — an invoice, a delivery note, a credit note, a return receipt. The row is the REGISTER entry: it says which transaction the document belongs to, what kind of record it is, the number a customer quotes, who may read it and where its bytes live. It never holds the bytes, and this app never produces a document. This is how the bytes are handed over, and the ONLY way: the storage bucket is private, so the answer is a signed URL valid for minutes, which the caller then fetches directly. Nothing streams through this app — a 40 MB invoice through a function with a 15-second timeout is a bad trade, and the signature is the authorisation, so proxying it would add a second copy of a check that is already in the URL. There is no upload route for the same reason in reverse: whoever ISSUES the document uploads it to POST /v1/storage/assets itself, takes the \`ast_…\` id back and records it here. It is a POST because each call mints a new signature with a new expiry, so the answer must not be cached. ⚠ The AUDIENCE RULE applies here exactly as it does at the document's own address: a storefront caller asking for a link to an \`internal\` document is answered 404 — not 403 — because a link is the one thing that would turn a guessed id into another buyer's invoice. An \`external\` document has no asset of ours to sign and is refused with its \`external_url\` instead.`)
+  .description(`A document is one record a merchant issued and filed against a transaction — an invoice, a delivery note, a credit note, a return receipt. The row is the REGISTER entry: it says which transaction the document belongs to, what kind of record it is, the number a customer quotes, who may read it and where its bytes live. It never holds the bytes, and this app never produces a document. This is how the bytes are handed over, and the ONLY way: the storage bucket is private, so the answer is a signed URL valid for minutes, which the caller then fetches directly. Nothing streams through this app — a 40 MB invoice through a function with a 15-second timeout is a bad trade, and the signature is the authorisation, so proxying it would add a second copy of a check that is already in the URL. There is no upload route for the same reason in reverse: whoever ISSUES the document uploads it to POST /v1/storage/assets itself, takes the \`ast_…\` id back and records it here. It is a POST because each call mints a new signature with a new expiry, so the answer must not be cached. ⚠ The AUDIENCE RULE applies here exactly as it does at the document's own address: a storefront caller asking for a link to an \`internal\` document is answered 404 — not 403 — because a link is the one thing that would turn a guessed id into another buyer's invoice. An \`external\` document has no asset of ours to sign and is refused with its \`external_url\` instead. A SALES REP (a caller the rep portal asserts) is answered like a storefront caller — customer documents only — and on top of that only the documents of the organizations they cover: an uncovered document is absent from a list and a 404 at its address.`)
   .alias("documents-documents-link")
   .option(`--id <id>`, `The document to mint a link for.`)
   .action(
@@ -595,3 +712,36 @@ documentsRegister
     ),
   );
 registerPromptSpecs(documentsRegister.commands.at(-1)!, documentsLinkSpecs, { method: "post" });
+const documentsRestoreSpecs: PromptSpec[] = [
+  { key: "id", option: "--id <id>", name: "id", description: "The trashed document to restore.", type: "string", required: true, resource: { listPath: "/documents/documents", hasLimit: true } },
+];
+documentsRegister
+  .command(`documents-restore`)
+  .description(`A document is one record a merchant issued and filed against a transaction — an invoice, a delivery note, a credit note, a return receipt. The row is the REGISTER entry: it says which transaction the document belongs to, what kind of record it is, the number a customer quotes, who may read it and where its bytes live. It never holds the bytes, and this app never produces a document. Restoring clears the trash columns and nothing else: the document is back in the lists, in the storefront's answers and at its link exactly as it was before it was deleted.`)
+  .alias("documents-documents-restore")
+  .option(`--id <id>`, `The trashed document to restore.`)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { id } = await promptForMissing(
+          _options,
+          documentsRestoreSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/documents/documents/{id}/restore`.replace(`{id}`, id);
+        const _payload: RequestParams = {};
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(documentsRegister.commands.at(-1)!, documentsRestoreSpecs, { method: "post" });

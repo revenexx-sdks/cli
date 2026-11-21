@@ -39,7 +39,7 @@ const contactEventsListSpecs: PromptSpec[] = [
   { key: "occurredAt", option: "--occurred-at <occurred-at>", name: "occurred_at", description: "Exact timestamp equality on when it happened — there is no range filter on this API. Use `order=occurred_at.desc` with limit/offset to walk a timeline.", type: "string", required: false },
   { key: "dueAt", option: "--due-at <due-at>", name: "due_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When a follow-up is due. Null for an entry that is not a follow-up.", type: "string", required: false },
   { key: "assignee", option: "--assignee <assignee>", name: "assignee", description: "Filter to rows whose `assignee` is exactly this value. Who does the follow-up, as the caller named them. Null when nobody was named.", type: "string", required: false },
-  { key: "doneAt", option: "--done-at <done-at>", name: "done_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When the follow-up was done — set by POST /customers/contact_events/{id}/done. Null while it is open.", type: "string", required: false },
+  { key: "doneAt", option: "--done-at <done-at>", name: "done_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When the follow-up was done — set by POST /customers/contact_events/{id}/done or PUT /customers/contact_events/{id}. Null while it is open.", type: "string", required: false },
   { key: "createdAt", option: "--created-at <created-at>", name: "created_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When the row was written. Together with `occurred_at` this is what tells a late entry from a live one.", type: "string", required: false },
   { key: "limit", option: "--limit <limit>", name: "limit", description: "Page size (default 50, max 200).", type: "integer", required: false },
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
@@ -48,7 +48,7 @@ const contactEventsListSpecs: PromptSpec[] = [
 ];
 customersContacts
   .command(`contact-events-list`)
-  .description(`A contact event is one entry on a customer's timeline: an activity somebody logged (a call, a visit, a meeting, a note) or a registration decision this app recorded itself. Every entry is keyed by a CONTACT and stamped with the organization derived from that contact, so a company's history is one indexed read rather than a join. Append-only — there is no update and no delete, which is what makes it usable as evidence. The activity feed, filtered by whichever column the question needs: \`contact_id\` for one person, \`organization_id\` for a whole company, \`kind\` for one type of activity. \`kind: "system"\` is this app's own registration decision trail (\`registration.submitted\` / \`.approved\` / \`.rejected\`), and no caller may file one of those. Paged with \`limit\`/\`offset\`/\`order\`; newest first is \`order=occurred_at.desc\`.`)
+  .description(`A contact event is one entry on a customer's timeline: an activity somebody logged (a call, a visit, a meeting, a note) or a registration decision this app recorded itself. Every entry is keyed by a CONTACT and stamped with the organization derived from that contact, so a company's history is one indexed read rather than a join. What was filed is never edited and nothing is deleted, which is what makes it usable as evidence; only the follow-up half — due date, assignee, done — changes, through PUT /customers/contact_events/{id}. The activity feed, filtered by whichever column the question needs: \`contact_id\` for one person, \`organization_id\` for a whole company, \`kind\` for one type of activity. \`kind: "system"\` is this app's own registration decision trail (\`registration.submitted\` / \`.approved\` / \`.rejected\`), and no caller may file one of those. Paged with \`limit\`/\`offset\`/\`order\`; newest first is \`order=occurred_at.desc\`.`)
   .alias("customers-contact-events-list")
   .option(`--id <id>`, `Filter to rows whose \`id\` is exactly this value. Primary key of the timeline entry.`)
   .option(`--contact-id <contact-id>`, `Filter to one person's timeline.`)
@@ -60,7 +60,7 @@ customersContacts
   .option(`--occurred-at <occurred-at>`, `Exact timestamp equality on when it happened — there is no range filter on this API. Use \`order=occurred_at.desc\` with limit/offset to walk a timeline.`)
   .option(`--due-at <due-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When a follow-up is due. Null for an entry that is not a follow-up.`)
   .option(`--assignee <assignee>`, `Filter to rows whose \`assignee\` is exactly this value. Who does the follow-up, as the caller named them. Null when nobody was named.`)
-  .option(`--done-at <done-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the follow-up was done — set by POST /customers/contact_events/{id}/done. Null while it is open.`)
+  .option(`--done-at <done-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the follow-up was done — set by POST /customers/contact_events/{id}/done or PUT /customers/contact_events/{id}. Null while it is open.`)
   .option(`--created-at <created-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the row was written. Together with \`occurred_at\` this is what tells a late entry from a live one.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
@@ -153,7 +153,7 @@ const contactEventsGetSpecs: PromptSpec[] = [
 ];
 customersContacts
   .command(`contact-events-get`)
-  .description(`A contact event is one entry on a customer's timeline: an activity somebody logged (a call, a visit, a meeting, a note) or a registration decision this app recorded itself. Every entry is keyed by a CONTACT and stamped with the organization derived from that contact, so a company's history is one indexed read rather than a join. Append-only — there is no update and no delete, which is what makes it usable as evidence. One timeline entry by id, as it was written. Entries are never edited, so what this answers is what was recorded at the time.`)
+  .description(`A contact event is one entry on a customer's timeline: an activity somebody logged (a call, a visit, a meeting, a note) or a registration decision this app recorded itself. Every entry is keyed by a CONTACT and stamped with the organization derived from that contact, so a company's history is one indexed read rather than a join. What was filed is never edited and nothing is deleted, which is what makes it usable as evidence; only the follow-up half — due date, assignee, done — changes, through PUT /customers/contact_events/{id}. One timeline entry by id. What was filed is what was recorded at the time; the due date, the assignee and the done date are as they stand now.`)
   .alias("customers-contact-events-get")
   .option(`--id <id>`, `The contact event to read.`)
   .action(
@@ -207,7 +207,7 @@ const listSpecs: PromptSpec[] = [
   { key: "lifecycleChangedAt", option: "--lifecycle-changed-at <lifecycle-changed-at>", name: "lifecycle_changed_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When `lifecycle_stage` last changed. Written by this app.", type: "string", required: false },
   { key: "leadSource", option: "--lead-source <lead-source>", name: "lead_source", description: "Filter to rows whose `lead_source` is exactly this value. How the person first came: form, campaign, import, trade_fair, newsletter, referral or manual. Null when nobody said.", type: "string", required: false, enum: ["form","campaign","import","trade_fair","newsletter","referral","manual"] },
   { key: "leadSourceRef", option: "--lead-source-ref <lead-source-ref>", name: "lead_source_ref", description: "Filter to rows whose `lead_source_ref` is exactly this value. What exactly they came through — a campaign id, `form:{form_id}:{submission_id}`, a fair code. Free text the caller supplied; a campaign counts a lead whose ref is its id.", type: "string", required: false },
-  { key: "ownerId", option: "--owner-id <owner-id>", name: "owner_id", description: "Filter to rows whose `owner_id` is exactly this value. The sales rep who owns this person, as the rep CODE of the sales-reps app. Set by POST /customers/contacts/{contact_id}/handover or an edit.", type: "string", required: false },
+  { key: "ownerId", option: "--owner-id <owner-id>", name: "owner_id", description: "Filter to rows whose `owner_id` is exactly this value. The sales rep who owns this person, as the rep CODE of the sales-reps app. Set by POST /customers/contacts/{contact_id}/handover, a create or an edit; a code the sales-reps app does not know is refused (`unknown_owner`), and where that app cannot be asked the code is taken as given.", type: "string", required: false },
   { key: "leadScore", option: "--lead-score <lead-score>", name: "lead_score", description: "Filter to rows whose `lead_score` is exactly this value. A score marketing writes — a whole number from 0, higher is warmer. Null until something scores the person; this app computes nothing.", type: "integer", required: false },
   { key: "consentMarketingSyncedAt", option: "--consent-marketing-synced-at <consent-marketing-synced-at>", name: "consent_marketing_synced_at", description: "Exact timestamp equality — this API has no range filter. To bound a period, sort with `order` and page. When the consent mirror last changed `consent_marketing`. Null while the mirror never touched the row.", type: "string", required: false },
   { key: "isPrimary", option: "--is-primary <is-primary>", name: "is_primary", description: "Filter to the primary contacts — with `organization_id`, the one person a merchant calls first at that company.", type: "boolean", required: false },
@@ -230,7 +230,7 @@ const listSpecs: PromptSpec[] = [
 ];
 customersContacts
   .command(`list`)
-  .description(`A contact is a PERSON, and the unit that logs in: one platform user, one email address, one role held inside its organization. A contact without an organization is a standalone buyer rather than an error, and two people at the same company are two contacts sharing an \`organization_id\`. The people list, and the read behind an approval queue: \`registration_status=pending\` is every application waiting for a decision. Every column is a filter — \`external_user_id\` in particular is how a storefront turns a platform auth id back into a customer — and the page is \`limit\`/\`offset\`/\`order\`.`)
+  .description(`A contact is a PERSON, and the unit that logs in: one platform user, one email address, one role held inside its organization. A contact without an organization is a standalone buyer rather than an error, and two people at the same company are two contacts sharing an \`organization_id\`. The people list, and the read behind an approval queue: \`registration_status=pending\` is every application waiting for a decision. Every column is a filter — \`external_user_id\` in particular is how a storefront turns a platform auth id back into a customer — and the page is \`limit\`/\`offset\`/\`order\`. A SALES REP is answered only the contacts of the organizations they cover: any other contact is absent from a list and its total, and a 404 at its address.`)
   .option(`--id <id>`, `Filter to exactly one person.`)
   .option(`--organization-id <organization-id>`, `Filter to one company's people. The company address book.`)
   .option(`--email <email>`, `Filter by exact email — the one lookup that is guaranteed to return at most one person, because the address is unique per tenant.`)
@@ -261,7 +261,7 @@ customersContacts
   .option(`--lifecycle-changed-at <lifecycle-changed-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When \`lifecycle_stage\` last changed. Written by this app.`)
   .option(`--lead-source <lead-source>`, `Filter to rows whose \`lead_source\` is exactly this value. How the person first came: form, campaign, import, trade_fair, newsletter, referral or manual. Null when nobody said.`)
   .option(`--lead-source-ref <lead-source-ref>`, `Filter to rows whose \`lead_source_ref\` is exactly this value. What exactly they came through — a campaign id, \`form:{form_id}:{submission_id}\`, a fair code. Free text the caller supplied; a campaign counts a lead whose ref is its id.`)
-  .option(`--owner-id <owner-id>`, `Filter to rows whose \`owner_id\` is exactly this value. The sales rep who owns this person, as the rep CODE of the sales-reps app. Set by POST /customers/contacts/{contact_id}/handover or an edit.`)
+  .option(`--owner-id <owner-id>`, `Filter to rows whose \`owner_id\` is exactly this value. The sales rep who owns this person, as the rep CODE of the sales-reps app. Set by POST /customers/contacts/{contact_id}/handover, a create or an edit; a code the sales-reps app does not know is refused (\`unknown_owner\`), and where that app cannot be asked the code is taken as given.`)
   .option(`--lead-score <lead-score>`, `Filter to rows whose \`lead_score\` is exactly this value. A score marketing writes — a whole number from 0, higher is warmer. Null until something scores the person; this app computes nothing.`, parseInteger)
   .option(`--consent-marketing-synced-at <consent-marketing-synced-at>`, `Exact timestamp equality — this API has no range filter. To bound a period, sort with \`order\` and page. When the consent mirror last changed \`consent_marketing\`. Null while the mirror never touched the row.`)
   .option(
@@ -598,6 +598,8 @@ const eventsCreateSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person the entry is about. The organization is derived from them.", type: "string", required: true, resource: { listPath: "/customers/contacts", hasLimit: true } },
   { key: "subject", option: "--subject <subject>", name: "subject", description: "One line a person can scan in a timeline. Required — an entry nobody can read at a glance is not worth the row.", type: "string", required: true },
   { key: "actor", option: "--actor <actor>", name: "actor", description: "Who logged it (operator id or email). Free text; this app does not resolve it.", type: "string", required: false },
+  { key: "assignee", option: "--assignee <assignee>", name: "assignee", description: "Who does the follow-up — a name or a sales-rep code, as the caller names them. Free text; this app does not resolve it.", type: "string", required: false },
+  { key: "dueAt", option: "--due-at <due-at>", name: "due_at", description: "When the follow-up is due. Makes the entry a follow-up: it is listed under Follow-ups until POST /customers/contact_events/{id}/done. Null or absent: a plain entry.", type: "string", required: false },
   { key: "kind", option: "--kind <kind>", name: "kind", description: "What happened. 'system' is deliberately NOT accepted — those rows are the registration decision trail and are written by the approve/reject routes. Default 'note'.", type: "string", required: false, enum: ["note","call","email","meeting","visit","task"] },
   { key: "note", option: "--note <note>", name: "note", description: "The long form. Stored inside the event payload as `note`, not as a column of its own.", type: "string", required: false },
   { key: "occurredAt", option: "--occurred-at <occurred-at>", name: "occurred_at", description: "When it actually happened. Defaults to now — a call logged on Monday about Friday should say Friday.", type: "string", required: false },
@@ -608,13 +610,15 @@ customersContacts
   .option(`--contact-id <contact-id>`, `The person the entry is about. The organization is derived from them.`)
   .option(`--subject <subject>`, `One line a person can scan in a timeline. Required — an entry nobody can read at a glance is not worth the row.`)
   .option(`--actor <actor>`, `Who logged it (operator id or email). Free text; this app does not resolve it.`)
+  .option(`--assignee <assignee>`, `Who does the follow-up — a name or a sales-rep code, as the caller names them. Free text; this app does not resolve it.`)
+  .option(`--due-at <due-at>`, `When the follow-up is due. Makes the entry a follow-up: it is listed under Follow-ups until POST /customers/contact_events/{id}/done. Null or absent: a plain entry.`)
   .option(`--kind <kind>`, `What happened. 'system' is deliberately NOT accepted — those rows are the registration decision trail and are written by the approve/reject routes. Default 'note'.`)
   .option(`--note <note>`, `The long form. Stored inside the event payload as \`note\`, not as a column of its own.`)
   .option(`--occurred-at <occurred-at>`, `When it actually happened. Defaults to now — a call logged on Monday about Friday should say Friday.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { contactId, subject, actor, kind, note, occurredAt } = await promptForMissing(
+        const { contactId, subject, actor, assignee, dueAt, kind, note, occurredAt } = await promptForMissing(
           _options,
           eventsCreateSpecs,
           _command,
@@ -631,6 +635,12 @@ customersContacts
         }
         if (actor !== undefined) {
           _payload[`actor`] = actor;
+        }
+        if (assignee !== undefined) {
+          _payload[`assignee`] = assignee;
+        }
+        if (dueAt !== undefined) {
+          _payload[`due_at`] = dueAt;
         }
         if (kind !== undefined) {
           _payload[`kind`] = kind;
@@ -1058,7 +1068,7 @@ const getSpecs: PromptSpec[] = [
 ];
 customersContacts
   .command(`get`)
-  .description(`A contact is a PERSON, and the unit that logs in: one platform user, one email address, one role held inside its organization. A contact without an organization is a standalone buyer rather than an error, and two people at the same company are two contacts sharing an \`organization_id\`. One person by id. What they are ALLOWED to do is not in here: permissions are derived from \`role\` at read time and answered by \`GET /customers/contacts/{contact_id}/permissions\`.`)
+  .description(`A contact is a PERSON, and the unit that logs in: one platform user, one email address, one role held inside its organization. A contact without an organization is a standalone buyer rather than an error, and two people at the same company are two contacts sharing an \`organization_id\`. One person by id. What they are ALLOWED to do is not in here: permissions are derived from \`role\` at read time and answered by \`GET /customers/contacts/{contact_id}/permissions\`. A SALES REP is answered only the contacts of the organizations they cover: any other contact is absent from a list and its total, and a 404 at its address.`)
   .option(`--id <id>`, `The contact to read.`)
   .action(
     actionRunner(
@@ -1263,6 +1273,8 @@ const organizationsEventsCreateSpecs: PromptSpec[] = [
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "The person dealt with. Must be a contact of this organization.", type: "string", required: true },
   { key: "subject", option: "--subject <subject>", name: "subject", description: "One line a person can scan in a timeline. Required — an entry nobody can read at a glance is not worth the row.", type: "string", required: true },
   { key: "actor", option: "--actor <actor>", name: "actor", description: "Who logged it (operator id or email). Free text; this app does not resolve it.", type: "string", required: false },
+  { key: "assignee", option: "--assignee <assignee>", name: "assignee", description: "Who does the follow-up — a name or a sales-rep code, as the caller names them. Free text; this app does not resolve it.", type: "string", required: false },
+  { key: "dueAt", option: "--due-at <due-at>", name: "due_at", description: "When the follow-up is due. Makes the entry a follow-up: it is listed under Follow-ups until POST /customers/contact_events/{id}/done. Null or absent: a plain entry.", type: "string", required: false },
   { key: "kind", option: "--kind <kind>", name: "kind", description: "What happened. 'system' is deliberately NOT accepted — those rows are the registration decision trail and are written by the approve/reject routes. Default 'note'.", type: "string", required: false, enum: ["note","call","email","meeting","visit","task"] },
   { key: "note", option: "--note <note>", name: "note", description: "The long form. Stored inside the event payload as `note`, not as a column of its own.", type: "string", required: false },
   { key: "occurredAt", option: "--occurred-at <occurred-at>", name: "occurred_at", description: "When it actually happened. Defaults to now — a call logged on Monday about Friday should say Friday.", type: "string", required: false },
@@ -1275,13 +1287,15 @@ customersContacts
   .option(`--contact-id <contact-id>`, `The person dealt with. Must be a contact of this organization.`)
   .option(`--subject <subject>`, `One line a person can scan in a timeline. Required — an entry nobody can read at a glance is not worth the row.`)
   .option(`--actor <actor>`, `Who logged it (operator id or email). Free text; this app does not resolve it.`)
+  .option(`--assignee <assignee>`, `Who does the follow-up — a name or a sales-rep code, as the caller names them. Free text; this app does not resolve it.`)
+  .option(`--due-at <due-at>`, `When the follow-up is due. Makes the entry a follow-up: it is listed under Follow-ups until POST /customers/contact_events/{id}/done. Null or absent: a plain entry.`)
   .option(`--kind <kind>`, `What happened. 'system' is deliberately NOT accepted — those rows are the registration decision trail and are written by the approve/reject routes. Default 'note'.`)
   .option(`--note <note>`, `The long form. Stored inside the event payload as \`note\`, not as a column of its own.`)
   .option(`--occurred-at <occurred-at>`, `When it actually happened. Defaults to now — a call logged on Monday about Friday should say Friday.`)
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { organizationId, contactId, subject, actor, kind, note, occurredAt } = await promptForMissing(
+        const { organizationId, contactId, subject, actor, assignee, dueAt, kind, note, occurredAt } = await promptForMissing(
           _options,
           organizationsEventsCreateSpecs,
           _command,
@@ -1299,8 +1313,14 @@ customersContacts
         if (actor !== undefined) {
           _payload[`actor`] = actor;
         }
+        if (assignee !== undefined) {
+          _payload[`assignee`] = assignee;
+        }
         if (contactId !== undefined) {
           _payload[`contact_id`] = contactId;
+        }
+        if (dueAt !== undefined) {
+          _payload[`due_at`] = dueAt;
         }
         if (kind !== undefined) {
           _payload[`kind`] = kind;

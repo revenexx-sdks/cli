@@ -32,6 +32,7 @@ const listSpecs: PromptSpec[] = [
   { key: "offset", option: "--offset <offset>", name: "offset", description: "Row offset for pagination (default 0).", type: "integer", required: false },
   { key: "order", option: "--order <order>", name: "order", description: "Sort by one column: 'column' | 'column.asc' | 'column.desc'.", type: "string", required: false },
   { key: "trashed", option: "--trashed <trashed>", name: "trashed", description: "`exclude` (default) leaves the trash out, `only` is the trash itself, `include` lists both.", type: "string", required: false, enum: ["exclude","only","include"] },
+  { key: "q", option: "--q <q>", name: "q", description: "Search the title and the text of the reviews: case-insensitive, as a substring, 2 to 200 characters. Without `order` the matches come newest first; a search pages up to offset 1000.", type: "string", required: false },
   { key: "id", option: "--id <id>", name: "id", description: "Keep only rows whose `id` equals this.", type: "string", required: false },
   { key: "productId", option: "--product-id <product-id>", name: "product_id", description: "Keep only rows whose `product_id` equals this.", type: "string", required: false },
   { key: "sku", option: "--sku <sku>", name: "sku", description: "Keep only rows whose `sku` equals this.", type: "string", required: false },
@@ -41,30 +42,24 @@ const listSpecs: PromptSpec[] = [
   { key: "requestId", option: "--request-id <request-id>", name: "request_id", description: "Keep only rows whose `request_id` equals this.", type: "string", required: false },
   { key: "contactId", option: "--contact-id <contact-id>", name: "contact_id", description: "Keep only rows whose `contact_id` equals this.", type: "string", required: false },
   { key: "organizationId", option: "--organization-id <organization-id>", name: "organization_id", description: "Keep only rows whose `organization_id` equals this.", type: "string", required: false },
-  { key: "authorFirstName", option: "--author-first-name <author-first-name>", name: "author_first_name", description: "Keep only rows whose `author_first_name` equals this.", type: "string", required: false },
-  { key: "authorLastName", option: "--author-last-name <author-last-name>", name: "author_last_name", description: "Keep only rows whose `author_last_name` equals this.", type: "string", required: false },
   { key: "rating", option: "--rating <rating>", name: "rating", description: "Keep only rows whose `rating` equals this.", type: "string", required: false },
-  { key: "title", option: "--title <title>", name: "title", description: "Keep only rows whose `title` equals this.", type: "string", required: false },
-  { key: "body", option: "--body <body>", name: "body", description: "Keep only rows whose `body` equals this.", type: "string", required: false },
   { key: "locale", option: "--locale <locale>", name: "locale", description: "Keep only rows whose `locale` equals this.", type: "string", required: false },
   { key: "market", option: "--market <market>", name: "market", description: "Keep only rows whose `market` equals this.", type: "string", required: false },
   { key: "verifiedPurchase", option: "--verified-purchase <verified-purchase>", name: "verified_purchase", description: "Keep only rows whose `verified_purchase` equals this.", type: "string", required: false },
   { key: "source", option: "--source <source>", name: "source", description: "Keep only rows whose `source` equals this.", type: "string", required: false },
   { key: "state", option: "--state <state>", name: "state", description: "Keep only rows whose `state` equals this.", type: "string", required: false },
-  { key: "rejectionReason", option: "--rejection-reason <rejection-reason>", name: "rejection_reason", description: "Keep only rows whose `rejection_reason` equals this.", type: "string", required: false },
-  { key: "moderatedBy", option: "--moderated-by <moderated-by>", name: "moderated_by", description: "Keep only rows whose `moderated_by` equals this.", type: "string", required: false },
-  { key: "merchantReply", option: "--merchant-reply <merchant-reply>", name: "merchant_reply", description: "Keep only rows whose `merchant_reply` equals this.", type: "string", required: false },
-  { key: "repliedBy", option: "--replied-by <replied-by>", name: "replied_by", description: "Keep only rows whose `replied_by` equals this.", type: "string", required: false },
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "Keep only rows whose `external_id` equals this.", type: "string", required: false },
+  { key: "trashBatch", option: "--trash-batch <trash-batch>", name: "trash_batch", description: "Keep only rows whose `trash_batch` equals this.", type: "string", required: false },
   { key: "filter", option: "--filter <column=value>", name: "filter", description: "Filter rows by column equality (column=value).", type: "string", required: false },
 ];
 reviewsReviews
   .command(`list`)
-  .description(`Every review of this tenant in every state, without the trash unless \`trashed\` asks for it. Filter \`?state=pending\` for the moderation queue, \`?product_id=\`, \`?contact_id=\` (what the audiences rule reads), \`?rating=\`, \`?verified_purchase=true\`.`)
+  .description(`Every review of this tenant in every state, without the trash unless \`trashed\` asks for it. Filter \`?state=pending\` for the moderation queue, \`?product_id=\`, \`?contact_id=\` (what the audiences rule reads), \`?rating=\`, \`?verified_purchase=true\`; every filter is an exact match. Free text and personal data are not filters (author_first_name, author_last_name, title, body, merchant_reply, rejection_reason, moderated_by, replied_by, deleted_by, deleted_by_id, purge_blocked_reason; refused with 400 \`unknown_filter\`): search the text with \`?q=\`.`)
   .option(`--limit <limit>`, `Page size (default 50, max 200).`, parseInteger)
   .option(`--offset <offset>`, `Row offset for pagination (default 0).`, parseInteger)
   .option(`--order <order>`, `Sort by one column: 'column' | 'column.asc' | 'column.desc'.`)
   .option(`--trashed <trashed>`, `\`exclude\` (default) leaves the trash out, \`only\` is the trash itself, \`include\` lists both.`)
+  .option(`--q <q>`, `Search the title and the text of the reviews: case-insensitive, as a substring, 2 to 200 characters. Without \`order\` the matches come newest first; a search pages up to offset 1000.`)
   .option(`--id <id>`, `Keep only rows whose \`id\` equals this.`)
   .option(`--product-id <product-id>`, `Keep only rows whose \`product_id\` equals this.`)
   .option(`--sku <sku>`, `Keep only rows whose \`sku\` equals this.`)
@@ -74,21 +69,14 @@ reviewsReviews
   .option(`--request-id <request-id>`, `Keep only rows whose \`request_id\` equals this.`)
   .option(`--contact-id <contact-id>`, `Keep only rows whose \`contact_id\` equals this.`)
   .option(`--organization-id <organization-id>`, `Keep only rows whose \`organization_id\` equals this.`)
-  .option(`--author-first-name <author-first-name>`, `Keep only rows whose \`author_first_name\` equals this.`)
-  .option(`--author-last-name <author-last-name>`, `Keep only rows whose \`author_last_name\` equals this.`)
   .option(`--rating <rating>`, `Keep only rows whose \`rating\` equals this.`)
-  .option(`--title <title>`, `Keep only rows whose \`title\` equals this.`)
-  .option(`--body <body>`, `Keep only rows whose \`body\` equals this.`)
   .option(`--locale <locale>`, `Keep only rows whose \`locale\` equals this.`)
   .option(`--market <market>`, `Keep only rows whose \`market\` equals this.`)
   .option(`--verified-purchase <verified-purchase>`, `Keep only rows whose \`verified_purchase\` equals this.`)
   .option(`--source <source>`, `Keep only rows whose \`source\` equals this.`)
   .option(`--state <state>`, `Keep only rows whose \`state\` equals this.`)
-  .option(`--rejection-reason <rejection-reason>`, `Keep only rows whose \`rejection_reason\` equals this.`)
-  .option(`--moderated-by <moderated-by>`, `Keep only rows whose \`moderated_by\` equals this.`)
-  .option(`--merchant-reply <merchant-reply>`, `Keep only rows whose \`merchant_reply\` equals this.`)
-  .option(`--replied-by <replied-by>`, `Keep only rows whose \`replied_by\` equals this.`)
   .option(`--external-id <external-id>`, `Keep only rows whose \`external_id\` equals this.`)
+  .option(`--trash-batch <trash-batch>`, `Keep only rows whose \`trash_batch\` equals this.`)
   .option(
     `--filter <column=value>`,
     `Filter rows by column equality (repeatable).`,
@@ -98,7 +86,7 @@ reviewsReviews
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { limit, offset, order, trashed, id, productId, sku, productName, orderId, orderNumber, requestId, contactId, organizationId, authorFirstName, authorLastName, rating, title, body, locale, market, verifiedPurchase, source, state, rejectionReason, moderatedBy, merchantReply, repliedBy, externalId, filter } = await promptForMissing(
+        const { limit, offset, order, trashed, q, id, productId, sku, productName, orderId, orderNumber, requestId, contactId, organizationId, rating, locale, market, verifiedPurchase, source, state, externalId, trashBatch, filter } = await promptForMissing(
           _options,
           listSpecs,
           _command,
@@ -117,6 +105,9 @@ reviewsReviews
         }
         if (trashed !== undefined) {
           _payload[`trashed`] = trashed;
+        }
+        if (q !== undefined) {
+          _payload[`q`] = q;
         }
         if (id !== undefined) {
           _payload[`id`] = id;
@@ -145,20 +136,8 @@ reviewsReviews
         if (organizationId !== undefined) {
           _payload[`organization_id`] = organizationId;
         }
-        if (authorFirstName !== undefined) {
-          _payload[`author_first_name`] = authorFirstName;
-        }
-        if (authorLastName !== undefined) {
-          _payload[`author_last_name`] = authorLastName;
-        }
         if (rating !== undefined) {
           _payload[`rating`] = rating;
-        }
-        if (title !== undefined) {
-          _payload[`title`] = title;
-        }
-        if (body !== undefined) {
-          _payload[`body`] = body;
         }
         if (locale !== undefined) {
           _payload[`locale`] = locale;
@@ -175,20 +154,11 @@ reviewsReviews
         if (state !== undefined) {
           _payload[`state`] = state;
         }
-        if (rejectionReason !== undefined) {
-          _payload[`rejection_reason`] = rejectionReason;
-        }
-        if (moderatedBy !== undefined) {
-          _payload[`moderated_by`] = moderatedBy;
-        }
-        if (merchantReply !== undefined) {
-          _payload[`merchant_reply`] = merchantReply;
-        }
-        if (repliedBy !== undefined) {
-          _payload[`replied_by`] = repliedBy;
-        }
         if (externalId !== undefined) {
           _payload[`external_id`] = externalId;
+        }
+        if (trashBatch !== undefined) {
+          _payload[`trash_batch`] = trashBatch;
         }
         for (const _filter of filter as string[]) {
           const _eq = _filter.indexOf("=");
@@ -343,6 +313,53 @@ reviewsReviews
     ),
   );
 registerPromptSpecs(reviewsReviews.commands.at(-1)!, createSpecs, { method: "post" });
+const backfillProductsSpecs: PromptSpec[] = [
+  { key: "after", option: "--after <after>", name: "after", description: "The `next_after` of the previous call; leave out to start at the beginning.", type: "string", required: false },
+  { key: "limit", option: "--limit <limit>", name: "limit", description: "Reviews to look at in this call (default 500).", type: "integer", required: false },
+];
+reviewsReviews
+  .command(`backfill-products`)
+  .description(`Deprecated: the hourly job and \`POST /reviews/maintenance/run\` do the same; this route stays until 2.0. Looks at the next \`limit\` reviews (default 500, by id after \`after\`) that miss \`sku\` or \`product_name\`, looks their products up from products in batches of 500 (\`POST /v1/products/labels\`) and fills what is missing; a value already there is kept, and a product the catalogue holds no name for leaves \`product_name\` empty rather than storing its SKU as one. Idempotent; only a filled review is written, and its \`updated_at\` moves. Continue with \`after: next_after\` until \`done\` is true: a review that cannot be named never holds back the ones behind it. Counts: \`updated\` reviews filled, \`unresolved\` reviews of a product the catalogue does not know, \`unnamed\` reviews whose product has no name to add, \`unanswered\` reviews whose lookup got no answer (not passed by \`next_after\`, so a retry asks again). The hourly job and \`POST /reviews/maintenance/run\` do the same for up to 2000 reviews per run.`)
+  .option(`--after <after>`, `The \`next_after\` of the previous call; leave out to start at the beginning.`)
+  .option(`--limit <limit>`, `Reviews to look at in this call (default 500).`, parseInteger)
+  .action(
+    actionRunner(
+      async (_options, _command) => {
+        const { after, limit } = await promptForMissing(
+          _options,
+          backfillProductsSpecs,
+          _command,
+        );
+        const _client = await sdkForProject();
+        const _apiPath = `/reviews/reviews/backfill-products`;
+        const _payload: RequestParams = {};
+        if (cliConfig.data !== undefined) {
+          const body = resolveBodyParam(cliConfig.data);
+          if (typeof body !== "object" || body === null || Array.isArray(body)) {
+            throw new Error("--data must be a JSON object");
+          }
+          Object.assign(_payload, body as RequestParams);
+        }
+        if (after !== undefined) {
+          _payload[`after`] = after;
+        }
+        if (limit !== undefined) {
+          _payload[`limit`] = limit;
+        }
+        const _headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const _response = await _client.call(
+          `post`,
+          _apiPath,
+          _headers,
+          _payload,
+        );
+        parse(_response as Record<string, unknown>);
+      },
+    ),
+  );
+registerPromptSpecs(reviewsReviews.commands.at(-1)!, backfillProductsSpecs, { method: "post" });
 reviewsReviews
   .command(`empty-trash`)
   .description(`Every review in the trash is deleted for good on its own terms. One that something still blocks stays in the trash and is named with its reason, so a partial success says exactly what remained. Not for a storefront contact.`)

@@ -106,6 +106,7 @@ const accountsCreateSpecs: PromptSpec[] = [
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this punchout account has in the system that OWNS it. An account is a partner identity, and the procurement platform on the other side knows the relationship by an id of its own — a supplier id, a vendor number, an IDS customer name. Unique per tenant where it is set, so a repeated import updates the account it wrote last time instead of adding a second one. `code` is what this shop calls the partner; this is what the partner calls itself. Null for an account an operator typed in, which is the ordinary case.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this partner, keyed by system name — the ERP's vendor number beside the procurement platform's supplier id, because one customer commonly reaches this shop through both. `external_id` is the leading system; this is the rest, and the next one costs no column. Not something to search on: this contract publishes no column filter at all, and the store compares such a field as a whole document — look the account up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "fallbackContactId", option: "--fallback-contact-id <fallback-contact-id>", name: "fallback_contact_id", type: "string", required: false },
+  { key: "frameAncestors", option: "--frame-ancestors <frame-ancestors>", name: "frame_ancestors", description: "The sites that may show this account's visits inside a frame — the address of the procurement system or trade software that embeds the shop, as http(s) origins separated by spaces or new lines (`*.` allows one level of subdomain). The storefront answers them as the visit's `frame-ancestors`, and only for the visit. Empty — the ordinary case — means the shop opens in a window of its own and cannot be framed. Anything that is not an origin is refused.", type: "string", required: false },
   { key: "idsCustomerName", option: "--ids-customer-name <ids-customer-name>", name: "ids_customer_name", type: "string", required: false },
   { key: "loginToken", option: "--login-token <login-token>", name: "login_token", type: "string", required: false, secret: true },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: the account's own columns are what the app acts on, `source_data` is what the source said, and this is what you say.", type: "object", required: false },
@@ -146,6 +147,7 @@ punchout
   .option(`--external-id <external-id>`, `The key this punchout account has in the system that OWNS it. An account is a partner identity, and the procurement platform on the other side knows the relationship by an id of its own — a supplier id, a vendor number, an IDS customer name. Unique per tenant where it is set, so a repeated import updates the account it wrote last time instead of adding a second one. \`code\` is what this shop calls the partner; this is what the partner calls itself. Null for an account an operator typed in, which is the ordinary case.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this partner, keyed by system name — the ERP's vendor number beside the procurement platform's supplier id, because one customer commonly reaches this shop through both. \`external_id\` is the leading system; this is the rest, and the next one costs no column. Not something to search on: this contract publishes no column filter at all, and the store compares such a field as a whole document — look the account up by \`external_id\` and read this off the answer.`)
   .option(`--fallback-contact-id <fallback-contact-id>`, ``)
+  .option(`--frame-ancestors <frame-ancestors>`, `The sites that may show this account's visits inside a frame — the address of the procurement system or trade software that embeds the shop, as http(s) origins separated by spaces or new lines (\`*.\` allows one level of subdomain). The storefront answers them as the visit's \`frame-ancestors\`, and only for the visit. Empty — the ordinary case — means the shop opens in a window of its own and cannot be framed. Anything that is not an origin is refused.`)
   .option(`--ids-customer-name <ids-customer-name>`, ``)
   .option(`--login-token <login-token>`, ``)
   .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: the account's own columns are what the app acts on, \`source_data\` is what the source said, and this is what you say.`)
@@ -167,7 +169,7 @@ punchout
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { channelCode, code, name, protocol, authStrategy, credentialDomain, credentialIdentity, credentialSecret, echoEntryParameters, enabled, externalId, externalRefs, fallbackContactId, idsCustomerName, loginToken, metadata, organizationId, protocolVersion, purchaseMode, secureOci, sessionTtlOverrideMinutes, sharedSecret, sourceData, sourceSyncedAt, startPageUrl, unknownUserPolicy } = await promptForMissing(
+        const { channelCode, code, name, protocol, authStrategy, credentialDomain, credentialIdentity, credentialSecret, echoEntryParameters, enabled, externalId, externalRefs, fallbackContactId, frameAncestors, idsCustomerName, loginToken, metadata, organizationId, protocolVersion, purchaseMode, secureOci, sessionTtlOverrideMinutes, sharedSecret, sourceData, sourceSyncedAt, startPageUrl, unknownUserPolicy } = await promptForMissing(
           _options,
           accountsCreateSpecs,
           _command,
@@ -214,6 +216,9 @@ punchout
         }
         if (fallbackContactId !== undefined) {
           _payload[`fallback_contact_id`] = fallbackContactId;
+        }
+        if (frameAncestors !== undefined) {
+          _payload[`frame_ancestors`] = frameAncestors;
         }
         if (idsCustomerName !== undefined) {
           _payload[`ids_customer_name`] = idsCustomerName;
@@ -352,6 +357,7 @@ const accountsUpdateSpecs: PromptSpec[] = [
   { key: "externalId", option: "--external-id <external-id>", name: "external_id", description: "The key this punchout account has in the system that OWNS it. An account is a partner identity, and the procurement platform on the other side knows the relationship by an id of its own — a supplier id, a vendor number, an IDS customer name. Unique per tenant where it is set, so a repeated import updates the account it wrote last time instead of adding a second one. `code` is what this shop calls the partner; this is what the partner calls itself. Null for an account an operator typed in, which is the ordinary case.", type: "string", required: false },
   { key: "externalRefs", option: "--external-refs <external-refs>", name: "external_refs", description: "Every OTHER system that knows this partner, keyed by system name — the ERP's vendor number beside the procurement platform's supplier id, because one customer commonly reaches this shop through both. `external_id` is the leading system; this is the rest, and the next one costs no column. Not something to search on: this contract publishes no column filter at all, and the store compares such a field as a whole document — look the account up by `external_id` and read this off the answer.", type: "object", required: false },
   { key: "fallbackContactId", option: "--fallback-contact-id <fallback-contact-id>", name: "fallback_contact_id", type: "string", required: false },
+  { key: "frameAncestors", option: "--frame-ancestors <frame-ancestors>", name: "frame_ancestors", description: "The sites that may show this account's visits inside a frame — the address of the procurement system or trade software that embeds the shop, as http(s) origins separated by spaces or new lines (`*.` allows one level of subdomain). The storefront answers them as the visit's `frame-ancestors`, and only for the visit. Empty — the ordinary case — means the shop opens in a window of its own and cannot be framed. Anything that is not an origin is refused.", type: "string", required: false },
   { key: "idsCustomerName", option: "--ids-customer-name <ids-customer-name>", name: "ids_customer_name", type: "string", required: false },
   { key: "loginToken", option: "--login-token <login-token>", name: "login_token", type: "string", required: false, secret: true },
   { key: "metadata", option: "--metadata <metadata>", name: "metadata", description: "Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: the account's own columns are what the app acts on, `source_data` is what the source said, and this is what you say.", type: "object", required: false },
@@ -393,6 +399,7 @@ punchout
   .option(`--external-id <external-id>`, `The key this punchout account has in the system that OWNS it. An account is a partner identity, and the procurement platform on the other side knows the relationship by an id of its own — a supplier id, a vendor number, an IDS customer name. Unique per tenant where it is set, so a repeated import updates the account it wrote last time instead of adding a second one. \`code\` is what this shop calls the partner; this is what the partner calls itself. Null for an account an operator typed in, which is the ordinary case.`)
   .option(`--external-refs <external-refs>`, `Every OTHER system that knows this partner, keyed by system name — the ERP's vendor number beside the procurement platform's supplier id, because one customer commonly reaches this shop through both. \`external_id\` is the leading system; this is the rest, and the next one costs no column. Not something to search on: this contract publishes no column filter at all, and the store compares such a field as a whole document — look the account up by \`external_id\` and read this off the answer.`)
   .option(`--fallback-contact-id <fallback-contact-id>`, ``)
+  .option(`--frame-ancestors <frame-ancestors>`, `The sites that may show this account's visits inside a frame — the address of the procurement system or trade software that embeds the shop, as http(s) origins separated by spaces or new lines (\`*.\` allows one level of subdomain). The storefront answers them as the visit's \`frame-ancestors\`, and only for the visit. Empty — the ordinary case — means the shop opens in a window of its own and cannot be framed. Anything that is not an origin is refused.`)
   .option(`--ids-customer-name <ids-customer-name>`, ``)
   .option(`--login-token <login-token>`, ``)
   .option(`--metadata <metadata>`, `Free-form jsonb this tenant owns, and the extension point this entity has never had — anything about the partner relationship that this app does not model, up to the day it earns a column. Nothing here is read when a visit is served: the account's own columns are what the app acts on, \`source_data\` is what the source said, and this is what you say.`)
@@ -416,7 +423,7 @@ punchout
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { id, authStrategy, channelCode, code, credentialDomain, credentialIdentity, credentialSecret, echoEntryParameters, enabled, externalId, externalRefs, fallbackContactId, idsCustomerName, loginToken, metadata, name, organizationId, protocol, protocolVersion, purchaseMode, secureOci, sessionTtlOverrideMinutes, sharedSecret, sourceData, sourceSyncedAt, startPageUrl, unknownUserPolicy } = await promptForMissing(
+        const { id, authStrategy, channelCode, code, credentialDomain, credentialIdentity, credentialSecret, echoEntryParameters, enabled, externalId, externalRefs, fallbackContactId, frameAncestors, idsCustomerName, loginToken, metadata, name, organizationId, protocol, protocolVersion, purchaseMode, secureOci, sessionTtlOverrideMinutes, sharedSecret, sourceData, sourceSyncedAt, startPageUrl, unknownUserPolicy } = await promptForMissing(
           _options,
           accountsUpdateSpecs,
           _command,
@@ -463,6 +470,9 @@ punchout
         }
         if (fallbackContactId !== undefined) {
           _payload[`fallback_contact_id`] = fallbackContactId;
+        }
+        if (frameAncestors !== undefined) {
+          _payload[`frame_ancestors`] = frameAncestors;
         }
         if (idsCustomerName !== undefined) {
           _payload[`ids_customer_name`] = idsCustomerName;

@@ -492,6 +492,7 @@ registerPromptSpecs(marketingConsentsSubscriptions.commands.at(-1)!, listSpecs, 
 const requestSpecs: PromptSpec[] = [
   { key: "subscriptionType", option: "--subscription-type <subscription-type>", name: "subscription_type", description: "The code of the subscription type.", type: "string", required: true },
   { key: "address", option: "--address <address>", name: "address", description: "Alias for `email` or `phone`, whichever the channel takes.", type: "string", required: false },
+  { key: "attribution", option: "--attribution <attribution>", name: "attribution", description: "Where the latest sign-up came from, as its caller sent it: UTM values, the ad click id and its kind (gclid, fbclid, li_fat_id, msclkid), landing page, referrer and the visitor's consent-banner state { ads, analytics, policy_version, purposes? } — the same object an order carries. Every subscription.* announcement carries it, so an ad platform can be told about a confirmed sign-up when the visitor allowed it. Null for imports, the back office and the existing-customer basis, when none was sent, and after an erasure. Optional. A malformed one is refused with 400 (`invalid_attribution`, `unknown_attribution_field`) naming the field in `details.field`.", type: "object", required: false },
   { key: "campaignRef", option: "--campaign-ref <campaign-ref>", name: "campaign_ref", description: "The campaign the sign-up came from, as the caller named it (a campaigns id). Attribution only.", type: "string", required: false },
   { key: "channel", option: "--channel <channel>", name: "channel", description: "Defaults to email, or sms when only `phone` is sent.", type: "string", required: false, enum: ["email","sms","whatsapp"] },
   { key: "consentTextId", option: "--consent-text-id <consent-text-id>", name: "consent_text_id", description: "The published wording the person saw. Without it the newest published version of the type in `locale` is recorded.", type: "string", required: false },
@@ -512,6 +513,7 @@ marketingConsentsSubscriptions
   .description(`Used by the forms listener and the storefront. Opens (or reopens) a pending subscription, creates the \`customers\` contact when the address has none (stage \`subscriber\`), writes the \`requested\` proof and asks the sequencer for the advertising-free confirmation. The token is in that message only — never in this answer. A confirmed address is answered as it is; a pending one asked again within ten minutes gets no second mail. A type without double opt-in is confirmed at once on the single-opt-in basis.`)
   .option(`--subscription-type <subscription-type>`, `The code of the subscription type.`)
   .option(`--address <address>`, `Alias for \`email\` or \`phone\`, whichever the channel takes.`)
+  .option(`--attribution <attribution>`, `Where the latest sign-up came from, as its caller sent it: UTM values, the ad click id and its kind (gclid, fbclid, li_fat_id, msclkid), landing page, referrer and the visitor's consent-banner state { ads, analytics, policy_version, purposes? } — the same object an order carries. Every subscription.* announcement carries it, so an ad platform can be told about a confirmed sign-up when the visitor allowed it. Null for imports, the back office and the existing-customer basis, when none was sent, and after an erasure. Optional. A malformed one is refused with 400 (\`invalid_attribution\`, \`unknown_attribution_field\`) naming the field in \`details.field\`.`)
   .option(`--campaign-ref <campaign-ref>`, `The campaign the sign-up came from, as the caller named it (a campaigns id). Attribution only.`)
   .option(`--channel <channel>`, `Defaults to email, or sms when only \`phone\` is sent.`)
   .option(`--consent-text-id <consent-text-id>`, `The published wording the person saw. Without it the newest published version of the type in \`locale\` is recorded.`)
@@ -529,7 +531,7 @@ marketingConsentsSubscriptions
   .action(
     actionRunner(
       async (_options, _command) => {
-        const { subscriptionType, address, campaignRef, channel, consentTextId, contactId, email, firstName, ip, lastName, locale, pageUrl, phone, source, sourceRef, userAgent } = await promptForMissing(
+        const { subscriptionType, address, attribution, campaignRef, channel, consentTextId, contactId, email, firstName, ip, lastName, locale, pageUrl, phone, source, sourceRef, userAgent } = await promptForMissing(
           _options,
           requestSpecs,
           _command,
@@ -546,6 +548,9 @@ marketingConsentsSubscriptions
         }
         if (address !== undefined) {
           _payload[`address`] = address;
+        }
+        if (attribution !== undefined) {
+          _payload[`attribution`] = resolveBodyParam(attribution);
         }
         if (campaignRef !== undefined) {
           _payload[`campaign_ref`] = campaignRef;
